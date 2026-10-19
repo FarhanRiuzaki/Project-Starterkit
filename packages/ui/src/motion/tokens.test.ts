@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { barDelay, DUR, EASE, SHIFT_ENTER, SPRING_FLIP, SPRING_SOFT, STAGGER, staggerDelay, tweenDuration } from "./tokens";
+import { barDelay, cssEase, DUR, EASE, SHIFT_ENTER, SPRING_FLIP, SPRING_SOFT, STAGGER, staggerDelay, tweenDuration } from "./tokens";
 
 const CSS = readFileSync(path.resolve(import.meta.dirname, "../styles/tokens.css"), "utf8");
 const cssVar = (name: string) => new RegExp(`--${name}:\\s*([^;]+);`).exec(CSS)?.[1]?.trim();
@@ -12,6 +12,7 @@ describe("motion tokens mirror tokens.css (spec §7.1)", () => {
   });
   it.each(Object.entries(EASE))("--ease-%s", (k, pts) => {
     expect(cssVar(`ease-${k}`)).toBe(`cubic-bezier(${pts.join(", ")})`);
+    expect(cssEase(pts)).toBe(cssVar(`ease-${k}`));
   });
   it("shift and stagger step", () => {
     expect(cssVar("shift-enter")).toBe(`${SHIFT_ENTER}px`);

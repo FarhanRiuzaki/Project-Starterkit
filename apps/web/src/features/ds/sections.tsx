@@ -19,6 +19,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@starterkit/ui/ui/tabs
 import { Tooltip, TooltipContent, TooltipTrigger } from "@starterkit/ui/ui/tooltip";
 import { useCallback, useState } from "react";
 import { DAYS, HEAT, RESULTS, ROWS, type Row, TOP_ERRORS } from "./fixtures";
+import { MotionSection } from "./motion-section";
 
 /** Fixed, obviously fake sample for the one-time secret demo (the gallery has no backend). */
 const SAMPLE_SECRET = "Sample-Pw-Not-Real-0000";
@@ -171,6 +172,8 @@ export function GallerySections() {
 
       <SectionTitle>Tokens</SectionTitle>
       <Tokens />
+
+      <MotionSection />
 
       <ConfirmActionDialog open={dialog} onOpenChange={setDialog} title="Delete user alex.rivers?" description="The user can no longer sign in. Their activity log entries are kept." destructive
         impact={["1 active session ends", "The user is removed from every role"]} reasons={["Left the team", "Duplicate account", "Requested by the user"]}

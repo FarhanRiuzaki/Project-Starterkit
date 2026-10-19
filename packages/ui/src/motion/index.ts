@@ -11,4 +11,4 @@ export { Reveal } from "./reveal";
 export { Stagger, StaggerItem } from "./stagger";
 export { useChangeKey } from "./use-change-key";
 export { useNewKeys } from "./use-new-keys";
-export { barDelay, CHART_STAGGER, DUR, EASE, SHIFT_ENTER, SPRING_FLIP, SPRING_INDICATOR, SPRING_SOFT, STAGGER, staggerDelay, tweenDuration } from "./tokens";
+export { barDelay, CHART_STAGGER, cssEase, DUR, EASE, SHIFT_ENTER, SPRING_FLIP, SPRING_INDICATOR, SPRING_SOFT, STAGGER, staggerDelay, tweenDuration } from "./tokens";

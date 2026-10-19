@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { BlockedButton, ConfirmActionDialog, type Column, DataTable, Failure, Facts, Notice, Panel, RelativeTime, SecretOnceDialog } from "@starterkit/ui/ds";
+import { Stagger, StaggerItem } from "@starterkit/ui/motion";
 import { Button } from "@starterkit/ui/ui/button";
 import { ActivityIcon, KeyIcon, LogIcon, SecureIcon, UsersIcon } from "@starterkit/ui/ui/icons";
 import { Skeleton } from "@starterkit/ui/ui/skeleton";
@@ -66,22 +67,23 @@ export function UserDetail({ id }: { id: string }) {
           {can("user.delete") && <BlockedButton variant="destructive" reason={block} onClick={() => setDialog("delete")}>Delete user</BlockedButton>}
         </>} />
       {q.error && <Notice tone="warn" live>Couldn&apos;t refresh this user; showing the last loaded details.</Notice>}
-      <div className="grid items-start gap-gutter lg:grid-cols-2">
-        <Panel icon={UsersIcon} title="Details" description="Account facts">
+      {/* First data reveal: the cards rise in one after another (a refetch keeps them, so nothing replays). */}
+      <Stagger className="grid items-start gap-gutter lg:grid-cols-2">
+        <StaggerItem index={0} className="grid"><Panel icon={UsersIcon} title="Details" description="Account facts">
           <Facts items={[
             { label: "Sign-in", value: u.isLdap ? "Directory" : "Password" },
             { label: "Two-step sign-in", value: u.twoFactorEnabled ? "On" : "Off" },
             { label: "Last sign-in", value: <RelativeTime at={u.lastLoginAt ? Date.parse(u.lastLoginAt) : null} /> },
             { label: "Created", value: <RelativeTime at={Date.parse(u.createdAt)} /> },
           ]} />
-        </Panel>
-        <Panel icon={SecureIcon} title="Roles and connected accounts" description="Roles decide the permissions below">
+        </Panel></StaggerItem>
+        <StaggerItem index={1} className="grid"><Panel icon={SecureIcon} title="Roles and connected accounts" description="Roles decide the permissions below">
           <div className="grid gap-3">
             <RoleChips roles={u.roles} />
             <p className="text-body-sm text-fg-2">Connected accounts: {u.connected.length ? u.connected.map((c) => PROVIDER[c]).join(", ") : "none"}</p>
           </div>
-        </Panel>
-        <Panel icon={KeyIcon} title="Effective permissions" description="Combined from all roles, by module" className="lg:col-span-2">
+        </Panel></StaggerItem>
+        <StaggerItem index={2} className="grid lg:col-span-2"><Panel icon={KeyIcon} title="Effective permissions" description="Combined from all roles, by module">
           <dl className="grid gap-2">
             {MODULES.map((m) => {
               const have = m.actions.filter((a) => granted.has(`${m.key}.${a}`));
@@ -93,8 +95,8 @@ export function UserDetail({ id }: { id: string }) {
               );
             })}
           </dl>
-        </Panel>
-      </div>
+        </Panel></StaggerItem>
+      </Stagger>
       <SessionsTable queryKey={USERS_KEY[0]} path={`/api/users/${encodeURIComponent(id)}/sessions`} title="Active sessions" description="Where this user is signed in"
         current="Your session" emptyHint="Sessions appear here when this user signs in."
         action={can("user.edit") ? (s) => (s.current ? <span className="text-caption text-fg-3">Your session</span> : <Button size="sm" variant="ghost" onClick={() => setDialog({ end: s })}>End session</Button>) : undefined} />

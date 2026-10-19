@@ -11,6 +11,8 @@ export const EASE = {
   in: [0.4, 0, 1, 1] as Bezier,
   standard: [0.2, 0, 0, 1] as Bezier,
 } as const;
+/** An EASE curve as CSS text, the way tokens.css writes it. */
+export const cssEase = (b: Bezier): string => `cubic-bezier(${b.join(", ")})`;
 
 /**
  * Spec §7.3 indicator spring (segment thumb, tab underline). Used only by the deferred Framer layer (framer.tsx:
