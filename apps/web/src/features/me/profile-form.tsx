@@ -10,16 +10,15 @@ import { Icon } from "@starterkit/ui/ui/icon";
 import { IdentityIcon, SpinnerIcon } from "@starterkit/ui/ui/icons";
 import { Input } from "@starterkit/ui/ui/input";
 import { toast } from "@starterkit/ui/ui/toast";
-import { LoadingShape, type Section } from "@/components/route-skeleton";
+import { LoadingShape } from "@/components/route-skeleton";
 import { PageHeader } from "@/components/shell/page-header";
 import { api, errorText } from "@/lib/client/api";
 import type { MeDto } from "@/lib/shared/contracts/me";
 import { BRAND } from "@/lib/shared/brand";
 import { MeNav } from "./me-nav";
 import { ME_KEY, useMe } from "./use-me";
+import { PROFILE_SHAPE } from "./shapes";
 
-/** Loading shape of /me (its loading.tsx uses the same list), section heights at the 1440 px reference width. */
-export const PROFILE_SHAPE: readonly Section[] = [{ kind: "header", h: 50 }, { kind: "panels", panels: [[12, 352]] }];
 
 /** /me: own name and email; the username is read-only (an administrator changes it). */
 export function ProfilePage() {

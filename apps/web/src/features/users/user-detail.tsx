@@ -1,10 +1,11 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { BlockedButton, ConfirmActionDialog, type Column, DataTable, Failure, Facts, Notice, Panel, RelativeTime, SecretOnceDialog } from "@starterkit/ui/ds";
+import { BlockedButton, type Column, DataTable, Failure, Facts, Notice, Panel, RelativeTime } from "@starterkit/ui/ds";
 import { Stagger, StaggerItem, useDelayedFlag } from "@starterkit/ui/motion";
 import { Button } from "@starterkit/ui/ui/button";
 import { Icon } from "@starterkit/ui/ui/icon";
@@ -12,7 +13,7 @@ import { ActivityIcon, KeyIcon, LogIcon, SecureIcon, SpinnerIcon, UsersIcon } fr
 import { toast } from "@starterkit/ui/ui/toast";
 import { DetailNotFound } from "@/components/detail-not-found";
 import { RoleChips } from "@/components/role-chips";
-import { LoadingShape, type Section } from "@/components/route-skeleton";
+import { LoadingShape } from "@/components/route-skeleton";
 import { SessionsTable } from "@/components/sessions-table";
 import { PageHeader } from "@/components/shell/page-header";
 import { api, errorText, isNotFound } from "@/lib/client/api";
@@ -24,8 +25,13 @@ import { userDetail, userSessions } from "@/lib/shared/queries";
 import { BRAND } from "@/lib/shared/brand";
 import { UserStatusChip } from "./user-columns";
 import { USERS_KEY, protection, rankBlock, useLastSuperadminId, useUserDetail } from "./use-users";
+import { USER_DETAIL_SHAPE } from "./shapes";
 
 const PROVIDER = { google: "Google", apple: "Apple" } as const;
+
+/** Opened on click only: the dialogs load then, outside the page's first load (route budget, AGENTS.md §9). */
+const ConfirmActionDialog = dynamic(() => import("@starterkit/ui/ds").then((m) => m.ConfirmActionDialog), { ssr: false });
+const SecretOnceDialog = dynamic(() => import("@starterkit/ui/ds").then((m) => m.SecretOnceDialog), { ssr: false });
 
 const ACTIVITY_COLUMNS: Column<ActivityBrief>[] = [
   { key: "at", header: "When", cell: (a) => <RelativeTime at={Date.parse(a.at)} /> },
@@ -35,18 +41,6 @@ const ACTIVITY_COLUMNS: Column<ActivityBrief>[] = [
 
 type Dialog = "deactivate" | "delete" | "reset" | { end: SessionDto } | null;
 
-/**
- * Loading shape of /users/[id] (its loading.tsx uses the same list) with the loaded page's section heights at the
- * 1440 px reference width (components/route-skeleton): the detail cards (two rows, 16 px apart on the page; the second
- * row is 8 px shorter here for the 24 px section gap), sessions, activity.
- */
-export const USER_DETAIL_SHAPE: readonly Section[] = [
-  { kind: "header", h: 50 },
-  { kind: "panels", panels: [[6, 203], [6, 203]] },
-  { kind: "panels", panels: [[12, 195]] },
-  { kind: "table", chrome: 154, rows: 3, rowHeight: 44 },
-  { kind: "table", chrome: 96, rows: 2, rowHeight: 44, perm: "audit.view" },
-];
 
 export function UserDetail({ id }: { id: string }) {
   const { user: me, perms, can } = useAuth();

@@ -11,7 +11,7 @@ import { Button } from "@starterkit/ui/ui/button";
 import { KeyIcon } from "@starterkit/ui/ui/icons";
 import { toast } from "@starterkit/ui/ui/toast";
 import { DetailNotFound } from "@/components/detail-not-found";
-import { LoadingShape, type Section } from "@/components/route-skeleton";
+import { LoadingShape } from "@/components/route-skeleton";
 import { PageHeader } from "@/components/shell/page-header";
 import { api, isNotFound } from "@/lib/client/api";
 import { useAuth } from "@/lib/client/auth-context";
@@ -23,14 +23,10 @@ import { applyEdit, type Draft, rebase, withDraft } from "./matrix";
 import { PermissionMatrix } from "./permission-matrix";
 import { assertRoleName, deleteBlock, RoleNameField } from "./role-name";
 import { roleKey, roleUrl, useAfterRbacChange, useRole } from "./use-rbac";
+import { ROLE_DETAIL_SHAPE } from "./shapes";
 
 type Dialog = "save" | "rename" | "delete" | null;
 
-/** Loading shape of /roles/[id] (its loading.tsx uses the same list), section heights at the 1440 px reference width. */
-export const ROLE_DETAIL_SHAPE: readonly Section[] = [
-  { kind: "header", h: 50 },
-  { kind: "panels", panels: [[12, 256]] },
-];
 
 const list = (ps: readonly PermissionName[]) => ps.join(", ");
 

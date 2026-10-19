@@ -10,7 +10,7 @@ import { Icon } from "@starterkit/ui/ui/icon";
 import { KeyIcon, SecureIcon, SpinnerIcon } from "@starterkit/ui/ui/icons";
 import { Input } from "@starterkit/ui/ui/input";
 import { toast } from "@starterkit/ui/ui/toast";
-import { LoadingShape, type Section } from "@/components/route-skeleton";
+import { LoadingShape } from "@/components/route-skeleton";
 import { PageHeader } from "@/components/shell/page-header";
 import { api, errorText } from "@/lib/client/api";
 import { BRAND } from "@/lib/shared/brand";
@@ -18,13 +18,12 @@ import type { MeDto, TwoFactorSetupDto } from "@/lib/shared/contracts/me";
 import { ConnectionsCard } from "./connections-card";
 import { MeNav } from "./me-nav";
 import { ME_KEY, useMe } from "./use-me";
+import { SECURITY_SHAPE } from "./shapes";
 
 /** Mounted on click: the QR code generator stays out of the page's first load (start() fetches it alongside the POST). */
 const loadSetup = () => import("./two-factor-setup");
 const TwoFactorSetup = dynamic(() => loadSetup().then((m) => m.TwoFactorSetup), { ssr: false });
 
-/** Loading shape of /me/security (its loading.tsx uses the same list), section heights at the 1440 px reference width. */
-export const SECURITY_SHAPE: readonly Section[] = [{ kind: "header", h: 50 }, { kind: "panels", panels: [[6, 541], [6, 541]] }];
 
 /** No password and not a directory user: signs in only through a connected Google or Apple account. */
 const providerOnly = (u: MeDto) => !u.hasPassword && !u.isLdap;

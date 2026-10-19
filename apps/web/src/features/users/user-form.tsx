@@ -12,7 +12,7 @@ import { Reveal, useDelayedFlag } from "@starterkit/ui/motion";
 import { Skeleton } from "@starterkit/ui/ui/skeleton";
 import { toast } from "@starterkit/ui/ui/toast";
 import { DetailNotFound } from "@/components/detail-not-found";
-import { LoadingShape, type Section } from "@/components/route-skeleton";
+import { LoadingShape } from "@/components/route-skeleton";
 import { PageHeader } from "@/components/shell/page-header";
 import { api, errorText, isNotFound } from "@/lib/client/api";
 import { useAuth } from "@/lib/client/auth-context";
@@ -20,15 +20,13 @@ import type { UserDto } from "@/lib/shared/contracts/users";
 import { BRAND } from "@/lib/shared/brand";
 import { USERS_KEY, useRoleNames, useUserDetail } from "./use-users";
 import { useDebounced } from "@/lib/client/use-debounced";
+import { EDIT_USER_SHAPE } from "./shapes";
 
 const CHECK = "size-4 cursor-pointer accent-primary";
 
 const CREATE = { title: "Create user", description: "Add an account and choose how it signs in." };
 const EDIT = { title: "Edit user", description: "Change name, sign-in names, roles or status." };
 
-/** Loading shapes (their routes' loading.tsx use the same lists), section heights at the 1440 px reference width. */
-export const CREATE_USER_SHAPE: readonly Section[] = [{ kind: "header", h: 50 }, { kind: "panels", panels: [[12, 724]] }];
-export const EDIT_USER_SHAPE: readonly Section[] = [{ kind: "header", h: 50 }, { kind: "panels", panels: [[12, 502]] }];
 
 /** /users/new: the page header and an empty form. */
 export function CreateUser() {
