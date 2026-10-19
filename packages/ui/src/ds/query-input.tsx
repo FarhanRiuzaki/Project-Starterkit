@@ -12,13 +12,17 @@ import { FilterChip } from "./badges";
 export function QueryInput({ id, value, onChange, keys, label, placeholder }: {
   id?: string; value: string; onChange: (v: string) => void; keys: readonly string[]; label: string; placeholder: string;
 }) {
+  // The draft keeps what is typed, spaces included; only the value sent out is trimmed (a trailing space is the
+  // start of the next word, not a new search).
   const [draft, setDraft] = useState(value);
-  // External value changed (URL, chip removed): adopt it while rendering, not in an effect (no extra render pass).
+  // External value changed (URL, chip removed): adopt it while rendering, not in an effect (no extra render pass),
+  // unless it is just the trimmed draft coming back.
   const [synced, setSynced] = useState(value);
-  if (synced !== value) { setSynced(value); setDraft(value); }
+  if (synced !== value) { setSynced(value); if (value.trim() !== draft.trim()) setDraft(value); }
   useEffect(() => {
-    if (draft === value) return;
-    const t = setTimeout(() => onChange(draft.slice(0, 200)), 200);
+    const next = draft.trim().slice(0, 200);
+    if (next === value.trim()) return;
+    const t = setTimeout(() => onChange(next), 200);
     return () => clearTimeout(t);
   }, [draft, value, onChange]);
   const q = parseQuery(value, keys);

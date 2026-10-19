@@ -81,7 +81,9 @@ function show(v: unknown): string {
 export function diffFields(before: unknown, after: unknown): DiffRow[] {
   const b = record(before), a = record(after);
   const keys = [...new Set([...Object.keys(b), ...Object.keys(a)])];
-  // Compared unmasked (a changed nested credential still counts as a change); shown masked.
+  // Compared as given, shown masked. Stored entries hold credential-named fields already masked (lib/server/audit.ts
+  // snapshot), so for them a credential changed from one value to another compares equal (MASK on both sides) and is
+  // not listed; set ↔ unset still shows.
   return keys.filter((k) => JSON.stringify(b[k]) !== JSON.stringify(a[k])).map((k) => SECRET.test(k)
     ? { field: k, before: b[k] == null ? "–" : MASK, after: a[k] == null ? "–" : MASK }
     : { field: k, before: show(b[k]), after: show(a[k]) });

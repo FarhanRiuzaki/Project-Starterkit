@@ -145,7 +145,8 @@ export function AuditTable<T extends { id: string; at: string }, F extends Audit
       </>}>
         <div className="w-full max-w-80"><QueryInput value={f.user} onChange={onUser} keys={[]} label="Search by user" placeholder="Search by user name or email" /></div>
         {filters(f, set)}
-        <CustomRange from={f.from} to={f.to} onCommit={(from, to) => set({ from, to } as Partial<TableState<F>>)} />
+        {/* Keyed by the preset: picking another one drops a half-filled custom pair and its hint. */}
+        <CustomRange key={f.range} from={f.from} to={f.to} onCommit={(from, to) => set({ from, to } as Partial<TableState<F>>)} />
       </Toolbar>
       <Panel flush icon={icon} title={title} legend={legend} count={t.total != null ? `${formatNumber(t.total)}${t.totalCapped ? "+" : ""}` : undefined}
         description={`${custom ? rangeText(custom) : RANGE_LABEL[f.range]} · times in ${APP_TIME_ZONE_LABEL}`}

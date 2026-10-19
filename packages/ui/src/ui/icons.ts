@@ -15,8 +15,8 @@ export {
   Analytics01Icon as ReportsIcon, // Usage reports
   HierarchySquare01Icon as InfraIcon, // Infra, topology
   Notification03Icon as AlertsIcon, // Alerts & SLOs, "No alerts firing"
-  Task01Icon as LogIcon, // Audit log, admin actions, internet access log
-  UserMultiple02Icon as UsersIcon, // Developers (tiles, panels, column headers)
+  Task01Icon as LogIcon, // Logs and history lists
+  UserMultiple02Icon as UsersIcon, // People (tiles, panels, column headers)
 
   // Metrics
   CpuIcon,
@@ -59,7 +59,7 @@ export {
   Alert02Icon as WarningIcon,
   InformationCircleIcon as InfoIcon,
   CancelCircleIcon as ErrorIcon, // Error toast
-  SecurityCheckIcon as SecureIcon, // Account security, MFA, "Every sign-in is logged"
+  SecurityCheckIcon as SecureIcon, // Security settings, two-step sign-in
   Loading03Icon as SpinnerIcon, // Animate with `motion-safe:animate-spin`
   FileUnknownIcon as NotFoundIcon,
 

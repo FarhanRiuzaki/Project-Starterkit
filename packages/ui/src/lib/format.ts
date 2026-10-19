@@ -130,7 +130,7 @@ export function formatCompact(n: N): string {
   return `${sign}${nf1.format(a / div)}${unit}`;
 }
 
-/** "16 Oct 2026, 14:05 WIB" — absolute-time tooltips and the audit log. */
+/** "16 Oct 2026, 14:05 WIB" — absolute-time tooltips and log entries. */
 export function formatDateTimeLong(ms: N): string {
   if (ms == null || !Number.isFinite(ms)) return "–";
   const p = Object.fromEntries(longFmt.formatToParts(ms).map((x) => [x.type, x.value]));
