@@ -2,8 +2,8 @@ import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { chromium, type FullConfig } from "@playwright/test";
 
-/** Browser artifacts and the signed-in state live under .superpowers/scratch/ (gitignored). */
-export const SCRATCH = path.resolve(import.meta.dirname, "../../../../.superpowers/scratch/t12c");
+/** Browser artifacts and the signed-in state live under .superpowers/scratch/ (gitignored); E2E_SCRATCH picks another folder there. */
+export const SCRATCH = path.resolve(import.meta.dirname, "../../../../.superpowers/scratch", process.env.E2E_SCRATCH ?? "e2e");
 export const AUTH_STATE = path.join(SCRATCH, "auth-state.json");
 
 /** Signs in once per run (the sign-in rate limit allows 5 per minute per username) and saves the cookie. */
