@@ -1,7 +1,7 @@
 "use client";
 
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo } from "react";
 import type { DataTablePaging } from "@starterkit/ui/ds";
 import { api } from "@/lib/client/api";
@@ -29,7 +29,6 @@ export function useTableQuery<T, F extends Record<string, string>>({ key, path, 
   key: string; path: `/api/${string}`; spec: TableSpec<F>; params?: (filters: F) => Record<string, string>;
 }) {
   const sp = useSearchParams();
-  const router = useRouter();
   const pathname = usePathname();
   const state: TableState<F> = useMemo(() => readTable(sp, spec), [sp, spec]);
 
@@ -37,9 +36,12 @@ export function useTableQuery<T, F extends Record<string, string>>({ key, path, 
     const next = writeTable(state, patch, spec);
     if (!next) return;
     const href = next.size ? `${pathname}?${next}` : pathname;
-    if (historyMode(patch, spec) === "replace") router.replace(href, { scroll: false });
-    else router.push(href, { scroll: false });
-  }, [state, spec, router, pathname]);
+    // Native history (Next keeps useSearchParams in sync): the URL changes in place, without a server round trip for
+    // the page, so the next page loads from /api with the previous rows kept and the busy dim. The server prefetch
+    // covers document loads and route changes only.
+    if (historyMode(patch, spec) === "replace") window.history.replaceState(null, "", href);
+    else window.history.pushState(null, "", href);
+  }, [state, spec, pathname]);
 
   const { filterQuery, url } = tableRequest(path, state, spec, params);
   const q = useQuery({ queryKey: [key, url], queryFn: () => api<Page<T>>(url), placeholderData: keepPreviousData });
@@ -50,8 +52,8 @@ export function useTableQuery<T, F extends Record<string, string>>({ key, path, 
     // replace, not push: Back should not return to the empty page.
     if (!lastPage) return;
     const next = writeTable(state, { page: lastPage } as Partial<TableState<F>>, spec);
-    if (next) router.replace(next.size ? `${pathname}?${next}` : pathname, { scroll: false });
-  }, [lastPage, state, spec, router, pathname]);
+    if (next) window.history.replaceState(null, "", next.size ? `${pathname}?${next}` : pathname);
+  }, [lastPage, state, spec, pathname]);
 
   const paging = {
     mode: "server", page: state.page, pageSize: state.pageSize, total: view.total ?? 0, totalCapped: view.totalCapped,

@@ -200,10 +200,37 @@ test.describe("client navigation and table changes", () => {
     await page.getByRole("button", { name: "Next page" }).click();
     expect(await rows.count(), "rows stay on screen while the next page loads").toBe(before);
     await expect(page).toHaveURL(/page=2/);
+    await page.goBack(); // Back undoes the page change, from the cache, with no loading state
+    await expect(page).not.toHaveURL(/page=2/);
+    await expect(page).toHaveURL(/sort=lastLoginAt/);
+    expect(await rows.count()).toBe(before);
     const m = await settle(page);
     save("users sort + page", { intervals: m.intervals });
     expect(await page.locator('[data-slot="skeleton"]:visible').count()).toBe(0);
     expect(flashes(m.intervals), "loading states shown for 1–300 ms").toEqual([]);
     expect(stuck(m.intervals)).toEqual([]);
+  });
+
+  test("slow list API: a sort keeps the previous rows on screen, dimmed as busy after 150 ms, never a skeleton", async ({ page }) => {
+    await page.addInitScript(installProbe);
+    await page.goto("/users");
+    await settle(page);
+    // A slow backend: the list API and any page payload answer after 600 ms.
+    await page.route("**/*", async (route) => {
+      const r = route.request();
+      if ((r.headers().rsc === "1" && !r.headers()["next-router-prefetch"]) || new URL(r.url()).pathname === "/api/users") await new Promise((x) => setTimeout(x, 600));
+      await route.continue();
+    });
+    await page.evaluate(() => { window.__flicker.intervals = []; });
+    const table = page.getByRole("table", { name: "Users" });
+    await page.getByRole("button", { name: "Last sign-in" }).click();
+    await expect(table, "busy feedback within the 150 ms delay plus a frame").toHaveAttribute("aria-busy", "true", { timeout: 450 });
+    expect(await table.locator("tbody tr").count(), "the previous rows stay").toBe(15);
+    expect(await page.locator('[data-slot="skeleton"]:visible').count(), "no skeleton").toBe(0);
+    await expect(table).not.toHaveAttribute("aria-busy", "true", { timeout: 3000 });
+    await expect(page).toHaveURL(/sort=lastLoginAt/);
+    const m = await settle(page);
+    save("users slow sort", { intervals: m.intervals });
+    expect(flashes(m.intervals)).toEqual([]);
   });
 });
