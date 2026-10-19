@@ -1,6 +1,11 @@
 // Display formats: en-GB, Asia/Jakarta time zone (WIB). Missing value → "–".
-/** The one display time zone (WIB, UTC+7, no DST); every time formatter uses it. */
+/**
+ * The one display time zone. `APP_UTC_OFFSET_SEC` and `APP_TIME_ZONE_LABEL` both describe it: change all three
+ * together (Asia/Jakarta has no DST, so a fixed offset is exact). Nothing else in packages/ui hardcodes them.
+ */
 export const APP_TIME_ZONE = "Asia/Jakarta";
+export const APP_UTC_OFFSET_SEC = 7 * 3600;
+export const APP_TIME_ZONE_LABEL = "WIB";
 export const LOCALE = "en-GB";
 /** en-GB writes "Sept"; the house format uses three-letter months everywhere. */
 const month3 = (s: string) => s.replace(/\bSept\b/, "Sep");
@@ -82,9 +87,9 @@ export function formatRelative(ms: N, now: number = Date.now()): string {
   return d === 1 ? "Yesterday" : `${d} days ago`;
 }
 
-/** Seconds since 00:00 WIB (UTC+7, no DST); at least 60 so a rate window is never empty. */
-export function secondsSinceMidnightWIB(nowMs: number): number {
-  const wib = new Date(nowMs + 7 * 3600_000);
+/** Seconds since 00:00 in the app time zone; at least 60 so a rate window is never empty. */
+export function secondsSinceMidnight(nowMs: number): number {
+  const wib = new Date(nowMs + APP_UTC_OFFSET_SEC * 1000);
   const s = wib.getUTCHours() * 3600 + wib.getUTCMinutes() * 60 + wib.getUTCSeconds();
   return Math.max(60, s);
 }
@@ -112,7 +117,7 @@ export function formatCompact(n: N): string {
 export function formatDateTimeLong(ms: N): string {
   if (ms == null || !Number.isFinite(ms)) return "–";
   const p = Object.fromEntries(longFmt.formatToParts(ms).map((x) => [x.type, x.value]));
-  return `${p.day} ${month3(p.month ?? "")} ${p.year}, ${p.hour}:${p.minute} WIB`;
+  return `${p.day} ${month3(p.month ?? "")} ${p.year}, ${p.hour}:${p.minute} ${APP_TIME_ZONE_LABEL}`;
 }
 
 /** Signed delta for a stat tile: "+18%", "−4%", "0%". */

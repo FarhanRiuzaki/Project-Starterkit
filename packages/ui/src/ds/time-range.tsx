@@ -1,5 +1,6 @@
 "use client";
 
+import { APP_TIME_ZONE_LABEL } from "../lib/format";
 import { Segmented } from "./segmented";
 
 export type RangeKey = "1h" | "24h" | "7d" | "30d";
@@ -13,7 +14,7 @@ export function TimeRangePicker({ value, onChange }: { value: RangeKey; onChange
   return (
     <div className="flex items-center gap-2">
       <Segmented label="Time range" value={value} onChange={onChange} options={OPTIONS} />
-      <span className="font-mono text-caption text-fg-3">WIB</span>
+      <span className="font-mono text-caption text-fg-3">{APP_TIME_ZONE_LABEL}</span>
     </div>
   );
 }

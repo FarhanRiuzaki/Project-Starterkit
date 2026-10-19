@@ -1,3 +1,4 @@
+import { APP_UTC_OFFSET_SEC } from "./format";
 type Cell = string | number | null | undefined;
 
 /** CSV RFC 4180 + netralisasi formula (=, +, -, @ — boleh didahului spasi — serta tab/CR di awal sel teks diberi awalan '). */
@@ -18,5 +19,5 @@ export const CSV_BOM = "\uFEFF";
 
 /** `<prefix>-YYYY-MM-DD.csv` dengan tanggal WIB (UTC+7), sesuai label "Times in WIB". */
 export function csvFileName(prefix: string, now: number): string {
-  return `${prefix}-${new Date(now + 7 * 3600_000).toISOString().slice(0, 10)}.csv`;
+  return `${prefix}-${new Date(now + APP_UTC_OFFSET_SEC * 1000).toISOString().slice(0, 10)}.csv`;
 }

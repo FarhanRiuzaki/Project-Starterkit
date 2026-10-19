@@ -1,4 +1,5 @@
 import { mergeSeries, type Point } from "./chart-data";
+import { APP_UTC_OFFSET_SEC } from "./format";
 
 /** Label of the folded remainder series ("Other"), used by every fold. */
 export const FOLD_LABEL = "Other";
@@ -44,7 +45,6 @@ export function timeTickKind(firstSec: number, lastSec: number): "time" | "date"
   return lastSec - firstSec > 2 * 86_400 ? "date" : "time";
 }
 
-const WIB_OFFSET = 7 * 3600;
 /** Langkah tick waktu bulat (detik): menit → jam → 3/6/12 jam → hari → minggu. */
 const TIME_STEPS = [60, 300, 600, 900, 1800, 3600, 7200, 10_800, 21_600, 43_200, 86_400, 172_800, 604_800, 1_209_600, 2_592_000];
 
@@ -62,7 +62,7 @@ export function timeAxis(firstSec: number, lastSec: number, target = 5): TimeAxi
   const min = Math.min(3, max);
   const ticksFor = (step: number) => {
     const out: number[] = [];
-    for (let t = Math.ceil((firstSec + WIB_OFFSET) / step) * step - WIB_OFFSET; t <= lastSec; t += step) out.push(t);
+    for (let t = Math.ceil((firstSec + APP_UTC_OFFSET_SEC) / step) * step - APP_UTC_OFFSET_SEC; t <= lastSec; t += step) out.push(t);
     return out;
   };
   const thin = (a: TimeAxis): TimeAxis => {

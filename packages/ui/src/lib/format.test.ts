@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  APP_TIME_ZONE, formatBudgetLeft, formatBytes, formatCompact, formatDateTimeWIB, formatDateWIB, formatDecimal, plural, formatDateTimeLong, formatDuration, formatNumber, formatPercent, formatRelative, formatSignedPercent, formatTimeWIB, secondsSinceMidnightWIB,
+  APP_TIME_ZONE, formatBudgetLeft, formatBytes, formatCompact, formatDateTimeWIB, formatDateWIB, formatDecimal, plural, formatDateTimeLong, formatDuration, formatNumber, formatPercent, formatRelative, formatSignedPercent, formatTimeWIB, secondsSinceMidnight,
 } from "./format";
 
 describe("format", () => {
@@ -64,8 +64,8 @@ describe("format", () => {
     expect(formatRelative(null, now)).toBe("Never");
   });
   it("counts seconds since midnight WIB, minimum 60", () => {
-    expect(secondsSinceMidnightWIB(Date.UTC(2026, 9, 15, 0, 30))).toBe(7 * 3600 + 30 * 60);
-    expect(secondsSinceMidnightWIB(Date.UTC(2026, 9, 14, 17, 0, 10))).toBe(60);
+    expect(secondsSinceMidnight(Date.UTC(2026, 9, 15, 0, 30))).toBe(7 * 3600 + 30 * 60);
+    expect(secondsSinceMidnight(Date.UTC(2026, 9, 14, 17, 0, 10))).toBe(60);
   });
 });
 

@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { Icon, type IconData } from "../ui/icon";
 import { RefreshIcon, WarningIcon } from "../ui/icons";
 import { Button } from "../ui/button";
-import { formatDateTimeLong, formatRelative, formatTimeWIB } from "../lib/format";
+import { formatDateTimeLong, formatRelative, formatTimeWIB, APP_TIME_ZONE_LABEL } from "../lib/format";
 
 /**
  * Empty (spec §5.13): inside the card, centred — a 20 px icon in a 40 px --tray circle, `title-3`, body-sm fg-3,
@@ -39,6 +39,6 @@ export function ErrorState({ title, cause, lastGood, onRetry, detail }: {
  * source: "Updated 3 min ago · <long date>".
  */
 export function StaleNote({ at, source }: { at: number; source?: string }) {
-  if (source) return <span className="text-caption text-fg-3">Data from {formatTimeWIB(at)} WIB · {source}</span>;
+  if (source) return <span className="text-caption text-fg-3">Data from {formatTimeWIB(at)} {APP_TIME_ZONE_LABEL} · {source}</span>;
   return <span className="text-caption text-fg-3">Updated · {formatRelative(at)} · {formatDateTimeLong(at)}</span>;
 }

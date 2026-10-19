@@ -6,7 +6,7 @@ import { LineChartIcon } from "../ui/icons";
 import { mergeSeries, type Point } from "../lib/chart-data";
 import { type Annotation, annotationRows, markersVisible, thresholdRows, tooltipPeriod } from "../lib/chart-layout";
 import { niceTicks, tickLabel, yTickWidth } from "../lib/chart-scale";
-import { formatDateTimeLong, formatDateWIB, formatTimeWIB } from "../lib/format";
+import { APP_TIME_ZONE_LABEL, APP_UTC_OFFSET_SEC, formatDateTimeLong, formatDateWIB, formatTimeWIB } from "../lib/format";
 import { foldSeries, timeAxis, timeTickKind } from "../lib/series";
 import { EmptyState } from "../ds/states";
 import { Annotations } from "./annotations";
@@ -54,7 +54,7 @@ export function TimeSeriesChart({ label, series, format, kind = "line", height =
   const dateLabels = xTicks.length > 0 ? axis.step >= 86_400 : timeTickKind(first, last) === "date";
   const xTick = dateLabels
     ? (t: number) => formatDateWIB(t * 1000)
-    : (t: number) => ((t + 7 * 3600) % 86_400 === 0 ? formatDateWIB(t * 1000) : formatTimeWIB(t * 1000));
+    : (t: number) => ((t + APP_UTC_OFFSET_SEC) % 86_400 === 0 ? formatDateWIB(t * 1000) : formatTimeWIB(t * 1000));
   const bucket = rows.length > 1 ? rows[1]!.t - rows[0]!.t : 0;
   const max = Math.max(0, ...rows.flatMap((r) => keyed.map((k) => (r[k.key] as number | undefined) ?? 0)), ...thresholds.map((t) => t.value));
   const ticks = niceTicks(max);
@@ -67,7 +67,7 @@ export function TimeSeriesChart({ label, series, format, kind = "line", height =
       label={label}
       legend={hideLegend ? undefined : keyed.map((k) => ({ label: k.label, color: k.color, dashed: k.dashed }))}
       table={{
-        columns: ["Time (WIB)", ...keyed.map((k) => k.label)],
+        columns: [`Time (${APP_TIME_ZONE_LABEL})`, ...keyed.map((k) => k.label)],
         rows: rows.map((r) => [formatDateTimeLong(r.t * 1000), ...keyed.map((k) => (r[k.key] == null ? "–" : format(r[k.key] as number)))]),
         notes: [...thresholdRows(thresholds, format), ...annotationRows(annotations, [first, last])],
       }}
