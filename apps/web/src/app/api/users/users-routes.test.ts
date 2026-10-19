@@ -54,9 +54,6 @@ const bulk = (body: unknown) => bulkPost(req("POST", body, "http://c/api/users/b
 beforeEach(() => {
   resetDb();
   jar.clear();
-  // Seed Admin lacks role.view, which Viewer carries, so by the grant rule it could not hand out Viewer. Give it role.view
-  // here so the tests exercise the rule itself; the seed-as-is case has its own test below.
-  db().roles.get("role-admin")!.permissions.push("role.view");
 });
 
 describe("GET /api/users", () => {
@@ -432,9 +429,8 @@ describe("role grants (no privilege escalation)", () => {
 });
 
 describe("seed as shipped", () => {
-  it("Admin without role.view cannot grant Viewer (Viewer carries role.view): 403 forbidden", async () => {
-    db().roles.get("role-admin")!.permissions = db().roles.get("role-admin")!.permissions.filter((p) => p !== "role.view");
+  it("Admin can grant Viewer (its permissions are a subset of Admin's)", async () => {
     await signIn("admin");
-    expect((await createPost(req("POST", NEW))).status).toBe(403);
+    expect((await createPost(req("POST", NEW))).status).toBe(201);
   });
 });

@@ -50,7 +50,7 @@ export function seed(now: number = Date.now()): Db {
   const roleList = [
     mkRole("role-superadmin", "Superadmin", [...PERMISSIONS], true),
     mkRole("role-admin", "Admin", PERMISSIONS.filter((p) => !p.startsWith("role.") && !p.startsWith("permission."))),
-    mkRole("role-viewer", "Viewer", PERMISSIONS.filter((p) => p.endsWith(".view") && p !== "permission.view")),
+    mkRole("role-viewer", "Viewer", ["user.view", "audit.view"]),
   ];
 
   const users = new Map<string, UserRecord>();
