@@ -7,12 +7,25 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { gzipSync } from "node:zlib";
+import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 
+/** The budget in kB: `--budget N` (anywhere in `args`), else BUNDLE_BUDGET_KB, else 250. Throws unless a positive number. */
+export function budgetFrom(args, env) {
+  const at = args.indexOf("--budget");
+  const raw = at >= 0 ? args[at + 1] : env.BUNDLE_BUDGET_KB ?? "250";
+  const kb = Number(raw);
+  if (raw === undefined || raw === "" || !Number.isFinite(kb) || kb <= 0) throw new Error(`bundle-budget: the budget must be a positive number of kB, got "${raw ?? ""}"`);
+  return kb;
+}
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) main();
+
+function main() {
 const ROOT = path.resolve(import.meta.dirname, "..");
 const NEXT = path.join(ROOT, ".next");
 const args = process.argv.slice(2);
-const budgetKb = Number(args[args.indexOf("--budget") + 1] || process.env.BUNDLE_BUDGET_KB || 250);
+const budgetKb = budgetFrom(args, process.env);
 const asJson = args.includes("--json");
 
 const build = JSON.parse(readFileSync(path.join(NEXT, "build-manifest.json"), "utf8"));
@@ -57,3 +70,4 @@ else {
 }
 if (rows.length === 0) { console.error("No client reference manifests found — run `next build` first."); process.exit(2); }
 if (over.length) { console.error(`${over.length} route(s) over the ${budgetKb} kB budget.`); process.exit(1); }
+}

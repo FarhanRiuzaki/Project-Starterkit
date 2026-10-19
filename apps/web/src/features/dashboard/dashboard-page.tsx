@@ -5,7 +5,7 @@ import Link from "next/link";
 import { BarChart, CHART_HEIGHT, ChartLegend, legendItems } from "@starterkit/ui/charts";
 import { Avatar, type Column, DataTable, EmptyState, ErrorState, LazyMount, Notice, Panel, RelativeTime, StatTile, StatTiles, StatTileSkeletons, Truncate } from "@starterkit/ui/ds";
 import { Reveal } from "@starterkit/ui/motion";
-import { APP_TIME_ZONE_LABEL, appDayStart, formatDateWIB, formatNumber } from "@starterkit/ui/lib/format";
+import { APP_TIME_ZONE_LABEL, appDayStart, formatDate, formatNumber } from "@starterkit/ui/lib/format";
 import { Button } from "@starterkit/ui/ui/button";
 import { Skeleton } from "@starterkit/ui/ui/skeleton";
 import { ColumnChartIcon, FailedIcon, IdentityIcon, LogIcon, SessionsIcon, UsersIcon } from "@starterkit/ui/ui/icons";
@@ -66,7 +66,7 @@ export function DashboardPage() {
                 : (
                   <LazyMount minHeight={CHART_HEIGHT.standard}>
                     <BarChart label="Sign-ins per day" hideLegend format={formatNumber}
-                      categories={days.map((x) => formatDateWIB(appDayStart(x.date)))}
+                      categories={days.map((x) => formatDate(appDayStart(x.date)))}
                       series={series.map((s, i) => ({ ...s, values: days.map((x) => (i === 0 ? x.success : x.failed)) }))} />
                   </LazyMount>
                 )}

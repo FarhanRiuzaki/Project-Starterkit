@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import { type ReactNode, useCallback, useId, useState } from "react";
 import { BlockedButton, type Column, DataTable, type LegendItem, Notice, Panel, QueryInput, RelativeTime, TimeRangePicker, Toolbar } from "@starterkit/ui/ds";
-import { APP_TIME_ZONE_LABEL, appDayStart, formatDateTimeLong, formatDateWIB, formatNumber } from "@starterkit/ui/lib/format";
+import { APP_TIME_ZONE_LABEL, appDayStart, formatDateTimeLong, formatDate, formatNumber } from "@starterkit/ui/lib/format";
 import { Button } from "@starterkit/ui/ui/button";
 import { Icon, type IconData } from "@starterkit/ui/ui/icon";
 import { ExportIcon } from "@starterkit/ui/ui/icons";
@@ -68,7 +68,7 @@ export const timeCell = (at: string) => (
   <span className="grid"><RelativeTime at={Date.parse(at)} /><span className="font-mono text-caption text-fg-3">{formatDateTimeLong(Date.parse(at))}</span></span>
 );
 
-const day = (d: string) => formatDateWIB(appDayStart(d));
+const day = (d: string) => formatDate(appDayStart(d));
 const rangeText = (r: { from: string; to: string }) => (r.from === r.to ? day(r.from) : `${day(r.from)} – ${day(r.to)}`);
 
 export type AuditDetail = { title: string; rows: [string, ReactNode][]; extra?: ReactNode };

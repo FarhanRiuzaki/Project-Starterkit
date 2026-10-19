@@ -4,6 +4,9 @@ import localFont from "next/font/local";
  * Self-hosted variable fonts (spec §3.5): next/font emits the @font-face rules and serves the files from
  * /_next/static/media, so the CSP keeps `font-src 'self'` and nothing loads from a third-party origin.
  * Latin subset only: the console copy is English (copy guide); other scripts fall back to the system font.
+ * `src` is a path relative to this file: next/font/local reads a bare specifier as a relative path too (no package
+ * resolution), so the files are reached through apps/web/node_modules, where Bun links this app's own
+ * dependencies (pinned in apps/web/package.json). fonts.test.ts fails `bun run check` if that path stops resolving.
  */
 export const inter = localFont({
   src: "../../node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2",

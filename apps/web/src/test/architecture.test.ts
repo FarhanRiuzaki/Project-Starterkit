@@ -1,6 +1,7 @@
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { importsOf, read, REPO, repoRel, scan, UI_SRC, WEB_SRC } from "./scan";
+import { pagePerm } from "@/lib/shared/nav";
+import { importsOf, read, REPO, repoRel, scan, strip, UI_SRC, WEB_SRC } from "./scan";
 
 type F = { r: string; src: string; imp: string[] };
 
@@ -8,7 +9,6 @@ const WEB = "apps/web/src/";
 const UI = "packages/ui/src/";
 const files: F[] = scan([WEB_SRC, UI_SRC]).map((f) => ({ r: repoRel(f), src: read(f), imp: importsOf(f) }));
 const cssFiles: F[] = scan([WEB_SRC, UI_SRC], /\.css$/).map((f) => ({ r: repoRel(f), src: read(f), imp: [] }));
-const strip = (s: string) => s.replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, "");
 
 /** ui/motion/lib = primitives (0) → ds (1) → charts (2) → shell (3) → features (4). */
 const layer = (r: string) =>
@@ -63,8 +63,8 @@ const isClient = ({ r, src }: F) => /^["']use client["']/m.test(src)
   || [`${WEB}features/`, `${WEB}components/`, `${WEB}lib/client/`].some((p) => r.startsWith(p));
 function clientApiViolations(fs: F[]): string[] {
   return fs.filter(isClient).flatMap(({ r, src: raw }) => {
-    // Comments only: a "//" inside a string ("https://…") must not swallow the rest of the line.
-    const src = raw.replace(/\/\*[\s\S]*?\*\/|(^|\s)\/\/.*$/gm, "$1");
+    // Comments only (string-aware strip): a "//" inside a string ("https://…") must not swallow the rest of the line.
+    const src = strip(raw);
     // First argument written as a string or template literal must start with "/api/" (not http(s)://, //, a ${base}).
     const calls = [...src.matchAll(/\b(fetch|api)\s*(?:<[^<>()]*>)?\(\s*(["'`])(?=([^]{0,12}))/g)]
       .filter((m) => !m[3]!.startsWith("/api/")).map((m) => `${r}: ${m[1]}(${m[2]}${m[3]!.split(m[2]!)[0]}…) must start with "/api/"`);
@@ -94,7 +94,7 @@ function clientZodViolations(fs: F[]): string[] {
     .map((m) => `${r}: value import from ${m[3]}`));
 }
 
-const METHODS = "GET|POST|PUT|PATCH|DELETE";
+const METHODS = "GET|HEAD|OPTIONS|POST|PUT|PATCH|DELETE";
 /** Exported HTTP handlers of a route file with their source text (up to the next exported handler). */
 const handlers = (src: string) => {
   const hits = [...src.matchAll(new RegExp(`export\\s+(?:async\\s+)?function\\s+(${METHODS})\\b`, "g"))];
@@ -104,13 +104,15 @@ const handlers = (src: string) => {
 /** Calls that write an activity entry: recordActivity itself, and lib/server helpers that always end in it. */
 const LOGS = /\b(?:recordActivity|applyStatus)\(/;
 
+/** Every route.ts under app/ (API or not) is a route handler; app/api/auth/** answers before a session exists. */
+const ROUTE_FILE = new RegExp(`^${WEB}app/(.+/)?route\\.tsx?$`);
 /**
- * Every route handler outside app/api/auth/** runs inside withPermission(, and every non-GET one calls
- * recordActivity( (or a helper in LOGS). Handlers must be function declarations (an `export const POST =` would
+ * Every route handler (any route.ts under app/) outside app/api/auth/** runs inside withPermission(, and every
+ * non-GET/HEAD/OPTIONS one calls recordActivity( (or a helper in LOGS). Handlers must be function declarations (an `export const POST =` would
  * escape the check). Order inside a handler: the body/query check (400) comes before the existence check (404).
  */
 function routeViolations(fs: F[]): string[] {
-  return fs.filter(({ r }) => new RegExp(`^${WEB}app/api/(.+/)?route\\.tsx?$`).test(r) && !r.startsWith(`${WEB}app/api/auth/`))
+  return fs.filter(({ r }) => ROUTE_FILE.test(r) && !r.startsWith(`${WEB}app/api/auth/`))
     .flatMap(({ r, src: raw }) => {
       const src = strip(raw);
       if (new RegExp(`export\\s+(?:const|let|var)\\s+(?:${METHODS})\\b|export\\s*\\{[^}]*\\b(?:${METHODS})\\b`).test(src)) {
@@ -120,7 +122,7 @@ function routeViolations(fs: F[]): string[] {
       if (hs.length === 0) return [`${r}: no exported handler found`];
       return hs.flatMap((h) => [
         ...(/\bwithPermission\(/.test(h.body) ? [] : [`${r} ${h.method}: no withPermission(`]),
-        ...(h.method === "GET" || LOGS.test(h.body) ? [] : [`${r} ${h.method}: no recordActivity(`]),
+        ...(["GET", "HEAD", "OPTIONS"].includes(h.method) || LOGS.test(h.body) ? [] : [`${r} ${h.method}: no recordActivity(`]),
         ...(existenceBeforeParse(h.body) ? [`${r} ${h.method}: checks existence (404) before the request body (400)`] : []),
       ]);
     });
@@ -208,7 +210,37 @@ function legendViolations(fs: F[]): string[] {
   return fs.filter(({ r, src }) => r !== LEGEND_HOME && /<StatusLegend\b/.test(strip(src))).map(({ r }) => `${r}: renders StatusLegend; pass Panel legend instead`);
 }
 
+/** The product name is one constant (BRAND in lib/shared/brand.ts); titles, error sources and the logo read it. */
+const BRAND_HOME = `${WEB}lib/shared/brand.ts`;
+const brandViolations = (fs: F[]) => fs.filter(({ r, src }) => r !== BRAND_HOME && /\bStarterkit\b/.test(src)).map(({ r }) => `${r}: write BRAND.name, not the product name`);
+
+/** Each signed-in page.tsx guards with the permission pagePerm gives its path (the layout's 404 check uses pagePerm). */
+function pageGuardViolations(fs: F[]): string[] {
+  return fs.filter(({ r }) => r.startsWith(`${WEB}app/(main)/`) && r.endsWith("/page.tsx")).flatMap(({ r, src }) => {
+    const route = r.slice(`${WEB}app/(main)`.length, -"/page.tsx".length).replace(/\[\w+\]/g, "x") || "/";
+    const arg = strip(src).match(/requirePagePermission\(\s*(null|"[^"]+")?\s*\)/)?.[1];
+    const own = arg && arg !== "null" ? arg.slice(1, -1) : null;
+    return own === pagePerm(route) ? [] : [`${r}: guards with ${own ?? "nothing"}, pagePerm("${route}") is ${pagePerm(route) ?? "null"}`];
+  });
+}
+
+/** The app time zone is written only in packages/ui/src/lib/format.ts (packages/ui time-zone.test.ts checks the package). */
+const ZONE_LITERAL = /7\s*\*\s*(?:3600|60\s*\*\s*60)|25_?200|["'`>(\s]WIB\b|\bUTC\s*\+\s*7\b|\w+WIB\b/;
+const zoneViolations = (fs: F[]) => fs.filter(({ r, src }) => r.startsWith(WEB) && ZONE_LITERAL.test(strip(src))).map(({ r }) => r);
+
 describe("architecture", () => {
+  it("apps/web writes no UTC offset or zone label (APP_UTC_OFFSET_SEC, APP_TIME_ZONE_LABEL, formatDate…)", () => {
+    expect(zoneViolations(files)).toEqual([]);
+  });
+
+  it("each signed-in page guards with the permission pagePerm gives its path", () => {
+    expect(pageGuardViolations(files)).toEqual([]);
+  });
+
+  it("the product name appears only in lib/shared/brand.ts", () => {
+    expect(brandViolations(files)).toEqual([]);
+  });
+
   it("layers import downward only (ui/motion → ds → charts → components/shell → features)", () => {
     expect(layerViolations(files)).toEqual([]);
   });
@@ -396,6 +428,28 @@ describe("architecture checkers (fixtures)", () => {
     expect(routeViolations([h(`if (!s) return apiError(404, "not_found", "x");`)])).toEqual([]);
   });
 
+  it("a HEAD or OPTIONS handler and a route.ts outside app/api are checked too", () => {
+    expect(routeViolations([
+      route(`export async function HEAD(req: Request) { return new Response(null); }`),
+      f(`${WEB}app/(main)/export/route.ts`, `export async function GET(req: Request) { return json(db().users); }`),
+      f(`${WEB}app/(main)/ok/route.ts`, `export function OPTIONS(req: Request) { return withPermission(req, null, async () => json(1)); }`),
+    ])).toEqual([`${WEB}app/api/users/route.ts HEAD: no withPermission(`, `${WEB}app/(main)/export/route.ts GET: no withPermission(`]);
+  });
+
+  it("strip() removes comments but keeps strings, templates and regex literals whole", () => {
+    expect(strip(`const u = "https://x"; // note\nconst r = /\\/\\/.*$/g; /* block */ const t = \`a // b\`;`))
+      .toBe(`const u = "https://x"; \nconst r = /\\/\\/.*$/g;  const t = \`a // b\`;`);
+    expect(strip(`const q = "it's"; x = a / b; // c`)).toBe(`const q = "it's"; x = a / b; `);
+    expect(strip(`const re = /["']/; y(); // z`)).toBe(`const re = /["']/; y(); `);
+    expect(strip(`<Panel legend={L} /> // <StatusLegend />`)).toBe(`<Panel legend={L} /> `);
+  });
+
+  it("client-API rule: a comment right after code is ignored, a URL with // in a string still checked", () => {
+    expect(clientApiViolations([
+      f(`${WEB}features/x/a.tsx`, `fetch("/api/x");// fetch("http://x")\nconst s = "a //b"; fetch("https://evil.example/x");`),
+    ])).toEqual([`${WEB}features/x/a.tsx: fetch("https://evil…) must start with "/api/"`]);
+  });
+
   it("a guarded GET next to an unguarded POST in one file: exactly the POST is reported", () => {
     const src = `export async function GET(req: Request) { return withPermission(req, "user.view", async () => json(1)); }
 export async function POST(req: Request) { recordActivity(ctx, e); return json(1); }`;
@@ -458,6 +512,30 @@ export async function POST(req: Request) { recordActivity(ctx, e); return json(1
       `${UI}motion/h.tsx: ease: "`, `${UI}motion/i.tsx: bounce: 0`, `${UI}charts/j.ts: DUR.slow + 0`, `${UI}charts/k.ts: 5 + STAGGER.step`,
       `${UI}styles/x.css: 150ms`, `${UI}styles/x.css: 35ms`, `${UI}styles/x.css: 1.2s`, `${UI}styles/x.css: cubic-bezier(`,
     ]);
+  });
+
+  it("a zone literal in apps/web is reported", () => {
+    expect(zoneViolations([f(`${WEB}features/x/a.tsx`, "const t = `${formatTime(at)} WIB`;"), f(`${WEB}features/x/b.tsx`, `formatTime(at); // 14:00 WIB`)]))
+      .toEqual([`${WEB}features/x/a.tsx`]);
+  });
+
+  it("a page guard that differs from pagePerm is reported", () => {
+    expect(pageGuardViolations([
+      f(`${WEB}app/(main)/roles/page.tsx`, `await requirePagePermission("user.view");`),
+      f(`${WEB}app/(main)/users/new/page.tsx`, `await requirePagePermission("user.create");`),
+      f(`${WEB}app/(main)/audit/auth/page.tsx`, `export default function P() {}`),
+    ])).toEqual([
+      `${WEB}app/(main)/roles/page.tsx: guards with user.view, pagePerm("/roles") is role.view`,
+      `${WEB}app/(main)/audit/auth/page.tsx: guards with nothing, pagePerm("/audit/auth") is audit.view`,
+    ]);
+  });
+
+  it("a literal product name outside brand.ts is reported; BRAND.name and the package scope pass", () => {
+    expect(brandViolations([
+      f(`${WEB}app/(main)/users/page.tsx`, `export const metadata = { title: "Users · Starterkit" };`),
+      f(`${WEB}features/x/a.tsx`, `<Failure source={BRAND.name} />; import { Panel } from "@starterkit/ui/ds";`),
+      f(BRAND_HOME, `export const BRAND = { name: "Starterkit" } as const;`),
+    ])).toEqual([`${WEB}app/(main)/users/page.tsx: write BRAND.name, not the product name`]);
   });
 
   it("StatusLegend outside Panel (page header, toolbar, gallery) is reported; Panel and StatusLegendList pass", () => {

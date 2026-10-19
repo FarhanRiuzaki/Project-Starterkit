@@ -65,15 +65,15 @@ export function formatDuration(sec: N): string {
   return `${m} min`;
 }
 
-export function formatTimeWIB(ms: N): string {
+export function formatTime(ms: N): string {
   return ms == null ? "–" : timeFmt.format(ms);
 }
 
-export function formatDateTimeWIB(ms: N): string {
+export function formatDateTime(ms: N): string {
   return ms == null ? "–" : month3(dateTimeFmt.format(ms));
 }
 
-export function formatDateWIB(ms: N): string {
+export function formatDate(ms: N): string {
   return ms == null ? "–" : month3(dateFmt.format(ms));
 }
 

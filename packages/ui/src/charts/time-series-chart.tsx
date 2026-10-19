@@ -6,7 +6,7 @@ import { LineChartIcon } from "../ui/icons";
 import { mergeSeries, type Point } from "../lib/chart-data";
 import { type Annotation, annotationRows, markersVisible, thresholdRows, tooltipPeriod } from "../lib/chart-layout";
 import { niceTicks, tickLabel, yTickWidth } from "../lib/chart-scale";
-import { APP_TIME_ZONE_LABEL, APP_UTC_OFFSET_SEC, formatDateTimeLong, formatDateWIB, formatTimeWIB } from "../lib/format";
+import { APP_TIME_ZONE_LABEL, APP_UTC_OFFSET_SEC, formatDateTimeLong, formatDate, formatTime } from "../lib/format";
 import { foldSeries, timeAxis, timeTickKind } from "../lib/series";
 import { EmptyState } from "../ds/states";
 import { Annotations } from "./annotations";
@@ -53,8 +53,8 @@ export function TimeSeriesChart({ label, series, format, kind = "line", height =
   // Labels follow the tick step: ≥ 1 day → date; otherwise time, and a WIB-midnight tick shows the date.
   const dateLabels = xTicks.length > 0 ? axis.step >= 86_400 : timeTickKind(first, last) === "date";
   const xTick = dateLabels
-    ? (t: number) => formatDateWIB(t * 1000)
-    : (t: number) => ((t + APP_UTC_OFFSET_SEC) % 86_400 === 0 ? formatDateWIB(t * 1000) : formatTimeWIB(t * 1000));
+    ? (t: number) => formatDate(t * 1000)
+    : (t: number) => ((t + APP_UTC_OFFSET_SEC) % 86_400 === 0 ? formatDate(t * 1000) : formatTime(t * 1000));
   const bucket = rows.length > 1 ? rows[1]!.t - rows[0]!.t : 0;
   const max = Math.max(0, ...rows.flatMap((r) => keyed.map((k) => (r[k.key] as number | undefined) ?? 0)), ...thresholds.map((t) => t.value));
   const ticks = niceTicks(max);

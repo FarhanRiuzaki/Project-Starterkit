@@ -14,6 +14,7 @@ export function effectivePermissions(user: UserRecord, roles: Map<string, RoleRe
 
 export function checkUserChange(actor: UserRecord, target: UserRecord, change: UserChange, db: DbView): ErrorCode | null {
   if (actor.id === target.id) return "self_action";
+  // setRoles without `roles` means "no roles at all" (it loses Superadmin too); deactivate and delete always lose it.
   const losesSuper =
     change.kind === "setRoles" ? !(change.roles ?? []).includes(SUPERADMIN) : true;
   if (target.isActive && target.roles.includes(SUPERADMIN) && losesSuper) {

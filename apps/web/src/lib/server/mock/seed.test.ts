@@ -34,7 +34,7 @@ describe("seed", () => {
     expect(ldap).toMatchObject({ isLdap: true, passwordHash: null, roles: ["Viewer"] });
     expect(s.ldapDirectory.get(ldap.id)).toBe(LDAP_PASSWORD);
   });
-  it("shares one seed password and keeps only one active superadmin-protected set", () => {
+  it("password accounts share the one seed password, hashed once", () => {
     expect(verifyPassword(SEED_PASSWORD, byEmail("admin@example.com").passwordHash!)).toBe(true);
     expect(s.users.get(byEmail("admin@example.com").id)!.passwordHash).toBe(byEmail("viewer@example.com").passwordHash);
   });

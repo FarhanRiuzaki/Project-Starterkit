@@ -1,5 +1,5 @@
 // Chart layout math (spec §6). Pure, no DOM: bar geometry, distribution shares, arcs, heatmap levels, annotations.
-import { APP_TIME_ZONE_LABEL, APP_UTC_OFFSET_SEC, formatDateWIB, formatTimeWIB } from "./format";
+import { APP_TIME_ZONE_LABEL, APP_UTC_OFFSET_SEC, formatDate, formatTime } from "./format";
 import { FOLD_LABEL } from "./series";
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
@@ -111,8 +111,8 @@ export function annotationLayout(events: Annotation[], domain: [number, number],
 /** Tooltip eyebrow (spec §6.7): "14 Oct · 14:00 WIB" for sub-day buckets, "14 Oct 2026" for daily ones. */
 export function tooltipPeriod(tSec: number, stepSec: number): string {
   const ms = tSec * 1000;
-  if (stepSec >= 86_400) return `${formatDateWIB(ms)} ${new Date(ms + APP_UTC_OFFSET_SEC * 1000).getUTCFullYear()}`;
-  return `${formatDateWIB(ms)} · ${formatTimeWIB(ms)} ${APP_TIME_ZONE_LABEL}`;
+  if (stepSec >= 86_400) return `${formatDate(ms)} ${new Date(ms + APP_UTC_OFFSET_SEC * 1000).getUTCFullYear()}`;
+  return `${formatDate(ms)} · ${formatTime(ms)} ${APP_TIME_ZONE_LABEL}`;
 }
 
 /** Table-view notes: every in-domain event (including those collapsed into "+N"), in time order. */

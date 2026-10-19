@@ -85,4 +85,12 @@ describe("rules", () => {
     // Admin lacks role.view, which Viewer holds in this fixture: a partial overlap is still refused.
     expect(checkTargetRank(perms(me), perms(viewerUser))).toBe("forbidden");
   });
+  it("unknown role names: they grant nothing and don't count as Superadmin", () => {
+    expect([...effectivePermissions(user("g", ["Ghost", "Viewer"]), roles)].sort()).toEqual(["role.view", "user.view"]);
+    expect(effectivePermissions(user("g", ["Ghost"]), roles).size).toBe(0);
+    // a name that only looks like Superadmin in another case is not the role
+    expect(checkUserChange(otherAdmin, onlySuper, { kind: "setRoles", roles: ["superadmin"] }, v)).toBe("last_superadmin");
+    // setRoles without roles = no roles: the last Superadmin can't get it
+    expect(checkUserChange(otherAdmin, onlySuper, { kind: "setRoles" }, v)).toBe("last_superadmin");
+  });
 });

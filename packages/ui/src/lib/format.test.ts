@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  APP_TIME_ZONE, formatBudgetLeft, formatBytes, formatCompact, formatDateTimeWIB, formatDateWIB, formatDecimal, plural, formatDateTimeLong, formatDuration, formatNumber, formatPercent, formatRelative, formatSignedPercent, formatTimeWIB, secondsSinceMidnight,
+  APP_TIME_ZONE, formatBudgetLeft, formatBytes, formatCompact, formatDateTime, formatDate, formatDecimal, plural, formatDateTimeLong, formatDuration, formatNumber, formatPercent, formatRelative, formatSignedPercent, formatTime, secondsSinceMidnight,
 } from "./format";
 
 describe("format", () => {
@@ -51,7 +51,7 @@ describe("format", () => {
     expect(formatDuration(null)).toBe("–");
   });
   it("formats time in Asia/Jakarta", () => {
-    expect(formatTimeWIB(Date.UTC(2026, 9, 15, 5, 27))).toBe("12:27");
+    expect(formatTime(Date.UTC(2026, 9, 15, 5, 27))).toBe("12:27");
   });
   it("formats relative time", () => {
     const now = Date.UTC(2026, 9, 15, 12, 0);
@@ -95,9 +95,9 @@ describe("format enterprise", () => {
     expect(formatDateTimeLong(Date.UTC(2026, 8, 16, 7, 5))).toBe("16 Sep 2026, 14:05 WIB");
   });
   it("short date and date-time in WIB", () => {
-    expect(formatDateWIB(Date.UTC(2026, 8, 15, 18, 0))).toBe("16 Sep");
-    expect(formatDateTimeWIB(Date.UTC(2026, 9, 16, 7, 5))).toBe("16 Oct, 14:05");
-    expect(formatDateWIB(null)).toBe("–");
+    expect(formatDate(Date.UTC(2026, 8, 15, 18, 0))).toBe("16 Sep");
+    expect(formatDateTime(Date.UTC(2026, 9, 16, 7, 5))).toBe("16 Oct, 14:05");
+    expect(formatDate(null)).toBe("–");
   });
   it("signed percent uses the typographic minus", () => {
     expect(formatSignedPercent(0.184)).toBe("+18%");
