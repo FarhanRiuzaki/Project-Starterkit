@@ -40,14 +40,13 @@ destructive: short, explicit about impact, never dramatic.
 - **"You"** sparingly, never "we"/"our" for the system. The app is not a character. Prefer the object as the subject:
   "The session ended", not "We ended your session".
 - **American spelling** (authorization, canceled, color, behavior).
-- **No exclamation marks, no emoji, no ALL CAPS** in source strings (except acronyms and the environment ribbon
-  `DEV`/`UAT`/`PROD`). The `eyebrow` overline style may render uppercase via CSS; its source text stays sentence case.
+- **No exclamation marks, no emoji, no ALL CAPS** in source strings (except acronyms). The `eyebrow` overline style may render uppercase via CSS; its source text stays sentence case.
 - **Placeholders** show format, never act as labels: label "Search", placeholder "Name or email".
 
 ## 4. Patterns
 
 **Page title + description.** Title is a noun ("Users", "Roles", "Activity log"). Description is one sentence stating
-scope and freshness: "Every user account, refreshed every 30 s."
+scope and freshness: "Every user account, with status and last sign-in."
 
 **Buttons.** Verb + object, specific: "Create user", "Export CSV", "Revoke 2 sessions", "Load more".
 Never "OK", "Yes", "Submit", "Click here". The primary action names its result.
@@ -123,7 +122,7 @@ numbers from examples.
 | recovery code | backup code | Shown once; never display it again |
 | active / inactive | enabled / disabled, on / off | A user's state; an inactive user can't sign in |
 | Healthy / Degraded / Down / Stopped / Unknown | OK, Warning, Error, Offline, N/A | The five health states |
-| Dashboard, Users, Roles, Permissions, Activity log, Sign-in log | Home, Admin, History | Navigation labels |
+| Dashboard, Users, Roles, Permissions, Activity log, Sign-in log, Design system, Profile | Home, Admin, History, Account | The navigation labels, exactly these. Sessions live at /me/sessions and on a user's detail page, not in the nav |
 
 ## 6. Words to avoid
 

@@ -155,14 +155,14 @@ marks ≥ 3:1 on white (3.38 / 3.79 / 4.36) except Stopped/Unknown, which are al
 
 | Slot | Hue | Light | Dark | Typical entity |
 |---|---|---|---|---|
-| 1 | blue | `#1a7cf0` | `#3a8ff5` | primary series, "Allowed", model A |
-| 2 | orange | `#e8690c` | `#d9692a` | comparison series, "Denied", model B |
-| 3 | teal | `#0f9e86` | `#1a9c86` | model C |
-| 4 | violet | `#8a3ff0` | `#9b6bf0` | model D |
-| 5 | ochre | `#b88700` | `#b8890f` | model E |
-| 6 | magenta | `#d6428e` | `#d65592` | model F |
+| 1 | blue | `#1a7cf0` | `#3a8ff5` | primary series, "Success", role A |
+| 2 | orange | `#e8690c` | `#d9692a` | comparison series, "Failed", role B |
+| 3 | teal | `#0f9e86` | `#1a9c86` | role C |
+| 4 | violet | `#8a3ff0` | `#9b6bf0` | role D |
+| 5 | ochre | `#b88700` | `#b8890f` | role E |
+| 6 | magenta | `#d6428e` | `#d65592` | role F |
 
-Rules: hue follows the entity, not its rank (model → slot is a fixed map in `packages/ui/src/charts/chart-theme.ts`); a 7th series folds
+Rules: hue follows the entity, not its rank (role → slot is a fixed map in `packages/ui/src/charts/chart-theme.ts`); a 7th series folds
 into "Other" (`--fg-3`); scatter/heatmap-like all-pairs forms use at most slots 1–3. Sequential (magnitude,
 heatmap) = slot-1 blue ramp: light `#ebf4ff #cfe3fd #a6cbfa #74adf5 #3f8cef #1a7cf0 #0f5fc2 #0a4590`, dark
 `#162236 #1b3254 #214577 #2a5c9e #3a78cc #5aa6ff #8cc1ff #bfdcff`. Texture: 45° stripes, 2 px line / 4 px gap at
@@ -263,9 +263,8 @@ in nav, toolbars, panel headers and KPI tiles, 14 px in chips and table headers,
 │ [■] App name      [⫞]│ │ ⌂ Dashboard / ▦ Users / Rina Wulandari         [⌕ Search… ⌘K] [ ◔ ]│
 │                      │ │ ───────────────────────────────────────────────────────────────── │
 │ MAIN                 │ │                                                                   │
-│ [▦ Dashboard       ] │ │  Page title            [Last 24 h ▾] [⟳ 30 s] [Legend] [Action]  │
-│  ▣ Users         24  │ │  One sentence scope + freshness.                                  │
-│  ⌁ Sessions       3  │ │                                                                   │
+│ [▦ Dashboard       ] │ │  Page title            [Last 24 h ▾] [Legend] [Action]  │
+│  ▣ Users             │ │  One sentence scope + freshness.                                  │
 │ ACCESS               │ │  …                                                                │
 │  ⛨ Roles             │ │                                                                   │
 │  ⚿ Permissions       │ │                                                                   │
@@ -274,20 +273,21 @@ in nav, toolbars, panel headers and KPI tiles, 14 px in chips and table headers,
 │  ⇥ Sign-in log       │ │                                                                   │
 │                      │ │                                                                   │
 │ ─────────────────    │ │                                                                   │
-│ (RW) Rina W.  Admin ▾│ │                                                                   │
-│ DEV                  │ │                                                                   │
+│  ◫ Design system     │ │                                                                   │
+│ (RW) Profile       ▾ │ │                                                                   │
 └──────────────────────┘ └───────────────────────────────────────────────────────────────────┘
 ```
 
-Rules: env ribbon (`DEV`/`UAT`/`PROD`) is a 20 px chip under the account row, not a full-width bar; a nav
-item may show a count badge; badges are counts, never words ("New" pills are not used).
+Rules: the nav is exactly Dashboard, Users, Roles, Permissions, Activity log, Sign-in log, Design system and Profile
+(own sessions live at /me/sessions and on a user's detail page; there is no global Sessions page). Nav items carry no
+badges; count badges elsewhere are counts, never words ("New" pills are not used).
 
 ---
 
 ## 5. Components
 
 ### 5.1 Sidebar nav item
-36 px tall, radius 8, padding 0 10, icon 16 + 10 gap + `body` label; count badge right (18 px pill, `--tray`/`label`).
+36 px tall, radius 8, padding 0 10, icon 16 + 10 gap + `body` label.
 States: rest fg-2 · hover `--tray` fill · active **light** `--card` fill + 1 px `--line` + `--shadow-sm`, fg, icon
 filled; **dark** `#26262b` fill · focus ring 2 px `--primary` offset 2. Section label `eyebrow` `--fg-3`, 24 px above,
 8 px below.
@@ -358,11 +358,11 @@ text, × 14 px).
 - **StatusChip** (glossary states only): 22 px, radius full, padding 0 8 0 6, 1 px `--line`, `--card` bg, 12 px state
   icon/shape in the mark colour + label in the ink colour (`label`). Strong variant (tables with many rows): soft bg,
   no border. Always with tooltip description from `packages/ui/src/lib/status.ts`.
-- **Category chip** (model, team, result type): 22 px, radius 6, padding 0 8, soft tint of its categorical slot
+- **Category chip** (role, team, event type): 22 px, radius 6, padding 0 8, soft tint of its categorical slot
   (10 % on card) with text in `--fg` (never the series colour, per text-token rule) and a 6 px slot-colour dot.
 - **Count badge**: 18 px pill, `--tray` (in tray: `--card`), `label` fg-2, tabular.
-- **Result chip** (Allowed / Denied, or any pass / block outcome): use slot 1 / slot 2 dots, not status colours (a
-  denial is policy, not a failure).
+- **Result chip** (sign-in Success / Failed, or any pass / block outcome): use slot 1 / slot 2 dots, not status
+  colours (a failed sign-in is an event, not a system failure).
 
 ### 5.9 Segmented control, tabs
 - Segmented: track `--tray`, 1 px `--line`, radius 10, padding 2; segments 28 px, radius 8, padding 0 10, `label`;
@@ -375,7 +375,7 @@ text, × 14 px).
 - **Bar**: 8 px (6 px in tiles), radius full, track `--inset` (light) / `#2a2a2f` (dark); fill = primary or status
   mark; striped texture on the fill (45°, 2/4 px) for "in progress / partial"; label row above: name left, value right
   tabular.
-- **Tick meter** (scores, quota, model parameters): 24–40 ticks, 3 px wide, 3 px gap, 16 px tall, radius 2; filled =
+- **Tick meter** (scores, quotas): 24–40 ticks, 3 px wide, 3 px gap, 16 px tall, radius 2; filled =
   colour, empty = `--line`; threshold tick taller (20 px) in fg-2. Use for quotas and budgets.
 - **Ring**: 40 px, 4 px stroke, round cap, track `--line`; value text outside the ring (never inside at this size).
 - **Threshold meter** (`Meter`): bar with a 2 × 14 px thumb at the warning threshold.
@@ -437,7 +437,7 @@ Horizontal gridlines only, `--grid`, 1 px, `strokeDasharray="4 4"`; 4–5 ticks 
 - Projections / thresholds: dashed `4 4`, 1.5 px; thresholds in Degraded/Down marks with a right-aligned `caption`
   label ("Warning 80 %").
 - Mirrored (in/out): series above and below a dashed zero line, each with its own area gradient — **only when both
-  series share one unit and one scale**. When magnitudes differ (Allowed ≈ 2.5K/h vs Denied ≈ 50/h) use **stacked small
+  series share one unit and one scale**. When magnitudes differ (Success ≈ 2.5K/h vs Failed ≈ 50/h) use **stacked small
   multiples** on a shared x-axis instead (each panel labelled, own baseline), never two scales on one axis.
 
 ### 6.5 Distribution bar + legend cards (cost split, quota split)
@@ -562,7 +562,7 @@ tokens from `packages/ui/src/motion/tokens.ts` (`DUR.*`, `STAGGER`, `EASE`), nev
 | Dialog | CSS | `DUR.slow` in, `DUR.exit` out | Fade only, no scale |
 | Menu | CSS | `DUR.fast` | Fade only, no slide |
 | Toast | CSS | `DUR.enter` | None: sonner keeps its own reduced rule (no transform override, so stacked toasts keep their transform) |
-| Badge pop | CSS | `DUR.pop`; only when a count or tone changed (nav badge pops on change only) | Fade only, `DUR.instant` |
+| Badge pop | CSS | `DUR.pop`; only when a count or tone changed (count badges in tables and tiles pop on change only) | Fade only, `DUR.instant` |
 | Chip change | CSS | `DUR.fast`; `background-color` | Instant swap |
 | New row | CSS | `DUR.flash`; `background-color`; rows arriving after first load, never on load, filter or query change, and not on appended pages in infinite lists | None |
 | Number tween | Motion | `tweenDuration(...)` to `DUR.tween`; duration-based; `SPRING_SOFT` is exported for new uses only | Instant swap |

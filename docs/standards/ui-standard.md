@@ -35,7 +35,7 @@ through `next/font`.
 
 1. **PageHeader** — breadcrumb (detail pages only: `Users / <name>`), title (noun), aggregate `StatusChip` if the
    page has a health concept, `actions` slot right-aligned in this order: `TimeRangePicker` (if the page is
-   time-scoped) → `RefreshControl` (every page that shows live data) → `StatusLegend` (if any status is shown) →
+   time-scoped) → `StatusLegend` (if any status is shown) →
    one primary action or `ActionMenu`. Description = one sentence: scope + freshness.
 2. **Page-level banners** — stale/partial-source `Notice` (one per page, aggregated), never inside panels.
 3. **StatTiles** — one KPI tray of 4 (or 3) tiles, the page's headline numbers; same order and units everywhere the
@@ -48,8 +48,7 @@ through `next/font`.
    export (right-most). One row; wraps only when the content column is too narrow (below 1280).
 5. **Panels** — `Panel` with title (noun phrase), optional description (sentence case), optional actions slot.
    Charts above tables. Below-the-fold charts in `LazyMount`. The **description is the scope** (period and
-   granularity, one shape everywhere: "Last 24 hours · per hour, WIB" from `bucketDescription`, or "Last 7 days"
-   from `lastPeriodLabel`); the **footnote is provenance** (`StaleNote`, inline `StatusLegend`, source notes).
+   granularity, one shape everywhere: "Last 24 hours · per hour, WIB" or "Last 7 days"); the **footnote is provenance** (`StaleNote`, inline `StatusLegend`, source notes).
    Chart legends sit in the Panel `actions` (`<ChartLegend items={legendItems(series)} />`, chart `hideLegend`).
    A ranking (HBarChart) in a stretched panel ends with a `Facts` summary ("Top 5 total", "Share of all …")
    pinned to the bottom (`bodyClassName="flex flex-col"`), never an empty band.
@@ -74,7 +73,7 @@ Detail pages add `Tabs` (line variant) directly under the header; the tab value 
 
 | State | Component | Rule |
 |---|---|---|
-| Loading | `Skeleton` in the final layout shape, revealed with `Reveal` | No spinners for regions; no layout shift (skeleton and content share one grid cell). Route-level: each route's `loading.tsx` lists its sections with the loaded page's heights, so the footer doesn't jump |
+| Loading | `Skeleton` in the final layout shape, revealed with `Reveal` | No spinners for regions; no layout shift (skeleton and content share one grid cell). Route-level: a route's `loading.tsx` renders a skeleton in the page's shape, so the footer doesn't jump |
 | Empty | `EmptyState` | Explains when data appears; filtered-empty offers "Clear filters" |
 | Error (no data) | `ErrorState` with retry | What + why + next step (copy guide) |
 | Error (has data) | keep data + page `Notice` | Never replace loaded rows with an error |
@@ -106,7 +105,6 @@ Detail pages add `Tabs` (line variant) directly under the header; the tab value 
   `useSearchState` + a `urlSchema` (one parser per key, each with its own fallback; `apps/web/src/lib/shared/url-schema.ts`).
   zod schemas live in `apps/web/src/lib/shared/contracts/*` and are imported by route handlers; client code never imports zod
   into a route's first load (≤ 250 kB gz, `bun run budget`).
-- Refresh interval is the viewer's preference (`RefreshControl`); no hard-coded intervals.
 - Disabled actions always explain why (tooltip / menu label).
 - Keyboard: every action reachable; one tab stop per card; roving focus in segmented controls; focus moves to
   the region after pagination; ⌘K palette reaches every page.
