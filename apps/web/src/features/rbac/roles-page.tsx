@@ -7,7 +7,7 @@ import { ActionMenu, type Column, ConfirmActionDialog, DataTable, Notice, Panel,
 import { formatNumber, plural } from "@starterkit/ui/lib/format";
 import { Button } from "@starterkit/ui/ui/button";
 import { KeyIcon } from "@starterkit/ui/ui/icons";
-import { toast } from "@starterkit/ui/ui/sonner";
+import { toast } from "@starterkit/ui/ui/toast";
 import { PageHeader } from "@/components/shell/page-header";
 import { api, errorText } from "@/lib/client/api";
 import { useAuth } from "@/lib/client/auth-context";

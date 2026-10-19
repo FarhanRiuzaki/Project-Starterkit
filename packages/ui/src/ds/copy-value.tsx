@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Truncate } from "./truncate";
 import { Icon } from "../ui/icon";
 import { CheckIcon, CopyIcon } from "../ui/icons";
+import { toast } from "../ui/toast";
 import { copyText } from "../lib/clipboard";
 
 /** Nilai mono yang bisa disalin (ID, IP, domain). Gagal salin → pesan, teks tetap bisa diseleksi. */
@@ -15,8 +16,7 @@ export function CopyValue({ value, label }: { value: string; label: string }) {
       setDone(true);
       setTimeout(() => setDone(false), 1500);
     } else {
-      // sonner is lazy (not in the first load); the Toaster is mounted by Providers.
-      void import("sonner").then(({ toast }) => toast.error("Couldn't copy to the clipboard. Select the text and copy it manually."));
+      toast.error("Couldn't copy to the clipboard. Select the text and copy it manually.");
     }
   }
   return (

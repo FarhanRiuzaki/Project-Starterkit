@@ -1,6 +1,7 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
+import dynamic from "next/dynamic";
 import { type FormEvent, useState } from "react";
 import { ConfirmActionDialog, Failure, Notice, Panel, SecretOnceDialog, StatusChip } from "@starterkit/ui/ds";
 import { useDelayedFlag } from "@starterkit/ui/motion";
@@ -13,9 +14,10 @@ import { api, errorText } from "@/lib/client/api";
 import type { TwoFactorSetupDto } from "@/lib/shared/contracts/me";
 import type { UserDto } from "@/lib/shared/contracts/users";
 import { ConnectionsCard } from "./connections-card";
-import { TwoFactorSetup } from "./two-factor-setup";
 import { ME_KEY, useMe } from "./use-me";
 
+/** Mounted on click: the QR code generator stays out of the page's first load. */
+const TwoFactorSetup = dynamic(() => import("./two-factor-setup").then((m) => m.TwoFactorSetup), { ssr: false });
 
 /** Password, two-factor authentication and connected accounts of the signed-in user. */
 export function SecurityPanel() {

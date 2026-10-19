@@ -7,7 +7,7 @@ import { Button } from "@starterkit/ui/ui/button";
 import { SecureIcon } from "@starterkit/ui/ui/icons";
 import { Input } from "@starterkit/ui/ui/input";
 import { Select } from "@starterkit/ui/ui/select";
-import { toast } from "@starterkit/ui/ui/sonner";
+import { toast } from "@starterkit/ui/ui/toast";
 import { RoleChips } from "@/components/role-chips";
 import { PageHeader } from "@/components/shell/page-header";
 import { api, errorText } from "@/lib/client/api";

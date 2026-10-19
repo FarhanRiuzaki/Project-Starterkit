@@ -6,6 +6,7 @@
   "sideEffects": ["*.css"],
   "exports": {
     "./ui/icons": "./src/ui/icons.ts",
+    "./ui/toast": "./src/ui/toast.ts",
     "./ui/*": "./src/ui/*.tsx",
     "./motion": "./src/motion/index.ts",
     "./ds": "./src/ds/index.ts",

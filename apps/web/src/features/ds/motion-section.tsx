@@ -12,6 +12,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Icon } from "@starterkit/ui/ui/icon";
 import { CheckIcon, RefreshIcon, SessionsIcon } from "@starterkit/ui/ui/icons";
 import { Skeleton } from "@starterkit/ui/ui/skeleton";
+import { toast } from "@starterkit/ui/ui/toast";
 
 type Spring = { stiffness: number; damping: number; mass: number };
 export const fmtMs = (s: number) => `${Math.round(s * 1000)} ms`;
@@ -165,8 +166,7 @@ function ToastDemo() {
   const [run, replay] = useRun();
   function fire() {
     replay();
-    // sonner is lazy (not in the first load); the Toaster is mounted by Providers.
-    void import("@starterkit/ui/ui/sonner").then(({ toast }) => toast.success("Sample notification", { description: "This is how a result toast enters and leaves." }));
+    toast.success("Sample notification", { description: "This is how a result toast enters and leaves." });
   }
   return <Demo id="toast" run={run} onReplay={fire}><span className="text-body-sm text-fg-3">Shows a sample toast at the bottom right.</span></Demo>;
 }

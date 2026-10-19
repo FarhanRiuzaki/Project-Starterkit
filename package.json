@@ -9,7 +9,9 @@
     "lint": "eslint --max-warnings 0 .",
     "test": "bun run --filter '*' test",
     "test:changed": "bun run --filter '*' test:changed",
-    "check": "bun run typecheck && bun run lint && bun run test"
+    "check": "bun run typecheck && bun run lint && bun run test",
+    "e2e": "bun run --filter @starterkit/web e2e",
+    "budget": "node apps/web/scripts/bundle-budget.mjs"
   },
   "devDependencies": {
     "eslint": "9.39.5",

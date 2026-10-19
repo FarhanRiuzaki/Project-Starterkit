@@ -31,6 +31,12 @@ function layerViolations(fs: F[]): string[] {
   });
 }
 
+/** sonner (~10 kB gz) loads on demand: `toast` from ui/toast.ts, the Toaster through next/dynamic (providers.tsx). */
+function sonnerViolations(fs: F[]): string[] {
+  const own = [`${UI}ui/sonner.tsx`, `${UI}ui/toast.ts`];
+  return fs.filter(({ r, src, imp }) => (imp.includes("sonner") && !own.includes(r)) || /from\s+["']@starterkit\/ui\/ui\/sonner["']/.test(src)).map((f) => f.r);
+}
+
 function siblingFeatureViolations(fs: F[]): string[] {
   return fs.flatMap(({ r, imp }) => {
     const me = featureOf(r);
@@ -230,6 +236,15 @@ describe("architecture", () => {
 
   it("only charts imports recharts", () => {
     expect(files.filter(({ r, imp }) => imp.includes("recharts") && !r.startsWith(`${UI}charts/`)).map((f) => f.r)).toEqual([]);
+  });
+
+  it("sonner stays out of first loads: only ui/sonner.tsx and ui/toast.ts import it; ui/sonner only through import()", () => {
+    expect(sonnerViolations(files)).toEqual([]);
+    expect(sonnerViolations([
+      { r: `${WEB}features/x/a.tsx`, src: `import { toast } from "sonner";`, imp: ["sonner"] },
+      { r: `${WEB}features/x/b.tsx`, src: `import { Toaster } from "@starterkit/ui/ui/sonner";`, imp: ["@starterkit/ui/ui/sonner"] },
+      { r: `${WEB}components/c.tsx`, src: `dynamic(() => import("@starterkit/ui/ui/sonner"))`, imp: ["@starterkit/ui/ui/sonner"] },
+    ])).toEqual([`${WEB}features/x/a.tsx`, `${WEB}features/x/b.tsx`]);
   });
 
   it("only packages/ui/src/motion/framer.tsx imports motion", () => {

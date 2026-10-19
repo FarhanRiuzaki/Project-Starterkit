@@ -30,7 +30,7 @@ Package manager is Bun 1.4.3; runtime for Next is Node 24.
 - `bun run check` = typecheck + lint (`--max-warnings 0`) + unit tests. Must pass before every commit.
 - `bun run --filter @starterkit/web test -- <name>` runs one test file.
 - `bun run test:changed` runs, in each workspace, the tests touched by files changed since the last commit (`vitest --changed`); `bunx vitest related <files>` inside a package runs the tests that import those files.
-- `bun run build` builds `apps/web`; `bun run --filter @starterkit/web e2e` runs the Playwright E2E against a production build on :3123 (`apps/web/playwright.config.ts`); the root `bun run e2e` and `bun run budget` arrive in Task 13.
+- `bun run build` builds `apps/web`; `bun run e2e` runs the Playwright E2E against a production build on :3123 (`apps/web/playwright.config.ts`; `E2E_REUSE=1` reuses a server already on `E2E_PORT`); `bun run budget` checks first-load JS after a build.
 - Commit messages end with the `Co-Authored-By` line required by the plan.
 
 ## 3. Security
@@ -116,6 +116,7 @@ A change that touches routes, guards, redirects or exports needs a test for each
 
 - First-load JS gzip stays at or under 250 kB per route; check with `bun run budget` (`apps/web/scripts/bundle-budget.mjs`, default `--budget 250`).
 - Wrap below-the-fold charts in `LazyMount`; lazy-load Radix overlays through `deferred-overlay`; load heavy tables with `next/dynamic` when a route nears the budget.
+- Show toasts with `toast` from `@starterkit/ui/ui/toast` (loads sonner on the first toast); only `ui/sonner.tsx` and `ui/toast.ts` import `sonner`, and `ui/sonner` only through `import()`. A dialog that opens on click and carries a heavy dependency mounts through `next/dynamic` (`TwoFactorSetup`, `EntryDialog`). (`architecture.test.ts`)
 - Do not use `next/image`; icons are inline SVG via `packages/ui/src/ui/icon.tsx`. (Not machine-enforced yet.)
 - Do not import `zod` into client code that ships in a route's first load. (`docs/standards/ui-standard.md` §5)
 
