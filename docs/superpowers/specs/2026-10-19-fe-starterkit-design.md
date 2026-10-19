@@ -192,6 +192,11 @@ Berlaku untuk setiap layar dan modul, sekarang dan nanti. Sumber detail: `docs/s
   `MotionLayer` + transisi halaman + stagger saat data pertama muncul + number tween + shared indicator + enter/exit
   dialog/menu/toast; hanya `transform`/`opacity`; patuh budget performa design-system §7.7; `prefers-reduced-motion`
   mematikan gerak non-esensial; refresh data tidak memicu animasi ulang selain flash baris baru.
+- **Konsisten:** satu pola untuk satu kebutuhan di semua modul — `PageHeader`, `DataTable` server-driven,
+  `Field`, `ConfirmActionDialog`, `BlockedButton`, toast hasil aksi, lima state, hook data per fitur dengan bentuk yang
+  sama, route handler dengan urutan yang sama (parse → guard → rule → mutate → activity). Istilah UI hanya dari
+  glossary copy-guide. Modul baru meniru modul yang ada, bukan membuat varian baru; review akhir membandingkan
+  semua modul berdampingan.
 - Ditegakkan oleh: tes motion (token tidak boleh literal, reduced-motion), E2E motion, axe a11y, baseline screenshot
   `/ds` terang/gelap, dan cek manual setiap layar per role di Task 13.
 
