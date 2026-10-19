@@ -4,7 +4,7 @@ import { RouteSkeleton, type Section } from "../route-skeleton";
 const SECTIONS: readonly Section[] = [
   { kind: "header", h: 50 },
   { kind: "bar", h: 32 },
-  { kind: "table", chrome: 144, rows: 3, rowHeight: 44 },
+  { kind: "table", chrome: 144, rows: "page", max: 3, rowHeight: 44 },
 ];
 
 export default function Loading() {

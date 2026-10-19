@@ -6,7 +6,7 @@ import { fontVariables } from "./fonts";
 import "./globals.css";
 
 /** Last-resort boundary (the root layout itself failed): own <html>/<body>, with a retry. */
-export default function GlobalError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
+export default function GlobalError({ error, retry }: { error: Error & { digest?: string }; retry: () => void }) {
   return (
     <html lang="en" className={fontVariables}>
       <body className="min-h-screen bg-bg font-sans">
@@ -15,7 +15,7 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
             <h1 className="text-center text-title-3 text-fg">{BRAND.name}</h1>
             <ErrorState title="Couldn't load the app"
               cause="The app hit an unexpected error while loading. Try again; if it continues, contact your administrator."
-              detail={error.digest ? `Reference ${error.digest}` : null} onRetry={reset} />
+              detail={error.digest ? `Reference ${error.digest}` : null} onRetry={retry} />
           </div>
         </main>
       </body>

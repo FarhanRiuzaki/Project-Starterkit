@@ -1,6 +1,7 @@
 "use client";
 
 import { type ComponentProps, type ComponentType, useEffect, useState } from "react";
+import { ChunkBoundary } from "../ds/chunk-boundary";
 import { Reveal } from "../motion/reveal";
 import { Skeleton } from "../ui/skeleton";
 import { CHART_HEIGHT } from "./chart-theme";
@@ -23,7 +24,8 @@ function ChartSkeleton({ height }: { height: number }) {
 
 /**
  * The loaded chart, or for a chunk that failed to load (e.g. its hash is gone after a deploy) a component that throws
- * that error while rendering, so the nearest error boundary shows it instead of a skeleton that never ends.
+ * that error while rendering, so the chart's ChunkBoundary shows "Reload page" in its place instead of a skeleton that
+ * never ends.
  */
 export function orThrow<P>(chunk: Promise<ComponentType<P>>): Promise<ComponentType<P>> {
   return chunk.catch((err: unknown) => function ChunkFailed(): never { throw err; });
@@ -41,7 +43,7 @@ function lazyChart<P extends { height?: number }>(load: () => Promise<ComponentT
     }, [Chart]);
     return (
       <Reveal loading={!Chart} skeleton={<ChartSkeleton height={props.height ?? CHART_HEIGHT.standard} />}>
-        {Chart && <Chart {...props} />}
+        {Chart && <ChunkBoundary><Chart {...props} /></ChunkBoundary>}
       </Reveal>
     );
   };

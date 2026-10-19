@@ -2,6 +2,7 @@
 
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { Reveal } from "../motion/reveal";
+import { ChunkBoundary } from "./chunk-boundary";
 import { Skeleton } from "../ui/skeleton";
 
 /**
@@ -26,7 +27,7 @@ export function LazyMount({ minHeight, children }: { minHeight: number; children
 
   return (
     <div ref={ref}>
-      <Reveal loading={!mounted} skeleton={<Skeleton className="w-full rounded-md" style={{ height: minHeight }} />}>{mounted && children}</Reveal>
+      <Reveal loading={!mounted} skeleton={<Skeleton className="w-full rounded-md" style={{ height: minHeight }} />}>{mounted && <ChunkBoundary>{children}</ChunkBoundary>}</Reveal>
     </div>
   );
 }

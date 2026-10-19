@@ -119,9 +119,12 @@
   ::selection { @apply bg-primary-soft text-fg; }
   /* Spec §7.6: no translate, scale, spring or sweep; opacity fades stay, shortened to 100 ms. Keyframe enters
      swap to fade-in in their own utilities; tw-animate (menus, dialogs, tooltips) loses its scale/slide;
-     looping indicators stop instead of spinning at 100 ms. */
+     looping indicators stop instead of spinning at 100 ms. `visibility` never transitions: an element without a
+     transition of its own would otherwise start one, and un-hiding a container (`invisible` removed) would then reveal
+     its subtree one level per frame, a visible blink (the last duplicate in a transition list wins, so visibility
+     gets 0s). */
   @media (prefers-reduced-motion: reduce) {
-    *, *::before, *::after { animation-duration: var(--dur-instant) !important; animation-delay: 0ms !important; transition-duration: var(--dur-instant) !important; }
+    *, *::before, *::after { animation-duration: var(--dur-instant) !important; animation-delay: 0ms !important; transition-property: all, visibility; transition-duration: var(--dur-instant), 0s !important; }
     * { --tw-enter-scale: 1 !important; --tw-exit-scale: 1 !important; --tw-enter-translate-x: 0 !important; --tw-enter-translate-y: 0 !important; --tw-exit-translate-x: 0 !important; --tw-exit-translate-y: 0 !important; }
     .animate-spin, .animate-ping, .animate-pulse { animation: none !important; }
     /* Toasts: sonner ships its own reduced-motion rule (no transition, no animation). Do not override transform here:
@@ -130,7 +133,7 @@
 
   /* /ds Motion section, "Preview reduced motion": the same overrides as the block above, scoped to the section
      (the media query itself cannot be toggled from a page). The first three rule bodies must stay identical to the block above; the mirrored utility and disclosure rules are asserted too (globals-css.test.ts). */
-  [data-motion-preview="reduced"] *, [data-motion-preview="reduced"] *::before, [data-motion-preview="reduced"] *::after { animation-duration: var(--dur-instant) !important; animation-delay: 0ms !important; transition-duration: var(--dur-instant) !important; }
+  [data-motion-preview="reduced"] *, [data-motion-preview="reduced"] *::before, [data-motion-preview="reduced"] *::after { animation-duration: var(--dur-instant) !important; animation-delay: 0ms !important; transition-property: all, visibility; transition-duration: var(--dur-instant), 0s !important; }
   [data-motion-preview="reduced"] * { --tw-enter-scale: 1 !important; --tw-exit-scale: 1 !important; --tw-enter-translate-x: 0 !important; --tw-enter-translate-y: 0 !important; --tw-exit-translate-x: 0 !important; --tw-exit-translate-y: 0 !important; }
   [data-motion-preview="reduced"] .animate-spin, [data-motion-preview="reduced"] .animate-ping, [data-motion-preview="reduced"] .animate-pulse { animation: none !important; }
   /* The utilities carry their own reduced branches in @media; the preview mirrors them. */

@@ -45,7 +45,8 @@ function Frozen({ children }: { children: ReactNode }) {
 /**
  * Page crossfade (spec §7.2): popLayout, so the new page is in place at once (navigation never waits for the
  * exit) while the old one is lifted out of flow and fades over --dur-exit without movement; the new one fades +
- * rises 6 px over --dur-page. Reduced motion: opacity only, 100 ms. The exiting page takes no pointer input.
+ * rises 6 px over --dur-page. Reduced motion: opacity only, 100 ms. The exiting page takes no pointer input; a page
+ * that comes back while still leaving (quick Back, A → B → A) gets it again (`pointerEvents: "auto"` in animate).
  */
 function PageSwap({ routeKey, reduced, children }: { routeKey: string; reduced: boolean; children: ReactNode }) {
   const enter = reduced ? { duration: DUR.instant, ease: EASE.linear } : { duration: DUR.page, ease: EASE.out };
@@ -55,7 +56,7 @@ function PageSwap({ routeKey, reduced, children }: { routeKey: string; reduced: 
       <div className="relative grid min-w-0">
         <AnimatePresence mode="popLayout">
           <m.div key={routeKey} data-page-swap="" className="grid min-w-0"
-            initial={{ opacity: 0, y: reduced ? 0 : SHIFT_ENTER }} animate={{ opacity: 1, y: 0, transition: enter }}
+            initial={{ opacity: 0, y: reduced ? 0 : SHIFT_ENTER }} animate={{ opacity: 1, y: 0, pointerEvents: "auto", transition: enter }}
             exit={{ opacity: 0, pointerEvents: "none", transition: exit }}>
             <Frozen>{children}</Frozen>
           </m.div>

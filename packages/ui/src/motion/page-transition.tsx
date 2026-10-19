@@ -6,6 +6,7 @@ import { cn } from "../lib/cn";
 import { armPageSwap, type PageSwapState } from "./gate";
 import { useMotionLayer } from "./layer";
 import { usePrefersReducedMotion } from "./reduced-motion";
+import { DUR } from "./tokens";
 
 const Swapping = createContext(false);
 type Hold = (shape: ReactNode, until: number) => void;
@@ -24,22 +25,30 @@ export const useHoldShape = (): Hold => useContext(HoldContext);
  * y 6 → 0 over --dur-page, reduced motion opacity only) that runs without waiting for JavaScript, so server HTML is
  * never stuck hidden. Once `PageTransitionRoot` has switched to the Framer crossfade it owns the enter and this
  * wrapper drops its CSS animation. It also holds a route loading shape for its minimum time (useHoldShape); the page
- * then fades in under it. `data-page` marks the page's box (a route loading shape copies it while it waits).
+ * then crossfades in under it: the shape fades out over the page's fade-in, so the region never shows neither.
+ * `data-page` marks the page's box, `data-held` the held shape (a route loading shape copies what's on screen).
  */
 export function PageTransition({ children, className }: { children: ReactNode; className?: string }) {
   const swapping = useContext(Swapping);
   const [held, setHeld] = useState<{ shape: ReactNode; until: number } | null>(null);
+  const [leaving, setLeaving] = useState<ReactNode>(null);
   const [wasHeld, setWasHeld] = useState(false);
-  const hold = useCallback<Hold>((shape, until) => { if (until > performance.now()) { setHeld({ shape, until }); setWasHeld(true); } }, []);
+  const hold = useCallback<Hold>((shape, until) => { if (until > performance.now()) { setHeld({ shape, until }); setLeaving(null); setWasHeld(true); } }, []);
   useEffect(() => {
     if (!held) return;
-    const t = setTimeout(() => setHeld(null), held.until - performance.now());
+    const t = setTimeout(() => { setLeaving(held.shape); setHeld(null); }, held.until - performance.now());
     return () => clearTimeout(t);
   }, [held]);
+  useEffect(() => {
+    if (!leaving) return;
+    const t = setTimeout(() => setLeaving(null), DUR.fast * 1000);
+    return () => clearTimeout(t);
+  }, [leaving]);
+  const shape = held?.shape ?? leaving;
   return (
     <HoldContext.Provider value={hold}>
       <div className={cn("grid min-w-0 gap-section *:col-start-1 *:row-start-1", !swapping && "animate-page-enter", className)}>
-        {held && <div className="min-w-0">{held.shape}</div>}
+        {shape && <div data-held="" className={cn("min-w-0", !held && "pointer-events-none animate-reveal-out")}>{shape}</div>}
         <div data-page="" className={cn("grid min-w-0 gap-section", held ? "invisible" : wasHeld && "animate-reveal-in")}>{children}</div>
       </div>
     </HoldContext.Provider>

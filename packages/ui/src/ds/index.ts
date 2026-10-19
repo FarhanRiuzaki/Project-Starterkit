@@ -26,6 +26,7 @@ export { Field } from "./field";
 export { LazyMount } from "./lazy-mount";
 export { Notice } from "./notice";
 export { Failure, StaleNotice } from "./failure";
+export { ChunkBoundary, ReloadButton } from "./chunk-boundary";
 export { FilterInput } from "./filter-input";
 export { Brand } from "./brand";
 export { StepIndicator, StepMarker, type IndicatorStep, type StepStatus } from "./step-indicator";

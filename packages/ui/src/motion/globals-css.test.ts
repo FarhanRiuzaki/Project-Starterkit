@@ -58,7 +58,9 @@ describe("motion utilities", () => {
     // the declared custom properties and the animation / transition duration lines
     expect([...vars.matchAll(/(--[a-z-]+):\s*([^;]+)/g)].map((m) => `${m[1]}=${m[2]}`)).toHaveLength(6);
     expect(universal).toMatch(/animation-duration:\s*var\(--dur-instant\) !important/);
-    expect(universal).toMatch(/transition-duration:\s*var\(--dur-instant\) !important/);
+    expect(universal).toMatch(/transition-duration:\s*var\(--dur-instant\), 0s !important/);
+    // visibility is listed last with 0s: un-hiding a container never fades its subtree in level by level
+    expect(universal).toMatch(/transition-property:\s*all, visibility;/);
   });
   it("the preview mirrors every other reduced branch: disclosure, shimmer, card lift, utilities", () => {
     const SCOPE = '[data-motion-preview="reduced"]';

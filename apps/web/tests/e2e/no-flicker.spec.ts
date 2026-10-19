@@ -11,8 +11,11 @@ import { AUTH_STATE, SCRATCH } from "./global-setup";
  * 1 to FLASH_MIN ms is a flash and fails. Layout shift (PerformanceObserver "layout-shift", without recent input)
  * must stay under CLS_MAX. A document load must not ask /api for its first data: the server rendered it.
  * The probe also records blank gaps: intervals in which the page region (main) shows neither visible text nor a
- * visible loading state. A gap may last one frame (FRAME ms), or longer only while a page fade-in runs over it
- * (the region is fading in from nothing anyway); anything else is a blank flash and fails.
+ * visible loading state, and no frozen copy of the previous page stands in for it. A gap may last one frame (FRAME
+ * ms). Longer, it passes only as the page's own reveal: the page-level container (the Framer page swap that isn't
+ * leaving, else the template's enter wrapper) runs its page-level opacity fade for the whole gap and stays below 0.9
+ * opacity throughout, i.e. the region is still coming in from nothing. A gap while that container is at 0.9 or more
+ * (or with no page-level fade) is a blink: something on screen went away and fails.
  */
 const FLASH_MIN = 300;
 const FRAME = 20;
@@ -32,16 +35,18 @@ const PAGES = [
 
 type Interval = { at: number; ms: number; path: string; what: string };
 type Shift = { at: number; value: number; input: boolean; path: string };
-type Gap = { at: number; ms: number; path: string; faded: boolean };
+type Gap = { at: number; ms: number; path: string; faded: boolean; opacity: [number, number]; scene: string };
 type Probe = {
   intervals: Interval[]; open: { at: number; path: string; what: string } | null; shifts: Shift[];
-  gaps: Gap[]; gap: { at: number; path: string; faded: boolean } | null;
+  gaps: Gap[]; gap: { at: number; path: string; faded: boolean; min: number; max: number; scene: string } | null;
+  /** Frames in which a frozen copy and a leaving Framer page were both visible (the old page doubled). */
+  doubled: number;
 };
 declare global { interface Window { __flicker: Probe } }
 
 /** Runs in the page before its scripts (addInitScript). */
 function installProbe() {
-  const st: Probe = { intervals: [], open: null, shifts: [], gaps: [], gap: null };
+  const st: Probe = { intervals: [], open: null, shifts: [], gaps: [], gap: null, doubled: 0 };
   window.__flicker = st;
   const shown = (el: Element) => {
     const r = el.getBoundingClientRect();
@@ -63,15 +68,35 @@ function installProbe() {
     }
     return false;
   };
-  const fading = (main: Element) => main.getAnimations({ subtree: true })
-    .some((a) => a.playState === "running" && ["page-enter", "fade-in"].includes((a as CSSAnimation).animationName));
+  /** A frozen copy of the previous screen (route-skeleton.tsx) stands in for the page region while it is up. */
+  const frozen = () => [...document.querySelectorAll("[data-frozen-holder]")].some((h) => Number(getComputedStyle(h).opacity) >= 0.9);
+  /** The page-level container: the Framer page swap that isn't leaving, else the template's page enter wrapper. */
+  const container = (main: Element) => [...main.querySelectorAll<HTMLElement>("[data-page-swap]")].find((el) => !el.querySelector(":scope > [inert]"))
+    ?? main.firstElementChild?.firstElementChild ?? null;
+  /** A page-level fade runs on that container: its CSS page enter, or a Framer/WAAPI opacity animation (inline opacity < 1). */
+  const fading = (el: Element | null) => !!el && (el.getAnimations().some((a) => a.playState === "running"
+    && (["page-enter", "fade-in"].includes((a as CSSAnimation).animationName)
+      || ((a.effect as KeyframeEffect | null)?.getKeyframes().some((k) => "opacity" in k) ?? false)))
+    || ((el as HTMLElement).style.opacity !== "" && Number(getComputedStyle(el).opacity) < 0.99));
   const gapTick = (now: number) => {
     const main = document.querySelector("#content");
-    const blank = !!main && !filled(main);
-    if (blank && !st.gap) st.gap = { at: now, path: location.pathname, faded: fading(main!) };
-    else if (blank && st.gap) st.gap.faded &&= fading(main!);
+    if (document.querySelector("[data-frozen-holder]") && [...document.querySelectorAll<HTMLElement>("[data-page-swap]")]
+      .some((el) => !!el.querySelector(":scope > [inert]") && el.checkVisibility({ opacityProperty: true, visibilityProperty: true }))) st.doubled++;
+    const blank = !!main && !filled(main) && !frozen();
+    const box = main && container(main);
+    const op = box ? Number(getComputedStyle(box).opacity) : 1;
+    /** What was on screen as the gap began (for the report): page swaps, frozen copies, loading shapes. */
+    const scene = () => [
+      ...[...document.querySelectorAll<HTMLElement>("[data-page-swap]")].map((e) => `swap(${Number(getComputedStyle(e).opacity).toFixed(2)}${e.querySelector(":scope > [inert]") ? ",leaving" : ""}${getComputedStyle(e).visibility === "hidden" ? ",hidden" : ""})`),
+      ...[...document.querySelectorAll("[data-frozen-holder]")].map((e) => `copy(${Number(getComputedStyle(e).opacity).toFixed(2)})`),
+      ...[...(main?.querySelectorAll("[data-page]") ?? [])].map((e) => `page(${e.className.replace(/grid|min-w-0|gap-section/g, "").trim()})`),
+      ...[...(main?.querySelectorAll("[data-route-skeleton]") ?? [])].map((e) => `shape${e.classList.contains("invisible") ? "(hidden)" : ""}`),
+    ].join(" ");
+    if (blank && !st.gap) st.gap = { at: now, path: location.pathname, faded: fading(box), min: op, max: op, scene: scene() };
+    else if (blank && st.gap) { st.gap.faded &&= fading(box); st.gap.min = Math.min(st.gap.min, op); st.gap.max = Math.max(st.gap.max, op); }
     else if (!blank && st.gap) {
-      st.gaps.push({ at: Math.round(st.gap.at), ms: Math.round(now - st.gap.at), path: st.gap.path, faded: st.gap.faded });
+      const g = st.gap;
+      st.gaps.push({ at: Math.round(g.at), ms: Math.round(now - g.at), path: g.path, faded: g.faded, opacity: [Math.round(g.min * 100) / 100, Math.round(g.max * 100) / 100], scene: g.scene });
       st.gap = null;
     }
   };
@@ -109,15 +134,15 @@ async function settle(page: Page) {
   return page.evaluate(() => {
     const st = window.__flicker;
     if (st.open) st.intervals.push({ at: Math.round(st.open.at), ms: -1, path: st.open.path, what: `${st.open.what} (still on)` });
-    if (st.gap) st.gaps.push({ at: Math.round(st.gap.at), ms: -1, path: st.gap.path, faded: false });
-    return { intervals: st.intervals, shifts: st.shifts, gaps: st.gaps };
+    if (st.gap) st.gaps.push({ at: Math.round(st.gap.at), ms: -1, path: st.gap.path, faded: false, opacity: [st.gap.min, st.gap.max], scene: st.gap.scene });
+    return { intervals: st.intervals, shifts: st.shifts, gaps: st.gaps, doubled: st.doubled };
   });
 }
 
 const flashes = (iv: Interval[]) => iv.filter((i) => i.ms >= 1 && i.ms < FLASH_MIN);
 const stuck = (iv: Interval[]) => iv.filter((i) => i.ms === -1);
-/** Blank gaps longer than a frame that no page fade covered (or still blank after settling). */
-const blank = (gs: Gap[]) => gs.filter((g) => g.ms === -1 || (g.ms > FRAME && !g.faded));
+/** Blank gaps longer than a frame that aren't the page's own reveal (or still blank after settling). */
+const blank = (gs: Gap[]) => gs.filter((g) => g.ms === -1 || (g.ms > FRAME && !(g.faded && g.opacity[1] < 0.9)));
 const cls = (s: Shift[]) => Math.round(s.filter((x) => !x.input).reduce((n, x) => n + x.value, 0) * 10_000) / 10_000;
 
 for (const mode of [{ name: "light", colorScheme: "light", reducedMotion: "no-preference" }, { name: "dark, reduced motion", colorScheme: "dark", reducedMotion: "reduce" }] as const) {
@@ -136,6 +161,7 @@ for (const mode of [{ name: "light", colorScheme: "light", reducedMotion: "no-pr
         expect(html, "the server HTML carries the page's data").toContain(p.filled);
         expect(flashes(m.intervals), "loading states shown for 1–300 ms").toEqual([]);
         expect(blank(m.gaps), "blank page region longer than a frame, not under a fade").toEqual([]);
+        expect(m.doubled, "frames with the old page doubled (frozen copy over a leaving page)").toBe(0);
         expect(stuck(m.intervals), "loading states still on after settling").toEqual([]);
         expect(cls(m.shifts), "cumulative layout shift").toBeLessThan(CLS_MAX);
         expect(api, "requests to /api during the document load").toEqual([]);
@@ -172,6 +198,7 @@ test.describe("client navigation and table changes", () => {
     save("client navigation", { intervals: m.intervals, gaps: m.gaps, shifts: m.shifts, shiftTotal: navShift, api });
     expect(flashes(m.intervals), "loading states shown for 1–300 ms").toEqual([]);
     expect(blank(m.gaps), "blank page region longer than a frame, not under a fade").toEqual([]);
+    expect(m.doubled, "frames with the old page doubled (frozen copy over a leaving page)").toBe(0);
     expect(stuck(m.intervals)).toEqual([]);
     expect(navShift, "layout shift during the navigations (input or not)").toBeLessThan(CLS_MAX);
     expect(api, "requests to /api during client navigation (the server prefetched each page)").toEqual([]);
@@ -195,6 +222,7 @@ test.describe("client navigation and table changes", () => {
     expect(api, "requests to /api after revisiting with a stale cache").toEqual([]);
     expect(flashes(m.intervals)).toEqual([]);
     expect(blank(m.gaps), "blank page region longer than a frame, not under a fade").toEqual([]);
+    expect(m.doubled, "frames with the old page doubled (frozen copy over a leaving page)").toBe(0);
   });
 
   for (const reducedMotion of ["no-preference", "reduce"] as const) {
@@ -227,6 +255,7 @@ test.describe("client navigation and table changes", () => {
         save(`same-segment ${reducedMotion} +${delay}`, { intervals: m.intervals, gaps: m.gaps });
         expect(flashes(m.intervals), "loading states shown for 1–300 ms").toEqual([]);
         expect(blank(m.gaps), "blank page region longer than a frame, not under a fade").toEqual([]);
+        expect(m.doubled, "frames with the old page doubled (frozen copy over a leaving page)").toBe(0);
         expect(stuck(m.intervals)).toEqual([]);
       });
     }
@@ -254,10 +283,57 @@ test.describe("client navigation and table changes", () => {
       save(`slow server ${delay} ms`, { intervals: m.intervals, gaps: m.gaps });
       expect(flashes(m.intervals), "loading states shown for 1–300 ms").toEqual([]);
       expect(blank(m.gaps), "blank page region longer than a frame, not under a fade").toEqual([]);
+      expect(m.doubled, "frames with the old page doubled (frozen copy over a leaving page)").toBe(0);
       expect(stuck(m.intervals)).toEqual([]);
       if (delay >= 600) expect(m.intervals.filter((i) => i.what === "busy:div").length, "a slow page shows its loading shape").toBeGreaterThan(0);
     });
   }
+
+  test("navigating again while a loading shape is held: no blank, no flash, no doubled page", async ({ page }) => {
+    await page.addInitScript(installProbe);
+    await page.route("**/*", async (route) => {
+      const h = route.request().headers();
+      if (h.rsc === "1" && !h["next-router-prefetch"]) await new Promise((r) => setTimeout(r, 400));
+      await route.continue();
+    });
+    await page.goto("/");
+    await settle(page);
+    await page.evaluate(() => { window.__flicker.intervals = []; window.__flicker.gaps = []; window.__flicker.doubled = 0; });
+    const menu = page.getByRole("navigation", { name: "Menu" });
+    await menu.getByRole("link", { name: "Roles" }).click();
+    await page.locator("h1", { hasText: "Roles" }).waitFor({ state: "attached" }); // the Roles page arrived; its shape is held over it
+    await menu.getByRole("link", { name: "Users" }).click();
+    await expect(page.getByRole("heading", { level: 1, name: "Users" })).toBeVisible();
+    const m = await settle(page);
+    save("navigate during hold", { intervals: m.intervals, gaps: m.gaps, doubled: m.doubled });
+    expect(blank(m.gaps), "blank page region longer than a frame, not the page's own reveal").toEqual([]);
+    expect(m.doubled).toBe(0);
+    expect(flashes(m.intervals)).toEqual([]);
+  });
+
+  test("a chart chunk that fails to load takes down only its panel, which offers Reload page", async ({ page }) => {
+    await page.addInitScript(installProbe);
+    let hydrated = false;
+    await page.route("**/_next/static/chunks/*.js", async (route) => {
+      const res = await route.fetch();
+      const body = await res.text();
+      // The recharts chunk, asked for by the lazy chart after hydration: a 404, as after a deploy removed it.
+      if (hydrated && body.includes("ResponsiveContainer")) return route.fulfill({ status: 404, body: "" });
+      return route.fulfill({ response: res, body });
+    });
+    await page.goto("/users");
+    await settle(page);
+    hydrated = true;
+    await page.getByRole("navigation", { name: "Menu" }).getByRole("link", { name: "Dashboard" }).click();
+    await expect(page.getByText("Couldn't load this part of the page")).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Dashboard" })).toBeVisible(); // the page stays
+    await expect(page.locator('[data-slot="stat-tile"]').first()).toBeVisible();
+    await expect(page.getByRole("button", { name: "Reload page" })).toBeVisible();
+    await expect(page.getByText("Page unavailable")).toHaveCount(0);
+    await page.unrouteAll({ behavior: "ignoreErrors" });
+    await page.getByRole("button", { name: "Reload page" }).click();
+    await expect(page.locator("svg.recharts-surface").first()).toBeVisible();
+  });
 
   test("sort and page change keep the previous rows on screen, no flash", async ({ page }) => {
     await page.addInitScript(installProbe);
@@ -290,6 +366,7 @@ test.describe("client navigation and table changes", () => {
     expect(await page.locator('[data-slot="skeleton"]:visible').count()).toBe(0);
     expect(flashes(m.intervals), "loading states shown for 1–300 ms").toEqual([]);
     expect(blank(m.gaps), "blank page region longer than a frame, not under a fade").toEqual([]);
+    expect(m.doubled, "frames with the old page doubled (frozen copy over a leaving page)").toBe(0);
     expect(stuck(m.intervals)).toEqual([]);
   });
 
@@ -315,5 +392,6 @@ test.describe("client navigation and table changes", () => {
     save("users slow sort", { intervals: m.intervals, gaps: m.gaps });
     expect(flashes(m.intervals)).toEqual([]);
     expect(blank(m.gaps), "blank page region longer than a frame, not under a fade").toEqual([]);
+    expect(m.doubled, "frames with the old page doubled (frozen copy over a leaving page)").toBe(0);
   });
 });
