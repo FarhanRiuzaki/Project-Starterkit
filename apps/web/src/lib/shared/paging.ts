@@ -11,6 +11,8 @@ export const MAX_PAGE = 1000;
 // TableSpec). The audit logs keep theirs in lib/shared/audit.ts.
 export const USER_SORTS = ["name", "email", "lastLoginAt", "createdAt"] as const;
 export const ROLE_SORTS = ["name", "permissions", "users"] as const;
+/** GET /api/users/roles (role options for pickers). */
+export const ROLE_OPTION_SORTS = ["name"] as const;
 /** `module` = catalog order (module by module, as the matrix lists them). */
 export const PERMISSION_SORTS = ["module", "name", "action"] as const;
 export const SESSION_SORTS = ["lastSeenAt", "device"] as const;

@@ -14,7 +14,7 @@ export { Segmented } from "./segmented";
 export { RelativeTime } from "./relative-time";
 export { CopyValue } from "./copy-value";
 export { Truncate } from "./truncate";
-export { DataTable, type Column, type DataTablePaging } from "./data-table";
+export { DataTable, type Column, type DataTablePaging, type SortDir } from "./data-table";
 export { Pagination } from "./pagination";
 export { QueryInput } from "./query-input";
 export { TimeRangePicker, type RangeKey } from "./time-range";

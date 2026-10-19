@@ -13,7 +13,7 @@ import { toast } from "@starterkit/ui/ui/sonner";
 import { api, errorText } from "@/lib/client/api";
 import { useAuth } from "@/lib/client/auth-context";
 import type { UserDto } from "@/lib/shared/contracts/users";
-import { USERS_KEY, useRoleNames, useUserDetail } from "./use-users";
+import { USERS_KEY, useDebounced, useRoleNames, useUserDetail } from "./use-users";
 
 const CHECK = "size-4 cursor-pointer accent-primary";
 
@@ -22,7 +22,9 @@ export function UserForm({ user }: { user?: UserDto }) {
   const router = useRouter();
   const qc = useQueryClient();
   const { user: me } = useAuth();
-  const roleNames = useRoleNames();
+  const [roleText, setRoleText] = useState("");
+  const roleTerm = useDebounced(roleText.trim());
+  const roleNames = useRoleNames(roleTerm);
   const [name, setName] = useState(user?.name ?? "");
   const [username, setUsername] = useState(user?.username ?? "");
   const [email, setEmail] = useState(user?.email ?? "");
@@ -34,6 +36,9 @@ export function UserForm({ user }: { user?: UserDto }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const self = !!user && user.id === me.id;
+  // More roles than one page: type to search; the roles already picked stay listed first.
+  const searchable = roleNames.more || roleTerm !== "";
+  const shownRoles = searchable ? [...new Set([...roles, ...roleNames.names])] : roleNames.names;
   const toggleRole = (r: string) => setRoles((cur) => (cur.includes(r) ? cur.filter((x) => x !== r) : [...cur, r]));
 
   async function save(e: FormEvent) {
@@ -71,8 +76,11 @@ export function UserForm({ user }: { user?: UserDto }) {
         <Field id="u-email" label="Email"><Input id="u-email" type="email" value={email} maxLength={254} required onChange={(e) => setEmail(e.target.value)} autoComplete="off" /></Field>
         <fieldset className="grid gap-2">
           <legend className="mb-1.5 text-label text-fg">Roles</legend>
-          {roleNames.isPending ? <Skeleton className="h-5 w-40" /> : roleNames.error ? <Failure title="Couldn't load roles" error={roleNames.error} source="Starterkit" onRetry={() => void roleNames.refetch()} /> : (
-            roleNames.data.map((r) => (
+          {searchable && !self && (
+            <Input aria-label="Search roles" type="search" value={roleText} onChange={(e) => setRoleText(e.target.value)} placeholder="Search role name" autoComplete="off" className="w-full max-w-64" />
+          )}
+          {roleNames.query.isPending ? <Skeleton className="h-5 w-40" /> : roleNames.query.error && !roleNames.query.data ? <Failure title="Couldn't load roles" error={roleNames.query.error} source="Starterkit" onRetry={() => void roleNames.query.refetch()} /> : (
+            shownRoles.map((r) => (
               <label key={r} className="flex items-center gap-2 text-body text-fg">
                 <input type="checkbox" className={CHECK} checked={roles.includes(r)} disabled={self} onChange={() => toggleRole(r)} />{r}
               </label>

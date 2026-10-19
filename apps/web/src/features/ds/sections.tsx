@@ -4,11 +4,10 @@ import { BarChart, CHART_HEIGHT, HBarChart, Heatmap } from "@starterkit/ui/chart
 import {
   ActionMenu, Avatar, AvatarStack, BlockedButton, CategoryChip, Checkbox, ConfirmActionDialog, CountBadge, DataTable, EmptyState, ErrorState, Field, FilterChip, FilterMenu,
   Kbd, LazyMount, Meter, Panel, QueryInput, SecretOnceDialog, Segmented, Spec, StatusChip, TickMeter, Toolbar, Truncate,
-  type Column,
+  type Column, type SortDir,
 } from "@starterkit/ui/ds";
 import { formatNumber } from "@starterkit/ui/lib/format";
 import { HEALTH, type Health } from "@starterkit/ui/lib/status";
-import type { SortDir } from "@starterkit/ui/lib/sort";
 import { Reveal } from "@starterkit/ui/motion";
 import { Button } from "@starterkit/ui/ui/button";
 import { Icon } from "@starterkit/ui/ui/icon";
@@ -26,7 +25,7 @@ const SAMPLE_SECRET = "Sample-Pw-Not-Real-0000";
 const HEALTHS = ["healthy", "degraded", "down", "stopped", "unknown"] as const satisfies readonly Health[];
 const LEGEND = HEALTHS.map((h) => ({ health: h, label: HEALTH[h].label, description: HEALTH[h].description }));
 const EMPTY = { icon: SessionsIcon, title: "No sessions yet", description: "Sessions appear here after someone signs in." };
-const SORTS = [{ value: "name", label: "Name" }, { value: "status", label: "Status" }, { value: "city", label: "City" }] as const;
+const ROLES = [{ value: "", label: "Any" }, { value: "admin", label: "Admin" }, { value: "viewer", label: "Viewer" }] as const;
 const STATUS_OPTIONS = [
   { value: "all", label: "All", count: ROWS.length },
   ...(["healthy", "degraded", "down"] as const).map((h) => ({ value: h, label: HEALTH[h].label, count: ROWS.filter((r) => r.status === h).length })),
@@ -39,24 +38,22 @@ function SectionTitle({ children }: { children: string }) {
 export function GallerySections() {
   const [query, setQuery] = useState("status:degraded city:oslo");
   const [status, setStatus] = useState<(typeof STATUS_OPTIONS)[number]["value"]>("all");
-  const [sortBy, setSortBy] = useState<(typeof SORTS)[number]["value"]>("name");
   const [chip, setChip] = useState(true);
-  const [sort, setSort] = useState<{ key: string; dir: SortDir }>({ key: "name", dir: "asc" });
-  const [page, setPage] = useState(1);
+  const [role, setRole] = useState<(typeof ROLES)[number]["value"]>("");
   const [server, setServer] = useState({ page: 1, pageSize: 15, sort: { key: "name", dir: "asc" as SortDir } });
   const [dialog, setDialog] = useState(false);
   const [secret, setSecret] = useState(false);
 
   const columns: Column<Row>[] = [
-    { key: "name", header: "User", icon: UsersIcon, sortValue: (r) => r.name,
+    { key: "name", header: "User", icon: UsersIcon, sortable: true,
       cell: (r) => (
         <span className="flex min-w-0 max-w-72 items-center gap-2.5">
           <Avatar name={r.name} />
           <span className="grid min-w-0"><Truncate title={r.name}><span className="font-medium text-fg">{r.name}</span></Truncate><span className="truncate font-mono text-caption text-fg-3">{r.email}</span></span>
         </span>
       ) },
-    { key: "status", header: "Status", sortValue: (r) => HEALTH[r.status].order, cell: (r) => <StatusChip health={r.status} label={HEALTH[r.status].label} description={HEALTH[r.status].description} /> },
-    { key: "city", header: "City", sortValue: (r) => r.city, cell: (r) => r.city },
+    { key: "status", header: "Status", sortable: true, cell: (r) => <StatusChip health={r.status} label={HEALTH[r.status].label} description={HEALTH[r.status].description} /> },
+    { key: "city", header: "City", sortable: true, cell: (r) => r.city },
     { key: "seen", header: "Last seen", align: "right", cell: (r) => <span className="tabular">{r.lastSeen}</span> },
   ];
   const rows = status === "all" ? ROWS : ROWS.filter((r) => r.status === status);
@@ -67,19 +64,16 @@ export function GallerySections() {
       <Toolbar>
         <div className="w-full max-w-80"><QueryInput value={query} onChange={setQuery} keys={["status", "city"]} label="Search users" placeholder="status:degraded city:oslo" /></div>
         <Segmented label="Status" value={status} onChange={setStatus} options={STATUS_OPTIONS} />
-        <FilterMenu label="Sort by" value={sortBy} options={SORTS} onChange={setSortBy} />
+        <FilterMenu label="Role" value={role} options={ROLES} onChange={setRole} />
         {chip && <FilterChip removeLabel="Remove filter role:viewer" onRemove={() => setChip(false)}>role:viewer</FilterChip>}
       </Toolbar>
-      <Panel flush icon={UsersIcon} title="Users" count={rows.length} description="Sort, selection, paging, row actions; the info button explains the statuses" legend={LEGEND}>
-        <DataTable label="Sample users" rowHeight="identity" columns={columns} rows={rows} rowKey={(r) => r.id} sort={sort} onSortChange={setSort}
-          isSelected={(r) => r.id === "row-2"} empty={EMPTY} paging={{ mode: "paged", page, onPageChange: setPage }}
-          rowActions={(r) => <><Button size="sm" variant="ghost">Open</Button><ActionMenu label={`Actions for ${r.name}`} actions={[{ id: "edit", label: "Edit user" }, { id: "delete", label: "Delete user", destructive: true }]} /></>} />
-      </Panel>
-      <Panel flush icon={UsersIcon} title="Server-paged table" count="12,345" description="Page, page size and sort are requests to the server; sample rows">
-        <DataTable label="Server-paged sample" rowHeight="identity" columns={columns.map((c) => ({ ...c, sortValue: undefined, sortable: c.key !== "seen" }))}
-          rows={ROWS.slice(0, server.pageSize)} rowKey={(r) => r.id} empty={EMPTY} sort={server.sort} onSortChange={(sort) => setServer((s) => ({ ...s, page: 1, sort }))}
+      <Panel flush icon={UsersIcon} title="Users" count="12,345" legend={LEGEND}
+        description="Server-paged: page, page size and sort are requests; selection, row actions; the info button explains the statuses">
+        <DataTable label="Sample users" rowHeight="identity" columns={columns} rows={rows.slice(0, server.pageSize)} rowKey={(r) => r.id}
+          isSelected={(r) => r.id === "row-2"} empty={EMPTY} sort={server.sort} onSortChange={(sort) => setServer((s) => ({ ...s, page: 1, sort }))}
           paging={{ mode: "server", page: server.page, pageSize: server.pageSize, total: 12_345, maxPage: 1000, pageSizes: [15, 25, 50, 100],
-            onPageChange: (p) => setServer((s) => ({ ...s, page: p })), onPageSizeChange: (n) => setServer((s) => ({ ...s, page: 1, pageSize: n })) }} />
+            onPageChange: (p) => setServer((s) => ({ ...s, page: p })), onPageSizeChange: (n) => setServer((s) => ({ ...s, page: 1, pageSize: n })) }}
+          rowActions={(r) => <><Button size="sm" variant="ghost">Open</Button><ActionMenu label={`Actions for ${r.name}`} actions={[{ id: "edit", label: "Edit user" }, { id: "delete", label: "Delete user", destructive: true }]} /></>} />
       </Panel>
       <Panel flush title="Table states" description="Loading, error and empty">
         <div className="grid divide-y divide-line">

@@ -2,7 +2,6 @@
 
 import type { ReactNode } from "react";
 import { type Column, DataTable, Notice, Panel, RelativeTime } from "@starterkit/ui/ds";
-import { formatNumber } from "@starterkit/ui/lib/format";
 import { SessionsIcon } from "@starterkit/ui/ui/icons";
 import { errorText } from "@/lib/client/api";
 import { useTableQuery } from "@/lib/client/use-table-query";
@@ -33,10 +32,10 @@ export function SessionsTable({ queryKey, path, title, description, current, emp
   return (
     <>
       {t.staleError && <Notice tone="warn" live>Couldn&apos;t refresh the sessions; showing the ones loaded before. {errorText(t.staleError)}</Notice>}
-      <Panel flush icon={SessionsIcon} title={title} description={description} count={t.total != null ? formatNumber(t.total) : undefined}>
+      <Panel flush icon={SessionsIcon} title={title} description={description} count={t.count}>
         <DataTable label={title} columns={columns} rows={t.rows} rowKey={(s) => s.id} loading={t.loading}
           sort={t.sort} onSortChange={t.onSortChange} paging={t.paging} rowActions={action}
-          error={t.loadError ? { title: "Couldn't load the sessions", cause: errorText(t.loadError), onRetry: () => void t.query.refetch() } : null}
+          error={t.loadError ? { title: "Couldn't load sessions", cause: errorText(t.loadError), onRetry: () => void t.query.refetch() } : null}
           empty={{ icon: SessionsIcon, title: "No active sessions", description: emptyHint }} />
       </Panel>
     </>

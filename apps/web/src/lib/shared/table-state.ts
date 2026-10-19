@@ -1,5 +1,7 @@
 // URL state of a server-driven table: page, pageSize, sort and the page's own filters. Pure (no React, no zod), so
 // the browser hook (lib/client/use-table-query.ts) and tests share it.
+import { formatNumber } from "@starterkit/ui/lib/format";
+import type { Page } from "./contracts/common";
 import { DEFAULT_PAGE_SIZE, MAX_PAGE, PAGE_SIZES, type PageSize } from "./paging";
 
 /** Reads one filter from the URL: the raw value (null when absent) → the value to use, its own fallback on junk. */
@@ -82,3 +84,29 @@ export function historyMode(patch: object, spec: { search?: readonly string[] })
 
 export const sortState = (sort: string): SortState => (sort.startsWith("-") ? { key: sort.slice(1), dir: "desc" } : { key: sort, dir: "asc" });
 export const toSortParam = (s: SortState): string => (s.dir === "desc" ? `-${s.key}` : s.key);
+
+/** The query result a server table reads (React Query's fields). */
+export type TableResult<T> = { data?: Page<T>; isPending: boolean; isPlaceholderData: boolean; isFetching: boolean; error: unknown };
+
+/**
+ * What a server table shows for one query result at URL page `page` (useTableQuery's view; pure so it is tested):
+ * - while the next page or sort loads, the previous rows stay (`placeholderData`) with `busy`, never the skeleton;
+ * - a page past the end (rows deleted, an old link) shows the loading shape, `pastEnd`, until it moves to the last page;
+ * - `loadError` = nothing valid to show (DataTable error); `staleError` = a refetch failed over valid rows (page Notice);
+ * - `count` = the Panel count: the formatted total, "+" when the server capped it.
+ */
+export function tableView<T>(r: TableResult<T>, page: number) {
+  const data = r.data;
+  const pastEnd = !!data && !r.isPlaceholderData && data.items.length === 0 && data.total > 0 && page > 1;
+  return {
+    pastEnd,
+    rows: pastEnd ? [] : data?.items ?? [],
+    total: data?.total,
+    totalCapped: !!data?.totalCapped,
+    count: data ? `${formatNumber(data.total)}${data.totalCapped ? "+" : ""}` : undefined,
+    busy: r.isPlaceholderData && r.isFetching,
+    loading: r.isPending || pastEnd,
+    loadError: r.error && (!data || r.isPlaceholderData) ? r.error : null,
+    staleError: r.error && data && !r.isPlaceholderData ? r.error : null,
+  };
+}

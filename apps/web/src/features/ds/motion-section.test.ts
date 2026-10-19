@@ -1,9 +1,9 @@
 import { createElement as h } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { DUR, EASE, SPRING_FLIP, SPRING_INDICATOR, SPRING_SOFT } from "@starterkit/ui/motion";
+import { DUR, EASE, OVERLAY_MOTION, SPRING_FLIP, SPRING_INDICATOR, SPRING_SOFT } from "@starterkit/ui/motion";
 import { TooltipProvider } from "@starterkit/ui/ui/tooltip";
-import { fmtEase, fmtMs, fmtSpring, MotionSection, PATTERNS, RULES, RULES_ONLY } from "./motion-section";
+import { fmtEase, fmtMs, fmtSpring, inOut, MotionSection, PATTERNS, RULES, RULES_ONLY } from "./motion-section";
 
 const html = renderToStaticMarkup(h(TooltipProvider, null, h(MotionSection)));
 
@@ -27,6 +27,16 @@ describe("MotionSection tokens", () => {
   });
 });
 
+describe("MotionSection overlay rows print the tokens the components use", () => {
+  const row = (id: string) => RULES.find((r) => r.id === id)!.duration;
+  it("menu 180 in / 100 out, tooltip 100 / 100, dialog 280 / 160 with scrim 220 / 160", () => {
+    expect(row("menu")).toBe(inOut(OVERLAY_MOTION.menu));
+    expect(row("menu")).toBe("180 ms in · 100 ms out");
+    expect(row("tooltip")).toBe("100 ms in · 100 ms out");
+    expect(row("dialog")).toBe("280 ms in · 160 ms out; scrim 220 ms in · 160 ms out");
+  });
+});
+
 describe("MotionSection patterns and rules", () => {
   it("has the 14 patterns, each with a Replay button and a data-run counter starting at 0", () => {
     expect(PATTERNS).toHaveLength(14);
@@ -38,7 +48,7 @@ describe("MotionSection patterns and rules", () => {
   it("rules table has the four columns and one row per pattern plus the rules-only rows", () => {
     for (const c of ["Pattern", "Layer", "Duration", "Reduced motion"]) expect(html).toMatch(new RegExp(`<th scope="col"[^>]*>${c}</th>`));
     expect(html.match(/data-pattern="/g)).toHaveLength(RULES.length);
-    for (const id of ["tab-reveal", "card-lift", "page-swap", "card-reorder", "skeleton-shimmer", "chart"]) expect(RULES_ONLY.map((r) => r.id)).toContain(id);
+    for (const id of ["tooltip", "tab-reveal", "card-lift", "page-swap", "card-reorder", "skeleton-shimmer", "chart"]) expect(RULES_ONLY.map((r) => r.id)).toContain(id);
     expect(RULES_ONLY.every((r) => !html.includes(`data-demo="${r.id}"`))).toBe(true);
     expect(PATTERNS.every((p) => p.layer === "CSS" || p.layer === "Motion")).toBe(true);
   });

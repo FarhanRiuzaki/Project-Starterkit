@@ -3,13 +3,27 @@
  * (--dur-*, --ease-*, --shift-enter, --stagger; tokens.test keeps them in sync), plus the pure stagger and tween
  * helpers the motion primitives use. No runtime import: safe for tests, server code and any layer.
  */
-export const DUR = { instant: 0.1, fast: 0.15, pop: 0.18, enter: 0.22, page: 0.26, exit: 0.16, slow: 0.28, tween: 0.6, flash: 1.2 } as const;
+export const DUR = { instant: 0.1, fast: 0.15, pop: 0.18, enter: 0.22, page: 0.26, exit: 0.16, slow: 0.28, tween: 0.6, flash: 1.2, draw: 0.4 } as const;
+
+/**
+ * The duration token each overlay opens and closes with: the classes in ui/* are `duration-(--dur-<key>)` with these
+ * keys (ui/overlay-motion.test.ts checks them), and the /ds Motion inventory prints them.
+ */
+export const OVERLAY_MOTION = {
+  /** Dropdown menus and popovers. */
+  menu: { open: "pop", close: "instant" },
+  tooltip: { open: "instant", close: "instant" },
+  dialog: { open: "slow", close: "exit" },
+  scrim: { open: "enter", close: "exit" },
+} as const satisfies Record<string, { open: keyof typeof DUR; close: keyof typeof DUR }>;
 
 type Bezier = readonly [number, number, number, number];
 export const EASE = {
   out: [0.22, 1, 0.36, 1] as Bezier,
   in: [0.4, 0, 1, 1] as Bezier,
   standard: [0.2, 0, 0, 1] as Bezier,
+  /** Reduced-motion fades and loops. */
+  linear: [0, 0, 1, 1] as Bezier,
 } as const;
 /** An EASE curve as CSS text, the way tokens.css writes it. */
 export const cssEase = (b: Bezier): string => `cubic-bezier(${b.join(", ")})`;
@@ -22,6 +36,8 @@ export const cssEase = (b: Bezier): string => `cubic-bezier(${b.join(", ")})`;
 export const SPRING_INDICATOR = { type: "spring", stiffness: 520, damping: 40, mass: 0.8 } as const;
 /** The one general-purpose spring of the deferred layer (number tweens, badge settle): no overshoot. */
 export const SPRING_SOFT = { type: "spring", stiffness: 380, damping: 36, mass: 1 } as const;
+/** Number tween spring: lasts the tween's duration (given per call), never overshoots the real value. */
+export const SPRING_TWEEN = { type: "spring", bounce: 0 } as const;
 /** Card reorder (FLIP) glide of the deferred layer: a touch softer than the indicator, no overshoot. */
 export const SPRING_FLIP = { type: "spring", stiffness: 420, damping: 42, mass: 0.9 } as const;
 /** translateY distance for enters, px. */

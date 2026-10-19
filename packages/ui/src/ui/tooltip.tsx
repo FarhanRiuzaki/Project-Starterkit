@@ -13,7 +13,7 @@ function Tooltip(props: React.ComponentProps<typeof TooltipPrimitive.Root>) {
 function TooltipTrigger(props: React.ComponentProps<typeof TooltipPrimitive.Trigger>) {
   return <TooltipPrimitive.Trigger data-slot="tooltip-trigger" {...props} />;
 }
-/** UI tooltip (spec §5.14): inverse (--action / --action-fg), radius 8, body-sm, padding 6 10, max 280 px; opacity only, 120 ms in / 80 ms out, 300 ms open delay. */
+/** UI tooltip (spec §5.14): inverse (--action / --action-fg), radius 8, body-sm, padding 6 10, max 280 px; opacity only, `--dur-instant` in and out (OVERLAY_MOTION.tooltip), 300 ms open delay. */
 function TooltipContent({ className, sideOffset = 6, children, ...props }: React.ComponentProps<typeof TooltipPrimitive.Content>) {
   return (
     <TooltipPrimitive.Portal>
@@ -22,7 +22,7 @@ function TooltipContent({ className, sideOffset = 6, children, ...props }: React
         sideOffset={sideOffset}
         className={cn(
           "z-50 max-w-70 rounded-md bg-action px-2.5 py-1.5 text-body-sm text-action-fg shadow-overlay",
-          "animate-in fade-in-0 duration-(--dur-fast) data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:duration-(--dur-instant)",
+          "animate-in fade-in-0 duration-(--dur-instant) data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:duration-(--dur-instant)",
           className,
         )}
         {...props}

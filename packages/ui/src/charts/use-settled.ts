@@ -1,10 +1,10 @@
 "use client";
 
 import { type RefObject, useCallback } from "react";
-import { DUR } from "../motion";
+import { CHART_STAGGER, DUR } from "../motion";
 
-/** Longest chart mount animation: bar grow (DUR.slow) + its 200 ms stagger cap, and the 400 ms line draw, + margin. */
-const SETTLE_MS = Math.round((DUR.slow + 0.32) * 1000);
+/** After the longest chart mount animation (bar grow + its stagger cap, or the line draw), plus one fast step of margin. */
+const SETTLE_MS = Math.round((Math.max(DUR.slow + CHART_STAGGER.max, DUR.draw) + DUR.fast) * 1000);
 
 /**
  * Mount animations (bar grow, line draw, label fade) play once per chart. Recharts remounts a series' shapes whenever

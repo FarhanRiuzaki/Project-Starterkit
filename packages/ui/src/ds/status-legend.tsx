@@ -1,6 +1,6 @@
 "use client";
 
-import { useId } from "react";
+import { useId, useRef, useState } from "react";
 import { Icon } from "../ui/icon";
 import { InfoIcon } from "../ui/icons";
 import { Button } from "../ui/button";
@@ -34,12 +34,18 @@ export function StatusLegendList({ items }: { items: readonly LegendItem[] }) {
  */
 export function StatusLegend({ items }: { items: readonly LegendItem[] }) {
   const headingId = useId();
+  const [open, setOpen] = useState(false);
+  const [tip, setTip] = useState(false);
+  // Closing the popover returns focus to the trigger; that focus must not pop the tooltip back up. It stays quiet
+  // until focus or the pointer leaves the button.
+  const quiet = useRef(false);
   return (
-    <Popover>
-      <Tooltip>
+    <Popover open={open} onOpenChange={(o) => { setOpen(o); setTip(false); if (!o) quiet.current = true; }}>
+      <Tooltip open={tip} onOpenChange={(t) => setTip(t && !open && !quiet.current)}>
         <TooltipTrigger asChild>
           <PopoverTrigger asChild>
-            <Button variant="ghost" size="icon-sm" aria-label={`Status legend: ${items.map((i) => i.label).join(", ")}`}>
+            <Button variant="ghost" size="icon-sm" aria-label={`Status legend: ${items.map((i) => i.label).join(", ")}`}
+              onBlur={() => { quiet.current = false; }} onPointerLeave={() => { quiet.current = false; }}>
               <Icon icon={InfoIcon} />
             </Button>
           </PopoverTrigger>

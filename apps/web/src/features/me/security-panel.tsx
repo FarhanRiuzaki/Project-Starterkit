@@ -36,6 +36,7 @@ function Loading({ title }: { title: string }) {
 }
 
 function PasswordCard({ user }: { user: UserDto }) {
+  const qc = useQueryClient();
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [again, setAgain] = useState("");
@@ -52,6 +53,7 @@ function PasswordCard({ user }: { user: UserDto }) {
       await api("/api/me/password", { method: "POST", body: JSON.stringify({ current, next }) });
       setCurrent(""); setNext(""); setAgain("");
       setMsg({ ok: true, text: "Password changed. Your other sessions were signed out." });
+      void qc.invalidateQueries({ queryKey: ME_KEY }); // your session list (under "me") lost the other sessions
     } catch (err) {
       setMsg({ ok: false, text: errorText(err) });
     } finally {
@@ -89,6 +91,11 @@ function PasswordCard({ user }: { user: UserDto }) {
   );
 }
 
+const TWO_FACTOR_LEGEND = [
+  { health: "healthy" as const, label: "On", description: "Signing in asks for a one-time code after the password." },
+  { health: "stopped" as const, label: "Off", description: "Signing in asks for the password only." },
+];
+
 function TwoFactorCard({ user }: { user: UserDto }) {
   const qc = useQueryClient();
   const [starting, setStarting] = useState(false);
@@ -108,7 +115,7 @@ function TwoFactorCard({ user }: { user: UserDto }) {
   }
 
   return (
-    <Panel icon={SecureIcon} title="Two-factor authentication" description="A one-time code from an authenticator app">
+    <Panel icon={SecureIcon} title="Two-factor authentication" description="A one-time code from an authenticator app" legend={TWO_FACTOR_LEGEND}>
       <div className="grid gap-4">
         <div className="flex flex-wrap items-center gap-2">
           <StatusChip health={user.twoFactorEnabled ? "healthy" : "stopped"} label={user.twoFactorEnabled ? "On" : "Off"} />

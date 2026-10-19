@@ -24,3 +24,15 @@ export function serializeQuery(q: Query): string {
   const parts = Object.entries(q.filters).flatMap(([k, vs]) => vs.map((v) => (/\s/.test(v) ? `${k}:"${v}"` : `${k}:${v}`)));
   return [...parts, q.text].filter(Boolean).join(" ");
 }
+
+/**
+ * Search box (QueryInput): what to send for the typed `draft` while the applied value is `value`: the trimmed draft
+ * (at most 200 characters), or null when it is already applied. Spaces are kept in the draft and only trimmed here.
+ */
+export function searchToSend(draft: string, value: string): string | null {
+  const next = draft.trim().slice(0, 200);
+  return next === value.trim() ? null : next;
+}
+
+/** Search box: the draft after the applied value changed to `value` elsewhere; the draft stays when `value` is just its trimmed form. */
+export const adoptSearch = (draft: string, value: string): string => (value.trim() === draft.trim() ? draft : value);

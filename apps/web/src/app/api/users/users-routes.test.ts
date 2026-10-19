@@ -87,12 +87,30 @@ describe("GET /api/users", () => {
 });
 
 describe("GET /api/users/roles", () => {
-  it("lists role names with user.view and needs a session", async () => {
-    expect((await rolesGet(req("GET"))).status).toBe(401);
+  const options = (qs = "") => rolesGet(req("GET", undefined, `http://c/api/users/roles?${qs}`));
+  it("pages role options { id, name } by name with user.view and needs a session", async () => {
+    expect((await options()).status).toBe(401);
     await signIn("viewer");
-    expect(await (await rolesGet(req("GET"))).json()).toEqual(["Superadmin", "Admin", "Viewer"]);
+    expect(await (await options()).json()).toEqual({
+      items: [{ id: "role-admin", name: "Admin" }, { id: "role-superadmin", name: "Superadmin" }, { id: "role-viewer", name: "Viewer" }],
+      total: 3, page: 1, pageSize: 15,
+    });
     db().roles.get("role-viewer")!.permissions = [];
-    expect((await rolesGet(req("GET"))).status).toBe(403);
+    expect((await options()).status).toBe(403);
+  });
+
+  it("searches the name, pages, sorts descending; never unbounded", async () => {
+    await signIn("viewer");
+    for (let i = 0; i < 120; i++) db().roles.set(`role-x${i}`, { id: `role-x${i}`, name: `Team ${String(i).padStart(3, "0")}`, locked: false, permissions: [] });
+    const page = (await (await options("pageSize=100")).json()) as Page<{ name: string }>;
+    expect(page.items).toHaveLength(100);
+    expect(page.total).toBe(123);
+    expect(((await (await options("q=team 11")).json()) as Page<{ name: string }>).items.map((r) => r.name)).toEqual(Array.from({ length: 10 }, (_, i) => `Team 11${i}`));
+    expect(((await (await options("sort=-name&pageSize=15")).json()) as Page<{ name: string }>).items[0]!.name).toBe("Viewer");
+  });
+
+  it.each([["pageSize=500"], ["page=0"], ["sort=users"], ["sort=permissions"]])("rejects %s with 400 before the guard", async (qs) => {
+    expect((await options(qs)).status).toBe(400);
   });
 });
 

@@ -10,7 +10,7 @@ export function toRoleDto(r: RoleRecord): RoleDto {
   return { ...r, permissions: [...r.permissions], userCount };
 }
 
-/** Every role, in store order. GET /api/roles answers this; /api/users/roles answers its names. */
+/** Every role with its user count, in store order; GET /api/roles filters, sorts and pages it. */
 export const listRoles = (): RoleDto[] => [...db().roles.values()].map(toRoleDto);
 
 export const ROLE_SORTERS: Sorters<RoleDto> = { name: (r) => r.name, permissions: (r) => r.permissions.length, users: (r) => r.userCount };

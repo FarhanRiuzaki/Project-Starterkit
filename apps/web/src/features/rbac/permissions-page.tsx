@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { type Column, ConfirmActionDialog, DataTable, Field, FilterMenu, Notice, Panel, QueryInput, Toolbar } from "@starterkit/ui/ds";
-import { formatNumber, plural } from "@starterkit/ui/lib/format";
+import { plural } from "@starterkit/ui/lib/format";
 import { Button } from "@starterkit/ui/ui/button";
 import { SecureIcon } from "@starterkit/ui/ui/icons";
 import { Input } from "@starterkit/ui/ui/input";
@@ -70,7 +70,7 @@ export function PermissionsPage() {
         <FilterMenu label="Module" value={f.module} options={MODULE_OPTIONS} onChange={(module) => set({ module })} />
         {filtered && <Button variant="ghost" size="sm" onClick={() => set({ q: "", module: "" })}>Clear filters</Button>}
       </Toolbar>
-      <Panel flush icon={SecureIcon} title="Permissions" count={t.total != null ? formatNumber(t.total) : undefined} description="Grant them to roles on each role's page">
+      <Panel flush icon={SecureIcon} title="Permissions" count={t.count} description="Grant them to roles on each role's page">
         <DataTable label="Permissions" columns={COLUMNS} rows={t.rows} rowKey={(p) => p.id} loading={t.loading}
           sort={t.sort} onSortChange={t.onSortChange} paging={t.paging}
           error={t.loadError ? { title: "Couldn't load permissions", cause: errorText(t.loadError), onRetry: () => void t.query.refetch() } : null}

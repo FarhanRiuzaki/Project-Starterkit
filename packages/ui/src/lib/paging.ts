@@ -18,12 +18,6 @@ export function clampPage(page: number, total: number, size: number = PAGE_SIZE)
   return Math.min(Math.max(p, 1), pageCount(total, size));
 }
 
-export function pageSlice<T>(rows: readonly T[], page: number, size: number = PAGE_SIZE): T[] {
-  const s = safeSize(size);
-  const p = clampPage(page, rows.length, s);
-  return rows.slice((p - 1) * s, p * s);
-}
-
 /** "1–25 of 312" (en dash, thousands via formatNumber); empty → "0 of 0". */
 export function rangeLabel(page: number, size: number, total: number): string {
   const t = safeTotal(total);

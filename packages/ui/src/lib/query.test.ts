@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseQuery, serializeQuery } from "./query";
+import { adoptSearch, parseQuery, searchToSend, serializeQuery } from "./query";
 
 const KEYS = ["status", "pemilik", "tim"] as const;
 
@@ -27,5 +27,23 @@ describe("parseQuery", () => {
   it("serialize kebalikan parse", () => {
     const q = { text: "gpu", filters: { status: ["menurun"], tim: ["IT Core"] } };
     expect(parseQuery(serializeQuery(q), KEYS)).toEqual(q);
+  });
+});
+
+describe("search box draft (QueryInput)", () => {
+  it("sends the trimmed draft, at most 200 characters, and nothing when it matches the value", () => {
+    expect(searchToSend("citra ", "")).toBe("citra");
+    expect(searchToSend("citra ", "citra")).toBeNull();
+    expect(searchToSend("  ", "")).toBeNull();
+    expect(searchToSend("", "citra")).toBe("");
+    expect(searchToSend("x".repeat(250), "")).toHaveLength(200);
+  });
+  it("keeps the typed draft (trailing space included) when the outside value is just the trimmed draft coming back", () => {
+    expect(adoptSearch("citra ", "citra")).toBe("citra ");
+    expect(adoptSearch("citra r", "citra r")).toBe("citra r");
+  });
+  it("adopts an outside change that is really different (Back, a removed chip, Clear filters)", () => {
+    expect(adoptSearch("citra ", "")).toBe("");
+    expect(adoptSearch("citra", "status:down")).toBe("status:down");
   });
 });

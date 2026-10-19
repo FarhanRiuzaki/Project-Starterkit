@@ -7,8 +7,10 @@ import { Button } from "@starterkit/ui/ui/button";
 import { SessionsTable } from "@/components/sessions-table";
 import { api } from "@/lib/client/api";
 import type { SessionDto } from "@/lib/shared/contracts/me";
+import { ME_KEY } from "./use-me";
 
-const KEY = "me-sessions";
+/** Under the "me" key, so changing your password (which ends your other sessions) refreshes this list too. */
+const KEY = ME_KEY[0];
 
 /** The signed-in user's own sessions. This one is marked; any other can be ended. */
 export function MySessionsTable() {

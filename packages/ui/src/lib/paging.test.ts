@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clampPage, PAGE_SIZE, pageCount, pageSlice, pageWindow, rangeLabel } from "./paging";
+import { clampPage, PAGE_SIZE, pageCount, pageWindow, rangeLabel } from "./paging";
 
 describe("paging", () => {
   it("default page size 25", () => expect(PAGE_SIZE).toBe(25));
@@ -27,13 +27,6 @@ describe("paging", () => {
     expect(clampPage(5, 0, 25)).toBe(1);
   });
 
-  it("pageSlice: halaman penuh, sebagian, di luar rentang di-clamp", () => {
-    const rows = Array.from({ length: 60 }, (_, i) => i);
-    expect(pageSlice(rows, 1, 25)).toEqual(rows.slice(0, 25));
-    expect(pageSlice(rows, 3, 25)).toEqual(rows.slice(50, 60));
-    expect(pageSlice(rows, 9, 25)).toEqual(rows.slice(50, 60));
-    expect(pageSlice([], 1, 25)).toEqual([]);
-  });
 
   it('rangeLabel: en dash + "of"', () => {
     expect(rangeLabel(1, 25, 312)).toBe("1–25 of 312");

@@ -67,7 +67,7 @@ export function RolesPage() {
       <Toolbar>
         <div className="w-full max-w-80"><QueryInput value={t.state.q} onChange={onSearch} keys={[]} label="Search roles" placeholder="Search role name" /></div>
       </Toolbar>
-      <Panel flush icon={KeyIcon} title="Roles" count={t.total != null ? formatNumber(t.total) : undefined}>
+      <Panel flush icon={KeyIcon} title="Roles" count={t.count}>
         <DataTable label="Roles" columns={columns} rows={t.rows} rowKey={(r) => r.id} loading={t.loading}
           sort={t.sort} onSortChange={t.onSortChange} paging={t.paging}
           error={t.loadError ? { title: "Couldn't load roles", cause: errorText(t.loadError), onRetry: () => void t.query.refetch() } : null}

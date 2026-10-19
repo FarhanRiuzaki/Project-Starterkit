@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { historyMode, isoDate, oneOf, readTable, sortState, text, toSortParam, writeTable } from "./table-state";
+import { historyMode, isoDate, oneOf, readTable, sortState, tableView, text, toSortParam, writeTable } from "./table-state";
 
 const SPEC = {
   sorts: ["at", "login"], defaultSort: "-at", search: ["user"] as const,
@@ -71,5 +71,30 @@ describe("sort mapping", () => {
     expect(sortState("login")).toEqual({ key: "login", dir: "asc" });
     expect(toSortParam({ key: "at", dir: "desc" })).toBe("-at");
     expect(toSortParam({ key: "login", dir: "asc" })).toBe("login");
+  });
+});
+
+describe("tableView (what a server table shows; no flicker)", () => {
+  const page = (items: string[], total = 40, totalCapped = false) => ({ items, total, page: 1, pageSize: 15, totalCapped });
+  const base = { isPending: false, isPlaceholderData: false, isFetching: false, error: null as unknown };
+  it("first load: loading, nothing to count yet", () => {
+    expect(tableView({ ...base, isPending: true, isFetching: true }, 1)).toMatchObject({ rows: [], loading: true, busy: false, count: undefined });
+  });
+  it("next page or sort loading: the previous rows stay, dimmed busy, never back to the skeleton", () => {
+    const v = tableView({ ...base, data: page(["a", "b"]), isPlaceholderData: true, isFetching: true }, 2);
+    expect(v).toMatchObject({ rows: ["a", "b"], loading: false, busy: true, loadError: null, staleError: null });
+  });
+  it("a page past the end shows the loading shape (it moves to the last page), never an empty state", () => {
+    expect(tableView({ ...base, data: { ...page([]), page: 9 } }, 9)).toMatchObject({ rows: [], loading: true, pastEnd: true });
+  });
+  it("errors: with placeholder or no data → loadError; with the shown rows still valid → staleError", () => {
+    const e = new Error("x");
+    expect(tableView({ ...base, error: e }, 1)).toMatchObject({ loadError: e, staleError: null });
+    expect(tableView({ ...base, data: page(["a"]), isPlaceholderData: true, error: e }, 2)).toMatchObject({ loadError: e, staleError: null });
+    expect(tableView({ ...base, data: page(["a"]), error: e }, 1)).toMatchObject({ loadError: null, staleError: e, rows: ["a"] });
+  });
+  it("count: formatted total, \"+\" when the server capped it", () => {
+    expect(tableView({ ...base, data: page(["a"], 12345) }, 1).count).toBe("12,345");
+    expect(tableView({ ...base, data: page(["a"], 100000, true) }, 1).count).toBe("100,000+");
   });
 });

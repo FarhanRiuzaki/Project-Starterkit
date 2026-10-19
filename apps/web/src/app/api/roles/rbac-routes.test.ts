@@ -92,7 +92,7 @@ describe("GET /api/roles and /api/roles/[id]", () => {
     await signIn("superadmin");
     await createPost(req("POST", { name: "Auditor" }));
     await signIn("viewer");
-    expect(await (await userRolesGet(req("GET"))).json()).toEqual(["Superadmin", "Admin", "Viewer", "Auditor"]);
+    expect((await (await userRolesGet(req("GET"))).json() as Page<{ name: string }>).items.map((r) => r.name)).toEqual(["Admin", "Auditor", "Superadmin", "Viewer"]);
   });
 });
 
@@ -193,7 +193,7 @@ describe("PATCH /api/roles/[id]", () => {
     // a renamed role still grants its permissions on the next request
     await signIn("viewer");
     expect((await meGet(req("GET", undefined, "http://c/api/me"))).status).toBe(200);
-    expect(await (await userRolesGet(req("GET"))).json()).toEqual(["Superadmin", "Admin", "Reader"]);
+    expect((await (await userRolesGet(req("GET"))).json() as Page<{ name: string }>).items.map((r) => r.name)).toEqual(["Admin", "Reader", "Superadmin"]);
   });
 
   it("removing a permission takes effect on the holder's next request", async () => {

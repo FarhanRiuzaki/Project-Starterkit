@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Icon } from "../ui/icon";
 import { SearchIcon } from "../ui/icons";
 import { Input } from "../ui/input";
-import { parseQuery, type Query, serializeQuery } from "../lib/query";
+import { adoptSearch, parseQuery, type Query, searchToSend, serializeQuery } from "../lib/query";
 import { FilterChip } from "./badges";
 
 /** Toolbar search (spec §5.6): grows, 32 px, leading icon; active filters as removable FilterChips. Pencarian dengan sintaks `kunci:nilai`; filter tampil sebagai chip yang bisa dihapus. Debounce 200 ms. */
@@ -18,10 +18,10 @@ export function QueryInput({ id, value, onChange, keys, label, placeholder }: {
   // External value changed (URL, chip removed): adopt it while rendering, not in an effect (no extra render pass),
   // unless it is just the trimmed draft coming back.
   const [synced, setSynced] = useState(value);
-  if (synced !== value) { setSynced(value); if (value.trim() !== draft.trim()) setDraft(value); }
+  if (synced !== value) { setSynced(value); setDraft(adoptSearch(draft, value)); }
   useEffect(() => {
-    const next = draft.trim().slice(0, 200);
-    if (next === value.trim()) return;
+    const next = searchToSend(draft, value);
+    if (next === null) return;
     const t = setTimeout(() => onChange(next), 200);
     return () => clearTimeout(t);
   }, [draft, value, onChange]);

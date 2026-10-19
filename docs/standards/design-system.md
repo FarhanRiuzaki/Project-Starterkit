@@ -478,16 +478,20 @@ Library: **`motion` 14.0.0** (Framer Motion's current package name), imported fr
 
 | Token | Value | Use |
 |---|---|---|
-| `--dur-instant` | 100 ms | press, checkbox, toggle thumb |
-| `--dur-fast` | 150 ms | hover, exit of small elements, tooltip out |
-| `--dur-enter` | 220 ms | content reveal, popover/menu in |
+| `--dur-instant` | 100 ms | press, checkbox, toggle thumb, tooltip, menu out, reduced-motion fades |
+| `--dur-fast` | 150 ms | hover, exit of small elements |
+| `--dur-pop` | 180 ms | menu and popover in, badge pop |
+| `--dur-enter` | 220 ms | content reveal, dialog scrim in |
 | `--dur-page` | 260 ms | page enter |
 | `--dur-exit` | 160 ms | page exit, dialog out (exits always faster than enters) |
 | `--dur-slow` | 280 ms | dialog in, chart mount, sheet open |
 | `--dur-tween` | 600 ms | number tween (max) |
+| `--dur-draw` | 400 ms | chart line draw |
+| `--dur-flash` | 1200 ms | new-row wash, skeleton shimmer loop |
 | `--ease-out` | `cubic-bezier(0.22, 1, 0.36, 1)` | enters, reveals |
 | `--ease-in` | `cubic-bezier(0.4, 0, 1, 1)` | exits |
 | `--ease-standard` | `cubic-bezier(0.2, 0, 0, 1)` | state changes |
+| `--ease-linear` | `cubic-bezier(0, 0, 1, 1)` | reduced-motion fades (Framer) |
 | spring `indicator` | `{ type: "spring", stiffness: 520, damping: 40, mass: 0.8 }` | segment thumb, tab underline, nav pill |
 | spring `flip` | `{ type: "spring", stiffness: 420, damping: 42, mass: 0.9 }` (`SPRING_FLIP`) | card reorder glide |
 | `--shift-enter` | 6 px | translateY distance for enters |
@@ -533,7 +537,7 @@ allowed. Reduced motion: the indicator jumps (no spring) and crossfades 100 ms.
 - Table rows: hover background 100 ms only (no movement).
 - Toggle thumb: 100 ms; checkbox check-path draw 150 ms.
 - Menus/popovers: opacity + scale 0.98 → 1 from the trigger origin, `--dur-pop` (180 ms) in / `--dur-instant` (100 ms) out.
-- Tooltip: opacity only, `--dur-fast` (150 ms) in, `--dur-instant` (100 ms) out, 300 ms open delay (0 when moving between chart points).
+- Tooltip: opacity only, `--dur-instant` (100 ms) in and out, 300 ms open delay (0 when moving between chart points).
 - Dialog: scrim fade `--dur-enter` in / `--dur-exit` out; panel opacity + scale 0.98 → 1, `--dur-slow` (280 ms) in / `--dur-exit` (160 ms) out.
 
 ### 7.6 Reduced motion
@@ -560,9 +564,10 @@ tokens from `packages/ui/src/motion/tokens.ts` (`DUR.*`, `STAGGER`, `EASE`), nev
 | Page enter | CSS | `DUR.page`; route change only, the shell never animates | Fade only, `DUR.instant` |
 | Stagger | CSS | `DUR.enter`, `STAGGER.step` steps, cap `STAGGER.max` items (KPI trays, card grids) | Fade only, no delay |
 | Reveal | CSS | `DUR.enter` in, `DUR.fast` out; skeleton to content in the same box | Fade only, `DUR.instant` |
-| Dialog | CSS | `DUR.slow` in, `DUR.exit` out | Fade only, no scale |
-| Menu | CSS | `DUR.fast` | Fade only, no slide |
-| Toast | CSS | `DUR.enter` | None: sonner keeps its own reduced rule (no transform override, so stacked toasts keep their transform) |
+| Dialog | CSS | `OVERLAY_MOTION.dialog`: `DUR.slow` in, `DUR.exit` out; scrim `DUR.enter` in, `DUR.exit` out | Fade only, no scale |
+| Menu | CSS | `OVERLAY_MOTION.menu`: `DUR.pop` in, `DUR.instant` out (popovers too) | Fade only, no slide |
+| Tooltip | CSS | `OVERLAY_MOTION.tooltip`: `DUR.instant` in and out | Fade only |
+| Toast | CSS | sonner's own 400 ms (not a token) | None: sonner keeps its own reduced rule (no transform override, so stacked toasts keep their transform) |
 | Badge pop | CSS | `DUR.pop`; only when a count or tone changed (count badges in tables and tiles pop on change only) | Fade only, `DUR.instant` |
 | Chip change | CSS | `DUR.fast`; `background-color` | Instant swap |
 | New row | CSS | `DUR.flash`; `background-color`; rows arriving after first load, never on load, paging, filter or query change | None |
@@ -574,7 +579,7 @@ tokens from `packages/ui/src/motion/tokens.ts` (`DUR.*`, `STAGGER`, `EASE`), nev
 | Tab and sign-in step reveal | CSS | `DUR.enter`; a reveal, not a slide | Fade only, `DUR.instant` |
 | Card lift | CSS | `DUR.fast`; clickable cards | No lift |
 | Skeleton shimmer | CSS | 1200 ms loop; hands over with Reveal | No sweep |
-| Chart grow and line draw | CSS | `DUR.slow` grow, 400 ms draw | Fade only, `DUR.instant` |
+| Chart grow and line draw | CSS | `DUR.slow` grow, `barDelay` stagger, `DUR.draw` draw | Fade only, `DUR.instant` |
 
 Charts play their mount animation **once**: `useSettled` sets `[data-settled]` after the first paint and
 `charts.css` turns the animation off under it, so a data refresh re-renders without replaying.

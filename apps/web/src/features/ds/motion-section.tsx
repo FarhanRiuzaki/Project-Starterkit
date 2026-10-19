@@ -5,7 +5,7 @@ import { type Column, CountBadge, DataTable, Panel, Segmented, StatusChip } from
 import { cn } from "@starterkit/ui/lib/cn";
 import { formatNumber } from "@starterkit/ui/lib/format";
 import { HEALTH } from "@starterkit/ui/lib/status";
-import { cssEase, DUR, EASE, NumberTween, Reveal, SPRING_FLIP, SPRING_INDICATOR, SPRING_SOFT, STAGGER, Stagger, StaggerItem, tweenDuration } from "@starterkit/ui/motion";
+import { CHART_STAGGER, cssEase, DUR, EASE, NumberTween, OVERLAY_MOTION, Reveal, SPRING_FLIP, SPRING_INDICATOR, SPRING_SOFT, STAGGER, Stagger, StaggerItem, tweenDuration } from "@starterkit/ui/motion";
 import { Button } from "@starterkit/ui/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@starterkit/ui/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, menuLoader } from "@starterkit/ui/ui/dropdown-menu";
@@ -16,6 +16,8 @@ import { Skeleton } from "@starterkit/ui/ui/skeleton";
 type Spring = { stiffness: number; damping: number; mass: number };
 export const fmtMs = (s: number) => `${Math.round(s * 1000)} ms`;
 export const fmtEase = cssEase;
+/** "180 ms in · 100 ms out" from an OVERLAY_MOTION entry: the tokens the component classes use. */
+export const inOut = (m: { open: keyof typeof DUR; close: keyof typeof DUR }) => `${fmtMs(DUR[m.open])} in · ${fmtMs(DUR[m.close])} out`;
 export const fmtSpring = (s: Spring) => `stiffness ${s.stiffness} · damping ${s.damping} · mass ${s.mass}`;
 
 /** Pause between a close animation ending and the demo reopening, so the replay reads as two steps. */
@@ -30,14 +32,14 @@ export const PATTERNS: readonly Pattern[] = [
   { id: "page-enter", name: "page enter", layer: "CSS", duration: fmtMs(DUR.page), reduced: REDUCED_FADE, use: "Route change; the shell never animates" },
   { id: "stagger", name: "stagger", layer: "CSS", duration: `${fmtMs(DUR.enter)} · ${fmtMs(STAGGER.step)} steps`, reduced: `${REDUCED_FADE}, no delay`, use: `KPI trays and card grids of ${STAGGER.max} items or fewer` },
   { id: "reveal", name: "reveal", layer: "CSS", duration: `${fmtMs(DUR.enter)} in · ${fmtMs(DUR.fast)} out`, reduced: REDUCED_FADE, use: "Skeleton to content, in the same box" },
-  { id: "dialog", name: "dialog", layer: "CSS", duration: `${fmtMs(DUR.slow)} in · ${fmtMs(DUR.exit)} out`, reduced: `${REDUCED_FADE}, no scale`, use: "Confirmations and one-time secrets" },
-  { id: "menu", name: "menu", layer: "CSS", duration: fmtMs(DUR.fast), reduced: `${REDUCED_FADE}, no slide`, use: "Action menus and popovers" },
-  { id: "toast", name: "toast", layer: "CSS", duration: fmtMs(DUR.enter), reduced: "No animation (sonner's own rule)", use: "Result of an action" },
+  { id: "dialog", name: "dialog", layer: "CSS", duration: `${inOut(OVERLAY_MOTION.dialog)}; scrim ${inOut(OVERLAY_MOTION.scrim)}`, reduced: `${REDUCED_FADE}, no scale`, use: "Confirmations and one-time secrets" },
+  { id: "menu", name: "menu", layer: "CSS", duration: inOut(OVERLAY_MOTION.menu), reduced: `${REDUCED_FADE}, no slide`, use: "Action menus and popovers" },
+  { id: "toast", name: "toast", layer: "CSS", duration: "Sonner's own (400 ms slide and fade, not a token)", reduced: "No animation (sonner's own rule)", use: "Result of an action" },
   { id: "badge-pop", name: "badge pop", layer: "CSS", duration: fmtMs(DUR.pop), reduced: REDUCED_FADE, use: "A count or tone that changed" },
   { id: "chip-change", name: "chip change", layer: "CSS", duration: fmtMs(DUR.fast), reduced: REDUCED_INSTANT, use: "A status chip whose value changed" },
   { id: "new-row", name: "new row", layer: "CSS", duration: fmtMs(DUR.flash), reduced: "None", use: "Rows that arrive after the first load; never on load or filter change" },
   { id: "number-tween", name: "number tween", layer: "Motion", duration: `${fmtMs(tweenDuration(0, 1e-9, 1))} to ${fmtMs(DUR.tween)}`, reduced: REDUCED_INSTANT, use: "KPI values when new data arrives" },
-  { id: "indicator", name: "indicator", layer: "Motion", duration: fmtMs(DUR.slow), reduced: "Jumps, fades only", use: "Segmented thumb and tab underline" },
+  { id: "indicator", name: "indicator", layer: "Motion", duration: `SPRING_INDICATOR; CSS fallback ${fmtMs(DUR.slow)}`, reduced: "Jumps, fades only", use: "Segmented thumb and tab underline" },
   { id: "sidebar-width", name: "sidebar width", layer: "CSS", duration: fmtMs(DUR.slow), reduced: "Instant", use: "Collapse and expand; the only width animation" },
   { id: "copy-check", name: "copy check", layer: "CSS", duration: fmtMs(DUR.fast), reduced: REDUCED_FADE, use: "Copy button confirmation" },
   { id: "disclosure", name: "disclosure", layer: "CSS", duration: fmtMs(DUR.enter), reduced: `Opacity only, ${fmtMs(DUR.instant)}`, use: "Native details: height and opacity, where the browser supports it" },
@@ -45,12 +47,13 @@ export const PATTERNS: readonly Pattern[] = [
 
 /** Rules-only rows: patterns that have no replay demo here (they live on real surfaces), so the table is the full inventory. */
 export const RULES_ONLY: readonly Pattern[] = [
+  { id: "tooltip", name: "tooltip", layer: "CSS", duration: inOut(OVERLAY_MOTION.tooltip), reduced: REDUCED_FADE, use: "Labels of icon buttons and blocked actions; opens after 300 ms" },
   { id: "tab-reveal", name: "tab and sign-in step reveal", layer: "CSS", duration: fmtMs(DUR.enter), reduced: REDUCED_FADE, use: "A tab panel or a sign-in step appearing; the reveal, not a slide" },
   { id: "card-lift", name: "card lift", layer: "CSS", duration: fmtMs(DUR.fast), reduced: "No lift", use: "Hover and press on clickable cards" },
   { id: "page-swap", name: "page exit", layer: "Motion", duration: `${fmtMs(DUR.exit)} out · ${fmtMs(DUR.page)} in`, reduced: REDUCED_FADE, use: "Route change once the deferred layer has loaded; the old page fades out without moving" },
   { id: "card-reorder", name: "card reorder", layer: "Motion", duration: "SPRING_FLIP", reduced: "Jumps", use: "Card grids re-sorted or filtered, up to 60 cards; never table rows" },
   { id: "skeleton-shimmer", name: "skeleton shimmer", layer: "CSS", duration: `${fmtMs(DUR.flash)} loop`, reduced: "No sweep", use: "Placeholders while data loads; hands over with the reveal" },
-  { id: "chart", name: "chart grow and line draw", layer: "CSS", duration: `${fmtMs(DUR.slow)} grow · 400 ms draw`, reduced: REDUCED_FADE, use: "Plays once per chart; data-settled turns it off after, so a refresh re-renders without replaying" },
+  { id: "chart", name: "chart grow and line draw", layer: "CSS", duration: `${fmtMs(DUR.slow)} grow, ${fmtMs(CHART_STAGGER.step)} per bar up to ${fmtMs(CHART_STAGGER.max)} · ${fmtMs(DUR.draw)} draw`, reduced: REDUCED_FADE, use: "Plays once per chart; data-settled turns it off after, so a refresh re-renders without replaying" },
 ];
 export const RULES: readonly Pattern[] = [...PATTERNS, ...RULES_ONLY];
 

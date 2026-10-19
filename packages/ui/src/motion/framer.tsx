@@ -11,7 +11,7 @@ import { animate, AnimatePresence, domMax, LazyMotion, m, MotionConfig, useIsPre
 import { LayoutRouterContext } from "next/dist/shared/lib/app-router-context.shared-runtime";
 import { type ReactNode, useContext, useState } from "react";
 import type { MotionKit } from "./layer";
-import { DUR, EASE, SHIFT_ENTER, SPRING_FLIP, SPRING_INDICATOR } from "./tokens";
+import { DUR, EASE, SHIFT_ENTER, SPRING_FLIP, SPRING_INDICATOR, SPRING_TWEEN } from "./tokens";
 
 function Scope({ children }: { children: ReactNode }) {
   return <LazyMotion features={domMax} strict><MotionConfig reducedMotion="user">{children}</MotionConfig></LazyMotion>;
@@ -48,8 +48,8 @@ function Frozen({ children }: { children: ReactNode }) {
  * rises 6 px over --dur-page. Reduced motion: opacity only, 100 ms. The exiting page takes no pointer input.
  */
 function PageSwap({ routeKey, reduced, children }: { routeKey: string; reduced: boolean; children: ReactNode }) {
-  const enter = reduced ? { duration: DUR.instant, ease: "linear" as const } : { duration: DUR.page, ease: EASE.out };
-  const exit = reduced ? { duration: DUR.instant, ease: "linear" as const } : { duration: DUR.exit, ease: EASE.in };
+  const enter = reduced ? { duration: DUR.instant, ease: EASE.linear } : { duration: DUR.page, ease: EASE.out };
+  const exit = reduced ? { duration: DUR.instant, ease: EASE.linear } : { duration: DUR.exit, ease: EASE.in };
   return (
     <Scope>
       <div className="relative grid min-w-0">
@@ -69,8 +69,7 @@ export const kit: MotionKit = {
   Indicator,
   PageSwap,
   tween({ from, to, seconds, onUpdate }) {
-    // Critically damped (bounce 0): a spring feel without overshooting the KPI's real value.
-    const c = animate(from, to, { type: "spring", duration: seconds, bounce: 0, onUpdate, onComplete: () => onUpdate(to) });
+    const c = animate(from, to, { ...SPRING_TWEEN, duration: seconds, onUpdate, onComplete: () => onUpdate(to) });
     return () => c.stop();
   },
   flip(el, dx, dy) {

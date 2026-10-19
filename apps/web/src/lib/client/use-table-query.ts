@@ -7,7 +7,7 @@ import type { DataTablePaging } from "@starterkit/ui/ds";
 import { api } from "@/lib/client/api";
 import type { Page } from "@/lib/shared/contracts/common";
 import { MAX_PAGE, PAGE_SIZES, type PageSize } from "@/lib/shared/paging";
-import { historyMode, readTable, type SortState, sortState, type TableSpec, type TableState, toSortParam, writeTable } from "@/lib/shared/table-state";
+import { historyMode, readTable, type SortState, sortState, tableView, type TableSpec, type TableState, toSortParam, writeTable } from "@/lib/shared/table-state";
 
 const clean = (o: Record<string, string>) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== ""));
 
@@ -25,6 +25,7 @@ const clean = (o: Record<string, string>) => Object.fromEntries(Object.entries(o
  * - A page past the end (rows were deleted, an old link) moves to the last page, showing the loading shape meanwhile
  *   (never a "no match" flash).
  * - `filterQuery` = the same filters without paging, for an export (`${path}?${filterQuery}&format=csv`).
+ * - `count` = the Panel count ("12,345", "100,000+"); rows, loading and errors come from `tableView` (table-state.ts).
  */
 export function useTableQuery<T, F extends Record<string, string>>({ key, path, spec, params }: {
   key: string; path: `/api/${string}`; spec: TableSpec<F>; params?: (filters: F) => Record<string, string>;
@@ -47,31 +48,27 @@ export function useTableQuery<T, F extends Record<string, string>>({ key, path, 
   const url = `${path}?${filterQuery}${filterQuery ? "&" : ""}${new URLSearchParams({ page: String(state.page), pageSize: String(state.pageSize), sort: state.sort })}`;
   const q = useQuery({ queryKey: [key, url], queryFn: () => api<Page<T>>(url), placeholderData: keepPreviousData });
 
-  const data = q.data;
-  const pastEnd = !!data && !q.isPlaceholderData && data.items.length === 0 && data.total > 0 && state.page > 1;
+  const view = tableView(q, state.page);
+  const lastPage = view.pastEnd && view.total ? Math.min(Math.ceil(view.total / state.pageSize), MAX_PAGE) : 0;
   useEffect(() => {
     // replace, not push: Back should not return to the empty page.
-    if (!pastEnd) return;
-    const next = writeTable(state, { page: Math.min(Math.ceil(data.total / state.pageSize), MAX_PAGE) } as Partial<TableState<F>>, spec);
+    if (!lastPage) return;
+    const next = writeTable(state, { page: lastPage } as Partial<TableState<F>>, spec);
     if (next) router.replace(next.size ? `${pathname}?${next}` : pathname, { scroll: false });
-  }, [pastEnd, data, state, spec, router, pathname]);
+  }, [lastPage, state, spec, router, pathname]);
 
   const paging = {
-    mode: "server", page: state.page, pageSize: state.pageSize, total: data?.total ?? 0, totalCapped: data?.totalCapped,
-    maxPage: MAX_PAGE, pageSizes: PAGE_SIZES, busy: q.isPlaceholderData && q.isFetching,
+    mode: "server", page: state.page, pageSize: state.pageSize, total: view.total ?? 0, totalCapped: view.totalCapped,
+    maxPage: MAX_PAGE, pageSizes: PAGE_SIZES, busy: view.busy,
     onPageChange: (page: number) => set({ page } as Partial<TableState<F>>),
     onPageSizeChange: (size: number) => set({ pageSize: size as PageSize } as Partial<TableState<F>>),
   } satisfies DataTablePaging;
 
   return {
     state, set, query: q, filterQuery, paging,
-    rows: pastEnd ? [] : data?.items ?? [],
-    total: data?.total,
-    totalCapped: !!data?.totalCapped,
+    rows: view.rows, total: view.total, totalCapped: view.totalCapped, count: view.count,
     sort: sortState(state.sort),
     onSortChange: (s: SortState) => set({ sort: toSortParam(s) } as Partial<TableState<F>>),
-    loading: q.isPending || pastEnd,
-    loadError: q.error && (!data || q.isPlaceholderData) ? q.error : null,
-    staleError: q.error && data && !q.isPlaceholderData ? q.error : null,
+    loading: view.loading, loadError: view.loadError, staleError: view.staleError,
   };
 }

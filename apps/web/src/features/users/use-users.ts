@@ -1,6 +1,8 @@
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import { api } from "@/lib/client/api";
 import type { Page } from "@/lib/shared/contracts/common";
+import type { RoleOption } from "@/lib/shared/contracts/rbac";
 import type { UserDetailDto, UserDto } from "@/lib/shared/contracts/users";
 
 export const USERS_KEY = ["users"] as const;
@@ -8,7 +10,31 @@ const qs = (o: Record<string, string | number>) => new URLSearchParams(Object.en
 
 export const useUserDetail = (id: string) => useQuery({ queryKey: [...USERS_KEY, "detail", id], queryFn: () => api<UserDetailDto>(`/api/users/${encodeURIComponent(id)}`) });
 
-export const useRoleNames = () => useQuery({ queryKey: [...USERS_KEY, "roles"], queryFn: () => api<string[]>("/api/users/roles"), staleTime: 60_000 });
+/** Role pickers ask for one page of 100; beyond that they search on the server. */
+const ROLE_PAGE = 100;
+
+/**
+ * Role names for pickers (filter, bulk assign, user form): the first 100 by name, or those matching `q`.
+ * `more` = roles exist beyond this page, so the picker offers type-to-search instead of a fixed list.
+ */
+export function useRoleNames(q = "") {
+  const query = useQuery({
+    queryKey: [...USERS_KEY, "roles", q], staleTime: 60_000, placeholderData: keepPreviousData,
+    queryFn: () => api<Page<RoleOption>>(`/api/users/roles?${qs({ pageSize: ROLE_PAGE, q })}`),
+  });
+  const data = query.data;
+  return { query, names: data?.items.map((r) => r.name) ?? [], more: !!data && data.total > data.items.length };
+}
+
+/** `value` after it has stopped changing for `ms` (search-as-you-type). */
+export function useDebounced<T>(value: T, ms = 200): T {
+  const [settled, setSettled] = useState(value);
+  useEffect(() => {
+    const t = setTimeout(() => setSettled(value), ms);
+    return () => clearTimeout(t);
+  }, [value, ms]);
+  return settled;
+}
 
 /** Id of the only active Superadmin, or null when there are several (that user can't be deactivated or deleted). */
 export function useLastSuperadminId(): string | null {

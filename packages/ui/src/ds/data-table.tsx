@@ -7,8 +7,7 @@ import { cn } from "../lib/cn";
 import { useNewKeys } from "../motion";
 import { Skeleton } from "../ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
-import { clampPage, PAGE_SIZE, pageCount, pageSlice } from "../lib/paging";
-import { type SortDir, sortRows } from "../lib/sort";
+import { pageCount } from "../lib/paging";
 import { Pagination } from "./pagination";
 import { EmptyState, ErrorState } from "./states";
 
@@ -16,28 +15,23 @@ export type Column<T> = {
   key: string; header: string; cell: (r: T) => ReactNode;
   /** Optional 14 px icon before the header label (spec §5.7). */
   icon?: IconData;
-  sortValue?: (r: T) => string | number | null | undefined;
-  /** Server-sorted column (`server` paging): the header toggles `sort` but the rows are not re-sorted here. */
+  /** Server-sorted column: the header button toggles `sort` (with `aria-sort`); the rows are never re-sorted here. */
   sortable?: boolean;
   align?: "left" | "right"; className?: string;
 };
 
+export type SortDir = "asc" | "desc";
+
 /**
- * Pemuatan bertahap.
- * - `paged`: data di memori, 25 baris/halaman; halaman dikendalikan pemanggil (mis. dari URL). Pemanggil yang
- *   mengembalikan `page` ke 1 saat filter/urutan berubah; nilai di luar rentang hanya di-clamp untuk tampilan.
- * Tanpa `paging`: > 25 baris otomatis berhalaman (state lokal, kembali ke halaman 1 saat himpunan baris atau
- * urutan berubah), ≤ 25 baris tampil semua.
- * - `server`: the server pages, sorts and filters; `rows` = the current page as returned (never re-sorted here).
- *   Footer = `Pagination` with the page-size select. `busy` = the next page/sort is loading while the previous
- *   rows stay on screen. `maxPage` = deepest page the endpoint serves.
+ * Paging is always the server's (the table standard: no table pages or sorts by itself). `rows` = the current page
+ * as returned, never re-sorted here. Footer = `Pagination` with the page-size select. `busy` = the next page or sort
+ * is loading while the previous rows stay on screen. `maxPage` = deepest page the endpoint serves. Without `paging`
+ * the table shows `rows` as given: only for short fixed lists from a record (e.g. its last 20 actions).
  */
-export type DataTablePaging =
-  | { mode: "paged"; page: number; pageSize?: number; onPageChange: (page: number) => void }
-  | {
-      mode: "server"; page: number; pageSize: number; total: number; totalCapped?: boolean; maxPage?: number; busy?: boolean;
-      pageSizes: readonly number[]; onPageChange: (page: number) => void; onPageSizeChange: (size: number) => void;
-    };
+export type DataTablePaging = {
+  mode: "server"; page: number; pageSize: number; total: number; totalCapped?: boolean; maxPage?: number; busy?: boolean;
+  pageSizes: readonly number[]; onPageChange: (page: number) => void; onPageSizeChange: (size: number) => void;
+};
 
 type Props<T> = {
   columns: Column<T>[]; rows: T[]; rowKey: (r: T) => string; label: string;
@@ -68,7 +62,7 @@ type Props<T> = {
  * `rowHeight="identity"`;
  * 1 px dividers, no zebra, no vertical rules; hover tray @ 60 %; `isSelected` tint; row actions (secondary) show on row
  * hover, on keyboard focus anywhere in the row, and while one of their menus is open; they stay in the tab order.
- * Footer 48 px: `Pagination` ("Showing 1–25 of 312" left, first / previous / numbers / next / last right). The body fades in
+ * Footer 48 px (server paging): `Pagination` ("Showing 1–15 of 312" left, first / previous / numbers / next / last right). The body fades in
  * once after loading (never staggered). Desktop only: no stacked list.
  */
 export function DataTable<T>({ columns, rows, rowKey, label, loading, error, empty, sort, onSortChange, rowActions, paging, isSelected, rowHeight = "default", highlightNew = false, highlightScope, skeletonRows }: Props<T>) {
@@ -77,22 +71,14 @@ export function DataTable<T>({ columns, rows, rowKey, label, loading, error, emp
   // Fokus ke atas tabel hanya bila halaman benar-benar berganti ke target (kedaluwarsa 3 dtk bila diabaikan).
   const focusTarget = useRef<{ page: number; at: number } | null>(null);
 
-  // Halaman lokal (mode otomatis): kembali ke halaman 1 saat urutan atau himpunan baris (kunci + jumlah) berubah.
-  // Berdasarkan kunci, bukan identitas array, agar pemanggil yang memfilter inline tidak terus di-reset.
-  const auto = !paging;
-  const sig = auto ? `${sort ? `${sort.key}:${sort.dir}` : ""}|${rows.length}|${rows.map(rowKey).join("\u0000")}` : "";
-  const [local, setLocal] = useState({ sig, page: 1 });
-  if (local.sig !== sig) setLocal({ sig, page: 1 });
   // Fade the body in once when the first load finishes (not on refreshes, not when data was ready at mount).
   const [loadedLate, setLoadedLate] = useState(false);
   const [wasLoading, setWasLoading] = useState(!!loading);
   if (wasLoading && !loading) { setWasLoading(false); setLoadedLate(true); }
 
-  const server = paging?.mode === "server" ? paging : null;
-  const paged = paging?.mode === "paged" || (!paging && rows.length > PAGE_SIZE);
-  const size = paging?.mode === "paged" ? (paging.pageSize ?? PAGE_SIZE) : server ? server.pageSize : PAGE_SIZE;
-  const serverLast = server ? Math.min(pageCount(server.total, size), server.maxPage ?? Infinity) : 1;
-  const page = server ? Math.min(Math.max(1, server.page), serverLast) : clampPage(paging?.mode === "paged" ? paging.page : local.page, rows.length, size);
+  const server = paging ?? null;
+  const last = server ? Math.min(pageCount(server.total, server.pageSize), server.maxPage ?? Infinity) : 1;
+  const page = server ? Math.min(Math.max(1, server.page), last) : 1;
 
   useEffect(() => {
     const t = focusTarget.current;
@@ -102,21 +88,19 @@ export function DataTable<T>({ columns, rows, rowKey, label, loading, error, emp
   }, [page]);
 
   if (error) return <div className="p-4"><ErrorState title={error.title} cause={error.cause} onRetry={error.onRetry} /></div>;
-  const col = sort ? columns.find((c) => c.key === sort.key) : undefined;
-  const sorted = !server && col?.sortValue && sort ? sortRows(rows, col.sortValue, sort.dir) : rows;
-  const data = paged ? pageSlice(sorted, page, size) : sorted;
+  const data = rows;
 
   function toggle(c: Column<T>) {
-    if (!(c.sortValue || c.sortable) || !onSortChange) return;
+    if (!c.sortable || !onSortChange) return;
     onSortChange({ key: c.key, dir: sort?.key === c.key && sort.dir === "asc" ? "desc" : "asc" });
   }
 
   function goTo(p: number) {
-    const next = server ? Math.min(Math.max(1, p), serverLast) : clampPage(p, rows.length, size);
+    if (!server) return;
+    const next = Math.min(Math.max(1, p), last);
     if (next === page) { focusTarget.current = null; return; }
     focusTarget.current = { page: next, at: Date.now() };
-    if (paging?.mode === "paged" || paging?.mode === "server") paging.onPageChange(next);
-    else setLocal({ sig, page: next });
+    server.onPageChange(next);
   }
 
   const table = (
@@ -130,7 +114,7 @@ export function DataTable<T>({ columns, rows, rowKey, label, loading, error, emp
               return (
                 <TableHead key={c.key} className={cn(c.align === "right" && "text-right", c.className)}
                   aria-sort={active ? (sort?.dir === "asc" ? "ascending" : "descending") : undefined}>
-                  {(c.sortValue || c.sortable) && onSortChange ? (
+                  {c.sortable && onSortChange ? (
                     <button type="button" onClick={() => toggle(c)} className={cn("inline-flex cursor-pointer items-center gap-1 rounded-xs hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary outline-none", active && "text-fg-2")}>
                       {c.icon && <Icon icon={c.icon} className="size-3.5" />}{c.header}<Icon icon={sortIcon} className="size-3" />
                     </button>
@@ -167,19 +151,14 @@ export function DataTable<T>({ columns, rows, rowKey, label, loading, error, emp
     </>
   );
 
-  const last = server ? serverLast : pageCount(rows.length, size);
-  // Server mode keeps the footer's 48 px while loading, so the table doesn't jump when the pagination arrives.
-  const footer = server
-    ? loading ? <div aria-hidden="true" data-slot="pagination-placeholder" className="min-h-12 border-t border-line" /> : server.total > 0 && (
-      <Pagination label={label} page={page} pageSize={size} total={server.total} totalCapped={server.totalCapped} maxPage={server.maxPage}
-        pageSizes={server.pageSizes} onPageChange={goTo} onPageSizeChange={server.onPageSizeChange} />
-    )
-    : paged && !loading && rows.length > 0 && <Pagination label={label} page={page} pageSize={size} total={rows.length} onPageChange={goTo} />;
-  const region = paged || !!server;
-  // Wrapper selalu ada di mode otomatis agar DOM tidak remount saat jumlah baris melewati 25.
+  if (!server) return table;
+  // The footer keeps its 48 px while loading, so the table doesn't jump when the pagination arrives.
+  const footer = loading ? <div aria-hidden="true" data-slot="pagination-placeholder" className="min-h-12 border-t border-line" /> : server.total > 0 && (
+    <Pagination label={label} page={page} pageSize={server.pageSize} total={server.total} totalCapped={server.totalCapped} maxPage={server.maxPage}
+      pageSizes={server.pageSizes} onPageChange={goTo} onPageSizeChange={server.onPageSizeChange} />
+  );
   return (
-    <div ref={topRef} tabIndex={region ? -1 : undefined} role={region ? "region" : undefined}
-      aria-label={region ? `${label}, page ${page} of ${last}` : undefined} className="scroll-mt-16 outline-none">
+    <div ref={topRef} tabIndex={-1} role="region" aria-label={`${label}, page ${page} of ${last}`} className="scroll-mt-16 outline-none">
       {table}
       {footer}
     </div>

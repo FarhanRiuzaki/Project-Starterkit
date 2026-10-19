@@ -137,7 +137,6 @@ export function AuditTable<T extends { id: string; at: string }, F extends Audit
         actions={<TimeRangePicker value={custom ? null : f.range} ranges={AUDIT_RANGES} onChange={(range) => set({ range, from: "", to: "" } as Partial<TableState<F>>)} />} />
       {t.staleError && <Notice tone="warn" live>Couldn&apos;t refresh the {noun}; showing the ones loaded before. {errorText(t.staleError)}</Notice>}
       <Toolbar end={<>
-        {narrowed.length > 0 && <Button variant="ghost" size="sm" onClick={clear}>Clear filters</Button>}
         <BlockedButton variant="secondary" reason={t.total === 0 ? `No ${noun} match, so there is nothing to export.` : null}
           aria-disabled={exporting || undefined} onClick={() => { if (!exporting) void exportCsv(); }}>
           <Icon icon={ExportIcon} />{exporting ? "Exporting…" : "Export CSV"}
@@ -145,15 +144,16 @@ export function AuditTable<T extends { id: string; at: string }, F extends Audit
       </>}>
         <div className="w-full max-w-80"><QueryInput value={f.user} onChange={onUser} keys={[]} label="Search by user" placeholder="Search by user name or email" /></div>
         {filters(f, set)}
+        {narrowed.length > 0 && <Button variant="ghost" size="sm" onClick={clear}>Clear filters</Button>}
         {/* Keyed by the preset: picking another one drops a half-filled custom pair and its hint. */}
         <CustomRange key={f.range} from={f.from} to={f.to} onCommit={(from, to) => set({ from, to } as Partial<TableState<F>>)} />
       </Toolbar>
-      <Panel flush icon={icon} title={title} legend={legend} count={t.total != null ? `${formatNumber(t.total)}${t.totalCapped ? "+" : ""}` : undefined}
+      <Panel flush icon={icon} title={title} legend={legend} count={t.count}
         description={`${custom ? rangeText(custom) : RANGE_LABEL[f.range]} · times in ${APP_TIME_ZONE_LABEL}`}
         footnote={`Export CSV saves every matching entry, newest first, up to ${formatNumber(CSV_MAX_ROWS)} rows.`}>
         <DataTable label={title} rowHeight="identity" columns={columns} rows={t.rows} rowKey={(r) => r.id} loading={t.loading}
           sort={t.sort} onSortChange={t.onSortChange} paging={t.paging}
-          error={t.loadError ? { title: `Couldn't load the ${noun}`, cause: errorText(t.loadError), onRetry: () => void t.query.refetch() } : null}
+          error={t.loadError ? { title: `Couldn't load ${noun}`, cause: errorText(t.loadError), onRetry: () => void t.query.refetch() } : null}
           empty={narrowed.length > 0
             ? { icon, title: `No ${noun} match`, description: "Change the search or filters, or clear them. A longer time range may also help." }
             : { icon, title: `No ${noun} in this time range`, description: `${emptyHint} Pick a longer time range to see older ones.` }}

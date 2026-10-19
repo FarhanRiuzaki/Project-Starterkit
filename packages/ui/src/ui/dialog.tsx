@@ -48,7 +48,7 @@ function DialogOverlay({
   )
 }
 
-/** Dialog (spec §5.14): 480 px (pass `max-w-160` for 640), radius 16, padding 24, title title-1, footer buttons right; scrim fade 200 ms, panel opacity + scale 0.98, 280 ms in / 160 ms out. */
+/** Dialog (spec §5.14): 480 px (pass `max-w-160` for 640), radius 16, padding 24, title title-1, footer buttons right; scrim fade `--dur-enter` in / `--dur-exit` out, panel opacity + scale 0.98, `--dur-slow` in / `--dur-exit` out (OVERLAY_MOTION.scrim, .dialog). */
 function DialogContent({
   className,
   children,

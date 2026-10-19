@@ -127,8 +127,6 @@ const NON_LIST_GETS: Record<string, string> = {
   "me/route.ts": "the signed-in user",
   "roles/[id]/route.ts": "one role",
   "users/[id]/route.ts": "one user; its recent activity is fixed at 20",
-  // ponytail: role names for the filter and the user form; switch to a searchable picker on /api/roles?q= if roles grow past a few hundred.
-  "users/roles/route.ts": "role names for selects",
 };
 
 /** A GET route not in `allow` must call paginate( in its GET handler; an `allow` entry must name a route that has a GET. */
@@ -151,7 +149,9 @@ const TS_TIMING: RegExp[] = [
   /\b(?:duration|delay)\s*:\s*\d/, // { duration: 0.2 }
   /\bease\s*:\s*\[/, // { ease: [0.2, 0, 0, 1] }
   /\bcubic-bezier\(/,
-  /\b(?:stiffness|damping)\s*:\s*\d/, // inline spring
+  /\bease\s*:\s*["'`]/, // { ease: "linear" }
+  /\b(?:stiffness|damping|bounce)\s*:\s*\d/, // inline spring
+  /\b(?:DUR|STAGGER|CHART_STAGGER)\.\w+\s*[-+]\s*\d|\d\s*[-+]\s*(?:DUR|STAGGER|CHART_STAGGER)\.\w+/, // DUR.slow + 0.32
   /\b(?:animation|transition)(?:Delay|Duration)\s*:[^,;\n]*\d/, // animationDelay: `${i * 12}ms`
   /["'`\s:]\d*\.?\d+m?s\b\s*(?:ease|linear|cubic|["'`;])/, // "200ms", "0.2s ease"
 ];
@@ -243,6 +243,12 @@ describe("architecture", () => {
 
   it("StatusLegend is rendered only by Panel (per-card legend)", () => {
     expect(legendViolations(files)).toEqual([]);
+  });
+
+  it("app motion is wired once: (main)/layout.tsx wraps the page in MotionLayer + PageTransitionRoot, (main)/template.tsx renders PageTransition", () => {
+    const src = (r: string) => strip(files.find((f) => f.r === r)?.src ?? "");
+    expect(src(`${WEB}app/(main)/layout.tsx`)).toMatch(/<MotionLayer>[\s\S]*<PageTransitionRoot>\{children\}<\/PageTransitionRoot>[\s\S]*<\/MotionLayer>/);
+    expect(src(`${WEB}app/(main)/template.tsx`)).toMatch(/<PageTransition>\{children\}<\/PageTransition>/);
   });
 
   it("no literal colour or arbitrary pixel class in .tsx", () => {
@@ -381,6 +387,11 @@ export async function POST(req: Request) { recordActivity(ctx, e); return json(1
       f(`${UI}ui/e.tsx`, `const s = { type: "spring", stiffness: 420 };`),
       f(`${UI}charts/f.tsx`, "const m = { animationDelay: `${Math.min(200, i * 12)}ms` };"),
       f(`${WEB}features/g.tsx`, `const e = "cubic-bezier(0.2, 0, 0, 1)";`),
+      f(`${UI}motion/h.tsx`, `const t = { duration: DUR.instant, ease: "linear" };`),
+      f(`${UI}motion/i.tsx`, `animate(0, 1, { type: "spring", bounce: 0 });`),
+      f(`${UI}charts/j.ts`, `const SETTLE_MS = Math.round((DUR.slow + 0.32) * 1000);`),
+      f(`${UI}charts/k.ts`, `const d = 0.05 + STAGGER.step;`),
+      f(`${UI}charts/ok2.ts`, `const a = DUR.enter * 1000; const b = Math.max(DUR.slow + CHART_STAGGER.max, DUR.draw); animate(0, 1, { ...SPRING_TWEEN, duration: s, ease: EASE.linear });`),
       f(`${UI}ui/ok.tsx`, "<div className=\"duration-(--dur-fast)\" style={{ animationDelay: `${staggerDelay(i)}s` }} /> // duration-200 in a comment"),
       f(MOTION_TOKENS, `export const DUR = { fast: 0.15 }; export const EASE = { out: [0.22, 1, 0.36, 1] };`),
     ], [
@@ -390,6 +401,7 @@ export async function POST(req: Request) { recordActivity(ctx, e); return json(1
     expect(bad).toEqual([
       `${UI}ui/a.tsx: duration-2`, `${UI}ui/b.tsx: duration: 0`, `${UI}ui/c.tsx: ease: [`, `${UI}ui/d.tsx:  200ms ease`,
       `${UI}ui/e.tsx: stiffness: 4`, `${UI}charts/f.tsx: animationDelay: \`\${Math.min(200`, `${WEB}features/g.tsx: cubic-bezier(`,
+      `${UI}motion/h.tsx: ease: "`, `${UI}motion/i.tsx: bounce: 0`, `${UI}charts/j.ts: DUR.slow + 0`, `${UI}charts/k.ts: 5 + STAGGER.step`,
       `${UI}styles/x.css: 150ms`, `${UI}styles/x.css: 35ms`, `${UI}styles/x.css: 1.2s`, `${UI}styles/x.css: cubic-bezier(`,
     ]);
   });

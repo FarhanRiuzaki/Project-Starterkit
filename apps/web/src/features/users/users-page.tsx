@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
 import { ActionMenu, BlockedButton, ConfirmActionDialog, DataTable, Field, FilterMenu, Notice, Panel, QueryInput, Toolbar } from "@starterkit/ui/ds";
-import { formatNumber } from "@starterkit/ui/lib/format";
 import { HEALTH } from "@starterkit/ui/lib/status";
 import { Button } from "@starterkit/ui/ui/button";
 import { UsersIcon } from "@starterkit/ui/ui/icons";
@@ -19,6 +18,7 @@ import type { BulkResult } from "@/lib/shared/contracts/common";
 import type { UserDto } from "@/lib/shared/contracts/users";
 import { USER_SORTS } from "@/lib/shared/paging";
 import { oneOf, type TableSpec, text } from "@/lib/shared/table-state";
+import { RoleSearch } from "./role-search";
 import { userColumns } from "./user-columns";
 import { SKIP_REASON, USERS_KEY, protection, useLastSuperadminId, useRoleNames } from "./use-users";
 
@@ -63,6 +63,7 @@ export function UsersPage() {
   const filtered = f.q !== "" || f.role !== "" || f.status !== "";
   const set = t.set;
   const onSearch = useCallback((q: string) => set({ q }), [set]);
+  const onRole = useCallback((role: string) => set({ role }), [set]);
   const toggle = (id: string) => setSelected((s) => { const n = new Set(s); if (!n.delete(id)) n.add(id); return n; });
   const columns = useMemo(() => userColumns(canAct ? { has: (id) => selected.has(id), toggle } : undefined), [canAct, selected]);
 
@@ -75,6 +76,7 @@ export function UsersPage() {
       else await api(`/api/users/${p.user.id}/status`, { method: "POST", body: JSON.stringify({ active: false }) });
       toast(p.action === "delete" ? `Deleted ${p.user.name}.` : `Deactivated ${p.user.name}. Their sessions ended.`);
     } else {
+      if (p.action === "assignRole" && !role) throw new Error("Pick a role: type its name and choose it from the list.");
       const r = await api<BulkResult>("/api/users/bulk", { method: "POST", body: JSON.stringify({ action: p.action, ids: p.ids, ...(p.action === "assignRole" ? { role } : {}) }) });
       const reasons = [...new Set(r.skipped.map((s) => SKIP_REASON[s.code] ?? s.code))].join(", ");
       const text = `${r.done.length} updated, ${r.skipped.length} skipped`;
@@ -109,11 +111,13 @@ export function UsersPage() {
       {t.staleError && <Notice tone="warn" live>Couldn&apos;t refresh the users; showing the ones loaded before. {errorText(t.staleError)}</Notice>}
       <Toolbar>
         <div className="w-full max-w-80"><QueryInput value={f.q} onChange={onSearch} keys={[]} label="Search users" placeholder="Search name, username or email" /></div>
-        <FilterMenu label="Role" value={f.role} options={[{ value: "", label: "Any" }, ...(roles.data ?? []).map((r) => ({ value: r, label: r }))]} onChange={(role) => set({ role })} />
+        {roles.more
+          ? <RoleSearch label="Role" value={f.role} onChange={onRole} />
+          : <FilterMenu label="Role" value={f.role} options={[{ value: "", label: "Any" }, ...roles.names.map((r) => ({ value: r, label: r }))]} onChange={onRole} />}
         <FilterMenu label="Status" value={f.status} options={STATUSES} onChange={(status) => set({ status })} />
         {filtered && <Button variant="ghost" size="sm" onClick={() => set({ q: "", role: "", status: "" })}>Clear filters</Button>}
       </Toolbar>
-      <Panel flush icon={UsersIcon} title="Users" count={t.total != null ? `${formatNumber(t.total)}${t.totalCapped ? "+" : ""}` : undefined} description="Select rows for bulk actions" legend={LEGEND}>
+      <Panel flush icon={UsersIcon} title="Users" count={t.count} description="Select rows for bulk actions" legend={LEGEND}>
         {canAct && rows.length > 0 && (
           <div role="region" aria-label="Bulk actions" className="flex min-h-12 flex-wrap items-center gap-2 border-b border-line px-3 py-2">
             <label className="flex items-center gap-2 text-body-sm text-fg-2">
@@ -125,7 +129,7 @@ export function UsersPage() {
               {can("user.edit") && <>
                 <Button size="sm" variant="secondary" onClick={() => setPending({ kind: "bulk", action: "activate", ids })}>Activate</Button>
                 <Button size="sm" variant="secondary" onClick={() => setPending({ kind: "bulk", action: "deactivate", ids })}>Deactivate</Button>
-                <Button size="sm" variant="secondary" onClick={() => { setRole(roles.data?.[0] ?? ""); setPending({ kind: "bulk", action: "assignRole", ids }); }}>Assign role</Button>
+                <Button size="sm" variant="secondary" onClick={() => { setRole(roles.more ? "" : roles.names[0] ?? ""); setPending({ kind: "bulk", action: "assignRole", ids }); }}>Assign role</Button>
               </>}
               {can("user.delete") && <Button size="sm" variant="destructive" onClick={() => setPending({ kind: "bulk", action: "delete", ids })}>Delete</Button>}
               <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>Clear selection</Button>
@@ -157,9 +161,11 @@ export function UsersPage() {
           title={dialog.title} description={dialog.description} impact={impact} actionLabel={dialog.label} onConfirm={confirm}
           extra={pending?.action === "assignRole" && (
             <Field id="bulk-role" label="Role">
-              <Select id="bulk-role" value={role} onChange={(e) => setRole(e.target.value)}>
-                {(roles.data ?? []).map((r) => <option key={r} value={r}>{r}</option>)}
-              </Select>
+              {roles.more
+                ? <RoleSearch id="bulk-role" label="Role" value={role} onChange={setRole} />
+                : <Select id="bulk-role" value={role} onChange={(e) => setRole(e.target.value)}>
+                  {roles.names.map((r) => <option key={r} value={r}>{r}</option>)}
+                </Select>}
             </Field>
           )} />
       )}

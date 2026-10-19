@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { barDelay, cssEase, DUR, EASE, SHIFT_ENTER, SPRING_FLIP, SPRING_SOFT, STAGGER, staggerDelay, tweenDuration } from "./tokens";
+import { barDelay, cssEase, DUR, EASE, SHIFT_ENTER, SPRING_FLIP, SPRING_SOFT, SPRING_TWEEN, STAGGER, staggerDelay, tweenDuration } from "./tokens";
 
 const CSS = readFileSync(path.resolve(import.meta.dirname, "../styles/tokens.css"), "utf8");
 const cssVar = (name: string) => new RegExp(`--${name}:\\s*([^;]+);`).exec(CSS)?.[1]?.trim();
@@ -14,12 +14,17 @@ describe("motion tokens mirror tokens.css (spec §7.1)", () => {
     expect(cssVar(`ease-${k}`)).toBe(`cubic-bezier(${pts.join(", ")})`);
     expect(cssEase(pts)).toBe(cssVar(`ease-${k}`));
   });
+  it("every --dur-* and --ease-* in tokens.css has a DUR / EASE key and the other way round", () => {
+    const keys = (prefix: string) => [...CSS.matchAll(new RegExp(`--${prefix}-([a-z]+):`, "g"))].map((m) => m[1]).sort();
+    expect(keys("dur")).toEqual(Object.keys(DUR).sort());
+    expect(keys("ease")).toEqual(Object.keys(EASE).sort());
+  });
   it("shift and stagger step", () => {
     expect(cssVar("shift-enter")).toBe(`${SHIFT_ENTER}px`);
     expect(cssVar("stagger")).toBe(`${Math.round(STAGGER.step * 1000)}ms`);
   });
   it("spec values", () => {
-    expect(DUR).toEqual({ instant: 0.1, fast: 0.15, pop: 0.18, enter: 0.22, page: 0.26, exit: 0.16, slow: 0.28, tween: 0.6, flash: 1.2 });
+    expect(DUR).toEqual({ instant: 0.1, fast: 0.15, pop: 0.18, enter: 0.22, page: 0.26, exit: 0.16, slow: 0.28, tween: 0.6, flash: 1.2, draw: 0.4 });
     expect(STAGGER).toEqual({ step: 0.035, max: 8 });
     // exits are always faster than enters
     expect(DUR.exit).toBeLessThan(DUR.page);
@@ -46,6 +51,10 @@ describe("barDelay (spec §7.4)", () => {
     expect(barDelay(-1)).toBe(0);
     expect(barDelay(Number.NaN)).toBe(0);
   });
+});
+
+describe("SPRING_TWEEN", () => {
+  it("never overshoots", () => expect(SPRING_TWEEN).toEqual({ type: "spring", bounce: 0 }));
 });
 
 describe("SPRING_FLIP", () => {
