@@ -4,7 +4,8 @@ import type { RoleDto } from "../../shared/contracts/rbac";
 import { UserDto } from "../../shared/contracts/users";
 import { seed } from "./seed";
 
-export type UserRecord = UserDto & { passwordHash: string | null; totpSecret: string | null; recoveryCodes: string[] };
+/** `totpLastStep`: the TOTP time step that last completed a sign-in; that code and older ones are refused (no replay). */
+export type UserRecord = UserDto & { passwordHash: string | null; totpSecret: string | null; recoveryCodes: string[]; totpLastStep?: number };
 /** The only safe way to return a user from a route: the schema parse drops passwordHash, totpSecret, recoveryCodes. */
 export function toUserDto(record: UserRecord): UserDto {
   return UserDto.parse(record);

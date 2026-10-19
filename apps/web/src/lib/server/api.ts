@@ -65,6 +65,18 @@ export function clientIp(req: Request, trustedProxy = process.env.TRUSTED_PROXY 
   return "unknown";
 }
 
+/**
+ * The request comes from this app's own pages: `Sec-Fetch-Site` is same-origin / none (typed URL), or the `Origin`
+ * header equals the request's origin. Guards the cookie-setting /api/auth POSTs against cross-site forms (login CSRF).
+ */
+export function sameOrigin(req: Request): boolean {
+  const site = req.headers.get("sec-fetch-site");
+  if (site === "same-origin" || site === "none") return true;
+  return req.headers.get("origin") === new URL(req.url).origin;
+}
+
+export const crossSite = () => apiError(403, "forbidden", "The request didn't come from this app. Reload the page and try again.");
+
 /** 429 with Retry-After (seconds). */
 export function tooManyAttempts(sec: number, text: string): Response {
   const res = apiError(429, "rate_limited", text);

@@ -1,4 +1,4 @@
-import { apiError, handleError, json } from "@/lib/server/api";
+import { apiError, crossSite, handleError, json, sameOrigin } from "@/lib/server/api";
 import { log } from "@/lib/server/logger";
 import { db } from "@/lib/server/mock/db";
 import { hashPassword, hashToken } from "@/lib/server/mock/password";
@@ -6,6 +6,7 @@ import { ResetPasswordBody } from "@/lib/shared/contracts/auth";
 
 /** Set a new password with a reset token. The token is spent on first use, even when expired; the user's sessions end. */
 export async function POST(req: Request): Promise<Response> {
+  if (!sameOrigin(req)) return crossSite();
   try {
     const { token, password } = ResetPasswordBody.parse(await req.json().catch(() => null));
     const store = db();

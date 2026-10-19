@@ -24,8 +24,13 @@ export function ResetForm({ token }: { token: string | null }) {
   async function submit(e: FormEvent) {
     e.preventDefault();
     setError(null);
-    if (password.length < MIN) return setField({ id: "password", message: `Use at least ${MIN} characters.` });
-    if (confirm !== password) return setField({ id: "confirm", message: "The passwords don't match. Type the same password twice." });
+    const invalid = password.length < MIN ? { id: "password" as const, message: `Use at least ${MIN} characters.` }
+      : confirm !== password ? { id: "confirm" as const, message: "The passwords don't match. Type the same password twice." } : null;
+    if (invalid) {
+      setField(invalid);
+      document.getElementById(invalid.id)?.focus(); // the message under it is role=alert and is announced too
+      return;
+    }
     setField(null);
     setBusy(true);
     try {
@@ -55,7 +60,7 @@ export function ResetForm({ token }: { token: string | null }) {
     );
   }
   const fieldError = (id: "password" | "confirm") =>
-    field?.id === id ? <span id={`${id}-error`} className="text-caption text-down-ink">{field.message}</span> : null;
+    field?.id === id ? <span id={`${id}-error`} role="alert" className="text-caption text-down-ink">{field.message}</span> : null;
   return (
     <AuthCard title="Set a new password" description={`Use at least ${MIN} characters. The reset link works once.`}>
       <form onSubmit={submit} noValidate className="grid gap-4">

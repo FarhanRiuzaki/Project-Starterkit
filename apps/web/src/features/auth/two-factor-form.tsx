@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 import { Button } from "@starterkit/ui/ui/button";
 import { Icon } from "@starterkit/ui/ui/icon";
 import { SpinnerIcon } from "@starterkit/ui/ui/icons";
@@ -19,6 +19,9 @@ export function TwoFactorForm({ next }: { next: string }) {
   const [error, setError] = useState<string | null>(null);
   const [expired, setExpired] = useState(false);
   const [busy, setBusy] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  // After a failed check, back to the (cleared) code field once it accepts input again.
+  useEffect(() => { if (error && !busy) inputRef.current?.focus({ preventScroll: true }); }, [error, busy]);
 
   async function verify(value: string) {
     if (busy) return;
@@ -30,6 +33,7 @@ export function TwoFactorForm({ next }: { next: string }) {
       router.refresh();
     } catch (e) {
       setExpired(e instanceof ApiError && (e.status === 401 || e.status === 403));
+      if (e instanceof ApiError && e.code === "invalid_code") setCode("");
       setError(errorText(e));
       setBusy(false);
     }
@@ -55,9 +59,9 @@ export function TwoFactorForm({ next }: { next: string }) {
       <form onSubmit={(e: FormEvent) => { e.preventDefault(); void verify(code); }} className="grid gap-4">
         <div className="grid gap-1.5">
           <label htmlFor="code" className="text-label text-fg">{totp ? "One-time code" : "Recovery code"}</label>
-          <Input key={mode} id="code" className="h-10 font-mono tracking-widest tabular" autoFocus required
+          <Input key={mode} ref={inputRef} id="code" className="h-10 font-mono tracking-widest tabular" autoFocus required
             inputMode={totp ? "numeric" : "text"} autoComplete={totp ? "one-time-code" : "off"} maxLength={totp ? 6 : 9}
-            placeholder={totp ? undefined : "xxxx-xxxx"} value={code} disabled={busy}
+            placeholder={totp ? undefined : "xxxx-xxxx"} value={code} readOnly={busy}
             aria-describedby={error ? `${errId} ${helpId}` : helpId} aria-invalid={error && !expired ? true : undefined}
             onChange={(e) => {
               const v = totp ? e.target.value.replace(/\D/g, "").slice(0, 6) : e.target.value;

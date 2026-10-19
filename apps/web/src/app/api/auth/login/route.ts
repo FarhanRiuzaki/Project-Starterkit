@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { afterSignIn } from "@starterkit/ui/lib/safe-path";
-import { apiError, clientIp, handleError, json, tooManyAttempts } from "@/lib/server/api";
+import { apiError, clientIp, crossSite, handleError, json, sameOrigin, tooManyAttempts } from "@/lib/server/api";
 import { secureEquals } from "@/lib/server/csrf";
 import { db, type UserRecord } from "@/lib/server/mock/db";
 import { hashPassword, verifyPassword } from "@/lib/server/mock/password";
@@ -28,6 +28,7 @@ function credentialOk(user: UserRecord | undefined, method: "password" | "ldap",
  * account is named only after the right credential. A user with 2FA gets only the pending marker (no sid, no CSRF).
  */
 export async function POST(req: Request): Promise<Response> {
+  if (!sameOrigin(req)) return crossSite();
   try {
     const body = LoginBody.parse(await req.json().catch(() => null));
     const user = findUser(body.login);
@@ -44,17 +45,20 @@ export async function POST(req: Request): Promise<Response> {
       fail();
       return apiError(401, "invalid_credentials", "The sign-in details don't match an account. Check them and the sign-in method, then try again.");
     }
-    loginLimits.user.succeed(name);
+    const twoFactor = user.twoFactorEnabled && !!user.totpSecret;
+    // With 2FA the sign-in isn't won yet: drop only this attempt's reservation, so earlier OTP failures keep counting.
+    if (twoFactor) loginLimits.user.release(name);
+    else loginLimits.user.succeed(name);
     if (!user.isActive) {
       fail();
       return apiError(403, "account_inactive", "This account is inactive. Ask an administrator to reactivate it.");
     }
     const s = await getSession();
-    if (user.twoFactorEnabled && user.totpSecret) {
+    if (twoFactor) {
       if (s.sid) db().sessions.delete(s.sid);
       s.sid = undefined;
       s.csrf = undefined;
-      s.pending2fa = { userId: user.id, method: body.method };
+      s.pending2fa = { userId: user.id, method: body.method, at: Date.now() };
       await s.save();
       logAuth(req, "login_success", body.method, body.login, user.id);
       const next = afterSignIn(body.next);

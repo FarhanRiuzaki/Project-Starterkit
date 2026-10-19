@@ -29,7 +29,7 @@ const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (
 type Handler = (req: Request) => Promise<Response>;
 
 const post = (h: Handler, body: unknown, headers: Record<string, string> = {}) =>
-  h(new Request("http://c/api/auth/x", { method: "POST", headers: { "content-type": "application/json", "user-agent": UA, ...headers }, body: JSON.stringify(body) }));
+  h(new Request("http://c/api/auth/x", { method: "POST", headers: { "content-type": "application/json", "user-agent": UA, origin: "http://c", ...headers }, body: JSON.stringify(body) }));
 const signInWith = (loginName: string, password = SEED_PASSWORD, extra: Record<string, unknown> = {}) =>
   post(login, { method: "password", login: loginName, password, ...extra });
 const viaOauth = (provider: string, next?: string) =>
@@ -289,5 +289,63 @@ describe("rate limit and sign-in log", () => {
     await post(logout, {}, { "x-csrf-token": (await cookie()).csrf! });
     expect(db().authLog.size).toBe(n + 1);
     expect(lastAuth()).toMatchObject({ event: "logout", method: "google", userId: "u-007" });
+  });
+});
+
+describe("fix round 1", () => {
+  it("a correct step 1 does not clear OTP failures: the next OTP attempt is still delayed", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    const t0 = Date.now();
+    await signInWith("twofa@example.com");
+    for (let i = 0; i < 3; i++) expect((await post(twoFactor, { code: `zzzz-000${i}` })).status).toBe(400);
+    vi.setSystemTime(t0 + 1_100); // past the 1 s backoff, so step 1 itself may run
+    expect((await signInWith("twofa@example.com")).status).toBe(200);
+    const r = await post(twoFactor, { code: totpCode(TOTP_SECRET) });
+    expect(r.status).toBe(429);
+    expect(Number(r.headers.get("retry-after"))).toBeGreaterThan(0);
+  });
+
+  it("POSTs under /api/auth from another origin are 403 forbidden and write no sign-in log", async () => {
+    const n = db().authLog.size;
+    const evil = { origin: "http://evil.example" };
+    const answers = [
+      await post(login, { login: "admin@example.com", password: SEED_PASSWORD }, evil),
+      await post(login, { login: "admin@example.com", password: SEED_PASSWORD }, { origin: "", "sec-fetch-site": "cross-site" }),
+      await post(twoFactor, { code: "123456" }, evil),
+      await post(logout, {}, evil),
+      await post(forgot, { email: "admin@example.com" }, evil),
+      await post(reset, { token: "x", password: "New-password-2026" }, evil),
+    ];
+    for (const r of answers) {
+      expect(r.status).toBe(403);
+      expect((await r.json()).error.code).toBe("forbidden");
+    }
+    expect(db().authLog.size).toBe(n);
+    expect(jar.has(SESSION_COOKIE)).toBe(false);
+    // Sec-Fetch-Site same-origin is enough without an Origin header
+    expect((await post(login, { login: "admin@example.com", password: SEED_PASSWORD }, { origin: "", "sec-fetch-site": "same-origin" })).status).toBe(200);
+  });
+
+  it("a TOTP code that completed a sign-in cannot be used again", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    const code = totpCode(TOTP_SECRET);
+    await signInWith("twofa@example.com");
+    expect((await post(twoFactor, { code })).status).toBe(200);
+    await signInWith("twofa@example.com");
+    const again = await post(twoFactor, { code });
+    expect(again.status).toBe(400);
+    expect((await again.json()).error.code).toBe("invalid_code");
+  });
+
+  it("a pending 2FA sign-in older than 10 minutes is 401 and cleared", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    const t0 = Date.now();
+    await signInWith("twofa@example.com");
+    expect((await cookie()).pending2fa?.at).toBe(t0);
+    vi.setSystemTime(t0 + 10 * 60_000 + 1);
+    const r = await post(twoFactor, { code: totpCode(TOTP_SECRET) });
+    expect(r.status).toBe(401);
+    expect((await r.json()).error.code).toBe("unauthenticated");
+    expect(jar.has(SESSION_COOKIE)).toBe(false);
   });
 });

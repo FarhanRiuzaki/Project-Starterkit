@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { handleError, json } from "@/lib/server/api";
+import { crossSite, handleError, json, sameOrigin } from "@/lib/server/api";
 import { log } from "@/lib/server/logger";
 import { db } from "@/lib/server/mock/db";
 import { hashToken } from "@/lib/server/mock/password";
@@ -12,6 +12,7 @@ const TTL_MS = 30 * 60_000;
  * non-LDAP user a random token (stored hashed, 30 minutes, single use) goes out by "email": the server log (mock).
  */
 export async function POST(req: Request): Promise<Response> {
+  if (!sameOrigin(req)) return crossSite();
   try {
     const { email } = ForgotPasswordBody.parse(await req.json().catch(() => null));
     const user = [...db().users.values()].find((u) => u.email.toLowerCase() === email.toLowerCase());

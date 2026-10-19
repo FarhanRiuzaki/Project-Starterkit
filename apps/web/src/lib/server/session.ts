@@ -13,7 +13,16 @@ export const SESSION_COOKIE = "sk_session";
  * The sealed cookie holds only pointers: `sid` = key into db().sessions (user, device, IP, times live there),
  * `csrf` = mutation token, `pending2fa` = password passed, second factor not yet. Permissions are never stored here.
  */
-export type AppSession = { sid?: string; csrf?: string; pending2fa?: { userId: string; method: AuthMethod } };
+export type AppSession = { sid?: string; csrf?: string; pending2fa?: { userId: string; method: AuthMethod; at: number } };
+
+/** A password-passed sign-in waits this long for its second factor. */
+export const PENDING_2FA_TTL_MS = 10 * 60_000;
+
+/** The pending second-factor step when it is still within PENDING_2FA_TTL_MS (`at` = when the password passed). */
+export function pending2faOf(s: AppSession, now = Date.now()): AppSession["pending2fa"] | null {
+  const p = s.pending2fa;
+  return p && now - p.at <= PENDING_2FA_TTL_MS ? p : null; // a missing `at` gives NaN: expired
+}
 
 /** The signed-in user of one request, read fresh from the store. */
 export type AuthCtx = { user: UserRecord; sid: string; perms: Set<PermissionName> };

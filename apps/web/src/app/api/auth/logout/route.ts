@@ -1,4 +1,4 @@
-import { apiError, json } from "@/lib/server/api";
+import { apiError, crossSite, json, sameOrigin } from "@/lib/server/api";
 import { CSRF_HEADER, csrfOk } from "@/lib/server/csrf";
 import { db } from "@/lib/server/mock/db";
 import { getSession } from "@/lib/server/session";
@@ -9,6 +9,7 @@ import { logAuth } from "@/lib/server/sign-in";
  * waiting for its second factor has none and may cancel without one.
  */
 export async function POST(req: Request): Promise<Response> {
+  if (!sameOrigin(req)) return crossSite();
   const s = await getSession();
   if (s.sid && !csrfOk(req.headers.get(CSRF_HEADER), s.csrf)) {
     return apiError(403, "csrf", "The security token is missing or expired. Reload the page and try again.");

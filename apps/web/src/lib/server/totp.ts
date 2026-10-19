@@ -63,11 +63,17 @@ export function totpCode(secret: string, now = Date.now(), digits = 6): string {
   return hotp(base32Decode(secret), Math.floor(now / 1000 / STEP_S), digits);
 }
 
-/** True when `code` is the 6-digit code of the current 30 s step or the one before or after (clock drift). */
-export function verifyTotp(secret: string, code: string, now = Date.now()): boolean {
-  if (!/^\d{6}$/.test(code)) return false;
+/** The time step `code` belongs to (current, previous or next 30 s step, for clock drift), or null. */
+export function matchTotpStep(secret: string, code: string, now = Date.now()): number | null {
+  if (!/^\d{6}$/.test(code)) return null;
   const key = base32Decode(secret);
   const step = Math.floor(now / 1000 / STEP_S);
-  // ponytail: no replay guard inside the 90 s window; store the last accepted step per user if that matters.
-  return [-1, 0, 1].map((d) => secureEquals(hotp(key, step + d, 6), code)).includes(true);
+  const hits = [-1, 0, 1].map((d) => secureEquals(hotp(key, step + d, 6), code)); // all three compared, no early exit
+  const i = hits.indexOf(true);
+  return i < 0 ? null : step + i - 1;
+}
+
+/** True when `code` is the 6-digit code of the current 30 s step or the one before or after. No replay check. */
+export function verifyTotp(secret: string, code: string, now = Date.now()): boolean {
+  return matchTotpStep(secret, code, now) !== null;
 }
