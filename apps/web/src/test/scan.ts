@@ -4,6 +4,7 @@ import path from "node:path";
 export const SRC = path.resolve(import.meta.dirname, "..");
 export const WEB_SRC = SRC;
 export const UI_SRC = path.resolve(SRC, "../../../packages/ui/src");
+export const REPO = path.resolve(SRC, "../../..");
 
 /** All files under `roots` whose name matches `ext` (default ts/tsx, tests excluded). */
 export function scan(roots: string[] = [SRC], ext: RegExp = /\.(ts|tsx)$/, withTests = false): string[] {
@@ -23,6 +24,8 @@ export function scan(roots: string[] = [SRC], ext: RegExp = /\.(ts|tsx)$/, withT
 export const listSource = (dir = SRC): string[] => scan([dir]);
 export const read = (p: string) => readFileSync(p, "utf8");
 export const rel = (p: string) => path.relative(SRC, p).split(path.sep).join("/");
+/** Path relative to the repo root ("apps/web/src/…", "packages/ui/src/…"). */
+export const repoRel = (p: string) => path.relative(REPO, p).split(path.sep).join("/");
 
 export function importsOf(file: string): string[] {
   const s = readFileSync(file, "utf8");
