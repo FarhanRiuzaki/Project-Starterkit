@@ -1,24 +1,49 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { createContext, type ReactNode, useContext, useState } from "react";
+import { createContext, type ReactNode, useCallback, useContext, useEffect, useState } from "react";
 import { cn } from "../lib/cn";
 import { armPageSwap, type PageSwapState } from "./gate";
 import { useMotionLayer } from "./layer";
 import { usePrefersReducedMotion } from "./reduced-motion";
 
 const Swapping = createContext(false);
+type Hold = (shape: ReactNode, until: number) => void;
+const HoldContext = createContext<Hold>(() => undefined);
+
+/**
+ * For a route loading shape (`loading.tsx`): Next drops it the moment the page is ready, so a shape that has been on
+ * screen for less than its minimum (LOADING.minVisible) calls this as it goes, with itself and the time it may leave;
+ * PageTransition keeps it over the page, which waits hidden underneath, until then. No flash at route level either.
+ */
+export const useHoldShape = (): Hold => useContext(HoldContext);
 
 /**
  * Page enter (spec §7.2), mounted by `app/(main)/template.tsx`, which Next re-creates per route segment (never on
  * search-param changes; the shell never animates). Default: a CSS animation (`animate-page-enter`: opacity 0 → 1 +
  * y 6 → 0 over --dur-page, reduced motion opacity only) that runs without waiting for JavaScript, so server HTML is
  * never stuck hidden. Once `PageTransitionRoot` has switched to the Framer crossfade it owns the enter and this
- * wrapper drops its CSS animation.
+ * wrapper drops its CSS animation. It also holds a route loading shape for its minimum time (useHoldShape); the page
+ * then fades in under it.
  */
 export function PageTransition({ children, className }: { children: ReactNode; className?: string }) {
   const swapping = useContext(Swapping);
-  return <div className={cn("grid min-w-0 gap-section", !swapping && "animate-page-enter", className)}>{children}</div>;
+  const [held, setHeld] = useState<{ shape: ReactNode; until: number } | null>(null);
+  const [wasHeld, setWasHeld] = useState(false);
+  const hold = useCallback<Hold>((shape, until) => { if (until > Date.now()) { setHeld({ shape, until }); setWasHeld(true); } }, []);
+  useEffect(() => {
+    if (!held) return;
+    const t = setTimeout(() => setHeld(null), held.until - Date.now());
+    return () => clearTimeout(t);
+  }, [held]);
+  return (
+    <HoldContext.Provider value={hold}>
+      <div className={cn("grid min-w-0 gap-section *:col-start-1 *:row-start-1", !swapping && "animate-page-enter", className)}>
+        {held && <div className="min-w-0">{held.shape}</div>}
+        <div className={cn("grid min-w-0 gap-section", held ? "invisible" : wasHeld && "animate-reveal-in")}>{children}</div>
+      </div>
+    </HoldContext.Provider>
+  );
 }
 
 /**

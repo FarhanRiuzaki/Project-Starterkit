@@ -1,35 +1,44 @@
 "use client";
 
-import dynamic from "next/dynamic";
-import { type ComponentProps, createContext, useContext } from "react";
+import { type ComponentProps, type ComponentType, useEffect, useState } from "react";
+import { Reveal } from "../motion/reveal";
 import { Skeleton } from "../ui/skeleton";
 import { CHART_HEIGHT } from "./chart-theme";
 import type { BarChart as BarChartImpl } from "./bar-chart";
 import type { TimeSeriesChart as TimeSeriesChartImpl } from "./time-series-chart";
 
 /**
- * recharts (~100 kB gz) loads only when a chart renders: client-only (`ssr: false` — ResponsiveContainer has no size
- * on the server anyway) with a Skeleton in the chart's final shape (ChartFrame toolbar row + plot at its height).
+ * recharts (~100 kB gz) loads only when a chart renders, client-only (ResponsiveContainer has no size on the server
+ * anyway). Until its chunk is in, a Reveal holds a Skeleton in the chart's final shape (ChartFrame toolbar row + plot
+ * at its height): hidden for a fast chunk, never a flash (useDelayedFlag). Once loaded, later charts render at once.
  */
-const Height = createContext<number>(CHART_HEIGHT.standard);
-
-function ChartSkeleton() {
-  const height = useContext(Height);
+function ChartSkeleton({ height }: { height: number }) {
   return (
-    <div className="grid min-w-0 gap-3" aria-busy="true">
+    <div className="grid min-w-0 gap-3">
       <div className="flex h-8 justify-end"><Skeleton className="h-8 w-36 rounded-md" /></div>
       <Skeleton className="w-full rounded-md" style={{ height }} />
     </div>
   );
 }
 
-const TimeSeries = dynamic(() => import("./time-series-chart").then((m) => m.TimeSeriesChart), { ssr: false, loading: ChartSkeleton });
-const Bars = dynamic(() => import("./bar-chart").then((m) => m.BarChart), { ssr: false, loading: ChartSkeleton });
-
-export function TimeSeriesChart(props: ComponentProps<typeof TimeSeriesChartImpl>) {
-  return <Height.Provider value={props.height ?? CHART_HEIGHT.standard}><TimeSeries {...props} /></Height.Provider>;
+function lazyChart<P extends { height?: number }>(load: () => Promise<ComponentType<P>>) {
+  let loaded: ComponentType<P> | null = null;
+  return function LazyChart(props: P) {
+    const [Chart, setChart] = useState<ComponentType<P> | null>(() => loaded);
+    useEffect(() => {
+      if (Chart) return;
+      let live = true;
+      // ponytail: a blocked chunk leaves the skeleton up; add a retry or an error state if that shows up in practice.
+      void load().then((c) => { loaded = c; if (live) setChart(() => c); }, () => undefined);
+      return () => { live = false; };
+    }, [Chart]);
+    return (
+      <Reveal loading={!Chart} skeleton={<ChartSkeleton height={props.height ?? CHART_HEIGHT.standard} />}>
+        {Chart && <Chart {...props} />}
+      </Reveal>
+    );
+  };
 }
 
-export function BarChart(props: ComponentProps<typeof BarChartImpl>) {
-  return <Height.Provider value={props.height ?? CHART_HEIGHT.standard}><Bars {...props} /></Height.Provider>;
-}
+export const TimeSeriesChart = lazyChart<ComponentProps<typeof TimeSeriesChartImpl>>(() => import("./time-series-chart").then((m) => m.TimeSeriesChart));
+export const BarChart = lazyChart<ComponentProps<typeof BarChartImpl>>(() => import("./bar-chart").then((m) => m.BarChart));

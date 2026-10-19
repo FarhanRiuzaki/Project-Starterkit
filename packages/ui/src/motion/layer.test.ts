@@ -34,8 +34,9 @@ describe("before the layer loads (server HTML, blocked chunk): CSS motion, nothi
   it("MotionLayer renders its children unchanged; SharedIndicator renders nothing", () => {
     expect(renderToStaticMarkup(h(MotionLayer, null, h("p", null, "x"), h(SharedIndicator, { layoutId: "a" })))).toBe("<p>x</p>");
   });
-  it("PageTransition keeps the CSS page enter", () => {
-    expect(renderToStaticMarkup(h(PageTransition, null, "page"))).toBe('<div class="grid min-w-0 gap-section animate-page-enter">page</div>');
+  it("PageTransition keeps the CSS page enter (the page sits in the cell a held route loading shape shares)", () => {
+    expect(renderToStaticMarkup(h(PageTransition, null, "page")))
+      .toBe('<div class="grid min-w-0 gap-section *:col-start-1 *:row-start-1 animate-page-enter"><div class="grid min-w-0 gap-section">page</div></div>');
   });
   it("Tabs: the active trigger draws its own underline, no motion indicator", () => {
     const html = renderToStaticMarkup(h(Tabs, { defaultValue: "b" },

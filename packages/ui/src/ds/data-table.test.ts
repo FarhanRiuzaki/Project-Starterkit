@@ -89,6 +89,13 @@ describe("DataTable loading shape (no layout shift)", () => {
     expect(out).toContain('data-slot="pagination-placeholder"');
     expect(out).toMatch(/class="min-h-12 border-t border-line"/);
   });
+  it("no flash: on the first render the skeleton rows hold the height hidden, and nothing is aria-busy or dimmed yet", () => {
+    const out = renderToStaticMarkup(h(DataTable<S>, { ...base,
+      paging: { mode: "server", page: 1, pageSize: 15, total: 0, busy: true, pageSizes: [15], onPageChange: () => {}, onPageSizeChange: () => {} } }));
+    expect(out.match(/<tr[^>]*aria-hidden="true"/g)?.every((tr) => tr.includes("invisible"))).toBe(true);
+    expect(out).not.toContain("aria-busy");
+    expect(out).not.toContain("opacity-60");
+  });
   it("skeletonRows sets the count elsewhere (default 8)", () => {
     expect(skeletons(renderToStaticMarkup(h(DataTable<S>, base)))).toBe(8);
     expect(skeletons(renderToStaticMarkup(h(DataTable<S>, { ...base, skeletonRows: 5 })))).toBe(5);

@@ -89,10 +89,11 @@ describe("charts barrel keeps recharts lazy", () => {
     };
     visit("index.ts");
     expect(offenders).toEqual([]);
-    // The recharts charts are reached only through next/dynamic in lazy.tsx.
+    // The recharts charts are reached only through a dynamic import() in lazy.tsx.
     expect(seen.has("bar-chart.tsx")).toBe(false);
     expect(seen.has("time-series-chart.tsx")).toBe(false);
-    expect(read("lazy.tsx")).toMatch(/dynamic\(\(\) => import\("\.\/time-series-chart"\)/);
+    expect(read("lazy.tsx")).toMatch(/\(\) => import\("\.\/time-series-chart"\)/);
+    expect(read("lazy.tsx")).toMatch(/\(\) => import\("\.\/bar-chart"\)/);
   });
 });
 

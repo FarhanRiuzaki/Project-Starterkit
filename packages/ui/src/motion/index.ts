@@ -6,9 +6,10 @@
 export { SharedIndicator } from "./indicator";
 export { MotionLayer, type MotionKit, useMotionLayer } from "./layer";
 export { NumberTween } from "./number-tween";
-export { PageTransition, PageTransitionRoot } from "./page-transition";
+export { PageTransition, PageTransitionRoot, useHoldShape } from "./page-transition";
 export { Reveal } from "./reveal";
 export { Stagger, StaggerItem } from "./stagger";
 export { useChangeKey } from "./use-change-key";
 export { useNewKeys } from "./use-new-keys";
-export { barDelay, CHART_STAGGER, cssEase, DUR, EASE, OVERLAY_MOTION, SHIFT_ENTER, SPRING_FLIP, SPRING_INDICATOR, SPRING_SOFT, SPRING_TWEEN, STAGGER, staggerDelay, tweenDuration } from "./tokens";
+export { useDelayedFlag } from "./use-delayed-flag";
+export { barDelay, CHART_STAGGER, cssEase, DUR, EASE, LOADING, OVERLAY_MOTION, SHIFT_ENTER, SPRING_FLIP, SPRING_INDICATOR, SPRING_SOFT, SPRING_TWEEN, STAGGER, staggerDelay, tweenDuration } from "./tokens";

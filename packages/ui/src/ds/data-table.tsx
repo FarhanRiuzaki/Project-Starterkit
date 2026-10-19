@@ -4,7 +4,7 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 import { Icon, type IconData } from "../ui/icon";
 import { ArrowDownIcon, ArrowUpIcon, ChevronsUpDownIcon } from "../ui/icons";
 import { cn } from "../lib/cn";
-import { useNewKeys } from "../motion";
+import { useDelayedFlag, useNewKeys } from "../motion";
 import { Skeleton } from "../ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
 import { pageCount } from "../lib/paging";
@@ -71,10 +71,15 @@ export function DataTable<T>({ columns, rows, rowKey, label, loading, error, emp
   // Fokus ke atas tabel hanya bila halaman benar-benar berganti ke target (kedaluwarsa 3 dtk bila diabaikan).
   const focusTarget = useRef<{ page: number; at: number } | null>(null);
 
+  // No flash (LOADING tokens): the skeleton rows and the busy dim show only after 150 ms of loading, then stay at
+  // least 300 ms. Until then the skeleton rows hold the table's height, hidden.
+  const showSkeleton = useDelayedFlag(!!loading);
+  const showBusy = useDelayedFlag(!!paging?.busy);
+  const skeleton = !!loading || showSkeleton;
   // Fade the body in once when the first load finishes (not on refreshes, not when data was ready at mount).
   const [loadedLate, setLoadedLate] = useState(false);
-  const [wasLoading, setWasLoading] = useState(!!loading);
-  if (wasLoading && !loading) { setWasLoading(false); setLoadedLate(true); }
+  const [wasLoading, setWasLoading] = useState(skeleton);
+  if (wasLoading && !skeleton) { setWasLoading(false); setLoadedLate(true); }
 
   const server = paging ?? null;
   const last = server ? Math.min(pageCount(server.total, server.pageSize), server.maxPage ?? Infinity) : 1;
@@ -105,7 +110,7 @@ export function DataTable<T>({ columns, rows, rowKey, label, loading, error, emp
 
   const table = (
     <>
-      <Table aria-label={label} aria-busy={loading || server?.busy || undefined} data-status-static="">
+      <Table aria-label={label} aria-busy={showSkeleton || showBusy || undefined} data-status-static="">
         <TableHeader>
           <TableRow className="hover:bg-transparent">
             {columns.map((c) => {
@@ -125,9 +130,9 @@ export function DataTable<T>({ columns, rows, rowKey, label, loading, error, emp
             {rowActions && <TableHead><span className="sr-only">Actions</span></TableHead>}
           </TableRow>
         </TableHeader>
-        <TableBody className={cn(loadedLate && "animate-reveal-in", server && "transition-opacity duration-(--dur-fast)", server?.busy && "opacity-60")}>
-          {loading
-            ? <SkeletonRows count={skeletonRows ?? server?.pageSize ?? 8} columns={columns} actions={!!rowActions} identity={rowHeight === "identity"} />
+        <TableBody className={cn(loadedLate && "animate-reveal-in", server && "transition-opacity duration-(--dur-fast)", showBusy && "opacity-60")}>
+          {skeleton
+            ? <SkeletonRows count={skeletonRows ?? server?.pageSize ?? 8} columns={columns} actions={!!rowActions} identity={rowHeight === "identity"} hidden={!showSkeleton} />
             : data.map((r) => {
                 const isNew = fresh.has(rowKey(r));
                 return (
@@ -147,13 +152,13 @@ export function DataTable<T>({ columns, rows, rowKey, label, loading, error, emp
       </Table>
 
 
-      {!loading && data.length === 0 && <div className="p-4"><EmptyState icon={empty.icon} title={empty.title} description={empty.description} /></div>}
+      {!skeleton && data.length === 0 && <div className="p-4"><EmptyState icon={empty.icon} title={empty.title} description={empty.description} /></div>}
     </>
   );
 
   if (!server) return table;
   // The footer keeps its 48 px while loading, so the table doesn't jump when the pagination arrives.
-  const footer = loading ? <div aria-hidden="true" data-slot="pagination-placeholder" className="min-h-12 border-t border-line" /> : server.total > 0 && (
+  const footer = skeleton ? <div aria-hidden="true" data-slot="pagination-placeholder" className="min-h-12 border-t border-line" /> : server.total > 0 && (
     <Pagination label={label} page={page} pageSize={server.pageSize} total={server.total} totalCapped={server.totalCapped} maxPage={server.maxPage}
       pageSizes={server.pageSizes} onPageChange={goTo} onPageSizeChange={server.onPageSizeChange} />
   );
@@ -165,10 +170,10 @@ export function DataTable<T>({ columns, rows, rowKey, label, loading, error, emp
   );
 }
 
-function SkeletonRows<T>({ count, columns, actions, identity }: { count: number; columns: Column<T>[]; actions: boolean; identity: boolean }) {
+function SkeletonRows<T>({ count, columns, actions, identity, hidden }: { count: number; columns: Column<T>[]; actions: boolean; identity: boolean; hidden: boolean }) {
   const h = identity ? "h-(--row-h-identity)" : undefined;
   return Array.from({ length: count }, (_, i) => (
-    <TableRow key={`sk-${i}`} className="hover:bg-transparent" aria-hidden="true">
+    <TableRow key={`sk-${i}`} className={cn("hover:bg-transparent", hidden && "invisible")} aria-hidden="true">
       {columns.map((c) => <TableCell key={c.key} className={h}><Skeleton className="h-2.5 w-3/4" /></TableCell>)}
       {actions && <TableCell className={h} />}
     </TableRow>

@@ -1,11 +1,13 @@
 "use client";
 
 import { type ReactNode, useEffect, useRef, useState } from "react";
+import { Reveal } from "../motion/reveal";
 import { Skeleton } from "../ui/skeleton";
 
 /**
- * Render anak saat mendekati viewport (rootMargin 200px); sebelumnya skeleton setinggi `minHeight`
- * agar tidak ada pergeseran tata letak. Sekali tampil, tetap tampil (IntersectionObserver: every supported browser).
+ * Render anak saat mendekati viewport (rootMargin 200px); sebelumnya skeleton setinggi `minHeight` agar tidak ada
+ * pergeseran tata letak, lewat Reveal: tersembunyi bila anak muncul cepat, tidak pernah berkedip (useDelayedFlag).
+ * Sekali tampil, tetap tampil (IntersectionObserver: every supported browser).
  */
 export function LazyMount({ minHeight, children }: { minHeight: number; children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -22,10 +24,9 @@ export function LazyMount({ minHeight, children }: { minHeight: number; children
     return () => io.disconnect();
   }, [mounted]);
 
-  if (mounted) return <>{children}</>;
   return (
-    <div ref={ref} aria-busy="true" style={{ minHeight }}>
-      <Skeleton className="w-full rounded-md" style={{ height: minHeight }} />
+    <div ref={ref}>
+      <Reveal loading={!mounted} skeleton={<Skeleton className="w-full rounded-md" style={{ height: minHeight }} />}>{mounted && children}</Reveal>
     </div>
   );
 }

@@ -29,6 +29,9 @@ describe("MotionSection tokens", () => {
 
 describe("MotionSection overlay rows print the tokens the components use", () => {
   const row = (id: string) => RULES.find((r) => r.id === id)!.duration;
+  it("loading states print the LOADING tokens: after 150 ms, at least 300 ms", () => {
+    expect(row("loading")).toBe("shows after 150 ms, stays at least 300 ms");
+  });
   it("menu 180 in / 100 out, tooltip 100 / 100, dialog 280 / 160 with scrim 220 / 160", () => {
     expect(row("menu")).toBe(inOut(OVERLAY_MOTION.menu));
     expect(row("menu")).toBe("180 ms in · 100 ms out");
@@ -48,7 +51,7 @@ describe("MotionSection patterns and rules", () => {
   it("rules table has the four columns and one row per pattern plus the rules-only rows", () => {
     for (const c of ["Pattern", "Layer", "Duration", "Reduced motion"]) expect(html).toMatch(new RegExp(`<th scope="col"[^>]*>${c}</th>`));
     expect(html.match(/data-pattern="/g)).toHaveLength(RULES.length);
-    for (const id of ["tooltip", "tab-reveal", "card-lift", "page-swap", "card-reorder", "skeleton-shimmer", "chart"]) expect(RULES_ONLY.map((r) => r.id)).toContain(id);
+    for (const id of ["tooltip", "tab-reveal", "card-lift", "page-swap", "card-reorder", "loading", "skeleton-shimmer", "chart"]) expect(RULES_ONLY.map((r) => r.id)).toContain(id);
     expect(RULES_ONLY.every((r) => !html.includes(`data-demo="${r.id}"`))).toBe(true);
     expect(PATTERNS.every((p) => p.layer === "CSS" || p.layer === "Motion")).toBe(true);
   });

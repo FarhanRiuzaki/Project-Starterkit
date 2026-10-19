@@ -5,7 +5,7 @@ import { type Column, CountBadge, DataTable, Panel, Segmented, StatusChip } from
 import { cn } from "@starterkit/ui/lib/cn";
 import { formatNumber } from "@starterkit/ui/lib/format";
 import { HEALTH } from "@starterkit/ui/lib/status";
-import { CHART_STAGGER, cssEase, DUR, EASE, NumberTween, OVERLAY_MOTION, Reveal, SPRING_FLIP, SPRING_INDICATOR, SPRING_SOFT, STAGGER, Stagger, StaggerItem, tweenDuration } from "@starterkit/ui/motion";
+import { CHART_STAGGER, cssEase, DUR, EASE, LOADING, NumberTween, OVERLAY_MOTION, Reveal, SPRING_FLIP, SPRING_INDICATOR, SPRING_SOFT, Stagger, STAGGER, StaggerItem, tweenDuration } from "@starterkit/ui/motion";
 import { Button } from "@starterkit/ui/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@starterkit/ui/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, menuLoader } from "@starterkit/ui/ui/dropdown-menu";
@@ -52,6 +52,7 @@ export const RULES_ONLY: readonly Pattern[] = [
   { id: "card-lift", name: "card lift", layer: "CSS", duration: fmtMs(DUR.fast), reduced: "No lift", use: "Hover and press on clickable cards" },
   { id: "page-swap", name: "page exit", layer: "Motion", duration: `${fmtMs(DUR.exit)} out · ${fmtMs(DUR.page)} in`, reduced: REDUCED_FADE, use: "Route change once the deferred layer has loaded; the old page fades out without moving" },
   { id: "card-reorder", name: "card reorder", layer: "Motion", duration: "SPRING_FLIP", reduced: "Jumps", use: "Card grids re-sorted or filtered, up to 60 cards; never table rows" },
+  { id: "loading", name: "loading state", layer: "CSS", duration: `shows after ${fmtMs(LOADING.delay)}, stays at least ${fmtMs(LOADING.minVisible)}`, reduced: "Same timing", use: "Skeletons, busy dims and route loading shapes (useDelayedFlag): a fast load shows none, a slow one never blinks" },
   { id: "skeleton-shimmer", name: "skeleton shimmer", layer: "CSS", duration: `${fmtMs(DUR.flash)} loop`, reduced: "No sweep", use: "Placeholders while data loads; hands over with the reveal" },
   { id: "chart", name: "chart grow and line draw", layer: "CSS", duration: `${fmtMs(DUR.slow)} grow, ${fmtMs(CHART_STAGGER.step)} per bar up to ${fmtMs(CHART_STAGGER.max)} · ${fmtMs(DUR.draw)} draw`, reduced: REDUCED_FADE, use: "Plays once per chart; data-settled turns it off after, so a refresh re-renders without replaying" },
 ];

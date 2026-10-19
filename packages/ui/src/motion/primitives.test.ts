@@ -29,10 +29,10 @@ describe("NumberTween markup", () => {
 describe("Reveal markup", () => {
   const sk = h("p", null, "skeleton");
   const body = h("p", null, "content");
-  it("loading: skeleton only, aria-hidden, region aria-busy", () => {
+  it("loading: the skeleton holds the place, hidden for the first 150 ms (no flash on a fast load), no aria-busy yet", () => {
     const html = renderToStaticMarkup(h(Reveal, { loading: true, skeleton: sk, children: body }));
-    expect(html).toContain('aria-busy="true"');
-    expect(html).toContain('<div aria-hidden="true" data-reveal="skeleton" class="min-w-0"><p>skeleton</p></div>');
+    expect(html).not.toContain("aria-busy");
+    expect(html).toContain('<div aria-hidden="true" data-reveal="skeleton" class="min-w-0 invisible"><p>skeleton</p></div>');
     expect(html).not.toContain("content");
   });
   it("ready on first render: content visible with no animation and no skeleton", () => {
