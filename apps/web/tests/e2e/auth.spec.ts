@@ -15,10 +15,19 @@ test("password: email or username and password lands on the dashboard", async ({
 });
 
 test("two-factor: password, then the one-time code from the seed secret", async ({ page }) => {
+  test.setTimeout(60_000);
   await signIn(page, "twofa@example.com");
   await expect(page).toHaveURL("/login/2fa");
   await heading(page, "Two-factor authentication");
+  // Each TOTP code completes one sign-in only (replay guard). A rerun against a reused server (E2E_REUSE=1) within the
+  // same 30 s step finds the current code spent: then wait for the next step and use its code.
   await page.locator("#code").fill(totp(SEED.totpSecret)); // submits itself at 6 digits
+  const landed = await page.waitForURL("/", { timeout: 3000 }).then(() => true, () => false);
+  if (!landed) {
+    await expect(page.getByRole("alert")).toBeVisible();
+    await page.waitForTimeout(30_000 - (Date.now() % 30_000) + 500);
+    await page.locator("#code").fill(totp(SEED.totpSecret));
+  }
   await expect(page).toHaveURL("/");
   await expect(page.getByRole("button", { name: account("Two Factor") })).toBeVisible();
 });

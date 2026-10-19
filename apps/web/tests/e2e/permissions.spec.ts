@@ -3,7 +3,7 @@ import { csrfOf, heading, signIn } from "./helpers";
 
 /**
  * The Viewer role (user.view + audit.view): the menu hides what the role can't open, the API refuses it even when
- * called directly with a valid session and CSRF token, and a page it can't open is "Page not found".
+ * called directly with a valid session and CSRF token, and a page it can't open is a 404 "Page not found".
  */
 test("viewer: menu, direct API call and direct page", async ({ page }) => {
   await signIn(page, "viewer@example.com");
@@ -28,12 +28,17 @@ test("viewer: menu, direct API call and direct page", async ({ page }) => {
   const users = await page.request.get("/api/users?q=not.created");
   expect((await users.json()).total, "nothing was created").toBe(0);
 
-  const direct = await page.goto("/roles");
-  // The page streams (loading.tsx), so Next answers 200 and marks it noindex (docs: not-found.js, Status codes).
-  expect([200, 404]).toContain(direct?.status());
-  await expect(page.locator('meta[name="robots"][content*="noindex"]').first()).toBeAttached();
-  expect(await direct!.text(), "no role data in the page").not.toContain('href="/roles/role-');
-  await heading(page, "Page not found");
-  await expect(page.getByRole("main")).toHaveCount(1); // inside the shell: one main landmark
-  await expect(page.getByRole("link", { name: "Go to dashboard" })).toBeVisible();
+  // A document load of a page the role can't open is a real 404 (the (main) layout checks before streaming), with
+  // nothing about the page or its data in the answer.
+  for (const path of ["/roles", "/roles/role-admin", "/permissions", "/users/new", "/users/u-001/edit"]) {
+    const direct = await page.goto(path);
+    expect(direct?.status(), path).toBe(404);
+    const html = await direct!.text();
+    for (const leak of ['href="/roles/role-', "role-superadmin", "Every permission", "Permissions of", "Create user", "Edit user", ">Roles<", ">Permissions<"]) {
+      expect(html, `${path} leaks ${leak}`).not.toContain(leak);
+    }
+    await heading(page, "Page not found");
+    await expect(page.getByRole("navigation", { name: "Breadcrumb" })).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "Go to dashboard" })).toBeVisible();
+  }
 });

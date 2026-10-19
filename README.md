@@ -84,8 +84,10 @@ docs/api/                 API contract for the backend: endpoint table and JSON 
 | `bun run e2e` | Builds and starts the app on port 3123, then runs the Playwright specs (sign-in, permissions, accessibility, motion, no flicker, `/ds` screenshots). `E2E_REUSE=1` reuses a server already on `E2E_PORT`; artifacts go to `.superpowers/scratch/`. |
 | `bun run api:schemas` | Regenerates `docs/api/schemas/` from the zod contracts. |
 
-Playwright uses the Chromium it already has; `/ds` screenshot baselines are per platform (`*-darwin.png`); make them
-on a new platform with `bunx playwright test ds --update-snapshots` inside `apps/web` and review them.
+Playwright uses the Chromium it already has. `/ds` screenshot baselines are per platform: the file name ends in the
+platform (`ds-light-darwin.png`), so a Linux CI runner looks for `ds-light-linux.png` and fails until it has its own.
+Make them on that platform (for CI: in the same Linux image the runner uses) with
+`bunx playwright test ds --update-snapshots` inside `apps/web`, review them by eye, and commit them next to the others.
 
 ## Standards
 

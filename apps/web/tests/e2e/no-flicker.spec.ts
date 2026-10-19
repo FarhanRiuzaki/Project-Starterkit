@@ -202,6 +202,59 @@ test.describe("client navigation and table changes", () => {
     expect(stuck(m.intervals)).toEqual([]);
     expect(navShift, "layout shift during the navigations (input or not)").toBeLessThan(CLS_MAX);
     expect(api, "requests to /api during client navigation (the server prefetched each page)").toEqual([]);
+    // A client navigation always has something on screen (the frozen copy, then the page): no gap at all, faded or not.
+    expect(m.gaps.filter((g) => g.ms > FRAME || g.ms === -1), "blank page region during client navigation").toEqual([]);
+  });
+
+  test("chained navigation within 150 ms: the copy of the first page stays up, no gap, no flash", async ({ page }) => {
+    await page.addInitScript(installProbe);
+    await page.route("**/*", async (route) => {
+      const h = route.request().headers();
+      if (h.rsc === "1" && !h["next-router-prefetch"]) await new Promise((r) => setTimeout(r, 400));
+      await route.continue();
+    });
+    await page.goto("/");
+    await settle(page);
+    await page.evaluate(() => { window.__flicker.intervals = []; window.__flicker.gaps = []; window.__flicker.doubled = 0; });
+    const menu = page.getByRole("navigation", { name: "Menu" });
+    await menu.getByRole("link", { name: "Roles" }).click();
+    await page.waitForTimeout(60); // the second click lands while the first page is still on its way
+    const copyUp = await page.evaluate(() => !!document.querySelector("[data-frozen-holder]") || !!document.querySelector("[data-page-swap]"));
+    await menu.getByRole("link", { name: "Users" }).click();
+    await expect(page.getByRole("heading", { level: 1, name: "Users" })).toBeVisible();
+    const m = await settle(page);
+    save("chained navigation", { intervals: m.intervals, gaps: m.gaps, doubled: m.doubled, copyUp });
+    expect(copyUp, "something holds the screen right after the first click").toBe(true);
+    expect(m.gaps.filter((g) => g.ms > FRAME || g.ms === -1), "blank page region").toEqual([]);
+    expect(flashes(m.intervals)).toEqual([]);
+    expect(m.doubled).toBe(0);
+  });
+
+  test("navigating from a scrolled page: the copy stands exactly where the old page was on screen", async ({ page }) => {
+    await page.route("**/*", async (route) => {
+      const h = route.request().headers();
+      if (h.rsc === "1" && !h["next-router-prefetch"]) await new Promise((r) => setTimeout(r, 400));
+      await route.continue();
+    });
+    await page.goto("/users?pageSize=100");
+    await page.waitForLoadState("networkidle");
+    await page.mouse.wheel(0, 900);
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(300);
+    const before = await page.evaluate(() => document.querySelector("[data-page]")!.parentElement!.getBoundingClientRect().top);
+    // The copy is up for at most 150 ms plus its fade: catch it as it is added.
+    await page.evaluate(() => {
+      (window as unknown as { __copyTop: Promise<number> }).__copyTop = new Promise((done) => {
+        new MutationObserver((_, obs) => {
+          const h = document.querySelector("[data-frozen-holder]");
+          if (h) { obs.disconnect(); done(h.getBoundingClientRect().top); }
+        }).observe(document.body, { childList: true });
+      });
+    });
+    await page.getByRole("navigation", { name: "Menu" }).getByRole("link", { name: "Roles" }).click();
+    const top = await page.evaluate(() => (window as unknown as { __copyTop: Promise<number> }).__copyTop);
+    expect(Math.abs(top - before), "copy offset from the old page's position (px)").toBeLessThanOrEqual(1);
+    await expect(page.getByRole("heading", { level: 1, name: "Roles" })).toBeVisible();
+    await expect(page.locator("[data-frozen-holder]")).toHaveCount(0);
   });
 
   test("revisiting a page after its cache went stale: the server's fresh data is used, no /api refetch", async ({ page }) => {
