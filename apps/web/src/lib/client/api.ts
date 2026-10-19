@@ -42,12 +42,32 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
       ...(init.headers ?? {}),
     },
   });
-  const body = (await res.json().catch(() => ({}))) as T & Partial<ApiErrorBody>;
-  if (!res.ok) {
-    if (res.status === 401 && !OWN_401.test(path) && typeof window !== "undefined") {
-      window.location.assign(signInHref(window.location.pathname + window.location.search));
-    }
-    throw new ApiError(res.status, body.error?.code ?? "error", body.error?.message ?? `HTTP ${res.status}`);
+  if (!res.ok) throw await failure(res, path);
+  return (await res.json().catch(() => ({}))) as T;
+}
+
+/** The ApiError for a failed answer; a 401 outside /api/auth first sends the browser to sign-in (returning here). */
+async function failure(res: Response, path: string): Promise<ApiError> {
+  const body = (await res.json().catch(() => ({}))) as Partial<ApiErrorBody>;
+  if (res.status === 401 && !OWN_401.test(path) && typeof window !== "undefined") {
+    window.location.assign(signInHref(window.location.pathname + window.location.search));
   }
-  return body;
+  return new ApiError(res.status, body.error?.code ?? "error", body.error?.message ?? `HTTP ${res.status}`);
+}
+
+/**
+ * Save a file answer of the app's API (CSV export) under the server's `Content-Disposition` filename, else
+ * `fallbackName`. Same rules as `api()`: same-origin `/api/*` only, 401 → sign-in, errors throw ApiError.
+ */
+export async function download(path: string, fallbackName: string): Promise<void> {
+  assertApiPath(path);
+  const res = await fetch(path, { credentials: "same-origin" });
+  if (!res.ok) throw await failure(res, path);
+  const name = /filename="([^"]+)"/.exec(res.headers.get("content-disposition") ?? "")?.[1] ?? fallbackName;
+  const url = URL.createObjectURL(await res.blob());
+  const a = Object.assign(document.createElement("a"), { href: url, download: name });
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url)); // after the click's download has taken the blob
 }

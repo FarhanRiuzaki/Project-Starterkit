@@ -42,6 +42,7 @@ export function GallerySections() {
   const [chip, setChip] = useState(true);
   const [sort, setSort] = useState<{ key: string; dir: SortDir }>({ key: "name", dir: "asc" });
   const [page, setPage] = useState(1);
+  const [server, setServer] = useState({ page: 1, pageSize: 15, sort: { key: "name", dir: "asc" as SortDir } });
   const [dialog, setDialog] = useState(false);
   const [secret, setSecret] = useState(false);
 
@@ -72,6 +73,12 @@ export function GallerySections() {
         <DataTable label="Sample users" rowHeight="identity" columns={columns} rows={rows} rowKey={(r) => r.id} sort={sort} onSortChange={setSort}
           isSelected={(r) => r.id === "row-2"} empty={EMPTY} paging={{ mode: "paged", page, onPageChange: setPage }}
           rowActions={(r) => <><Button size="sm" variant="ghost">Open</Button><ActionMenu label={`Actions for ${r.name}`} actions={[{ id: "edit", label: "Edit user" }, { id: "delete", label: "Delete user", destructive: true }]} /></>} />
+      </Panel>
+      <Panel flush icon={UsersIcon} title="Server-paged table" count="12,345" description="Page, page size and sort are requests to the server; sample rows">
+        <DataTable label="Server-paged sample" rowHeight="identity" columns={columns.map((c) => ({ ...c, sortValue: undefined, sortable: c.key !== "seen" }))}
+          rows={ROWS.slice(0, server.pageSize)} rowKey={(r) => r.id} empty={EMPTY} sort={server.sort} onSortChange={(sort) => setServer((s) => ({ ...s, page: 1, sort }))}
+          paging={{ mode: "server", page: server.page, pageSize: server.pageSize, total: 12_345, maxPage: 1000, pageSizes: [15, 25, 50, 100],
+            onPageChange: (p) => setServer((s) => ({ ...s, page: p })), onPageSizeChange: (n) => setServer((s) => ({ ...s, page: 1, pageSize: n })) }} />
       </Panel>
       <Panel flush title="Table states" description="Loading, error and empty">
         <div className="grid divide-y divide-line">

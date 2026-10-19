@@ -87,6 +87,23 @@ export function formatRelative(ms: N, now: number = Date.now()): string {
   return d === 1 ? "Yesterday" : `${d} days ago`;
 }
 
+const DAY_MS = 86_400_000;
+
+/** Calendar date ("2026-10-20") in the app time zone at `ms`. */
+export function appDate(ms: number): string {
+  return new Date(ms + APP_UTC_OFFSET_SEC * 1000).toISOString().slice(0, 10);
+}
+
+/** 00:00 in the app time zone on `date` ("YYYY-MM-DD"), as epoch ms. */
+export function appDayStart(date: string): number {
+  return Date.parse(`${date}T00:00:00Z`) - APP_UTC_OFFSET_SEC * 1000;
+}
+
+/** `date` ("YYYY-MM-DD") moved by `days` whole calendar days. */
+export function shiftDate(date: string, days: number): string {
+  return new Date(Date.parse(`${date}T00:00:00Z`) + days * DAY_MS).toISOString().slice(0, 10);
+}
+
 /** Seconds since 00:00 in the app time zone; at least 60 so a rate window is never empty. */
 export function secondsSinceMidnight(nowMs: number): number {
   const wib = new Date(nowMs + APP_UTC_OFFSET_SEC * 1000);

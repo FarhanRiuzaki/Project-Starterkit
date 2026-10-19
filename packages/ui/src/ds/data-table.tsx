@@ -2,15 +2,16 @@
 
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { Icon, type IconData } from "../ui/icon";
-import { ArrowDownIcon, ArrowUpIcon, ChevronLeftIcon, ChevronRightIcon, ChevronsUpDownIcon } from "../ui/icons";
+import { ArrowDownIcon, ArrowUpIcon, ChevronsUpDownIcon } from "../ui/icons";
 import { cn } from "../lib/cn";
 import { useNewKeys } from "../motion";
 import { Button } from "../ui/button";
 import { Skeleton } from "../ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
 import { formatNumber } from "../lib/format";
-import { clampPage, PAGE_SIZE, pageCount, pageSlice, pageWindow, rangeLabel } from "../lib/paging";
+import { clampPage, PAGE_SIZE, pageCount, pageSlice } from "../lib/paging";
 import { type SortDir, sortRows } from "../lib/sort";
+import { Pagination } from "./pagination";
 import { EmptyState, ErrorState } from "./states";
 
 export type Column<T> = {
@@ -18,6 +19,8 @@ export type Column<T> = {
   /** Optional 14 px icon before the header label (spec §5.7). */
   icon?: IconData;
   sortValue?: (r: T) => string | number | null | undefined;
+  /** Server-sorted column (`server` paging): the header toggles `sort` but the rows are not re-sorted here. */
+  sortable?: boolean;
   align?: "left" | "right"; className?: string;
 };
 
@@ -29,10 +32,17 @@ export type Column<T> = {
  *   berikutnya gagal: baris tetap tampil, observer berhenti, tombol "Load more" menjadi coba lagi manual.
  * Tanpa `paging`: > 25 baris otomatis berhalaman (state lokal, kembali ke halaman 1 saat himpunan baris atau
  * urutan berubah), ≤ 25 baris tampil semua.
+ * - `server`: the server pages, sorts and filters; `rows` = the current page as returned (never re-sorted here).
+ *   Footer = `Pagination` with the page-size select. `busy` = the next page/sort is loading while the previous
+ *   rows stay on screen. `maxPage` = deepest page the endpoint serves.
  */
 export type DataTablePaging =
   | { mode: "paged"; page: number; pageSize?: number; onPageChange: (page: number) => void }
-  | { mode: "infinite"; hasMore: boolean; loadingMore: boolean; onLoadMore: () => void; total?: number; error?: boolean };
+  | { mode: "infinite"; hasMore: boolean; loadingMore: boolean; onLoadMore: () => void; total?: number; error?: boolean }
+  | {
+      mode: "server"; page: number; pageSize: number; total: number; totalCapped?: boolean; maxPage?: number; busy?: boolean;
+      pageSizes: readonly number[]; onPageChange: (page: number) => void; onPageSizeChange: (size: number) => void;
+    };
 
 type Props<T> = {
   columns: Column<T>[]; rows: T[]; rowKey: (r: T) => string; label: string;
@@ -61,7 +71,7 @@ type Props<T> = {
  * `rowHeight="identity"`;
  * 1 px dividers, no zebra, no vertical rules; hover tray @ 60 %; `isSelected` tint; row actions (secondary) show on row
  * hover, on keyboard focus anywhere in the row, and while one of their menus is open; they stay in the tab order.
- * Footer 48 px: range left, pagination right (28 px square buttons, current = tray fill + line). The body fades in
+ * Footer 48 px: `Pagination` ("Showing 1–25 of 312" left, first / previous / numbers / next / last right). The body fades in
  * once after loading (never staggered). Desktop only: no stacked list.
  */
 export function DataTable<T>({ columns, rows, rowKey, label, loading, error, empty, sort, onSortChange, rowActions, paging, isSelected, rowHeight = "default", highlightNew = false, highlightScope }: Props<T>) {
@@ -82,9 +92,11 @@ export function DataTable<T>({ columns, rows, rowKey, label, loading, error, emp
   if (wasLoading && !loading) { setWasLoading(false); setLoadedLate(true); }
 
   const infinite = paging?.mode === "infinite" ? paging : null;
+  const server = paging?.mode === "server" ? paging : null;
   const paged = paging?.mode === "paged" || (!paging && rows.length > PAGE_SIZE);
-  const size = paging?.mode === "paged" ? (paging.pageSize ?? PAGE_SIZE) : PAGE_SIZE;
-  const page = clampPage(paging?.mode === "paged" ? paging.page : local.page, rows.length, size);
+  const size = paging?.mode === "paged" ? (paging.pageSize ?? PAGE_SIZE) : server ? server.pageSize : PAGE_SIZE;
+  const serverLast = server ? Math.min(pageCount(server.total, size), server.maxPage ?? Infinity) : 1;
+  const page = server ? Math.min(Math.max(1, server.page), serverLast) : clampPage(paging?.mode === "paged" ? paging.page : local.page, rows.length, size);
 
   useEffect(() => {
     const t = focusTarget.current;
@@ -95,26 +107,26 @@ export function DataTable<T>({ columns, rows, rowKey, label, loading, error, emp
 
   if (error) return <div className="p-4"><ErrorState title={error.title} cause={error.cause} onRetry={error.onRetry} /></div>;
   const col = sort ? columns.find((c) => c.key === sort.key) : undefined;
-  const sorted = col?.sortValue && sort ? sortRows(rows, col.sortValue, sort.dir) : rows;
+  const sorted = !server && col?.sortValue && sort ? sortRows(rows, col.sortValue, sort.dir) : rows;
   const data = paged ? pageSlice(sorted, page, size) : sorted;
   const moreSkeleton = !loading && !!infinite?.loadingMore;
 
   function toggle(c: Column<T>) {
-    if (!c.sortValue || !onSortChange) return;
+    if (!(c.sortValue || c.sortable) || !onSortChange) return;
     onSortChange({ key: c.key, dir: sort?.key === c.key && sort.dir === "asc" ? "desc" : "asc" });
   }
 
   function goTo(p: number) {
-    const next = clampPage(p, rows.length, size);
+    const next = server ? Math.min(Math.max(1, p), serverLast) : clampPage(p, rows.length, size);
     if (next === page) { focusTarget.current = null; return; }
     focusTarget.current = { page: next, at: Date.now() };
-    if (paging?.mode === "paged") paging.onPageChange(next);
+    if (paging?.mode === "paged" || paging?.mode === "server") paging.onPageChange(next);
     else setLocal({ sig, page: next });
   }
 
   const table = (
     <>
-      <Table aria-label={label} aria-busy={loading || moreSkeleton || undefined} data-status-static="">
+      <Table aria-label={label} aria-busy={loading || moreSkeleton || server?.busy || undefined} data-status-static="">
         <TableHeader>
           <TableRow className="hover:bg-transparent">
             {columns.map((c) => {
@@ -123,7 +135,7 @@ export function DataTable<T>({ columns, rows, rowKey, label, loading, error, emp
               return (
                 <TableHead key={c.key} className={cn(c.align === "right" && "text-right", c.className)}
                   aria-sort={active ? (sort?.dir === "asc" ? "ascending" : "descending") : undefined}>
-                  {c.sortValue && onSortChange ? (
+                  {(c.sortValue || c.sortable) && onSortChange ? (
                     <button type="button" onClick={() => toggle(c)} className={cn("inline-flex cursor-pointer items-center gap-1 rounded-xs hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary outline-none", active && "text-fg-2")}>
                       {c.icon && <Icon icon={c.icon} className="size-3.5" />}{c.header}<Icon icon={sortIcon} className="size-3" />
                     </button>
@@ -134,7 +146,7 @@ export function DataTable<T>({ columns, rows, rowKey, label, loading, error, emp
             {rowActions && <TableHead><span className="sr-only">Actions</span></TableHead>}
           </TableRow>
         </TableHeader>
-        <TableBody className={cn(loadedLate && "animate-reveal-in")}>
+        <TableBody className={cn(loadedLate && "animate-reveal-in", server && "transition-opacity duration-(--dur-fast)", server?.busy && "opacity-60")}>
           {loading
             ? <SkeletonRows count={8} columns={columns} actions={!!rowActions} identity={rowHeight === "identity"} />
             : data.map((r) => {
@@ -161,25 +173,21 @@ export function DataTable<T>({ columns, rows, rowKey, label, loading, error, emp
     </>
   );
 
-  if (paged || auto) {
-    const last = pageCount(rows.length, size);
+  if (paged || auto || server) {
+    const last = server ? serverLast : pageCount(rows.length, size);
+    const footer = server
+      ? !loading && server.total > 0 && (
+        <Pagination label={label} page={page} pageSize={size} total={server.total} totalCapped={server.totalCapped} maxPage={server.maxPage}
+          pageSizes={server.pageSizes} onPageChange={goTo} onPageSizeChange={server.onPageSizeChange} />
+      )
+      : paged && !loading && rows.length > 0 && <Pagination label={label} page={page} pageSize={size} total={rows.length} onPageChange={goTo} />;
+    const region = paged || !!server;
     // Wrapper selalu ada di mode otomatis agar DOM tidak remount saat jumlah baris melewati 25.
     return (
-      <div ref={topRef} tabIndex={paged ? -1 : undefined} role={paged ? "region" : undefined}
-        aria-label={paged ? `${label}, page ${page} of ${last}` : undefined} className="scroll-mt-16 outline-none">
+      <div ref={topRef} tabIndex={region ? -1 : undefined} role={region ? "region" : undefined}
+        aria-label={region ? `${label}, page ${page} of ${last}` : undefined} className="scroll-mt-16 outline-none">
         {table}
-        {paged && !loading && rows.length > 0 && (
-          <nav aria-label={`${label} pages`} className="flex min-h-12 flex-wrap items-center justify-between gap-2 border-t border-line px-3 py-2">
-            <p className="text-body-sm text-fg-3 tabular" aria-live="polite">{rangeLabel(page, size, rows.length)}</p>
-            <div className="flex items-center gap-1">
-              <PageButton onClick={() => goTo(page - 1)} disabled={page <= 1} label="Previous page"><Icon icon={ChevronLeftIcon} className="size-4" /></PageButton>
-              {pageWindow(page, last).map((p, i) => p === "gap"
-                ? <span key={`gap-${i}`} aria-hidden="true" className="inline-grid size-7 place-items-center text-body-sm text-fg-3">…</span>
-                : <PageButton key={p} onClick={() => goTo(p)} current={p === page} label={`Page ${p}`}>{formatNumber(p)}</PageButton>)}
-              <PageButton onClick={() => goTo(page + 1)} disabled={page >= last} label="Next page"><Icon icon={ChevronRightIcon} className="size-4" /></PageButton>
-            </div>
-          </nav>
-        )}
+        {footer}
       </div>
     );
   }
@@ -194,17 +202,6 @@ export function DataTable<T>({ columns, rows, rowKey, label, loading, error, emp
   }
 
   return table;
-}
-
-/** Pagination button (spec §5.7): 28 px square, radius 8; current = --tray fill + line, aria-current. */
-function PageButton({ children, onClick, disabled, current, label }: { children: ReactNode; onClick: () => void; disabled?: boolean; current?: boolean; label: string }) {
-  return (
-    <button type="button" onClick={onClick} disabled={disabled} aria-label={label} aria-current={current ? "page" : undefined}
-      className={cn("inline-grid h-7 min-w-7 cursor-pointer place-items-center rounded-md border px-1.5 text-body-sm tabular transition-colors duration-(--dur-fast) outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:pointer-events-none disabled:opacity-40",
-        current ? "border-line bg-tray text-fg" : "border-transparent text-fg-2 hover:bg-tray hover:text-fg")}>
-      {children}
-    </button>
-  );
 }
 
 function SkeletonRows<T>({ count, columns, actions, identity }: { count: number; columns: Column<T>[]; actions: boolean; identity: boolean }) {

@@ -64,3 +64,13 @@ describe("pageWindow (pagination buttons)", () => {
     expect(pageWindow(Number.NaN, 0)).toEqual([1]);
   });
 });
+
+describe("showingLabel", () => {
+  it("'Showing a–b of n', with a '+' when the server capped the count", async () => {
+    const { showingLabel } = await import("./paging");
+    expect(showingLabel(1, 15, 12_345)).toBe("Showing 1–15 of 12,345");
+    expect(showingLabel(824, 15, 12_345)).toBe("Showing 12,331–12,345 of 12,345"); // past the end: clamped to the last page
+    expect(showingLabel(2, 15, 100_000, true)).toBe("Showing 16–30 of 100,000+");
+    expect(showingLabel(1, 15, 0)).toBe("Showing 0 of 0");
+  });
+});

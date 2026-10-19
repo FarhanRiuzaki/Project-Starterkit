@@ -28,7 +28,7 @@ export const useRoleNames = () => useQuery({ queryKey: [...USERS_KEY, "roles"], 
 export function useLastSuperadminId(): string | null {
   const q = useQuery({
     queryKey: [...USERS_KEY, "superadmins"],
-    queryFn: () => api<Page<UserDto>>(`/api/users?${qs({ role: "Superadmin", status: "active", pageSize: 10 })}`),
+    queryFn: () => api<Page<UserDto>>(`/api/users?${qs({ role: "Superadmin", status: "active", pageSize: 15 })}`),
   });
   return q.data && q.data.total === 1 ? q.data.items[0]!.id : null;
 }

@@ -12,7 +12,7 @@ import { ChartDefs, useChartId } from "./chart-defs";
 import { ChartFrame } from "./chart-frame";
 import { ChartTooltipBox } from "./chart-tooltip";
 import { useSettled } from "./use-settled";
-import { AXIS_TICK, BASELINE, CHART_HEIGHT, DASH, GRID, MARGIN, seriesColor, softColor, TICK_GAP, X_AXIS_HEIGHT } from "./chart-theme";
+import { AXIS_TICK, BASELINE, CHART_HEIGHT, DASH, DOWN_COLOR, GRID, MARGIN, type SeriesTone, seriesColor, softColor, TICK_GAP, X_AXIS_HEIGHT } from "./chart-theme";
 
 type Row = { c: string; i: number } & Record<string, string | number | null>;
 const val = (r: Row | undefined, k: string): number | null => (r && typeof r[k] === "number" ? (r[k] as number) : null);
@@ -20,8 +20,9 @@ type Props = {
   /**
    * `slot` = the entity's fixed 0-based colour slot (seriesSlots); without it, colours follow position.
    * `striped` = secondary / partial series: same hue at 35 % with the stripe texture (spec §6.3).
+   * `tone: "down"` = a failure count (failed sign-ins): Down mark colour instead of a palette slot.
    */
-  label: string; categories: string[]; series: { label: string; values: (number | null)[]; slot?: number; striped?: boolean }[];
+  label: string; categories: string[]; series: { label: string; values: (number | null)[]; slot?: number; striped?: boolean; tone?: SeriesTone }[];
   stacked?: boolean; format: (v: number) => string; height?: number;
   /** The page shows ChartLegend in the Panel header instead (spec §6.1). */
   hideLegend?: boolean;
@@ -59,7 +60,7 @@ export function BarChart({ label, categories, series, stacked, format, height = 
   const meta = new Map(series.map((x) => [x.label, x]));
   const s = foldBarSeries(series).map((x, i) => {
     const m = meta.get(x.label);
-    const color = seriesColor(x.label, m?.slot ?? i);
+    const color = m?.tone === "down" ? DOWN_COLOR : seriesColor(x.label, m?.slot ?? i);
     const striped = !!m?.striped;
     return { ...x, key: `s${i}`, color, striped, fill: striped ? softColor(color) : color };
   });

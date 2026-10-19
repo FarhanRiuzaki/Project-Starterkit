@@ -57,7 +57,7 @@ beforeEach(() => {
 });
 
 describe("GET /api/users", () => {
-  it.each([["page=0"], ["pageSize=7"], ["sort=password"], ["status=deleted"]])("rejects %s with 400 before guard", async (qs) => {
+  it.each([["page=0"], ["page=1001"], ["pageSize=7"], ["pageSize=10"], ["sort=password"], ["status=deleted"]])("rejects %s with 400 before guard", async (qs) => {
     // no session at all: a 401 here would mean the guard ran first
     expect((await get(`?${qs}`)).status).toBe(400);
     await signIn("viewer");
@@ -74,10 +74,10 @@ describe("GET /api/users", () => {
 
   it("pages, sorts and filters; never returns secrets", async () => {
     await signIn("admin");
-    const r = await get("?pageSize=10&page=2&sort=-name");
+    const r = await get("?pageSize=15&page=2&sort=-name");
     const body = (await r.json()) as { items: { name: string }[]; total: number; page: number; pageSize: number };
-    expect(body).toMatchObject({ total: 50, page: 2, pageSize: 10 });
-    expect(body.items).toHaveLength(10);
+    expect(body).toMatchObject({ total: 50, page: 2, pageSize: 15 });
+    expect(body.items).toHaveLength(15);
     const names = body.items.map((u) => u.name);
     expect(names).toEqual([...names].sort((a, b) => b.localeCompare(a)));
     expect(JSON.stringify(body)).not.toMatch(/passwordHash|totpSecret|recoveryCodes/);

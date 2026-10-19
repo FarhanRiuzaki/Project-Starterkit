@@ -14,7 +14,7 @@ export const BYTES_PER_HOUR = [{ label: "Bytes", points: hourly([42, 30, 22, 18,
 export const DAYS = ["Thu 10", "Fri 11", "Sat 12", "Sun 13", "Mon 14", "Tue 15", "Wed 16"];
 export const RESULTS = [
   { label: "Succeeded", values: [1840, 2120, 420, 380, 2410, 2290, 1960] },
-  { label: "Failed", values: [62, 48, 9, 6, 88, 71, 37] },
+  { label: "Failed", values: [62, 48, 9, 6, 88, 71, 37], tone: "down" as const },
 ];
 export const TOP_ERRORS = [
   { label: "timeout", value: 412 }, { label: "bad_request", value: 287 }, { label: "forbidden", value: 96 },

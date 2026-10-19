@@ -5,6 +5,9 @@ import { FOLD_LABEL, MAX_SERIES } from "../lib/series";
 const SERIES_COLORS = ["var(--chart-1)", "var(--chart-2)", "var(--chart-3)", "var(--chart-4)", "var(--chart-5)", "var(--chart-6)"] as const;
 /** The folded remainder ("Other") is neutral, never a palette hue (spec §3.3). */
 export const OTHER_COLOR = "var(--fg-3)";
+/** A failure-count series (failed sign-ins next to successful ones) wears the Down mark instead of a palette slot. */
+export const DOWN_COLOR = "var(--down-mark)";
+export type SeriesTone = "down";
 export const GRID = "var(--grid)";
 export const BASELINE = "var(--line-strong)";
 export const CARD = "var(--card)";
@@ -30,7 +33,7 @@ export const softColor = (color: string) => `color-mix(in srgb, ${color} 35%, va
  * Legend keys for the Panel header (spec §6.1: legend right in the header, chart with `hideLegend`), with the colours
  * and the fold the chart itself uses: slot (else position) → `--chart-N`, more than six series → five + "Other".
  */
-export function legendItems(series: readonly { label: string; slot?: number; striped?: boolean; dashed?: boolean }[], max = MAX_SERIES) {
-  const kept = series.length <= max ? series : [...series.slice(0, max - 1), { label: FOLD_LABEL }];
-  return kept.map((x, i) => ({ label: x.label, color: seriesColor(x.label, x.slot ?? i), striped: !!x.striped, dashed: !!x.dashed }));
+export function legendItems(series: readonly { label: string; slot?: number; striped?: boolean; dashed?: boolean; tone?: SeriesTone }[], max = MAX_SERIES) {
+  const kept: readonly { label: string; slot?: number; striped?: boolean; dashed?: boolean; tone?: SeriesTone }[] = series.length <= max ? series : [...series.slice(0, max - 1), { label: FOLD_LABEL }];
+  return kept.map((x, i) => ({ label: x.label, color: x.tone === "down" ? DOWN_COLOR : seriesColor(x.label, x.slot ?? i), striped: !!x.striped, dashed: !!x.dashed }));
 }

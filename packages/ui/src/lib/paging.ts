@@ -59,3 +59,9 @@ export function pageWindow(page: number, last: number): (number | "gap")[] {
   }
   return out;
 }
+
+/** Footer status of a paged table: "Showing 1–15 of 12,345"; `capped` (the server stopped counting) → "of 100,000+". */
+export function showingLabel(page: number, size: number, total: number, capped = false): string {
+  const label = rangeLabel(page, size, total);
+  return `Showing ${capped && safeTotal(total) > 0 ? `${label}+` : label}`;
+}

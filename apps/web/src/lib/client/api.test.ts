@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { api, assertApiPath } from "./api";
+import { api, assertApiPath, download } from "./api";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -19,5 +19,21 @@ describe("api path guard", () => {
     vi.stubGlobal("fetch", f);
     await api("/api/x");
     expect(f).toHaveBeenCalledOnce();
+  });
+});
+
+describe("download", () => {
+  it("refuses a path outside /api/ before calling fetch", async () => {
+    const f = vi.fn();
+    vi.stubGlobal("fetch", f);
+    await expect(download("https://backend.example/api/x.csv", "x.csv")).rejects.toThrow(/\/api\//);
+    expect(f).not.toHaveBeenCalled();
+  });
+  it("an error answer throws ApiError with the server's message, and saves nothing", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ error: { code: "forbidden", message: "Your role doesn't allow this." } }, { status: 403 })));
+    const created = vi.fn();
+    vi.stubGlobal("URL", Object.assign(Object.create(URL), { createObjectURL: created }));
+    await expect(download("/api/audit/activity?format=csv", "activity.csv")).rejects.toMatchObject({ status: 403, code: "forbidden", message: "Your role doesn't allow this." });
+    expect(created).not.toHaveBeenCalled();
   });
 });

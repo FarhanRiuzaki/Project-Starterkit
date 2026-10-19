@@ -86,6 +86,8 @@ export {
   ArrowDown01Icon as ChevronDownIcon,
   ArrowLeft01Icon as ChevronLeftIcon,
   ArrowRight01Icon as ChevronRightIcon,
+  ArrowLeftDoubleIcon as ChevronsLeftIcon, // First page
+  ArrowRightDoubleIcon as ChevronsRightIcon, // Last page
   UnfoldMoreIcon as ChevronsUpDownIcon, // Unsorted column, account switcher
   PanelLeftOpenIcon as SidebarCollapseIcon, // Hugeicons names are the reverse of Lucide's: this glyph points left
   PanelLeftCloseIcon as SidebarExpandIcon, // …and this one points right

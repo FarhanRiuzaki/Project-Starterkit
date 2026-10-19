@@ -1,4 +1,4 @@
-import { APP_UTC_OFFSET_SEC } from "./format";
+import { appDate } from "./format";
 type Cell = string | number | null | undefined;
 
 /** CSV RFC 4180 + netralisasi formula (=, +, -, @ — boleh didahului spasi — serta tab/CR di awal sel teks diberi awalan '). */
@@ -17,7 +17,7 @@ function cell(v: Cell): string {
 /** Awalan BOM UTF-8 agar Excel membaca karakter non-ASCII dengan benar. */
 export const CSV_BOM = "\uFEFF";
 
-/** `<prefix>-YYYY-MM-DD.csv` dengan tanggal WIB (UTC+7), sesuai label "Times in WIB". */
+/** `<prefix>-YYYY-MM-DD.csv`, dated in the app time zone (the zone every time on screen uses). */
 export function csvFileName(prefix: string, now: number): string {
-  return `${prefix}-${new Date(now + APP_UTC_OFFSET_SEC * 1000).toISOString().slice(0, 10)}.csv`;
+  return `${prefix}-${appDate(now)}.csv`;
 }

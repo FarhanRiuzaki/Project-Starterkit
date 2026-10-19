@@ -129,3 +129,18 @@ describe("APP_TIME_ZONE", () => {
     expect(formatDateTimeLong(Date.UTC(2026, 9, 15, 17, 30))).toBe("16 Oct 2026, 00:30 WIB");
   });
 });
+
+describe("app-time-zone calendar days", () => {
+  it("appDate is the calendar date in the app time zone", async () => {
+    const { appDate } = await import("./format");
+    expect(appDate(Date.UTC(2026, 9, 19, 16, 59, 59))).toBe("2026-10-19");
+    expect(appDate(Date.UTC(2026, 9, 19, 17, 0, 0))).toBe("2026-10-20");
+  });
+
+  it("appDayStart is 00:00 of that date in the app time zone; shiftDate moves whole days across months", async () => {
+    const { appDayStart, shiftDate } = await import("./format");
+    expect(appDayStart("2026-10-20")).toBe(Date.UTC(2026, 9, 19, 17, 0, 0));
+    expect(shiftDate("2026-03-01", -1)).toBe("2026-02-28");
+    expect(shiftDate("2026-12-31", 1)).toBe("2027-01-01");
+  });
+});

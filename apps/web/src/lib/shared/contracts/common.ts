@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { DEFAULT_PAGE_SIZE, MAX_PAGE } from "../paging";
 
 export const ERROR_CODES = [
   "unauthenticated", "forbidden", "csrf", "not_found", "bad_request", "duplicate", "rate_limited",
@@ -17,17 +18,25 @@ export const ERROR_STATUS: Record<ErrorCode, number> = {
 export const ApiErrorBody = z.object({ error: z.object({ code: z.enum(ERROR_CODES), message: z.string() }) });
 export type ApiErrorBody = z.infer<typeof ApiErrorBody>;
 
-export const PAGE_SIZES = [10, 25, 50, 100] as const;
+export { DEFAULT_PAGE_SIZE, MAX_PAGE, PAGE_SIZES, type PageSize } from "../paging";
 
+/**
+ * Query of every list endpoint: `page` 1..MAX_PAGE, `pageSize` 15|25|50|100 (default 15), `q`, `sort`. Endpoints
+ * narrow `sort` to their own keys with `sortParam`.
+ */
 export const ListQuery = z.object({
-  page: z.coerce.number().int().min(1).default(1),
-  pageSize: z.coerce.number().pipe(z.union([z.literal(10), z.literal(25), z.literal(50), z.literal(100)])).default(25),
+  page: z.coerce.number().int().min(1).max(MAX_PAGE).default(1),
+  pageSize: z.coerce.number().pipe(z.union([z.literal(15), z.literal(25), z.literal(50), z.literal(100)])).default(DEFAULT_PAGE_SIZE),
   q: z.string().max(200).optional(),
   sort: z.string().regex(/^-?[a-zA-Z]+$/).optional(),
 });
 export type ListQuery = z.infer<typeof ListQuery>;
 
-export type Page<T> = { items: T[]; total: number; page: number; pageSize: number };
+/** `sort` limited to `keys`: "key" (ascending) or "-key" (descending). */
+export const sortParam = (keys: readonly string[]) => z.string().refine((v) => keys.includes(v.startsWith("-") ? v.slice(1) : v)).optional();
+
+/** One page of a list. `totalCapped` = the server stopped counting at `total` (the UI shows "100,000+"). */
+export type Page<T> = { items: T[]; total: number; page: number; pageSize: number; totalCapped?: boolean };
 
 export const BulkResult = z.object({
   done: z.array(z.string()),
