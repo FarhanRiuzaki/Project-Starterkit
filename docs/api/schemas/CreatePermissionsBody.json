@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CreatePermissionsBody",
+  "type": "object",
+  "properties": {
+    "names": {
+      "minItems": 1,
+      "maxItems": 50,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z]+\\.[a-z][a-z0-9_]{0,31}$"
+      }
+    }
+  },
+  "required": [
+    "names"
+  ]
+}

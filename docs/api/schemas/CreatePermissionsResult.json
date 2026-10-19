@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CreatePermissionsResult",
+  "type": "object",
+  "properties": {
+    "created": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "skipped": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": [
+    "created",
+    "skipped"
+  ],
+  "additionalProperties": false
+}

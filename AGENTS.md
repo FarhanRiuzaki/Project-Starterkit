@@ -30,6 +30,7 @@ Package manager is Bun 1.4.3; runtime for Next is Node 24.
 - `bun run check` = typecheck + lint (`--max-warnings 0`) + unit tests. Must pass before every commit.
 - `bun run --filter @starterkit/web test -- <name>` runs one test file.
 - `bun run test:changed` runs, in each workspace, the tests touched by files changed since the last commit (`vitest --changed`); `bunx vitest related <files>` inside a package runs the tests that import those files.
+- `bun run api:schemas` regenerates `docs/api/schemas/` from the zod contracts.
 - `bun run build` builds `apps/web`; `bun run e2e` runs the Playwright E2E against a production build on :3123 (`apps/web/playwright.config.ts`; `E2E_REUSE=1` reuses a server already on `E2E_PORT`); `bun run budget` checks first-load JS after a build.
 - Commit messages end with the `Co-Authored-By` line required by the plan.
 
@@ -139,7 +140,7 @@ A change that touches routes, guards, redirects or exports needs a test for each
 
 ## 12. Backend later (shared contract)
 
-The API contract is the zod schemas in `apps/web/src/lib/shared/contracts/*`. A Bun or Rust backend must follow them and the rules below.
+The API contract is the zod schemas in `apps/web/src/lib/shared/contracts/*`, published for the backend as JSON Schema in `docs/api/schemas/` with the endpoint table in `docs/api/README.md`. After changing a contract or a route, run `bun run api:schemas` and update the table; `apps/web/src/test/api-contract.test.ts` fails on drift. A Bun or Rust backend must follow them and the rules below.
 
 - Error body: `{ "error": { "code": string, "message": string } }`.
 - Error codes (fixed): `unauthenticated` 401, `forbidden` 403, `csrf` 403, `not_found` 404, `bad_request` 400, `duplicate` 409, `rate_limited` 429, `invalid_credentials` 401, `account_inactive` 403, `invalid_code` 400, `superadmin_locked` 409, `last_superadmin` 409, `self_action` 409, `role_in_use` 409, `ldap_password` 409, `internal` 500.

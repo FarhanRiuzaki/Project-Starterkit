@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { DEFAULT_PAGE_SIZE, MAX_PAGE } from "../paging";
+import { DEFAULT_PAGE_SIZE, MAX_PAGE, PAGE_SIZES } from "../paging";
 
 export const ERROR_CODES = [
   "unauthenticated", "forbidden", "csrf", "not_found", "bad_request", "duplicate", "rate_limited",
@@ -26,14 +26,15 @@ export { DEFAULT_PAGE_SIZE, MAX_PAGE, PAGE_SIZES, type PageSize } from "../pagin
  */
 export const ListQuery = z.object({
   page: z.coerce.number().int().min(1).max(MAX_PAGE).default(1),
-  pageSize: z.coerce.number().pipe(z.union([z.literal(15), z.literal(25), z.literal(50), z.literal(100)])).default(DEFAULT_PAGE_SIZE),
+  // `meta.enum`: the emitted JSON Schema (docs/api) lists the sizes; a coerced pipe would otherwise read as any number.
+  pageSize: z.coerce.number().pipe(z.union([z.literal(15), z.literal(25), z.literal(50), z.literal(100)])).default(DEFAULT_PAGE_SIZE).meta({ enum: [...PAGE_SIZES] }),
   q: z.string().max(200).optional(),
   sort: z.string().regex(/^-?[a-zA-Z]+$/).optional(),
 });
 export type ListQuery = z.infer<typeof ListQuery>;
 
-/** `sort` limited to `keys`: "key" (ascending) or "-key" (descending). */
-export const sortParam = (keys: readonly string[]) => z.string().refine((v) => keys.includes(v.startsWith("-") ? v.slice(1) : v)).optional();
+/** `sort` limited to `keys`: "key" (ascending) or "-key" (descending). An enum, so the API contract lists the values. */
+export const sortParam = (keys: readonly string[]) => z.enum(keys.flatMap((k) => [k, `-${k}`]) as [string, ...string[]]).optional();
 
 /** One page of a list. `totalCapped` = the server stopped counting at `total` (the UI shows "100,000+"). */
 export type Page<T> = { items: T[]; total: number; page: number; pageSize: number; totalCapped?: boolean };
@@ -43,6 +44,3 @@ export const BulkResult = z.object({
   skipped: z.array(z.object({ id: z.string(), code: z.string() })),
 });
 export type BulkResult = z.infer<typeof BulkResult>;
-
-export const BulkBody = z.object({ ids: z.array(z.string().min(1)).min(1).max(200) });
-export type BulkBody = z.infer<typeof BulkBody>;

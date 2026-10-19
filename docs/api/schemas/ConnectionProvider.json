@@ -1,0 +1,9 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ConnectionProvider",
+  "type": "string",
+  "enum": [
+    "google",
+    "apple"
+  ]
+}

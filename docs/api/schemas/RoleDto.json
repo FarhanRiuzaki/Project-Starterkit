@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RoleDto",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "locked": {
+      "type": "boolean"
+    },
+    "permissions": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "user.view",
+          "user.create",
+          "user.edit",
+          "user.delete",
+          "role.view",
+          "role.create",
+          "role.edit",
+          "role.delete",
+          "permission.view",
+          "permission.create",
+          "audit.view"
+        ]
+      }
+    },
+    "userCount": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    }
+  },
+  "required": [
+    "id",
+    "name",
+    "locked",
+    "permissions",
+    "userCount"
+  ],
+  "additionalProperties": false
+}

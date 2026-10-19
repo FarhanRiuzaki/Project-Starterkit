@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SessionDto",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "device": {
+      "type": "string"
+    },
+    "ip": {
+      "type": "string"
+    },
+    "lastSeenAt": {
+      "type": "string"
+    },
+    "current": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "id",
+    "device",
+    "ip",
+    "lastSeenAt",
+    "current"
+  ],
+  "additionalProperties": false
+}

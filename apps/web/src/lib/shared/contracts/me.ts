@@ -2,15 +2,6 @@ import { z } from "zod";
 import { SESSION_SORTS } from "../paging";
 import { Password } from "./auth";
 import { ListQuery, sortParam } from "./common";
-import { UserDto } from "./users";
-import { PERMISSIONS } from "../permissions";
-
-export const MeDto = z.object({
-  user: UserDto,
-  permissions: z.array(z.enum(PERMISSIONS as [string, ...string[]])),
-  csrf: z.string(),
-});
-export type MeDto = z.infer<typeof MeDto>;
 
 export const SessionDto = z.object({
   id: z.string(),

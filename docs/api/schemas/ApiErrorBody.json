@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ApiErrorBody",
+  "type": "object",
+  "properties": {
+    "error": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "enum": [
+            "unauthenticated",
+            "forbidden",
+            "csrf",
+            "not_found",
+            "bad_request",
+            "duplicate",
+            "rate_limited",
+            "invalid_credentials",
+            "account_inactive",
+            "invalid_code",
+            "superadmin_locked",
+            "last_superadmin",
+            "self_action",
+            "role_in_use",
+            "ldap_password",
+            "internal"
+          ]
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ]
+    }
+  },
+  "required": [
+    "error"
+  ]
+}

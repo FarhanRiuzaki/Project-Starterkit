@@ -28,7 +28,8 @@ export type RoleListQuery = z.infer<typeof RoleListQuery>;
 /** GET /api/users/roles: role options for pickers (user.view); `q` matches the name. */
 export const RoleOptionQuery = ListQuery.extend({ sort: sortParam(ROLE_OPTION_SORTS) });
 export type RoleOptionQuery = z.infer<typeof RoleOptionQuery>;
-export type RoleOption = { id: string; name: string };
+export const RoleOption = z.object({ id: z.string(), name: z.string() });
+export type RoleOption = z.infer<typeof RoleOption>;
 
 const MODULE_KEYS = MODULES.map((m) => m.key) as [string, ...string[]];
 /** GET /api/permissions: `q` matches the name; `module` is exact. */
@@ -59,4 +60,5 @@ export type CreatePermissionsBody = z.infer<typeof CreatePermissionsBody>;
 export const CATALOG_MAX = 500;
 
 /** Names already in the catalog are skipped, not an error. */
-export type CreatePermissionsResult = { created: string[]; skipped: string[] };
+export const CreatePermissionsResult = z.object({ created: z.array(z.string()), skipped: z.array(z.string()) });
+export type CreatePermissionsResult = z.infer<typeof CreatePermissionsResult>;

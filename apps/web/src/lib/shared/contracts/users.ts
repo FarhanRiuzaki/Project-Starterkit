@@ -2,7 +2,7 @@ import { z } from "zod";
 import { USER_SORTS } from "../paging";
 import { ListQuery, sortParam } from "./common";
 import { Password } from "./auth";
-import type { PermissionName } from "../permissions";
+import { PERMISSIONS, type PermissionName } from "../permissions";
 
 export const UserDto = z.object({
   id: z.string(),
@@ -65,12 +65,17 @@ export const BulkUserBody = z.object({
 export type BulkUserBody = z.infer<typeof BulkUserBody>;
 
 /** One activity row on the user detail page: no before/after. */
-export type ActivityBrief = { id: string; at: string; actor: { name: string }; action: string };
+export const ActivityBrief = z.object({ id: z.string(), at: z.string(), actor: z.object({ name: z.string() }), action: z.string() });
+export type ActivityBrief = z.infer<typeof ActivityBrief>;
 
 /**
  * GET /api/users/[id]: the user plus what the detail page shows (effective permissions, last 20 activity entries
  * targeting the user). Their sessions are a list of their own: GET /api/users/[id]/sessions.
  */
-export type UserDetailDto = UserDto & { permissions: PermissionName[]; recentActivity: ActivityBrief[] | null };
+export const UserDetailDto = UserDto.extend({
+  permissions: z.array(z.enum(PERMISSIONS as [PermissionName, ...PermissionName[]])),
+  recentActivity: z.array(ActivityBrief).nullable(),
+});
+export type UserDetailDto = z.infer<typeof UserDetailDto>;
 
 export const SetUserStatusBody = z.object({ active: z.boolean() });

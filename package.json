@@ -11,7 +11,8 @@
     "test:changed": "bun run --filter '*' test:changed",
     "check": "bun run typecheck && bun run lint && bun run test",
     "e2e": "bun run --filter @starterkit/web e2e",
-    "budget": "node apps/web/scripts/bundle-budget.mjs"
+    "budget": "node apps/web/scripts/bundle-budget.mjs",
+    "api:schemas": "bun apps/web/scripts/emit-api-schemas.ts"
   },
   "devDependencies": {
     "eslint": "9.39.5",

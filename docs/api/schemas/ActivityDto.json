@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ActivityDto",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "at": {
+      "type": "string"
+    },
+    "actor": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "action": {
+      "type": "string"
+    },
+    "target": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "label"
+      ],
+      "additionalProperties": false
+    },
+    "before": {},
+    "after": {}
+  },
+  "required": [
+    "id",
+    "at",
+    "actor",
+    "action",
+    "target",
+    "before",
+    "after"
+  ],
+  "additionalProperties": false
+}

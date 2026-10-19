@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LoginBody",
+  "type": "object",
+  "properties": {
+    "login": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 254
+    },
+    "password": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "method": {
+      "default": "password",
+      "type": "string",
+      "enum": [
+        "password",
+        "ldap"
+      ]
+    },
+    "next": {
+      "type": "string",
+      "maxLength": 2048
+    }
+  },
+  "required": [
+    "login",
+    "password"
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RecoveryCodesDto",
+  "type": "object",
+  "properties": {
+    "recoveryCodes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": [
+    "recoveryCodes"
+  ],
+  "additionalProperties": false
+}

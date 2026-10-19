@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CreateRoleBody",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "minLength": 2,
+      "maxLength": 40
+    },
+    "permissions": {
+      "default": [],
+      "maxItems": 11,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "user.view",
+          "user.create",
+          "user.edit",
+          "user.delete",
+          "role.view",
+          "role.create",
+          "role.edit",
+          "role.delete",
+          "permission.view",
+          "permission.create",
+          "audit.view"
+        ]
+      }
+    }
+  },
+  "required": [
+    "name"
+  ]
+}

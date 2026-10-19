@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AuthLogDto",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "at": {
+      "type": "string"
+    },
+    "userId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "login": {
+      "type": "string"
+    },
+    "event": {
+      "type": "string",
+      "enum": [
+        "login_success",
+        "login_failed",
+        "logout",
+        "2fa_success",
+        "2fa_failed"
+      ]
+    },
+    "method": {
+      "type": "string",
+      "enum": [
+        "password",
+        "ldap",
+        "google",
+        "apple"
+      ]
+    },
+    "ip": {
+      "type": "string"
+    },
+    "device": {
+      "type": "string"
+    },
+    "location": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "id",
+    "at",
+    "userId",
+    "login",
+    "event",
+    "method",
+    "ip",
+    "device",
+    "location"
+  ],
+  "additionalProperties": false
+}

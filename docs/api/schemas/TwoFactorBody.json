@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TwoFactorBody",
+  "type": "object",
+  "properties": {
+    "code": {
+      "type": "string",
+      "minLength": 6,
+      "maxLength": 32
+    },
+    "next": {
+      "type": "string",
+      "maxLength": 2048
+    }
+  },
+  "required": [
+    "code"
+  ]
+}
