@@ -63,6 +63,8 @@ type Props<T> = {
   highlightNew?: boolean;
   /** Filter / query signature of the list: when it changes, the rows shown are a different list and nothing flashes. */
   highlightScope?: string;
+  /** Skeleton rows while loading (default 8; `server` paging uses its page size): match the loaded row count, no layout shift. */
+  skeletonRows?: number;
 };
 
 /**
@@ -74,7 +76,7 @@ type Props<T> = {
  * Footer 48 px: `Pagination` ("Showing 1–25 of 312" left, first / previous / numbers / next / last right). The body fades in
  * once after loading (never staggered). Desktop only: no stacked list.
  */
-export function DataTable<T>({ columns, rows, rowKey, label, loading, error, empty, sort, onSortChange, rowActions, paging, isSelected, rowHeight = "default", highlightNew = false, highlightScope }: Props<T>) {
+export function DataTable<T>({ columns, rows, rowKey, label, loading, error, empty, sort, onSortChange, rowActions, paging, isSelected, rowHeight = "default", highlightNew = false, highlightScope, skeletonRows }: Props<T>) {
   const fresh = useNewKeys(rows.map(rowKey), { enabled: highlightNew, scope: highlightScope, infinite: paging?.mode === "infinite" });
   const topRef = useRef<HTMLDivElement>(null);
   // Fokus ke atas tabel hanya bila halaman benar-benar berganti ke target (kedaluwarsa 3 dtk bila diabaikan).
@@ -148,7 +150,7 @@ export function DataTable<T>({ columns, rows, rowKey, label, loading, error, emp
         </TableHeader>
         <TableBody className={cn(loadedLate && "animate-reveal-in", server && "transition-opacity duration-(--dur-fast)", server?.busy && "opacity-60")}>
           {loading
-            ? <SkeletonRows count={8} columns={columns} actions={!!rowActions} identity={rowHeight === "identity"} />
+            ? <SkeletonRows count={skeletonRows ?? server?.pageSize ?? 8} columns={columns} actions={!!rowActions} identity={rowHeight === "identity"} />
             : data.map((r) => {
                 const isNew = fresh.has(rowKey(r));
                 return (
@@ -175,8 +177,9 @@ export function DataTable<T>({ columns, rows, rowKey, label, loading, error, emp
 
   if (paged || auto || server) {
     const last = server ? serverLast : pageCount(rows.length, size);
+    // Server mode keeps the footer's 48 px while loading, so the table doesn't jump when the pagination arrives.
     const footer = server
-      ? !loading && server.total > 0 && (
+      ? loading ? <div aria-hidden="true" data-slot="pagination-placeholder" className="min-h-12 border-t border-line" /> : server.total > 0 && (
         <Pagination label={label} page={page} pageSize={size} total={server.total} totalCapped={server.totalCapped} maxPage={server.maxPage}
           pageSizes={server.pageSizes} onPageChange={goTo} onPageSizeChange={server.onPageSizeChange} />
       )

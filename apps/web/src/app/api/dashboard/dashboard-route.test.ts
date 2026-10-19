@@ -40,7 +40,7 @@ describe("GET /api/dashboard", () => {
     expect((await get()).status).toBe(200);
   });
 
-  it("without audit.view: recent and failedLogins24h are null, the rest is filled", async () => {
+  it("without audit.view: recent, failedLogins24h and every day's failed count are null, the rest is filled", async () => {
     db().roles.get("role-viewer")!.permissions = ["user.view"];
     await signInAs(jar, "viewer");
     const b = await body();
@@ -48,6 +48,7 @@ describe("GET /api/dashboard", () => {
     expect(b.failedLogins24h).toBeNull();
     expect(b.activeUsers).toBeGreaterThan(0);
     expect(b.loginsPerDay).toHaveLength(14);
+    expect(b.loginsPerDay.every((d) => d.failed === null && typeof d.success === "number")).toBe(true);
   });
 
   it("with audit.view: the 5 newest activity entries and the failed sign-ins of the last 24 hours", async () => {
@@ -84,7 +85,7 @@ describe("GET /api/dashboard", () => {
     expect(at("2026-10-19")).toEqual({ date: "2026-10-19", success: 1, failed: 0 });
     expect(at("2026-10-17")).toEqual({ date: "2026-10-17", success: 0, failed: 2 });
     expect(at("2026-10-07")).toEqual({ date: "2026-10-07", success: 1, failed: 0 });
-    expect(days.reduce((n, d) => n + d.success + d.failed, 0)).toBe(5);
+    expect(days.reduce((n, d) => n + d.success + (d.failed ?? 0), 0)).toBe(5);
   });
 
   it("counts active users, users created in the last 7 days, and live sessions of active users", async () => {

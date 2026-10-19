@@ -39,7 +39,7 @@ export function presetRange(range: AuditRange, now: number): { from: string; to:
 const ACTION_LABEL: Record<string, string> = {
   "user.create": "User created", "user.update": "User updated", "user.activate": "User activated", "user.deactivate": "User deactivated",
   "user.delete": "User deleted", "user.assign_role": "Role assigned", "user.reset_password": "Password reset by admin",
-  "user.password": "Password changed by admin", "user.session_end": "User session ended",
+  "user.session_end": "User session ended",
   "role.create": "Role created", "role.update": "Role updated", "role.delete": "Role deleted", "permission.create": "Permissions added",
   "me.update": "Profile updated", "me.password": "Own password changed", "me.connect": "Account connected", "me.disconnect": "Account disconnected",
   "me.session_end": "Own session ended", "me.2fa_setup": "Two-factor setup started", "me.2fa_enable": "Two-factor turned on",
@@ -57,7 +57,9 @@ export const METHOD_LABEL: Record<AuthLogDto["method"], string> = { password: "P
 
 /** Shown in place of any value whose field name says it is a credential. */
 export const MASK = "••••";
-const SECRET = /password|secret|token|recovery/i;
+/** Field names whose values are credentials: masked when recorded (lib/server/audit.ts) and when shown. */
+export const SECRET_KEY = /password|secret|token|recovery/i;
+const SECRET = SECRET_KEY;
 export type DiffRow = { field: string; before: string; after: string };
 
 const record = (v: unknown): Record<string, unknown> => (v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {});

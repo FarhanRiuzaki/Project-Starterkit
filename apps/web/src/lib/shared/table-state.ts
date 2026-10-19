@@ -10,6 +10,8 @@ export type TableSpec<F extends Record<string, string>> = {
   /** "key" or "-key"; also what an absent or unknown `sort` falls back to. */
   defaultSort: string;
   filters: { [K in keyof F]: FilterParser<F[K]> };
+  /** Filters written while the user types (debounced search): they replace the history entry instead of adding one. */
+  search?: readonly (keyof F & string)[];
 };
 export type TableState<F extends Record<string, string>> = { page: number; pageSize: PageSize; sort: string } & F;
 export type SortState = { key: string; dir: "asc" | "desc" };
@@ -19,6 +21,13 @@ export const text = (max: number): FilterParser<string> => (raw) => (raw ?? "").
 /** One of `values`, else `fallback`. */
 export const oneOf = <V extends string>(values: readonly V[], fallback: V): FilterParser<V> => (raw) =>
   (values as readonly string[]).includes(raw ?? "") ? ((raw ?? "") as V) : fallback;
+
+/** A real calendar date "YYYY-MM-DD", else "". */
+export const isoDate: FilterParser<string> = (raw) => {
+  if (!raw || !/^\d{4}-\d{2}-\d{2}$/.test(raw)) return "";
+  const t = Date.parse(`${raw}T00:00:00Z`);
+  return !Number.isNaN(t) && new Date(t).toISOString().slice(0, 10) === raw ? raw : "";
+};
 
 const int = (raw: string | null) => (raw != null && /^\d+$/.test(raw) ? Number(raw) : NaN);
 
@@ -35,22 +44,40 @@ export function readTable<F extends Record<string, string>>(sp: URLSearchParams,
   };
 }
 
-/**
- * The URL search params after `patch`. A change to anything but `page` (filters, sort, page size) goes back to
- * page 1. Defaults (page 1, 15 rows, the default sort, each filter's fallback) stay out of the URL.
- */
-export function writeTable<F extends Record<string, string>>(state: TableState<F>, patch: Partial<TableState<F>>, spec: TableSpec<F>): URLSearchParams {
-  const onlyPage = Object.keys(patch).every((k) => k === "page");
-  const next = { ...state, ...patch, ...(onlyPage ? {} : { page: 1 }) } as TableState<F>;
+function serialize<F extends Record<string, string>>(t: TableState<F>, spec: TableSpec<F>): URLSearchParams {
   const out = new URLSearchParams();
-  if (next.page !== 1) out.set("page", String(next.page));
-  if (next.pageSize !== DEFAULT_PAGE_SIZE) out.set("pageSize", String(next.pageSize));
-  if (next.sort !== spec.defaultSort) out.set("sort", next.sort);
+  if (t.page !== 1) out.set("page", String(t.page));
+  if (t.pageSize !== DEFAULT_PAGE_SIZE) out.set("pageSize", String(t.pageSize));
+  if (t.sort !== spec.defaultSort) out.set("sort", t.sort);
   for (const [k, parse] of Object.entries(spec.filters)) {
-    const v = next[k as keyof F] as string;
+    const v = t[k as keyof F] as string;
     if (v !== (parse as FilterParser<string>)(null)) out.set(k, v);
   }
   return out;
+}
+
+/**
+ * The URL search params after `patch`, or null when the patch changes nothing (then: no navigation, no page reset).
+ * Filter values go through their parser first (text trimmed, unknown choices fall back). A change to anything but
+ * `page` (filters, sort, page size) goes back to page 1. Defaults (page 1, 15 rows, the default sort, each filter's
+ * fallback) stay out of the URL.
+ */
+export function writeTable<F extends Record<string, string>>(state: TableState<F>, patch: Partial<TableState<F>>, spec: TableSpec<F>): URLSearchParams | null {
+  const clean: Record<string, unknown> = { ...patch };
+  for (const [k, parse] of Object.entries(spec.filters)) {
+    if (k in clean) clean[k] = (parse as FilterParser<string>)(clean[k] as string);
+  }
+  const merged = { ...state, ...clean } as TableState<F>;
+  const before = serialize(state, spec).toString();
+  if (serialize(merged, spec).toString() === before) return null;
+  const onlyPage = Object.keys(clean).every((k) => k === "page") || serialize({ ...merged, page: state.page }, spec).toString() === before;
+  return serialize(onlyPage ? merged : { ...merged, page: 1 }, spec);
+}
+
+/** History entry for a URL change: search keystrokes (`spec.search` keys only) replace it; anything else pushes one, so Back undoes it. */
+export function historyMode(patch: object, spec: { search?: readonly string[] }): "push" | "replace" {
+  const keys = Object.keys(patch);
+  return keys.length > 0 && keys.every((k) => spec.search?.includes(k)) ? "replace" : "push";
 }
 
 export const sortState = (sort: string): SortState => (sort.startsWith("-") ? { key: sort.slice(1), dir: "desc" } : { key: sort, dir: "asc" });

@@ -105,6 +105,10 @@ describe("GET /api/audit/activity", () => {
     expect(await ids("from=2026-10-11&to=2026-10-11")).toEqual(["a2"]);
     expect(await ids("action=role.update")).toEqual(["a3"]);
     expect(await ids("user=admin%20user")).toEqual(["a4"]);
+    // the actor's current email (looked up by id at query time): superadmin@example.com is u-001
+    expect(await ids("user=SUPERADMIN%40example")).toEqual(["a2", "a1", "a3"]);
+    db().users.get("u-002")!.email = "renamed@example.org";
+    expect(await ids("user=renamed%40example.org")).toEqual(["a4"]);
     expect(await ids("user=SUPER&action=user.update&from=2026-10-10&to=2026-10-10")).toEqual(["a1"]);
   });
 

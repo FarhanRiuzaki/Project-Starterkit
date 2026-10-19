@@ -5,7 +5,7 @@ import { FOLD_LABEL, MAX_SERIES } from "../lib/series";
 const SERIES_COLORS = ["var(--chart-1)", "var(--chart-2)", "var(--chart-3)", "var(--chart-4)", "var(--chart-5)", "var(--chart-6)"] as const;
 /** The folded remainder ("Other") is neutral, never a palette hue (spec §3.3). */
 export const OTHER_COLOR = "var(--fg-3)";
-/** A failure-count series (failed sign-ins next to successful ones) wears the Down mark instead of a palette slot. */
+/** A failure-count series (failures next to successes) wears the Down mark instead of a palette slot. */
 export const DOWN_COLOR = "var(--down-mark)";
 export type SeriesTone = "down";
 export const GRID = "var(--grid)";

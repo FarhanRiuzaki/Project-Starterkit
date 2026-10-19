@@ -27,3 +27,20 @@ describe("audit", () => {
     expect([...db().authLog.values()].at(-1)).toMatchObject({ login: "x9999", event: "login_failed" });
   });
 });
+
+describe("recordActivity masks credentials at store time", () => {
+  it("any credential-named field, at any depth, is stored as MASK; null stays null; other fields stay", async () => {
+    const { MASK } = await import("@/lib/shared/audit");
+    const user = db().users.get("u-002")!;
+    const ctx: AuthCtx = { user, sid: "s", perms: new Set() };
+    recordActivity(ctx, {
+      action: "user.update", target: { type: "user", id: user.id, label: user.name },
+      before: { password: "Old-Secret-1!", name: "A", apiToken: null },
+      after: { newPassword: "New-Secret-2!", name: "B", nested: { clientSecret: "s3cr3t-value", recoveryCode: "aaaa-1111", label: "x" } },
+    });
+    const e = [...db().activity.values()].at(-1)!;
+    expect(e.before).toEqual({ password: MASK, name: "A", apiToken: null });
+    expect(e.after).toEqual({ newPassword: MASK, name: "B", nested: { clientSecret: MASK, recoveryCode: MASK, label: "x" } });
+    expect(JSON.stringify(e)).not.toMatch(/Old-Secret|New-Secret|s3cr3t-value|aaaa-1111/);
+  });
+});

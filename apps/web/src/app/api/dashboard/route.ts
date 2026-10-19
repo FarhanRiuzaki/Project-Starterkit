@@ -16,7 +16,7 @@ export async function GET(req: Request): Promise<Response> {
     const users = [...store.users.values()];
 
     const today = appDate(now);
-    const days = new Map<string, DashboardDto["loginsPerDay"][number]>(Array.from({ length: DASHBOARD_DAYS }, (_, i) => {
+    const days = new Map<string, { date: string; success: number; failed: number }>(Array.from({ length: DASHBOARD_DAYS }, (_, i) => {
       const date = shiftDate(today, i - (DASHBOARD_DAYS - 1));
       return [date, { date, success: 0, failed: 0 }];
     }));
@@ -30,11 +30,12 @@ export async function GET(req: Request): Promise<Response> {
     }
 
     const body: DashboardDto = {
+      // Failed counts are audit data: without audit.view only the successful sign-ins per day are sent.
       activeUsers: users.filter((u) => u.isActive).length,
       newUsers7d: users.filter((u) => Date.parse(u.createdAt) >= now - 7 * 24 * HOUR).length,
       failedLogins24h: audit ? failedLogins24h : null,
       activeSessions: [...store.sessions.values()].filter((s) => store.users.get(s.userId)?.isActive).length,
-      loginsPerDay: [...days.values()],
+      loginsPerDay: [...days.values()].map((d) => (audit ? d : { ...d, failed: null })),
       recent: audit ? sortRows([...store.activity.values()], "-at", ACTIVITY_SORTERS).slice(0, 5) : null,
     };
     return json(body);

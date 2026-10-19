@@ -76,3 +76,21 @@ describe("DataTable server mode", () => {
     expect(out).toContain("Showing 1–15 of 100,000+");
   });
 });
+
+describe("DataTable loading shape (no layout shift)", () => {
+  type S = { id: string };
+  const base = { label: "Entries", rows: [] as S[], rowKey: (r: S) => r.id, columns: [{ key: "id", header: "ID", cell: (r: S) => r.id }],
+    empty: { icon: SessionsIcon, title: "No entries", description: "None yet." }, loading: true };
+  const skeletons = (out: string) => (out.match(/<tr[^>]*aria-hidden="true"/g) ?? []).length;
+  it("server mode draws one skeleton row per page-size row and keeps a footer placeholder", () => {
+    const out = renderToStaticMarkup(h(DataTable<S>, { ...base,
+      paging: { mode: "server", page: 1, pageSize: 25, total: 0, pageSizes: [15, 25], onPageChange: () => {}, onPageSizeChange: () => {} } }));
+    expect(skeletons(out)).toBe(25);
+    expect(out).toContain('data-slot="pagination-placeholder"');
+    expect(out).toMatch(/class="min-h-12 border-t border-line"/);
+  });
+  it("skeletonRows sets the count elsewhere (default 8)", () => {
+    expect(skeletons(renderToStaticMarkup(h(DataTable<S>, base)))).toBe(8);
+    expect(skeletons(renderToStaticMarkup(h(DataTable<S>, { ...base, skeletonRows: 5 })))).toBe(5);
+  });
+});

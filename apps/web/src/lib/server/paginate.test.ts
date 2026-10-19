@@ -26,6 +26,12 @@ describe("paginate", () => {
     expect(() => paginate(rows, { page: 1, pageSize: 15, sort: "id" }, SORTERS, "n")).toThrow();
   });
 
+  it("equal values fall back to id order (ascending) in both directions, whatever the input order", () => {
+    const tied: R[] = [{ id: "z", n: 1, s: "" }, { id: "m", n: 1, s: "" }, { id: "a", n: 1, s: "" }];
+    expect(ids(sortRows(tied, "n", SORTERS))).toEqual(["a", "m", "z"]);
+    expect(ids(sortRows(tied, "-n", SORTERS))).toEqual(["a", "m", "z"]);
+  });
+
   it("does not reorder the caller's array", () => {
     const copy = [...rows];
     sortRows(rows, "-n", SORTERS);

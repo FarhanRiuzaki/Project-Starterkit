@@ -7,13 +7,13 @@ import { SessionsIcon } from "@starterkit/ui/ui/icons";
 import { AUTH_EVENTS, AUTH_LOG_SORTS, AUTH_METHODS, EVENT_LABEL, METHOD_LABEL } from "@/lib/shared/audit";
 import type { AuthLogDto } from "@/lib/shared/contracts/audit";
 import { oneOf, type TableSpec } from "@/lib/shared/table-state";
-import { AUDIT_FILTERS, type AuditFilters, AuditTable, timeCell } from "./audit-table";
+import { AUDIT_FILTERS, AUDIT_SEARCH, type AuditFilters, AuditTable, timeCell } from "./audit-table";
 
 type Event = AuthLogDto["event"];
 type Method = AuthLogDto["method"];
 type Filters = AuditFilters & { event: Event | ""; method: Method | "" };
 const SPEC: TableSpec<Filters> = {
-  sorts: AUTH_LOG_SORTS, defaultSort: "-at",
+  sorts: AUTH_LOG_SORTS, defaultSort: "-at", search: AUDIT_SEARCH,
   filters: { ...AUDIT_FILTERS, event: oneOf(["", ...AUTH_EVENTS], ""), method: oneOf(["", ...AUTH_METHODS], "") },
 };
 const EVENTS = [{ value: "" as const, label: "Any" }, ...AUTH_EVENTS.map((e) => ({ value: e, label: EVENT_LABEL[e] }))];

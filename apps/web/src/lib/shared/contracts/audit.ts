@@ -45,7 +45,7 @@ const validRange = [
   { message: `Dates: both or neither, to on or after from, at most ${MAX_RANGE_DAYS} days.` },
 ] as const;
 
-/** GET /api/audit/activity. `user` matches the actor's name or id; `action` is exact. */
+/** GET /api/audit/activity. `user` matches the actor's name, id or current email; `action` is exact. */
 export const ActivityQuery = AuditQuery.extend({ sort: sortParam(ACTIVITY_SORTS), action: z.string().max(64).optional() }).refine(...validRange);
 export type ActivityQuery = z.infer<typeof ActivityQuery>;
 

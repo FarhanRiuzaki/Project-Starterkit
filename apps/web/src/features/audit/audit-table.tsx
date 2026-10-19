@@ -1,32 +1,84 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { type ReactNode, useCallback, useState } from "react";
+import { type ReactNode, useCallback, useId, useState } from "react";
 import { BlockedButton, type Column, DataTable, Notice, Panel, QueryInput, RelativeTime, TimeRangePicker, Toolbar } from "@starterkit/ui/ds";
-import { APP_TIME_ZONE_LABEL, formatDateTimeLong, formatNumber } from "@starterkit/ui/lib/format";
+import { APP_TIME_ZONE_LABEL, appDayStart, formatDateTimeLong, formatDateWIB, formatNumber } from "@starterkit/ui/lib/format";
 import { Button } from "@starterkit/ui/ui/button";
 import { Icon, type IconData } from "@starterkit/ui/ui/icon";
 import { ExportIcon } from "@starterkit/ui/ui/icons";
+import { Input } from "@starterkit/ui/ui/input";
 import { toast } from "@starterkit/ui/ui/sonner";
 import { PageHeader } from "@/components/shell/page-header";
 import { download, errorText } from "@/lib/client/api";
 import { useTableQuery } from "@/lib/client/use-table-query";
-import { AUDIT_RANGES, type AuditRange, CSV_MAX_ROWS, presetRange, RANGE_LABEL } from "@/lib/shared/audit";
-import { type FilterParser, oneOf, type TableSpec, type TableState, text } from "@/lib/shared/table-state";
+import { AUDIT_RANGES, type AuditRange, CSV_MAX_ROWS, MAX_RANGE_DAYS, presetRange, RANGE_LABEL, rangeProblem } from "@/lib/shared/audit";
+import { type FilterParser, isoDate, oneOf, type TableSpec, type TableState, text } from "@/lib/shared/table-state";
 
 const EntryDialog = dynamic(() => import("./entry-dialog").then((m) => m.EntryDialog), { ssr: false });
 
-/** Filters both logs share: who (free text, debounced) and the range preset. */
-export type AuditFilters = { user: string; range: AuditRange };
-export const AUDIT_FILTERS = { user: text(64), range: oneOf(AUDIT_RANGES, "7d") } satisfies { [K in keyof AuditFilters]: FilterParser<AuditFilters[K]> };
+/** Filters both logs share: who (free text, debounced) and the range: a preset, or a custom from–to pair that wins when valid. */
+export type AuditFilters = { user: string; range: AuditRange; from: string; to: string };
+export const AUDIT_FILTERS = { user: text(64), range: oneOf(AUDIT_RANGES, "7d"), from: isoDate, to: isoDate } satisfies { [K in keyof AuditFilters]: FilterParser<AuditFilters[K]> };
+/** The filter typed into (debounced): its URL updates replace the history entry. */
+export const AUDIT_SEARCH = ["user"] as const;
+/** Filters that set the time range, not the match: "Clear filters" leaves them. */
+const RANGE_KEYS = new Set(["range", "from", "to"]);
 
-/** API parameters: the range preset becomes from/to calendar dates (app time zone, today included). */
-const toParams = ({ range, ...rest }: AuditFilters & Record<string, string>) => ({ ...rest, ...presetRange(range, Date.now()) });
+const customRange = (f: { from: string; to: string }) => (f.from && f.to && rangeProblem(f.from, f.to) === null ? { from: f.from, to: f.to } : null);
+/** API parameters: a valid custom from–to, else the preset as from/to calendar dates (app time zone, today included). */
+const toParams = ({ range, from, to, ...rest }: AuditFilters & Record<string, string>) =>
+  ({ ...rest, ...(customRange({ from, to }) ?? presetRange(range, Date.now())) });
+
+const RANGE_ERROR = {
+  pair: "Pick an end date too.",
+  order: "The start date must be on or before the end date.",
+  span: `Pick ${MAX_RANGE_DAYS} days or fewer.`,
+} as const;
+
+/**
+ * Custom from–to (native date inputs). A valid pair is applied at once; a broken one stays a draft with its problem
+ * announced (aria-live), and the list keeps its last range. Clearing both dates returns to the preset.
+ */
+function CustomRange({ from, to, onCommit }: { from: string; to: string; onCommit: (from: string, to: string) => void }) {
+  const id = useId();
+  const [draft, setDraft] = useState({ from, to });
+  // The URL changed elsewhere (a preset picked, Back): adopt it while rendering.
+  const [synced, setSynced] = useState(`${from}|${to}`);
+  if (synced !== `${from}|${to}`) { setSynced(`${from}|${to}`); setDraft({ from, to }); }
+  const problem = draft.from || draft.to ? rangeProblem(draft.from || undefined, draft.to || undefined) : null;
+
+  function change(next: { from: string; to: string }) {
+    setDraft(next);
+    if (!next.from && !next.to) onCommit("", "");
+    else if (customRange(next)) onCommit(next.from, next.to);
+  }
+  const field = (key: "from" | "to", label: string) => (
+    <label className="flex items-center gap-1.5 text-body-sm text-fg-3">
+      {label}
+      <Input type="date" value={draft[key]} onChange={(e) => change({ ...draft, [key]: e.target.value })} className="w-38 font-mono text-body-sm"
+        aria-invalid={problem && problem !== "pair" ? true : undefined} aria-describedby={`${id}-msg`} />
+    </label>
+  );
+  return (
+    <fieldset className="flex flex-wrap items-center gap-2">
+      <legend className="sr-only">Custom date range, {APP_TIME_ZONE_LABEL}</legend>
+      {field("from", "From")}
+      {field("to", "to")}
+      <p id={`${id}-msg`} aria-live="polite" className={problem === "pair" ? "text-body-sm text-fg-3" : "text-body-sm text-down-ink"}>
+        {problem ? RANGE_ERROR[problem] : ""}
+      </p>
+    </fieldset>
+  );
+}
 
 /** Time column cell: relative, with the absolute time under it. */
 export const timeCell = (at: string) => (
   <span className="grid"><RelativeTime at={Date.parse(at)} /><span className="font-mono text-caption text-fg-3">{formatDateTimeLong(Date.parse(at))}</span></span>
 );
+
+const day = (d: string) => formatDateWIB(appDayStart(d));
+const rangeText = (r: { from: string; to: string }) => (r.from === r.to ? day(r.from) : `${day(r.from)} – ${day(r.to)}`);
 
 export type AuditDetail = { title: string; rows: [string, ReactNode][]; extra?: ReactNode };
 
@@ -61,13 +113,14 @@ export function AuditTable<T extends { id: string; at: string }, F extends Audit
   const set = t.set;
   const onUser = useCallback((user: string) => set({ user } as Partial<TableState<F>>), [set]);
 
-  const narrowed = Object.entries(spec.filters).filter(([k, parse]) => k !== "range" && (f as Record<string, unknown>)[k] !== (parse as FilterParser<string>)(null));
+  const narrowed = Object.entries(spec.filters).filter(([k, parse]) => !RANGE_KEYS.has(k) && (f as Record<string, unknown>)[k] !== (parse as FilterParser<string>)(null));
   const clear = () => set(Object.fromEntries(narrowed.map(([k, parse]) => [k, (parse as FilterParser<string>)(null)])) as Partial<TableState<F>>);
 
   async function exportCsv() {
     setExporting(true);
     try {
-      await download(`${path}?${t.filterQuery}&format=csv`, "audit.csv");
+      const name = await download(`${path}?${t.filterQuery}&format=csv`, "audit.csv");
+      toast(`Saved ${name}`, { description: `Every matching entry, newest first, up to ${formatNumber(CSV_MAX_ROWS)} rows.` });
     } catch (e) {
       toast.error(`Couldn't export the ${noun}`, { description: errorText(e) });
     } finally {
@@ -76,10 +129,11 @@ export function AuditTable<T extends { id: string; at: string }, F extends Audit
   }
 
   const shown = open && detail(open);
+  const custom = customRange(f);
   return (
     <div className="grid gap-section">
       <PageHeader title={title} description={description}
-        actions={<><TimeRangePicker value={f.range} ranges={AUDIT_RANGES} onChange={(range) => set({ range } as Partial<TableState<F>>)} />{legend}</>} />
+        actions={<><TimeRangePicker value={custom ? null : f.range} ranges={AUDIT_RANGES} onChange={(range) => set({ range, from: "", to: "" } as Partial<TableState<F>>)} />{legend}</>} />
       {t.staleError && <Notice tone="warn" live>Couldn&apos;t refresh the {noun}; showing the ones loaded before. {errorText(t.staleError)}</Notice>}
       <Toolbar end={<>
         {narrowed.length > 0 && <Button variant="ghost" size="sm" onClick={clear}>Clear filters</Button>}
@@ -90,9 +144,10 @@ export function AuditTable<T extends { id: string; at: string }, F extends Audit
       </>}>
         <div className="w-full max-w-80"><QueryInput value={f.user} onChange={onUser} keys={[]} label="Search by user" placeholder="Search by user name or email" /></div>
         {filters(f, set)}
+        <CustomRange from={f.from} to={f.to} onCommit={(from, to) => set({ from, to } as Partial<TableState<F>>)} />
       </Toolbar>
       <Panel flush icon={icon} title={title} count={t.total != null ? `${formatNumber(t.total)}${t.totalCapped ? "+" : ""}` : undefined}
-        description={`${RANGE_LABEL[f.range]} · times in ${APP_TIME_ZONE_LABEL}`}
+        description={`${custom ? rangeText(custom) : RANGE_LABEL[f.range]} · times in ${APP_TIME_ZONE_LABEL}`}
         footnote={`Export CSV saves every matching entry, newest first, up to ${formatNumber(CSV_MAX_ROWS)} rows.`}>
         <DataTable label={title} rowHeight="identity" columns={columns} rows={t.rows} rowKey={(r) => r.id} loading={t.loading}
           sort={t.sort} onSortChange={t.onSortChange} paging={t.paging}

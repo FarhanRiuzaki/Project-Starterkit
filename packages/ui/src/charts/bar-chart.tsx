@@ -20,7 +20,7 @@ type Props = {
   /**
    * `slot` = the entity's fixed 0-based colour slot (seriesSlots); without it, colours follow position.
    * `striped` = secondary / partial series: same hue at 35 % with the stripe texture (spec §6.3).
-   * `tone: "down"` = a failure count (failed sign-ins): Down mark colour instead of a palette slot.
+   * `tone: "down"` = a failure count: Down mark colour instead of a palette slot.
    */
   label: string; categories: string[]; series: { label: string; values: (number | null)[]; slot?: number; striped?: boolean; tone?: SeriesTone }[];
   stacked?: boolean; format: (v: number) => string; height?: number;

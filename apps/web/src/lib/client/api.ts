@@ -57,9 +57,10 @@ async function failure(res: Response, path: string): Promise<ApiError> {
 
 /**
  * Save a file answer of the app's API (CSV export) under the server's `Content-Disposition` filename, else
- * `fallbackName`. Same rules as `api()`: same-origin `/api/*` only, 401 → sign-in, errors throw ApiError.
+ * `fallbackName`; resolves to the saved name. Same rules as `api()`: same-origin `/api/*` only, 401 → sign-in, errors
+ * throw ApiError.
  */
-export async function download(path: string, fallbackName: string): Promise<void> {
+export async function download(path: string, fallbackName: string): Promise<string> {
   assertApiPath(path);
   const res = await fetch(path, { credentials: "same-origin" });
   if (!res.ok) throw await failure(res, path);
@@ -70,4 +71,5 @@ export async function download(path: string, fallbackName: string): Promise<void
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url)); // after the click's download has taken the blob
+  return name;
 }

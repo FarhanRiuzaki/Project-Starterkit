@@ -1,5 +1,6 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
+import { MASK, SECRET_KEY } from "@/lib/shared/audit";
 import type { AuthLogDto } from "@/lib/shared/contracts/audit";
 import type { AuthCtx } from "./session";
 import { db } from "./mock/db";
@@ -18,9 +19,13 @@ function put<T>(m: Map<string, T>, id: string, v: T): void {
   m.set(id, v);
 }
 
-/** Plain-data copy of `before`/`after` without credential fields (later edits to the source don't change history). */
+/**
+ * Plain-data copy of `before`/`after` (later edits to the source don't change history): the record's own credential
+ * fields are dropped, and any other credential-named field (SECRET_KEY, at any depth) keeps only `MASK` when it had a
+ * value. So the API, the CSV, the dashboard and the diff never see a credential, whatever a caller passes.
+ */
 const snapshot = (v: unknown): unknown =>
-  v === undefined ? null : JSON.parse(JSON.stringify(v, (k, x: unknown) => (HIDDEN.has(k) ? undefined : x)));
+  v === undefined ? null : JSON.parse(JSON.stringify(v, (k, x: unknown) => (HIDDEN.has(k) ? undefined : k && SECRET_KEY.test(k) && x != null ? MASK : x)));
 
 export function recordActivity(
   ctx: AuthCtx,

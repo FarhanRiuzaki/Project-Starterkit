@@ -13,15 +13,15 @@ const DEFAULT_RANGES: readonly RangeKey[] = ["1h", "24h", "7d", "30d"];
 
 /**
  * One range picker per page; the supported ranges are the `RangeKey` union. Times are shown in WIB.
- * `ranges` = the ranges this page offers, in picker order (default 1 hour … 30 days); day-based lists such as the
- * audit logs offer 7 / 30 / 90 days.
+ * `ranges` = the ranges this page offers, in picker order (default 1 hour … 30 days); a day-based list may offer
+ * 7 / 30 / 90 days. `value: null` = the page shows a custom from–to range, so no preset is selected.
  */
-export function TimeRangePicker<K extends RangeKey>({ value, onChange, ranges }: { value: K; onChange: (v: K) => void; ranges?: readonly K[] }) {
+export function TimeRangePicker<K extends RangeKey>({ value, onChange, ranges }: { value: K | null; onChange: (v: K) => void; ranges?: readonly K[] }) {
   const keys: readonly RangeKey[] = ranges ?? DEFAULT_RANGES;
   const options = OPTIONS.filter((o): o is (typeof OPTIONS)[number] & { value: K } => keys.includes(o.value));
   return (
     <div className="flex items-center gap-2">
-      <Segmented label="Time range" value={value} onChange={onChange} options={options} />
+      <Segmented label="Time range" value={value ?? ("" as K)} onChange={onChange} options={options} />
       <span className="font-mono text-caption text-fg-3">{APP_TIME_ZONE_LABEL}</span>
     </div>
   );

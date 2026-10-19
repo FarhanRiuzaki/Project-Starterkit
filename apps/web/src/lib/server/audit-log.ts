@@ -21,13 +21,18 @@ const contains = (needle: string | undefined) => {
   return (...hay: (string | null)[]) => !n || hay.some((h) => h?.toLowerCase().includes(n));
 };
 
-export const ACTIVITY_SORTERS: Sorters<ActivityDto> = { at: (r) => r.at, actor: (r) => r.actor.name, action: (r) => r.action };
-export const AUTH_LOG_SORTERS: Sorters<AuthLogDto> = { at: (r) => r.at, login: (r) => r.login, event: (r) => r.event };
+export const ACTIVITY_SORTERS: Sorters<ActivityDto> = { at: (r) => Date.parse(r.at), actor: (r) => r.actor.name, action: (r) => r.action };
+export const AUTH_LOG_SORTERS: Sorters<AuthLogDto> = { at: (r) => Date.parse(r.at), login: (r) => r.login, event: (r) => r.event };
 
-/** Activity entries matching the query's filters (unsorted). */
+/**
+ * Activity entries matching the query's filters (unsorted). `user` matches the actor's name or id as recorded, or the
+ * actor's current email (looked up by id now; a deleted actor has none).
+ */
 export function activityRows(q: ActivityQuery): ActivityDto[] {
   const when = inRange(q.from, q.to), who = contains(q.user);
-  return [...db().activity.values()].filter((e) => when(e.at) && (!q.action || e.action === q.action) && who(e.actor.name, e.actor.id));
+  const users = db().users;
+  return [...db().activity.values()].filter((e) => when(e.at) && (!q.action || e.action === q.action)
+    && who(e.actor.name, e.actor.id, users.get(e.actor.id)?.email ?? null));
 }
 
 /** Sign-in log entries matching the query's filters (unsorted). */
@@ -55,7 +60,7 @@ export const AUTH_LOG_CSV: CsvSpec<AuthLogDto> = {
  * at most CSV_MAX_ROWS rows, as a UTF-8 (BOM) attachment `<prefix>-<date>.csv`. Cells go through `toCsv`, which
  * neutralises formulas. Never cached.
  */
-export function auditAnswer<T>(q: { format: "json" | "csv"; page: number; pageSize: number; sort?: string }, rows: T[], sorters: Sorters<T>, csv: CsvSpec<T>): Response {
+export function auditAnswer<T extends { id: string }>(q: { format: "json" | "csv"; page: number; pageSize: number; sort?: string }, rows: T[], sorters: Sorters<T>, csv: CsvSpec<T>): Response {
   if (q.format === "json") return json(paginate(rows, q, sorters, NEWEST));
   const body = toCsv([csv.header, ...sortRows(rows, NEWEST, sorters).slice(0, CSV_MAX_ROWS).map(csv.row)]);
   return new Response(CSV_BOM + body, {

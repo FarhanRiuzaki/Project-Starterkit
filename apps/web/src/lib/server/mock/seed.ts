@@ -82,7 +82,7 @@ export function seed(now: number = Date.now()): Db {
   const all = [...users.values()];
   const actors = all.filter((u) => u.isActive && !u.roles.includes("Viewer"));
   const activity = new Map<string, ActivityDto>();
-  const actions = ["user.create", "user.update", "user.deactivate", "user.delete", "role.update", "role.create", "user.password"] as const;
+  const actions = ["user.create", "user.update", "user.deactivate", "user.delete", "role.update", "role.create", "user.reset_password"] as const;
   for (let i = 0; i < 200; i++) {
     const actor = pick(actors);
     const target = pick(all);

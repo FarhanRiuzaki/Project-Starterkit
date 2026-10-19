@@ -6,13 +6,13 @@ import { LogIcon } from "@starterkit/ui/ui/icons";
 import { ACTION_OPTIONS, ACTIVITY_SORTS, actionLabel } from "@/lib/shared/audit";
 import type { ActivityDto } from "@/lib/shared/contracts/audit";
 import { oneOf, type TableSpec } from "@/lib/shared/table-state";
-import { AUDIT_FILTERS, type AuditFilters, AuditTable, timeCell } from "./audit-table";
+import { AUDIT_FILTERS, AUDIT_SEARCH, type AuditFilters, AuditTable, timeCell } from "./audit-table";
 import { DiffView } from "./diff-view";
 
 type Filters = AuditFilters & { action: string };
 const ACTIONS = [{ value: "", label: "Any" }, ...ACTION_OPTIONS];
 const SPEC: TableSpec<Filters> = {
-  sorts: ACTIVITY_SORTS, defaultSort: "-at",
+  sorts: ACTIVITY_SORTS, defaultSort: "-at", search: AUDIT_SEARCH,
   filters: { ...AUDIT_FILTERS, action: oneOf(ACTIONS.map((a) => a.value), "") },
 };
 

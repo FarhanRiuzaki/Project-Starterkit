@@ -68,6 +68,25 @@ function clientApiViolations(fs: F[]): string[] {
   });
 }
 
+/** `import { type A, type B }`: every named import is type-only. */
+const allTypes = (clause: string | undefined) => {
+  const c = clause?.trim() ?? "";
+  return /^\{[\s\S]*\}$/.test(c) && c.slice(1, -1).split(",").map((x) => x.trim()).filter(Boolean).every((x) => x.startsWith("type "));
+};
+/**
+ * Browser code takes the zod contracts (and zod itself) as types only, so zod stays out of every route's first load
+ * (ui-standard §5). Value lists the screens need live in zod-free lib/shared modules.
+ */
+function clientZodViolations(fs: F[]): string[] {
+  return fs.filter(isClient).flatMap(({ r, src }) => [...strip(src).matchAll(/^\s*import\s+(type\s+)?(?:([\s\S]*?)\s+from\s+)?["']([^"']+)["']/gm)]
+    .filter((m) => {
+      const spec = m[3]!;
+      return spec === "zod" || spec.startsWith("zod/") || !!resolveSpec(r, spec)?.startsWith(`${WEB}lib/shared/contracts/`);
+    })
+    .filter((m) => !m[1] && !allTypes(m[2]))
+    .map((m) => `${r}: value import from ${m[3]}`));
+}
+
 const METHODS = "GET|POST|PUT|PATCH|DELETE";
 /** Exported HTTP handlers of a route file with their source text (up to the next exported handler). */
 const handlers = (src: string) => {
@@ -122,6 +141,10 @@ describe("architecture", () => {
 
   it("client code calls only same-origin /api/ and reads no NEXT_PUBLIC API/URL variable", () => {
     expect(clientApiViolations(files)).toEqual([]);
+  });
+
+  it("client code imports zod contracts and zod as types only", () => {
+    expect(clientZodViolations(files)).toEqual([]);
   });
 
   it("no dangerouslySetInnerHTML", () => {
@@ -216,6 +239,22 @@ describe("architecture checkers (fixtures)", () => {
       f(`${WEB}features/users/a.tsx`, `fetch("/api/users"); api<X>(\`/api/users/${"${id}"}\`); fetch(path); // fetch("http://x")`),
       f(`${WEB}lib/server/s.ts`, `fetch("https://backend.example/x"); process.env.NEXT_PUBLIC_API_URL;`),
     ])).toEqual([]);
+  });
+
+  it("client value import of a contract or zod; type-only imports and server code pass", () => {
+    expect(clientZodViolations([
+      f(`${WEB}features/x/a.tsx`, `import { AUTH_EVENTS } from "@/lib/shared/contracts/audit";\nimport { type Page, ListQuery } from "@/lib/shared/contracts/common";`),
+      f(`${WEB}lib/client/b.ts`, `import { z } from "zod";\nimport "zod/v4/core";`),
+      f(`${WEB}app/x/c.tsx`, `"use client";\nimport { UserDto } from "../../lib/shared/contracts/users";`),
+      f(`${WEB}features/x/ok.tsx`, `import type { Page } from "@/lib/shared/contracts/common";\nimport { type UserDto, type X } from "@/lib/shared/contracts/users";\nimport { AUTH_EVENTS } from "@/lib/shared/audit";`),
+      f(`${WEB}lib/server/s.ts`, `import { ListQuery } from "@/lib/shared/contracts/common";\nimport { z } from "zod";`),
+    ])).toEqual([
+      `${WEB}features/x/a.tsx: value import from @/lib/shared/contracts/audit`,
+      `${WEB}features/x/a.tsx: value import from @/lib/shared/contracts/common`,
+      `${WEB}lib/client/b.ts: value import from zod`,
+      `${WEB}lib/client/b.ts: value import from zod/v4/core`,
+      `${WEB}app/x/c.tsx: value import from ../../lib/shared/contracts/users`,
+    ]);
   });
 
   it("a route handler without withPermission(", () => {
