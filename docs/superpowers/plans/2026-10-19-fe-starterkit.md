@@ -616,6 +616,23 @@ migrasi `features/{users,rbac,audit}`, `AGENTS.md` §7/§9/§12, `docs/standards
 
 ---
 
+### Task 12c: Data loading tanpa flicker (ditambahkan pemilik 2026-10-20)
+
+**Files:** `apps/web/src/lib/server/prefetch.ts` (isi cache React Query dari server: `HydrationBoundary`/`dehydrate`),
+`page.tsx` setiap route di `(main)` (prefetch halaman pertama dengan fungsi data yang sama dengan route `/api`),
+`packages/ui` (`useDelayedFlag(on, { delay: 150, minVisible: 300 })` dipakai `DataTable`, `Reveal`, skeleton),
+hook data per fitur (`placeholderData: keepPreviousData` untuk list), `loading.tsx` per route (bentuk halaman, pola
+`RouteSkeleton` Bilik), `apps/web/tests/e2e/no-flicker.spec.ts`.
+
+- [ ] Tes dulu: `useDelayedFlag` (on < 150 ms → tidak pernah tampil; tampil → bertahan ≥ 300 ms); E2E no-flicker
+  (MutationObserver mencatat durasi `aria-busy`/skeleton; gagal bila 1–300 ms; CLS < 0.01) untuk `/`, `/users`,
+  `/roles`, `/audit/activity`, `/me`.
+- [ ] Implementasi untuk SEMUA route; tidak ada `fetch` duplikat (server prefetch dipakai ulang klien).
+- [ ] `bun run check`, build, cek browser (navigasi cepat antar halaman, ganti page/filter) terang & gelap.
+- [ ] Commit `feat(web): flicker-free data loading (server-prefetched first page, anti-flash skeleton)`.
+
+---
+
 ### Task 13: E2E, budget, README, verifikasi akhir
 
 **Files:**

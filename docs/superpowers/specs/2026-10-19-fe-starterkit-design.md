@@ -192,6 +192,12 @@ Berlaku untuk setiap layar dan modul, sekarang dan nanti. Sumber detail: `docs/s
   `MotionLayer` + transisi halaman + stagger saat data pertama muncul + number tween + shared indicator + enter/exit
   dialog/menu/toast; hanya `transform`/`opacity`; patuh budget performa design-system §7.7; `prefers-reduced-motion`
   mematikan gerak non-esensial; refresh data tidak memicu animasi ulang selain flash baris baru.
+- **Tanpa flicker (keputusan pemilik 2026-10-20):** data halaman pertama dirender di server (server component membaca
+  sumber data yang sama dengan route `/api` lalu mengisi cache React Query), jadi halaman muncul langsung berisi data
+  tanpa skeleton; skeleton hanya muncul bila memuat > 150 ms dan, sekali muncul, bertahan ≥ 300 ms (tidak ada kilatan
+  skeleton singkat); ganti halaman/sort/filter mempertahankan data sebelumnya (`placeholderData`) dengan indikator
+  sibuk halus, bukan kembali ke skeleton; refetch tidak memicu animasi ulang; setiap route punya `loading.tsx` dengan
+  bentuk halaman. Ditegakkan oleh E2E yang gagal bila skeleton terlihat 1–300 ms atau layout bergeser (CLS).
 - **Konsisten:** satu pola untuk satu kebutuhan di semua modul — `PageHeader`, `DataTable` server-driven,
   `Field`, `ConfirmActionDialog`, `BlockedButton`, toast hasil aksi, lima state, hook data per fitur dengan bentuk yang
   sama, route handler dengan urutan yang sama (parse → guard → rule → mutate → activity). Istilah UI hanya dari
