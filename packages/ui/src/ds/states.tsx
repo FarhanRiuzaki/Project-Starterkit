@@ -20,15 +20,18 @@ export function EmptyState({ icon, title, description, action }: { icon: IconDat
 }
 
 /** Error with no data (spec §5.13): same layout, Down icon; what failed, why + next step, last good data time, "Try again". `detail` = raw source text, muted. */
-export function ErrorState({ title, cause, lastGood, onRetry, detail }: {
-  title: string; cause: string; lastGood?: number | null; onRetry?: () => void; detail?: string | null;
+export function ErrorState({ title, cause, lastGood, onRetry, action, detail }: {
+  title: string; cause: string; lastGood?: number | null; onRetry?: () => void;
+  /** Another next step in place of "Try again" (e.g. "Reload page" when retrying can't help). */
+  action?: ReactNode;
+  detail?: string | null;
 }) {
   return (
     <div role="alert" data-slot="error-state" className="grid justify-items-center gap-1.5 px-4 py-8 text-center">
       <span className="mb-1 grid size-10 place-items-center rounded-full bg-down-soft text-down-ink"><Icon icon={WarningIcon} size={20} className="size-5" /></span>
       <p className="text-title-3 text-fg">{title}</p>
       <p className="max-w-[44ch] text-body-sm text-fg-2">{cause}{lastGood ? ` Last updated ${formatDateTimeLong(lastGood)}.` : ""}</p>
-      {onRetry && <Button size="sm" variant="secondary" className="mt-1.5" onClick={onRetry}><Icon icon={RefreshIcon} />Try again</Button>}
+      {action ? <div className="mt-1.5">{action}</div> : onRetry && <Button size="sm" variant="secondary" className="mt-1.5" onClick={onRetry}><Icon icon={RefreshIcon} />Try again</Button>}
       {detail && <p className="max-w-[60ch] font-mono text-caption break-words text-fg-3">Detail: {detail}</p>}
     </div>
   );

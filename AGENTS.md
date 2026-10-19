@@ -95,6 +95,7 @@ A change that touches routes, guards, redirects or exports needs a test for each
 - Every data region has five states (loading in the content's shape, empty saying when data appears, error with retry, stale notice over kept data, data); every async action shows pending on its trigger, announces its result (toast or `role=status`), keeps a recoverable error and returns focus sensibly. (`docs/standards/ui-standard.md` §3)
 - Destructive actions confirm through `ConfirmActionDialog` with their impact; an action blocked by a rule is a `BlockedButton` with the reason; everything works by keyboard with a visible focus ring; 404 and forbidden always offer a way back. (`docs/standards/ui-standard.md` §5, `docs/standards/copy-guide.md`)
 - One pattern per need in every module (`PageHeader`, server `DataTable`, `Field`, `ConfirmActionDialog`, `BlockedButton`, result toast, one data hook per feature); route handlers run parse → guard → rule → mutate → activity; UI words only from the copy-guide glossary; a new module copies an existing one. (spec "Konsisten", `architecture.test.ts` route checks)
+- A page that fails while rendering shows its error inside the shell (`app/(main)/error.tsx`; sign-in pages and the signed-in layout: `app/error.tsx`; `global-error.tsx` only for the root layout), with "Try again", or "Reload page" when a code chunk failed to load (a newer deploy). (`apps/web/src/components/page-error.test.ts`)
 - Extend the standard and the `/ds` gallery before inventing a one-off component.
 
 ## 8. Motion
