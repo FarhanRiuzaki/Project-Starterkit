@@ -3,9 +3,6 @@
 Rules for every contributor, human or AI. One rule per line, each with the file that enforces it. Rules come from the
 code, tests and docs of the app this starterkit was extracted from; do not add a rule here that no code, test or doc backs.
 
-Guard files named below are created by later plan tasks (security core and `architecture.test.ts`: Task 5; `no-domain.test.ts`
-and the DS/chart port: Task 3; `bundle-budget.mjs`, e2e: Task 13). Until a guard exists, the rule is still binding.
-
 ## 1. Repo map and layers
 
 - `packages/ui/src/{ui,motion,styles,lib}` = primitives, motion, tokens, helpers; `ds` and `charts` (Task 3) sit above them. Source-only, transpiled by Next.
@@ -44,9 +41,11 @@ Package manager is Bun 1.4.3; runtime for Next is Node 24.
 - Wrap every `/api/*` handler except `/api/auth/*` in `withPermission`, and check the permission before reading any data. (`apps/web/src/test/architecture.test.ts`)
 - Actor rank: a route that acts on another user (edit, status, password reset, sessions, delete, bulk) refuses with 403 `forbidden` when that user holds a permission the actor lacks (`checkTargetRank` in `apps/web/src/lib/server/mock/rules.ts`, `rankDenied`/`targetRank` in `lib/server/users.ts`); the screen mirrors it with a `BlockedButton` (`rankBlock`/`protection` in `features/users/use-users.ts`). (`users-routes.test.ts` "actor rank", `rules.test.ts`)
 - Validate input with zod in the route handler before the guard touches the store; a bad value is 400 `bad_request`. (`api.ts` `handleError`)
-- Redirect only to internal paths: reject `//x`, `/\x`, control characters, and anything that normalizes to a protocol-relative URL; never land on `/login` or `/api`. (`apps/web/src/lib/shared/safe-path.ts`, `safe-path.test.ts`)
+- Redirect only to internal paths: reject `//x`, `/\x`, control characters, and anything that normalizes to a protocol-relative URL; never land on `/login` or `/api`. (`packages/ui/src/lib/safe-path.ts`, `safe-path.test.ts`)
 - Return generic errors: unknown exceptions are 500 with a fixed message, detail goes to the log only. (`handleError`, `api.test.ts`)
-- Answer identically for unknown user, wrong password and LDAP user on password sign-in (`invalid_credentials`), and for `forgot-password` on an unknown email. (Task 6 tests)
+- Answer identically for unknown user, wrong password and LDAP user on password sign-in (`invalid_credentials`), and for `forgot-password` on an unknown email or a throttled request. (`apps/web/src/app/api/auth/auth-routes.test.ts`)
+- Re-authenticate before a credential or sign-in identity change: password change, turning 2FA off and a new email on `PATCH /api/me` take the current password (directory password for LDAP; a recovery code for a Google/Apple-only account turning 2FA off), through `reauth()` with one throttle per user. (`apps/web/src/lib/server/sign-in.ts`, `me-routes.test.ts`)
+- Sessions end `SESSION_TTL_HOURS` after sign-in or `SESSION_IDLE_MINUTES` without a request; `authOf` removes an ended record, lists and counts prune first. (`apps/web/src/lib/server/session.ts`, `api.test.ts` "session lifetime")
 - Rate-limit sign-in: 10/min per IP, 300/min fleet-wide breaker, 5/min per username, then soft backoff per username (3 free failures, then 1 s, 2 s, 4 s … max 60 s, cleared after 15 min quiet or on success). (`apps/web/src/lib/server/ratelimit.ts`, `ratelimit.test.ts`)
 - Ignore `X-Forwarded-For` unless `TRUSTED_PROXY=true`. (`clientIp` in `apps/web/src/lib/server/api.ts`)
 - Bound every in-memory `Map` (default 10,000 keys) and evict the oldest key on overflow; never clear all. (`ratelimit.ts`)
@@ -63,13 +62,13 @@ A change that touches routes, guards, redirects or exports needs a test for each
 
 - Path traversal and URL normalization: `/a/../b`, `%2e%2e`, `%2F` and case variants parse to the page they name. (`proxy.test.ts`, `page-guard.test.ts`, `safe-path.test.ts`)
 - Open redirect: `//evil.com`, `/\evil`, `%2F%2Fevil`, `/a/..//evil` land on an internal path or `/`. (`safe-path.test.ts`)
-- IDOR: a user requesting an id that belongs to someone else gets 403 or 404, never the record. (`route-guard.test.ts` pattern)
+- IDOR: a user requesting an id that belongs to someone else gets 403 or 404, never the record. (`users-routes.test.ts` "a session of someone else or an unknown one is 404", `me-routes.test.ts` "someone else's or unknown is 404")
 - Actor rank: a lower-ranked actor (Admin) gets 403 `forbidden` on every action against a higher-ranked user (Superadmin), single and bulk, and nothing changes. (`users-routes.test.ts` "actor rank")
 - 403 before read: with a missing permission the handler never runs and the store is not read. (`api.test.ts`)
-- Out-of-enum or out-of-range query values are 400 before the guard touches the store. (`read-routes.test.ts` pattern)
+- Out-of-enum or out-of-range query values are 400 before the guard touches the store; a body's 400 comes before the 404. (`users-routes.test.ts` "rejects … with 400 before guard", `audit-routes.test.ts`, `architecture.test.ts` order rule)
 - Mutation without or with a wrong `x-csrf-token` is 403 `csrf`. (`csrf.test.ts`, `api.test.ts`)
 - Permission removed or user deactivated mid-session takes effect on the next request. (`api.test.ts`)
-- Every route file is guarded; the no-guard list is exact. (`architecture.test.ts`, `route-guard.test.ts` pattern)
+- Every route file (any `route.ts` under `app/`, every method including HEAD/OPTIONS) is guarded; the no-guard list is exact; the docs' Permission column matches each handler. (`architecture.test.ts`, `api-contract.test.ts`)
 - Rate limit and backoff: per-IP bucket, fleet breaker, per-username cap, concurrent attempts reserved synchronously. (`ratelimit.test.ts`)
 - CSV formula injection, including leading space, tab and CR. (`csv.test.ts`)
 - Secrets absent from log lines, error messages, child bindings and printf arguments. (`logger-redact.test.ts`)
@@ -92,7 +91,7 @@ A change that touches routes, guards, redirects or exports needs a test for each
 - Follow `docs/standards/ui-standard.md`: page anatomy (§1), grid (§2), the five states per data region (§3), data display (§4), interaction (§5).
 - Desktop-first: 1440 px reference, 1280 px minimum, no horizontal scroll at 768–1279; targets 28 px minimum, 32 px default.
 - Same metric, same label, unit, format and icon on every page; numbers only through `format.ts`.
-- Status uses `StatusChip` plus the card's legend, never color alone. Shareable state (filters, tab, range, page) lives in the URL.
+- Status uses `StatusChip` plus the card's legend, never color alone. Shareable state (filters, tab, range, page) lives in the URL. Query keys start with the owning module (`users`, `rbac`, `me`, `audit`, `dashboard`), built only in `apps/web/src/lib/shared/queries.ts`. (`queries.test.ts`)
 - Every list is server-side: the GET route calls `paginate()` with whitelisted sorters (`sortParam`), the screen uses `useTableQuery` + `DataTable` server mode (sortable headers, page-size select, numbered pagination); page size 15 | 25 | 50 | 100 (default 15), page ≤ 1000 (deeper is 400), `totalCapped` shows "N+"; page, size, sort, search and filters live in the URL (any change but the page goes to page 1, Back undoes it). (`apps/web/src/lib/shared/contracts/common.ts`, `apps/web/src/lib/server/paginate.test.ts`, `apps/web/src/lib/shared/table-state.test.ts`, `architecture.test.ts` "every GET route that answers a list")
 - Status legends live in the card that shows the statuses: `Panel legend={…}` renders the "Status legend" info button in the card header; never a page-level, toolbar or inline legend. (`architecture.test.ts` "StatusLegend is rendered only by Panel", `packages/ui/src/ds/status-legend.test.ts`)
 - Every data region has five states (loading in the content's shape, empty saying when data appears, error with retry, stale notice over kept data, data); every async action shows pending on its trigger, announces its result (toast or `role=status`), keeps a recoverable error and returns focus sensibly. (`docs/standards/ui-standard.md` §3)
@@ -100,6 +99,12 @@ A change that touches routes, guards, redirects or exports needs a test for each
 - One pattern per need in every module (`PageHeader`, server `DataTable`, `Field`, `ConfirmActionDialog`, `BlockedButton`, result toast, one data hook per feature); route handlers run parse → guard → rule → mutate → activity; UI words only from the copy-guide glossary; a new module copies an existing one. (spec "Konsisten", `architecture.test.ts` route checks)
 - A page that fails while rendering shows its error inside the shell (`app/(main)/error.tsx`; sign-in pages and the signed-in layout: `app/error.tsx`; `global-error.tsx` only for the root layout), with "Try again" (Next's `retry`), or "Reload page" when a code chunk failed to load (a newer deploy); code loaded on demand (lazy charts, `LazyMount`) sits in a `ChunkBoundary`, so a failed chunk takes down only its panel. (`apps/web/src/components/page-error.test.ts`, `packages/ui/src/ds/chunk-boundary.test.ts`)
 - Extend the standard and the `/ds` gallery before inventing a one-off component.
+- `PageHeader` is rendered by the route's feature component (loading, error and not-found states included), never by `page.tsx`. (`features/*`)
+- A detail screen whose record answers 404 shows `DetailNotFound` (no retry, a link to the list); detail queries use `retryUnlessNotFound`. (`apps/web/src/components/detail-not-found.tsx`, `lib/client/api.ts`)
+- Loading, one way per case: a route change → its `loading.tsx` (`RouteSkeleton`); a detail screen without data yet → the same sections via `LoadingShape` + `useDelayedFlag` (shape constant exported by the feature, imported by `loading.tsx`); a list → `DataTable` `loading` from `useTableQuery` (paging keeps rows, busy dim); a small part of a loaded page → `Reveal`. (`apps/web/src/components/route-skeleton.tsx`)
+- Action results: success → `toast`; a button action's failure → `toast.error`; a form keeps its failure inline (`role="alert"`) beside the submit; a confirm dialog shows its failure inside the dialog. Every async trigger shows pending (spinner + `aria-busy`/disabled).
+- Product name only through `BRAND` (`apps/web/src/lib/shared/brand.ts`): page titles pass their own title (the root layout adds the name), error `source`, logo. (`architecture.test.ts` "product name")
+- A page the role can't open answers a real 404 on a document load and names itself nowhere (title via `guardedTitle`, breadcrumb); its permission comes from `pagePerm` and `page.tsx` guards with the same. (`apps/web/src/lib/shared/nav.ts`, `lib/server/page-guard.ts`, `architecture.test.ts`, `tests/e2e/permissions.spec.ts`)
 
 ## 8. Motion
 
