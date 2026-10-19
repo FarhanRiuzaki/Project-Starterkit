@@ -4,10 +4,11 @@ import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
-import { ActionMenu, BlockedButton, ConfirmActionDialog, type DataTablePaging, DataTable, FilterMenu, Notice, Panel, QueryInput, StatusLegend, Toolbar } from "@starterkit/ui/ds";
+import { ActionMenu, BlockedButton, ConfirmActionDialog, type DataTablePaging, DataTable, Field, FilterMenu, Notice, Panel, QueryInput, StatusLegend, Toolbar } from "@starterkit/ui/ds";
 import { HEALTH } from "@starterkit/ui/lib/status";
 import { Button } from "@starterkit/ui/ui/button";
 import { UsersIcon } from "@starterkit/ui/ui/icons";
+import { Select } from "@starterkit/ui/ui/select";
 import { toast } from "@starterkit/ui/ui/sonner";
 import { PageHeader } from "@/components/shell/page-header";
 import { api, errorText } from "@/lib/client/api";
@@ -23,7 +24,6 @@ const SORTS = [
 ] as const;
 const STATUSES = [{ value: "", label: "Any" }, { value: "active", label: "Active" }, { value: "inactive", label: "Inactive" }] as const;
 const LEGEND = (["healthy", "stopped"] as const).map((h) => ({ health: h, label: h === "healthy" ? "Active" : "Inactive", description: h === "healthy" ? "Can sign in." : HEALTH.stopped.description }));
-const SELECT = "h-8 rounded-md border border-line-strong bg-card px-2.5 text-body text-fg outline-none focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-primary-soft";
 
 type BulkAction = "activate" | "deactivate" | "delete" | "assignRole";
 type Pending = { kind: "bulk"; action: BulkAction; ids: string[] } | { kind: "one"; action: "deactivate" | "delete"; user: UserDto };
@@ -169,12 +169,11 @@ export function UsersPage() {
         <ConfirmActionDialog open onOpenChange={(o) => { if (!o) setPending(null); }} auditFields={false} reasons={[]} destructive={destructive}
           title={dialog.title} description={dialog.description} impact={impact} actionLabel={dialog.label} onConfirm={confirm}
           extra={pending?.action === "assignRole" && (
-            <div className="grid gap-1.5">
-              <label htmlFor="bulk-role" className="text-label text-fg">Role</label>
-              <select id="bulk-role" className={SELECT} value={role} onChange={(e) => setRole(e.target.value)}>
+            <Field id="bulk-role" label="Role">
+              <Select id="bulk-role" value={role} onChange={(e) => setRole(e.target.value)}>
                 {(roles.data ?? []).map((r) => <option key={r} value={r}>{r}</option>)}
-              </select>
-            </div>
+              </Select>
+            </Field>
           )} />
       )}
     </div>

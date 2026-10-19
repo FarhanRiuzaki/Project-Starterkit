@@ -1,0 +1,29 @@
+import { badRequest, json, withPermission } from "@/lib/server/api";
+import { recordActivity } from "@/lib/server/audit";
+import { db } from "@/lib/server/mock/db";
+import { listPermissions } from "@/lib/server/rbac";
+import { CreatePermissionsBody, type CreatePermissionsResult } from "@/lib/shared/contracts/rbac";
+
+export async function GET(req: Request): Promise<Response> {
+  return withPermission(req, "permission.view", async () => json(listPermissions()));
+}
+
+/**
+ * Add `<module>.<action>` names to the catalog; names already in it are skipped. Roles can't hold an added name yet
+ * (role bodies accept PermissionName only).
+ */
+// ponytail: catalog grows in the mock store only; a fully dynamic catalog (grantable, guardable names) is a backend concern.
+export async function POST(req: Request): Promise<Response> {
+  const body = CreatePermissionsBody.safeParse(await req.json().catch(() => null));
+  return withPermission(req, "permission.create", async (ctx) => {
+    if (!body.success) return badRequest();
+    const catalog = db().permissionCatalog;
+    const res: CreatePermissionsResult = { created: [], skipped: [] };
+    for (const name of new Set(body.data.names)) {
+      if (catalog.has(name)) res.skipped.push(name);
+      else { catalog.add(name); res.created.push(name); }
+    }
+    if (res.created.length) recordActivity(ctx, { action: "permission.create", target: { type: "permission", id: res.created.join(","), label: res.created.join(", ") }, after: { created: res.created } });
+    return json(res);
+  });
+}

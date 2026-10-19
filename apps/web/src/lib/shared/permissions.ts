@@ -13,6 +13,9 @@ export type PermissionName =
   | "permission.view" | "permission.create"
   | "audit.view";
 
+/** A permission name: `<module>.<action>`, an action of lowercase letters, digits or underscores (the module is checked against MODULES separately). */
+export const PERMISSION_KEY = /^[a-z]+\.[a-z][a-z0-9_]{0,31}$/;
+
 /** UI label of a module key or an action: "user" → "User", "view" → "View". */
 export const permissionLabel = (part: string): string => part.charAt(0).toUpperCase() + part.slice(1);
 

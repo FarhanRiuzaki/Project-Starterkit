@@ -27,6 +27,8 @@ const PROTECTED: Partial<Record<ErrorCode, string>> = {
   self_action: "You can't do this to your own account. Ask another administrator.",
   last_superadmin: "This is the last active Superadmin. Make another user Superadmin first.",
   ldap_password: "This user signs in with a directory password. Change it in your directory.",
+  superadmin_locked: "The Superadmin role holds every permission and can't be changed or deleted.",
+  role_in_use: "Users still have this role. Remove it from them first, then delete the role.",
 };
 /** The error response for a protection-rule code from rules.ts. */
 export const blocked = (code: ErrorCode) => apiError(ERROR_STATUS[code], code, PROTECTED[code] ?? "This change isn't allowed.");

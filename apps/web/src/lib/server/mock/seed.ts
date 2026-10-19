@@ -111,6 +111,6 @@ export function seed(now: number = Date.now()): Db {
 
   return {
     users, roles: new Map(roleList.map((r) => [r.id, r])), sessions: new Map(), activity, authLog,
-    resetTokens: new Map(), ldapDirectory,
+    resetTokens: new Map(), ldapDirectory, permissionCatalog: new Set(PERMISSIONS),
   };
 }

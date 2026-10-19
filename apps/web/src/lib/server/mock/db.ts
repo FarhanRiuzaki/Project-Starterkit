@@ -28,6 +28,8 @@ export type Db = {
   resetTokens: Map<string, ResetTokenRecord>;
   /** user id -> directory password (LDAP users have no passwordHash) */
   ldapDirectory: Map<string, string>;
+  /** Permission names in catalog order: PERMISSIONS, then names added through POST /api/permissions. */
+  permissionCatalog: Set<string>;
 };
 
 /** Read-only view `rules.ts` needs. */

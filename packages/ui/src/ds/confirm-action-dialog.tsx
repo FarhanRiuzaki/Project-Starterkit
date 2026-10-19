@@ -6,6 +6,7 @@ import { SpinnerIcon } from "../ui/icons";
 import { Button } from "../ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "../ui/dialog";
 import { Input } from "../ui/input";
+import { Select } from "../ui/select";
 import { type ActionInput, validateActionInput, validateConfirmText } from "../lib/action-input";
 
 type Props = {
@@ -96,11 +97,10 @@ export function ConfirmActionDialog(p: Props) {
             {p.auditFields !== false && <>
               <div className={FIELD}>
                 <label htmlFor={`${id}-r`} className={LABEL}>Reason</label>
-                <select id={`${id}-r`} value={v.reason} onChange={set("reason")} aria-invalid={!!errors.reason || undefined} aria-describedby={errors.reason ? `${id}-r-e` : undefined}
-                  className="h-8 rounded-md border border-line-strong bg-card px-2.5 text-body text-fg outline-none focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-primary-soft aria-invalid:border-down-mark">
+                <Select id={`${id}-r`} value={v.reason} onChange={set("reason")} aria-invalid={!!errors.reason || undefined} aria-describedby={errors.reason ? `${id}-r-e` : undefined}>
                   <option value="">Select a reason</option>
                   {p.reasons.map((r) => <option key={r} value={r}>{r}</option>)}
-                </select>
+                </Select>
                 {errors.reason && <span id={`${id}-r-e`} className={ERR}>{errors.reason}</span>}
               </div>
               <div className={FIELD}>

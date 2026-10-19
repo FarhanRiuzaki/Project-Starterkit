@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { PERMISSIONS, type PermissionName } from "@/lib/shared/permissions";
 import type { RoleRecord, UserRecord } from "./db";
-import { bulk, checkPasswordOp, checkRoleChange, checkUserChange, effectivePermissions } from "./rules";
+import { bulk, checkPasswordOp, checkPermissionGrant, checkRoleChange, checkRoleGrant, checkUserChange, effectivePermissions } from "./rules";
 
 const role = (name: string, permissions: PermissionName[], locked = false): RoleRecord => ({
   id: `r-${name}`, name, locked, permissions,
@@ -67,5 +67,13 @@ describe("rules", () => {
       done: ["a", "b"], skipped: [{ id: "self", code: "self_action" }],
     });
     expect(apply).toHaveBeenCalledTimes(2);
+  });
+  it("no escalation: an actor may grant, remove or carry only permissions they hold", () => {
+    const actor = new Set<PermissionName>(["role.view", "role.edit", "user.view"]);
+    expect(checkPermissionGrant(actor, ["user.view"])).toBeNull();
+    expect(checkPermissionGrant(actor, [])).toBeNull();
+    expect(checkPermissionGrant(actor, ["user.view", "user.delete"])).toBe("forbidden");
+    expect(checkRoleGrant(actor, role("R", ["role.view"]))).toBeNull();
+    expect(checkRoleGrant(actor, superRole)).toBe("forbidden");
   });
 });

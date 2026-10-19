@@ -20,6 +20,7 @@ export { TimeRangePicker, type RangeKey } from "./time-range";
 export { ConfirmActionDialog } from "./confirm-action-dialog";
 export { ActionMenu } from "./action-menu";
 export { BlockedButton } from "./blocked-button";
+export { Checkbox } from "./checkbox";
 export { Field } from "./field";
 export { LazyMount } from "./lazy-mount";
 export { Notice } from "./notice";
