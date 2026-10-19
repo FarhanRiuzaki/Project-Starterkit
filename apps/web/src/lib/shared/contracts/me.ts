@@ -25,14 +25,20 @@ export const UpdateProfileBody = z.object({
 });
 export type UpdateProfileBody = z.infer<typeof UpdateProfileBody>;
 
-export const ChangePasswordBody = z.object({ currentPassword: z.string().min(1).max(256), password: Password });
+export const ChangePasswordBody = z.object({ current: z.string().min(1).max(256), next: Password });
 export type ChangePasswordBody = z.infer<typeof ChangePasswordBody>;
 
-export const TwoFactorSetupDto = z.object({ secret: z.string(), otpauth: z.string() });
+export const TwoFactorSetupDto = z.object({ secret: z.string(), otpauthUrl: z.string() });
 export type TwoFactorSetupDto = z.infer<typeof TwoFactorSetupDto>;
 
 export const TwoFactorEnableBody = z.object({ code: z.string().trim().length(6) });
 export type TwoFactorEnableBody = z.infer<typeof TwoFactorEnableBody>;
 
-export const RecoveryCodesDto = z.object({ codes: z.array(z.string()) });
+export const RecoveryCodesDto = z.object({ recoveryCodes: z.array(z.string()) });
 export type RecoveryCodesDto = z.infer<typeof RecoveryCodesDto>;
+
+export const DisableTwoFactorBody = z.object({ password: z.string().min(1).max(256) });
+export type DisableTwoFactorBody = z.infer<typeof DisableTwoFactorBody>;
+
+export const ConnectionProvider = z.enum(["google", "apple"]);
+export type ConnectionProvider = z.infer<typeof ConnectionProvider>;

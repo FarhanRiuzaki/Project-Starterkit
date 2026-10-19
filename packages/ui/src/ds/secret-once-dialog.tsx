@@ -10,7 +10,7 @@ import { CopyValue } from "./copy-value";
  * Escape or a close icon would throw away a password that has already replaced the old one.
  */
 export function SecretOnceDialog({ title, secret, label, notes, warning, onClose, onCloseAutoFocus }: {
-  title: string; secret: string; label: string; notes: readonly [string, ...string[]]; warning?: string | null; onClose: () => void;
+  title: string; secret: string | readonly string[]; label: string; notes: readonly [string, ...string[]]; warning?: string | null; onClose: () => void;
   /** Where focus goes after closing (the dialog may have replaced another, so Radix can't know the trigger). */
   onCloseAutoFocus?: (e: Event) => void;
 }) {
@@ -23,7 +23,11 @@ export function SecretOnceDialog({ title, secret, label, notes, warning, onClose
           <DialogDescription>{notes[0]}</DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 px-6 py-5">
-          <div data-testid="secret-once" className="rounded-lg border border-line bg-tray px-3 py-2.5"><CopyValue value={secret} label={label} /></div>
+          <div data-testid="secret-once" className="rounded-lg border border-line bg-tray px-3 py-2.5">
+            {typeof secret === "string"
+              ? <CopyValue value={secret} label={label} />
+              : <ul className="grid grid-cols-2 gap-x-4 gap-y-1">{secret.map((v) => <li key={v}><CopyValue value={v} label={`${label} ${v}`} /></li>)}</ul>}
+          </div>
           <ul className="grid list-disc gap-1.5 pl-5 text-body-sm text-fg-2">{notes.slice(1).map((n) => <li key={n}>{n}</li>)}</ul>
           {warning && <p role="alert" className="rounded-md bg-degraded-soft px-3 py-2 text-body-sm text-degraded-ink">{warning}</p>}
         </div>

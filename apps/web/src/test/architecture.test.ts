@@ -48,7 +48,8 @@ function clientImportsServer(fs: F[]): string[] {
  * Browser code reaches the backend only through same-origin `/api/*` (CSP connect-src 'self'; the backend URL is
  * server env only). Client = features/, components/, lib/client/, or any file with "use client".
  * Static limit: a `fetch(`/`api(` whose first argument is not a literal (fetch(url), fetch(BASE + "/x")) is NOT caught
- * here; that is covered at runtime by the guard in `lib/client/api.ts` and by CSP connect-src 'self'. EventSource,
+ * here. The runtime guard in `lib/client/api.ts` covers `api()` calls only; a raw `fetch(` with a non-literal
+ * argument is covered only by CSP connect-src 'self'. EventSource,
  * WebSocket and sendBeacon are stricter: a non-literal argument is flagged too.
  */
 const isClient = ({ r, src }: F) => /^["']use client["']/m.test(src)

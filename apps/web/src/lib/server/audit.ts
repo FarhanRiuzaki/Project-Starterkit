@@ -6,7 +6,7 @@ import { db } from "./mock/db";
 
 const MAX_ENTRIES = 10_000;
 /** UserRecord fields that must never reach a log entry, even when a caller passes the raw record. */
-const HIDDEN = new Set(["passwordHash", "totpSecret", "recoveryCodes"]);
+const HIDDEN = new Set(["passwordHash", "totpSecret", "pendingTotpSecret", "recoveryCodes"]);
 
 /** Insert, evicting the oldest entries once the Map is full (never clearing it). */
 function put<T>(m: Map<string, T>, id: string, v: T): void {

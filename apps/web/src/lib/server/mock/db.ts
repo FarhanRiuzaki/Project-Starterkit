@@ -5,7 +5,10 @@ import { UserDto } from "../../shared/contracts/users";
 import { seed } from "./seed";
 
 /** `totpLastStep`: the TOTP time step that last completed a sign-in; that code and older ones are refused (no replay). */
-export type UserRecord = UserDto & { passwordHash: string | null; totpSecret: string | null; recoveryCodes: string[]; totpLastStep?: number };
+export type UserRecord = UserDto & { passwordHash: string | null; totpSecret: string | null; recoveryCodes: string[]; totpLastStep?: number;
+  /** Secret from `POST /api/me/2fa`, not active until `PUT` confirms a code; never part of the DTO. */
+  pendingTotpSecret?: string;
+};
 /** The only safe way to return a user from a route: the schema parse drops passwordHash, totpSecret, recoveryCodes. */
 export function toUserDto(record: UserRecord): UserDto {
   return UserDto.parse(record);
