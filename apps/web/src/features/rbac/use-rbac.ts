@@ -1,6 +1,6 @@
 import { hashKey, type QueryKey, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError, api } from "@/lib/client/api";
-import type { PermissionDto, RoleDto } from "@/lib/shared/contracts/rbac";
+import type { RoleDto } from "@/lib/shared/contracts/rbac";
 
 export const RBAC_KEY = ["rbac"] as const;
 
@@ -11,13 +11,11 @@ export const roleKey = (id: string) => [...RBAC_KEY, "role", id] as const;
 
 export const isNotFound = (e: unknown) => e instanceof ApiError && e.status === 404;
 
-export const useRoles = () => useQuery({ queryKey: [...RBAC_KEY, "roles"], queryFn: () => api<RoleDto[]>("/api/roles") });
 /** A 404 is final (no retry); `enabled: false` once the role is deleted from its own page. */
 export const useRole = (id: string, enabled = true) => useQuery({
   queryKey: roleKey(id), queryFn: () => api<RoleDto>(roleUrl(id)), enabled,
   retry: (n, e) => !isNotFound(e) && n < 1,
 });
-export const usePermissions = () => useQuery({ queryKey: [...RBAC_KEY, "permissions"], queryFn: () => api<PermissionDto[]>("/api/permissions") });
 
 /**
  * After a role or catalog change: refetch every query (but `except`, e.g. a role just deleted), since role names and

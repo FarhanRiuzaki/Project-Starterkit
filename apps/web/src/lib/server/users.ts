@@ -1,9 +1,11 @@
 import { randomBytes, randomInt } from "node:crypto";
 import { apiError } from "./api";
 import { log } from "./logger";
-import { db, type UserRecord } from "./mock/db";
+import { db, type SessionRecord, type UserRecord } from "./mock/db";
 import { hashToken } from "./mock/password";
 import { checkRoleGrant } from "./mock/rules";
+import type { Sorters } from "./paginate";
+import type { SessionDto } from "@/lib/shared/contracts/me";
 import type { PermissionName } from "@/lib/shared/permissions";
 
 const INVITE_TTL_MS = 72 * 3600_000;
@@ -28,6 +30,12 @@ export const rolesExist = (roles: readonly string[]): boolean => {
   const names = new Set([...db().roles.values()].map((r) => r.name));
   return roles.every((r) => names.has(r));
 };
+
+/** Store sessions of one user (unsorted); GET /api/me/sessions and GET /api/users/[id]/sessions page them. */
+export const sessionsOf = (userId: string): SessionRecord[] => [...db().sessions.values()].filter((s) => s.userId === userId);
+export const SESSION_SORTERS: Sorters<SessionRecord> = { lastSeenAt: (s) => Date.parse(s.lastSeenAt), device: (s) => s.device };
+/** `current` = the session making this request. */
+export const toSessionDto = (s: SessionRecord, currentSid: string): SessionDto => ({ id: s.id, device: s.device, ip: s.ip, lastSeenAt: s.lastSeenAt, current: s.id === currentSid });
 
 /** Sign the user out everywhere (deactivate, delete, password reset). */
 export function endSessions(userId: string): void {

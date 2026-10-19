@@ -5,10 +5,8 @@ import { Icon, type IconData } from "../ui/icon";
 import { ArrowDownIcon, ArrowUpIcon, ChevronsUpDownIcon } from "../ui/icons";
 import { cn } from "../lib/cn";
 import { useNewKeys } from "../motion";
-import { Button } from "../ui/button";
 import { Skeleton } from "../ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
-import { formatNumber } from "../lib/format";
 import { clampPage, PAGE_SIZE, pageCount, pageSlice } from "../lib/paging";
 import { type SortDir, sortRows } from "../lib/sort";
 import { Pagination } from "./pagination";
@@ -28,8 +26,6 @@ export type Column<T> = {
  * Pemuatan bertahap.
  * - `paged`: data di memori, 25 baris/halaman; halaman dikendalikan pemanggil (mis. dari URL). Pemanggil yang
  *   mengembalikan `page` ke 1 saat filter/urutan berubah; nilai di luar rentang hanya di-clamp untuk tampilan.
- * - `infinite`: data server berhalaman; `rows` = semua baris yang sudah dimuat. `error` = pemuatan halaman
- *   berikutnya gagal: baris tetap tampil, observer berhenti, tombol "Load more" menjadi coba lagi manual.
  * Tanpa `paging`: > 25 baris otomatis berhalaman (state lokal, kembali ke halaman 1 saat himpunan baris atau
  * urutan berubah), ≤ 25 baris tampil semua.
  * - `server`: the server pages, sorts and filters; `rows` = the current page as returned (never re-sorted here).
@@ -38,7 +34,6 @@ export type Column<T> = {
  */
 export type DataTablePaging =
   | { mode: "paged"; page: number; pageSize?: number; onPageChange: (page: number) => void }
-  | { mode: "infinite"; hasMore: boolean; loadingMore: boolean; onLoadMore: () => void; total?: number; error?: boolean }
   | {
       mode: "server"; page: number; pageSize: number; total: number; totalCapped?: boolean; maxPage?: number; busy?: boolean;
       pageSizes: readonly number[]; onPageChange: (page: number) => void; onPageSizeChange: (size: number) => void;
@@ -77,7 +72,7 @@ type Props<T> = {
  * once after loading (never staggered). Desktop only: no stacked list.
  */
 export function DataTable<T>({ columns, rows, rowKey, label, loading, error, empty, sort, onSortChange, rowActions, paging, isSelected, rowHeight = "default", highlightNew = false, highlightScope, skeletonRows }: Props<T>) {
-  const fresh = useNewKeys(rows.map(rowKey), { enabled: highlightNew, scope: highlightScope, infinite: paging?.mode === "infinite" });
+  const fresh = useNewKeys(rows.map(rowKey), { enabled: highlightNew, scope: highlightScope });
   const topRef = useRef<HTMLDivElement>(null);
   // Fokus ke atas tabel hanya bila halaman benar-benar berganti ke target (kedaluwarsa 3 dtk bila diabaikan).
   const focusTarget = useRef<{ page: number; at: number } | null>(null);
@@ -93,7 +88,6 @@ export function DataTable<T>({ columns, rows, rowKey, label, loading, error, emp
   const [wasLoading, setWasLoading] = useState(!!loading);
   if (wasLoading && !loading) { setWasLoading(false); setLoadedLate(true); }
 
-  const infinite = paging?.mode === "infinite" ? paging : null;
   const server = paging?.mode === "server" ? paging : null;
   const paged = paging?.mode === "paged" || (!paging && rows.length > PAGE_SIZE);
   const size = paging?.mode === "paged" ? (paging.pageSize ?? PAGE_SIZE) : server ? server.pageSize : PAGE_SIZE;
@@ -111,7 +105,6 @@ export function DataTable<T>({ columns, rows, rowKey, label, loading, error, emp
   const col = sort ? columns.find((c) => c.key === sort.key) : undefined;
   const sorted = !server && col?.sortValue && sort ? sortRows(rows, col.sortValue, sort.dir) : rows;
   const data = paged ? pageSlice(sorted, page, size) : sorted;
-  const moreSkeleton = !loading && !!infinite?.loadingMore;
 
   function toggle(c: Column<T>) {
     if (!(c.sortValue || c.sortable) || !onSortChange) return;
@@ -128,7 +121,7 @@ export function DataTable<T>({ columns, rows, rowKey, label, loading, error, emp
 
   const table = (
     <>
-      <Table aria-label={label} aria-busy={loading || moreSkeleton || server?.busy || undefined} data-status-static="">
+      <Table aria-label={label} aria-busy={loading || server?.busy || undefined} data-status-static="">
         <TableHeader>
           <TableRow className="hover:bg-transparent">
             {columns.map((c) => {
@@ -166,45 +159,31 @@ export function DataTable<T>({ columns, rows, rowKey, label, loading, error, emp
                 </TableRow>
                 );
               })}
-          {moreSkeleton && <SkeletonRows count={3} columns={columns} actions={!!rowActions} identity={rowHeight === "identity"} />}
         </TableBody>
       </Table>
 
 
-      {!loading && data.length === 0 && !infinite?.loadingMore && <div className="p-4"><EmptyState icon={empty.icon} title={empty.title} description={empty.description} /></div>}
+      {!loading && data.length === 0 && <div className="p-4"><EmptyState icon={empty.icon} title={empty.title} description={empty.description} /></div>}
     </>
   );
 
-  if (paged || auto || server) {
-    const last = server ? serverLast : pageCount(rows.length, size);
-    // Server mode keeps the footer's 48 px while loading, so the table doesn't jump when the pagination arrives.
-    const footer = server
-      ? loading ? <div aria-hidden="true" data-slot="pagination-placeholder" className="min-h-12 border-t border-line" /> : server.total > 0 && (
-        <Pagination label={label} page={page} pageSize={size} total={server.total} totalCapped={server.totalCapped} maxPage={server.maxPage}
-          pageSizes={server.pageSizes} onPageChange={goTo} onPageSizeChange={server.onPageSizeChange} />
-      )
-      : paged && !loading && rows.length > 0 && <Pagination label={label} page={page} pageSize={size} total={rows.length} onPageChange={goTo} />;
-    const region = paged || !!server;
-    // Wrapper selalu ada di mode otomatis agar DOM tidak remount saat jumlah baris melewati 25.
-    return (
-      <div ref={topRef} tabIndex={region ? -1 : undefined} role={region ? "region" : undefined}
-        aria-label={region ? `${label}, page ${page} of ${last}` : undefined} className="scroll-mt-16 outline-none">
-        {table}
-        {footer}
-      </div>
-    );
-  }
-
-  if (infinite) {
-    return (
-      <div>
-        {table}
-        {!loading && <InfiniteFooter count={rows.length} paging={infinite} />}
-      </div>
-    );
-  }
-
-  return table;
+  const last = server ? serverLast : pageCount(rows.length, size);
+  // Server mode keeps the footer's 48 px while loading, so the table doesn't jump when the pagination arrives.
+  const footer = server
+    ? loading ? <div aria-hidden="true" data-slot="pagination-placeholder" className="min-h-12 border-t border-line" /> : server.total > 0 && (
+      <Pagination label={label} page={page} pageSize={size} total={server.total} totalCapped={server.totalCapped} maxPage={server.maxPage}
+        pageSizes={server.pageSizes} onPageChange={goTo} onPageSizeChange={server.onPageSizeChange} />
+    )
+    : paged && !loading && rows.length > 0 && <Pagination label={label} page={page} pageSize={size} total={rows.length} onPageChange={goTo} />;
+  const region = paged || !!server;
+  // Wrapper selalu ada di mode otomatis agar DOM tidak remount saat jumlah baris melewati 25.
+  return (
+    <div ref={topRef} tabIndex={region ? -1 : undefined} role={region ? "region" : undefined}
+      aria-label={region ? `${label}, page ${page} of ${last}` : undefined} className="scroll-mt-16 outline-none">
+      {table}
+      {footer}
+    </div>
+  );
 }
 
 function SkeletonRows<T>({ count, columns, actions, identity }: { count: number; columns: Column<T>[]; actions: boolean; identity: boolean }) {
@@ -215,51 +194,4 @@ function SkeletonRows<T>({ count, columns, actions, identity }: { count: number;
       {actions && <TableCell className={h} />}
     </TableRow>
   ));
-}
-
-type InfinitePaging = Extract<DataTablePaging, { mode: "infinite" }>;
-
-/** Sentinel IntersectionObserver (rootMargin 200px) + tombol "Load more" sebagai fallback keyboard/pembaca layar. */
-function InfiniteFooter({ count, paging }: { count: number; paging: InfinitePaging }) {
-  const { hasMore, loadingMore, onLoadMore, total, error } = paging;
-  const sentinel = useRef<HTMLDivElement>(null);
-  const loadRef = useRef(onLoadMore);
-  useEffect(() => { loadRef.current = onLoadMore; }, [onLoadMore]);
-
-  // Observer dibuat ulang setiap kali pemuatan selesai: satu panggilan per kemunculan sentinel.
-  // Saat galat, observer tidak dibuat (mencegah loop coba ulang); pengguna memakai tombol "Load more".
-  useEffect(() => {
-    const el = sentinel.current;
-    if (!el || !hasMore || loadingMore || error || typeof IntersectionObserver === "undefined") return;
-    let fired = false;
-    const io = new IntersectionObserver((entries) => {
-      if (fired || !entries.some((e) => e.isIntersecting)) return;
-      fired = true;
-      loadRef.current();
-    }, { rootMargin: "200px" });
-    io.observe(el);
-    return () => io.disconnect();
-  }, [hasMore, loadingMore, error]);
-
-  const status = total != null && Number.isFinite(total)
-    ? `${formatNumber(count)} of ${formatNumber(total)} rows loaded`
-    : `${formatNumber(count)} ${count === 1 ? "row" : "rows"} loaded`;
-
-  return (
-    <>
-    <div ref={sentinel} aria-hidden="true" className="h-px" />
-    <div className="flex min-h-12 flex-wrap items-center justify-between gap-2 border-t border-line px-3 py-2">
-      <p className="text-body-sm text-fg-3 tabular" role="status" aria-live="polite">{status}</p>
-      <div className="flex flex-wrap items-center gap-2">
-      <p className="text-body-sm text-down-ink" aria-live="polite">{error && !loadingMore ? "Couldn't load more rows. Select Load more to try again." : ""}</p>
-      {hasMore && (
-        <Button size="sm" variant="secondary" className="aria-disabled:cursor-default aria-disabled:opacity-45" aria-disabled={loadingMore || undefined}
-          onClick={() => { if (!loadingMore) onLoadMore(); }}>
-          {loadingMore ? "Loading…" : "Load more"}
-        </Button>
-      )}
-      </div>
-    </div>
-    </>
-  );
 }

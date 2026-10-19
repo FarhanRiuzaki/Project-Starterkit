@@ -11,6 +11,7 @@ vi.mock("next/headers", () => ({
 }));
 
 import { db, resetDb } from "@/lib/server/mock/db";
+import type { Page } from "@/lib/shared/contracts/common";
 import { addSession, signInAs, TEST_CSRF } from "@/test/session";
 import { hashRecoveryCode } from "@/lib/server/mock/password";
 import { LDAP_PASSWORD, SEED_PASSWORD } from "@/lib/server/mock/seed";
@@ -218,10 +219,27 @@ describe("/api/me/sessions", () => {
     const { sid, other } = await signIn("admin");
     const now = new Date().toISOString();
     db().sessions.set("theirs", { id: "theirs", userId: "u-003", method: "password", device: "x", ip: "x", createdAt: now, lastSeenAt: now });
-    const list = (await (await call(sessionsGet, "GET")).json()) as { id: string; current: boolean }[];
+    const page = (await (await call(sessionsGet, "GET")).json()) as Page<{ id: string; current: boolean }>;
+    expect(page).toMatchObject({ total: 2, page: 1, pageSize: 15 });
+    const list = page.items;
     expect(list.map((s) => s.id).sort()).toEqual([sid, other].sort());
     expect(list.find((s) => s.id === sid)!.current).toBe(true);
     expect(list.find((s) => s.id === other)!.current).toBe(false);
+  });
+
+  it("pages newest activity first by default; sorts by device; rejects bad paging before the guard", async () => {
+    const { sid } = await signIn("admin");
+    const me = db().sessions.get(sid)!.userId;
+    for (let i = 0; i < 20; i++) db().sessions.set(`s${i}`, { id: `s${i}`, userId: me, method: "password", device: `Device ${String(i).padStart(2, "0")}`, ip: "x", createdAt: "", lastSeenAt: new Date(Date.UTC(2020, 0, 1, 0, i)).toISOString() });
+    const get = async (qs: string) => (await (await sessionsGet(new Request(`http://c/api/me/sessions?${qs}`))).json()) as Page<{ id: string; device: string }>;
+    const first = await get("");
+    expect(first.total).toBe(22);
+    expect(first.items).toHaveLength(15);
+    expect(first.items.slice(2, 4).map((s) => s.id)).toEqual(["s19", "s18"]); // the two "now" sessions, then newest seen
+    expect((await get("page=2")).items).toHaveLength(7);
+    expect((await get("sort=device&pageSize=25")).items[0]!.device).toBe("Device 00");
+    jar.clear();
+    for (const qs of ["pageSize=10", "page=0", "sort=ip", "q=x"]) expect((await sessionsGet(new Request(`http://c/api/me/sessions?${qs}`))).status, qs).toBe(qs === "q=x" ? 401 : 400);
   });
 
   it("deletes the caller's own other session (one activity entry); someone else's or unknown is 404", async () => {

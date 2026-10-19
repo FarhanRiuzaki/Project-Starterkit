@@ -11,10 +11,10 @@ export function UserStatusChip({ user }: { user: UserDto }) {
   return <StatusChip health={s.health} label={s.label} />;
 }
 
-/** Table columns for the user list. `select` (when the viewer can act on rows) is the leading checkbox column. */
+/** Table columns for the user list; keys of sortable columns are the server's sort keys. `select` (when the viewer can act on rows) is the leading checkbox column. */
 export function userColumns(select?: { has: (id: string) => boolean; toggle: (id: string) => void }): Column<UserDto>[] {
   const cols: Column<UserDto>[] = [
-    { key: "user", header: "User", icon: UsersIcon, cell: (u) => (
+    { key: "name", header: "User", icon: UsersIcon, sortable: true, cell: (u) => (
       <span className="flex min-w-0 max-w-72 items-center gap-2.5">
         <Avatar name={u.name} />
         <span className="grid min-w-0">
@@ -26,7 +26,8 @@ export function userColumns(select?: { has: (id: string) => boolean; toggle: (id
     { key: "roles", header: "Roles", cell: (u) => <RoleChips roles={u.roles} /> },
     { key: "status", header: "Status", cell: (u) => <UserStatusChip user={u} /> },
     { key: "type", header: "Sign-in", cell: (u): ReactNode => (u.isLdap ? "Directory" : "Password") },
-    { key: "last", header: "Last sign-in", cell: (u) => <RelativeTime at={u.lastLoginAt ? Date.parse(u.lastLoginAt) : null} /> },
+    { key: "lastLoginAt", header: "Last sign-in", sortable: true, cell: (u) => <RelativeTime at={u.lastLoginAt ? Date.parse(u.lastLoginAt) : null} /> },
+    { key: "createdAt", header: "Created", sortable: true, cell: (u) => <RelativeTime at={Date.parse(u.createdAt)} /> },
   ];
   if (!select) return cols;
   return [{ key: "select", header: "Select", className: "w-8", cell: (u) => (

@@ -237,6 +237,10 @@ describe("architecture", () => {
     expect(motionLiteralViolations(files, cssFiles)).toEqual([]);
   });
 
+  it("every GET route that answers a list pages it with paginate(; the non-list allowlist is exact", () => {
+    expect(listGetViolations(files)).toEqual([]);
+  });
+
   it("no literal colour or arbitrary pixel class in .tsx", () => {
     const LITERAL = /#[0-9a-fA-F]{3,8}\b|\brgba?\(|\bhsla?\(|\boklch\(|-\[\d+(?:\.\d+)?px\]/;
     const bad = files.filter(({ r, src }) => r.endsWith(".tsx") && LITERAL.test(strip(src)))

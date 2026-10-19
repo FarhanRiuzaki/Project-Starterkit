@@ -11,6 +11,7 @@ vi.mock("next/headers", () => ({
 
 import { db, resetDb } from "@/lib/server/mock/db";
 import { signInAs, TEST_CSRF } from "@/test/session";
+import type { Page } from "@/lib/shared/contracts/common";
 import type { PermissionDto, RoleDto } from "@/lib/shared/contracts/rbac";
 import { PERMISSIONS, type PermissionName } from "@/lib/shared/permissions";
 import { GET as meGet } from "../me/route";
@@ -36,8 +37,10 @@ const code = async (r: Response) => ((await r.json()) as { error: { code: string
 const acts = () => [...db().activity.values()].filter((a) => !/^act-\d+$/.test(a.id));
 const patch = (id: string, body: unknown, csrf = CSRF) => rolePatch(req("PATCH", body, `http://c/api/roles/${id}`, csrf), params(id));
 const del = (id: string) => roleDelete(req("DELETE", undefined, `http://c/api/roles/${id}`), params(id));
-const roles = async () => (await (await listGet(req("GET"))).json()) as RoleDto[];
-const perms = async () => (await (await permsGet(req("GET", undefined, "http://c/api/permissions"))).json()) as PermissionDto[];
+const rolePage = async (qs = "") => (await (await listGet(req("GET", undefined, `http://c/api/roles?${qs}`))).json()) as Page<RoleDto>;
+const roles = async (qs = "pageSize=100") => (await rolePage(qs)).items;
+const permPage = async (qs = "") => (await (await permsGet(req("GET", undefined, `http://c/api/permissions?${qs}`))).json()) as Page<PermissionDto>;
+const perms = async (qs = "pageSize=100") => (await permPage(qs)).items;
 const addPerms = (body: unknown) => permsPost(req("POST", body, "http://c/api/permissions"));
 
 beforeEach(() => {
@@ -54,13 +57,27 @@ describe("GET /api/roles and /api/roles/[id]", () => {
     expect((await listGet(req("GET"))).status).toBe(403);
   });
 
-  it("lists roles with user counts that match the users", async () => {
+  it("lists roles as a page, name A–Z by default, with user counts that match the users", async () => {
     await signIn("superadmin");
-    const list = await roles();
-    expect(list.map((r) => r.name)).toEqual(["Superadmin", "Admin", "Viewer"]);
+    const page = await rolePage();
+    expect(page).toMatchObject({ total: 3, page: 1, pageSize: 15 });
+    expect(page.items.map((r) => r.name)).toEqual(["Admin", "Superadmin", "Viewer"]);
     const users = [...db().users.values()];
-    for (const r of list) expect(r.userCount).toBe(users.filter((u) => u.roles.includes(r.name)).length);
-    expect(list[0]).toMatchObject({ id: "role-superadmin", locked: true, permissions: [...PERMISSIONS] });
+    for (const r of page.items) expect(r.userCount).toBe(users.filter((u) => u.roles.includes(r.name)).length);
+    expect(page.items[1]).toMatchObject({ id: "role-superadmin", locked: true, permissions: [...PERMISSIONS] });
+  });
+
+  it("sorts by permissions and users, searches the name, pages past the end empty", async () => {
+    await signIn("superadmin");
+    expect((await roles("sort=-permissions")).map((r) => r.name)).toEqual(["Superadmin", "Admin", "Viewer"]);
+    const byUsers = await roles("sort=users");
+    expect(byUsers.map((r) => r.userCount)).toEqual([...byUsers.map((r) => r.userCount)].sort((a, b) => a - b));
+    expect((await roles("q=ADM")).map((r) => r.name)).toEqual(["Admin", "Superadmin"]);
+    expect(await rolePage("page=2")).toMatchObject({ items: [], total: 3, page: 2 });
+  });
+
+  it.each([["pageSize=10"], ["page=1001"], ["sort=locked"], ["sort=-userCount"]])("rejects %s with 400 before the guard", async (qs) => {
+    expect((await listGet(req("GET", undefined, `http://c/api/roles?${qs}`))).status).toBe(400);
   });
 
   it("GET one role, 404 for an unknown id", async () => {
@@ -253,10 +270,26 @@ describe("/api/permissions", () => {
     await signIn("admin");
     expect((await permsGet(req("GET"))).status).toBe(403);
     await signIn("superadmin");
+    const page = await permPage();
+    expect(page).toMatchObject({ total: PERMISSIONS.length, page: 1, pageSize: 15 });
     const list = await perms();
-    expect(list.map((p) => p.name)).toEqual([...PERMISSIONS]);
+    expect(list.map((p) => p.name)).toEqual([...PERMISSIONS]); // default sort: catalog (module) order
+    expect(list.every((p) => p.id === p.name)).toBe(true);
     expect(list.find((p) => p.name === "role.edit")!.roles).toEqual(["Superadmin"]);
     expect(list.find((p) => p.name === "audit.view")!.roles).toEqual(["Superadmin", "Admin", "Viewer"]);
+  });
+
+  it("filters by module, searches the name, sorts by name and action", async () => {
+    await signIn("superadmin");
+    expect((await perms("module=role")).map((p) => p.name)).toEqual(["role.view", "role.create", "role.edit", "role.delete"]);
+    expect((await perms("q=CREATE")).map((p) => p.name)).toEqual(["user.create", "role.create", "permission.create"]);
+    const byName = (await perms("sort=-name")).map((p) => p.name);
+    expect(byName).toEqual([...byName].sort().reverse());
+    expect((await perms("module=user&sort=action")).map((p) => p.name)).toEqual(["user.create", "user.delete", "user.edit", "user.view"]);
+  });
+
+  it.each([["module=billing"], ["pageSize=7"], ["sort=roles"]])("GET rejects %s with 400 before the guard", async (qs) => {
+    expect((await permsGet(req("GET", undefined, `http://c/api/permissions?${qs}`))).status).toBe(400);
   });
 
   it.each([[["foo"]], [["billing.view"]], [["user."]], [["User.view"]], [["user.view.x"]], [["user.vi ew"]], [[]], [null]])("POST %j is 400", async (names) => {
@@ -280,7 +313,7 @@ describe("/api/permissions", () => {
     await signIn("superadmin");
     const r = await addPerms({ names: ["audit.export", "user.view", "audit.export"] });
     expect(await r.json()).toEqual({ created: ["audit.export"], skipped: ["user.view"] });
-    expect((await perms()).find((p) => p.name === "audit.export")).toEqual({ name: "audit.export", roles: [] });
+    expect((await perms()).find((p) => p.name === "audit.export")).toEqual({ id: "audit.export", name: "audit.export", roles: [] });
     const entries = acts().filter((a) => a.action === "permission.create");
     expect(entries).toHaveLength(1);
     expect(entries[0]!.after).toEqual({ created: ["audit.export"] });

@@ -1,5 +1,7 @@
 import { z } from "zod";
+import { SESSION_SORTS } from "../paging";
 import { Password } from "./auth";
+import { ListQuery, sortParam } from "./common";
 import { UserDto } from "./users";
 import { PERMISSIONS } from "../permissions";
 
@@ -18,6 +20,10 @@ export const SessionDto = z.object({
   current: z.boolean(),
 });
 export type SessionDto = z.infer<typeof SessionDto>;
+
+/** GET /api/me/sessions and GET /api/users/[id]/sessions: one user's sessions, paged (no `q`). */
+export const SessionListQuery = ListQuery.omit({ q: true }).extend({ sort: sortParam(SESSION_SORTS) });
+export type SessionListQuery = z.infer<typeof SessionListQuery>;
 
 export const UpdateProfileBody = z.object({
   name: z.string().trim().min(1).max(100).optional(),

@@ -3,32 +3,28 @@ import { apiError, badRequest, handleError, json, withPermission } from "@/lib/s
 import { recordActivity } from "@/lib/server/audit";
 import { type UserRecord, db, toUserDto } from "@/lib/server/mock/db";
 import { hashPassword } from "@/lib/server/mock/password";
+import { paginate, type Sorters } from "@/lib/server/paginate";
 import { duplicateOf, roleGrantDenied, rolesExist, sendInvite } from "@/lib/server/users";
-import type { Page } from "@/lib/shared/contracts/common";
-import { CreateUserBody, UserListQuery, type UserDto } from "@/lib/shared/contracts/users";
+import { CreateUserBody, UserListQuery } from "@/lib/shared/contracts/users";
 
-const key = (u: UserRecord, field: string): string => (field === "name" ? u.name : field === "email" ? u.email : field === "lastLoginAt" ? u.lastLoginAt ?? "" : u.createdAt);
+/** Never signed in = no value (sorts last both ways). */
+const USER_SORTERS: Sorters<UserRecord> = {
+  name: (u) => u.name, email: (u) => u.email, lastLoginAt: (u) => (u.lastLoginAt ? Date.parse(u.lastLoginAt) : null), createdAt: (u) => Date.parse(u.createdAt),
+};
 
 export async function GET(req: Request): Promise<Response> {
   const parsed = UserListQuery.safeParse(Object.fromEntries(new URL(req.url).searchParams));
   if (!parsed.success) return handleError(parsed.error); // 400 before the guard reads anything
-  const { page, pageSize, q, sort = "name", role, status } = parsed.data;
+  const query = parsed.data;
+  const { q, role, status } = query;
   return withPermission(req, "user.view", async () => {
     const needle = q?.trim().toLowerCase();
     const rows = [...db().users.values()].filter((u) =>
       (!needle || [u.name, u.username, u.email].some((s) => s.toLowerCase().includes(needle)))
       && (!role || u.roles.includes(role))
       && (!status || u.isActive === (status === "active")));
-    const field = sort.replace(/^-/, "");
-    const dir = sort.startsWith("-") ? -1 : 1;
-    // Empty values (never signed in) sort last in both directions.
-    rows.sort((a, b) => {
-      const x = key(a, field), y = key(b, field);
-      if (x === "" || y === "") return x === y ? 0 : x === "" ? 1 : -1;
-      return dir * x.localeCompare(y);
-    });
-    const items = rows.slice((page - 1) * pageSize, page * pageSize).map(toUserDto);
-    return json({ items, total: rows.length, page, pageSize } satisfies Page<UserDto>);
+    const page = paginate(rows, query, USER_SORTERS, "name");
+    return json({ ...page, items: page.items.map(toUserDto) });
   });
 }
 

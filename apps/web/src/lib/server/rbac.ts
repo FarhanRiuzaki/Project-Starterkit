@@ -1,6 +1,7 @@
 import type { PermissionDto, RoleDto } from "@/lib/shared/contracts/rbac";
 import { PERMISSIONS, type PermissionName } from "@/lib/shared/permissions";
 import { db, type RoleRecord } from "./mock/db";
+import type { Sorters } from "./paginate";
 
 /** A role with the number of users holding it (users store role names). */
 export function toRoleDto(r: RoleRecord): RoleDto {
@@ -12,10 +13,18 @@ export function toRoleDto(r: RoleRecord): RoleDto {
 /** Every role, in store order. GET /api/roles answers this; /api/users/roles answers its names. */
 export const listRoles = (): RoleDto[] => [...db().roles.values()].map(toRoleDto);
 
-/** The catalog with the roles holding each permission. */
+export const ROLE_SORTERS: Sorters<RoleDto> = { name: (r) => r.name, permissions: (r) => r.permissions.length, users: (r) => r.userCount };
+
+/** The catalog, in catalog order, with the roles holding each permission. */
 export function listPermissions(): PermissionDto[] {
   const roles = [...db().roles.values()];
-  return [...db().permissionCatalog].map((name) => ({ name, roles: roles.filter((r) => (r.permissions as string[]).includes(name)).map((r) => r.name) }));
+  return [...db().permissionCatalog].map((name) => ({ id: name, name, roles: roles.filter((r) => (r.permissions as string[]).includes(name)).map((r) => r.name) }));
+}
+
+/** Sorters for `rows` as listPermissions returns them: `module` keeps that catalog order. */
+export function permissionSorters(rows: readonly PermissionDto[]): Sorters<PermissionDto> {
+  const at = new Map(rows.map((p, i) => [p.id, i]));
+  return { module: (p) => at.get(p.id) ?? null, name: (p) => p.name, action: (p) => p.name.split(".")[1] ?? "" };
 }
 
 /** Another role (not `exceptId`) already has this name, compared case-insensitively. */

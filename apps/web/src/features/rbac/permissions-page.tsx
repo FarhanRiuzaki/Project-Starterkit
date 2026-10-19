@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { type Column, ConfirmActionDialog, DataTable, Field, Notice, Panel } from "@starterkit/ui/ds";
-import { plural } from "@starterkit/ui/lib/format";
+import { useCallback, useState } from "react";
+import { type Column, ConfirmActionDialog, DataTable, Field, FilterMenu, Notice, Panel, QueryInput, Toolbar } from "@starterkit/ui/ds";
+import { formatNumber, plural } from "@starterkit/ui/lib/format";
 import { Button } from "@starterkit/ui/ui/button";
 import { SecureIcon } from "@starterkit/ui/ui/icons";
 import { Input } from "@starterkit/ui/ui/input";
@@ -12,14 +12,24 @@ import { RoleChips } from "@/components/role-chips";
 import { PageHeader } from "@/components/shell/page-header";
 import { api, errorText } from "@/lib/client/api";
 import { useAuth } from "@/lib/client/auth-context";
+import { useTableQuery } from "@/lib/client/use-table-query";
 import type { CreatePermissionsResult, PermissionDto } from "@/lib/shared/contracts/rbac";
+import { PERMISSION_SORTS } from "@/lib/shared/paging";
 import { MODULES, PERMISSION_KEY, permissionLabel } from "@/lib/shared/permissions";
-import { usePermissions, useAfterRbacChange } from "./use-rbac";
+import { oneOf, type TableSpec, text } from "@/lib/shared/table-state";
+import { RBAC_KEY, useAfterRbacChange } from "./use-rbac";
+
+const MODULE_OPTIONS = [{ value: "", label: "Any" }, ...MODULES.map((m) => ({ value: m.key, label: permissionLabel(m.key) }))];
+type Filters = { q: string; module: string };
+const SPEC: TableSpec<Filters> = {
+  sorts: PERMISSION_SORTS, defaultSort: "module", search: ["q"],
+  filters: { q: text(200), module: oneOf(MODULE_OPTIONS.map((m) => m.value), "") },
+};
 
 const COLUMNS: Column<PermissionDto>[] = [
-  { key: "name", header: "Permission", icon: SecureIcon, cell: (p) => <span className="font-mono text-mono text-fg">{p.name}</span> },
-  { key: "module", header: "Module", cell: (p) => permissionLabel(p.name.split(".")[0]!) },
-  { key: "action", header: "Action", cell: (p) => permissionLabel(p.name.split(".")[1]!) },
+  { key: "name", header: "Permission", icon: SecureIcon, sortable: true, cell: (p) => <span className="font-mono text-mono text-fg">{p.name}</span> },
+  { key: "module", header: "Module", sortable: true, cell: (p) => permissionLabel(p.name.split(".")[0]!) },
+  { key: "action", header: "Action", sortable: true, cell: (p) => permissionLabel(p.name.split(".")[1]!) },
   { key: "roles", header: "Roles", cell: (p) => <RoleChips roles={p.roles} /> },
 ];
 
@@ -34,7 +44,11 @@ function namesOf(module: string, actions: string): string[] {
 
 export function PermissionsPage() {
   const { can } = useAuth();
-  const q = usePermissions();
+  const t = useTableQuery<PermissionDto, Filters>({ key: RBAC_KEY[0], path: "/api/permissions", spec: SPEC });
+  const f = t.state;
+  const set = t.set;
+  const onSearch = useCallback((q: string) => set({ q }), [set]);
+  const filtered = f.q !== "" || f.module !== "";
   const changed = useAfterRbacChange();
   const [adding, setAdding] = useState(false);
   const [module, setModule] = useState<string>(MODULES[0]!.key);
@@ -50,11 +64,19 @@ export function PermissionsPage() {
     <div className="grid gap-section">
       <PageHeader title="Permissions" description="Everything a role can allow. Roles decide who has each permission."
         actions={can("permission.create") ? <Button onClick={() => { setActions(""); setAdding(true); }}>Add permissions</Button> : undefined} />
-      {q.error && q.data && <Notice tone="warn" live>Couldn&apos;t refresh the permissions; showing the last loaded list.</Notice>}
-      <Panel flush icon={SecureIcon} title="Permissions" count={q.data?.length} description="Grant them to roles on each role's page">
-        <DataTable label="Permissions" columns={COLUMNS} rows={q.data ?? []} rowKey={(p) => p.name} loading={q.isPending}
-          error={q.error && !q.data ? { title: "Couldn't load permissions", cause: errorText(q.error), onRetry: () => void q.refetch() } : null}
-          empty={{ icon: SecureIcon, title: "No permissions yet", description: "Permissions appear here after they are added." }} />
+      {t.staleError && <Notice tone="warn" live>Couldn&apos;t refresh the permissions; showing the ones loaded before. {errorText(t.staleError)}</Notice>}
+      <Toolbar>
+        <div className="w-full max-w-80"><QueryInput value={f.q} onChange={onSearch} keys={[]} label="Search permissions" placeholder="Search permission name" /></div>
+        <FilterMenu label="Module" value={f.module} options={MODULE_OPTIONS} onChange={(module) => set({ module })} />
+        {filtered && <Button variant="ghost" size="sm" onClick={() => set({ q: "", module: "" })}>Clear filters</Button>}
+      </Toolbar>
+      <Panel flush icon={SecureIcon} title="Permissions" count={t.total != null ? formatNumber(t.total) : undefined} description="Grant them to roles on each role's page">
+        <DataTable label="Permissions" columns={COLUMNS} rows={t.rows} rowKey={(p) => p.id} loading={t.loading}
+          sort={t.sort} onSortChange={t.onSortChange} paging={t.paging}
+          error={t.loadError ? { title: "Couldn't load permissions", cause: errorText(t.loadError), onRetry: () => void t.query.refetch() } : null}
+          empty={filtered
+            ? { icon: SecureIcon, title: "No permissions match", description: "Change the search or module, or clear them to see every permission." }
+            : { icon: SecureIcon, title: "No permissions yet", description: "Permissions appear here after they are added." }} />
       </Panel>
       {adding && (
         <ConfirmActionDialog open onOpenChange={(o) => { if (!o) setAdding(false); }} auditFields={false} reasons={[]} title="Add permissions"

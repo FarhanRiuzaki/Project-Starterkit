@@ -2,9 +2,10 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
-import { ActionMenu, BlockedButton, ConfirmActionDialog, type DataTablePaging, DataTable, Field, FilterMenu, Notice, Panel, QueryInput, StatusLegend, Toolbar } from "@starterkit/ui/ds";
+import { ActionMenu, BlockedButton, ConfirmActionDialog, DataTable, Field, FilterMenu, Notice, Panel, QueryInput, StatusLegend, Toolbar } from "@starterkit/ui/ds";
+import { formatNumber } from "@starterkit/ui/lib/format";
 import { HEALTH } from "@starterkit/ui/lib/status";
 import { Button } from "@starterkit/ui/ui/button";
 import { UsersIcon } from "@starterkit/ui/ui/icons";
@@ -13,16 +14,20 @@ import { toast } from "@starterkit/ui/ui/sonner";
 import { PageHeader } from "@/components/shell/page-header";
 import { api, errorText } from "@/lib/client/api";
 import { useAuth } from "@/lib/client/auth-context";
+import { useTableQuery } from "@/lib/client/use-table-query";
 import type { BulkResult } from "@/lib/shared/contracts/common";
 import type { UserDto } from "@/lib/shared/contracts/users";
+import { USER_SORTS } from "@/lib/shared/paging";
+import { oneOf, type TableSpec, text } from "@/lib/shared/table-state";
 import { userColumns } from "./user-columns";
-import { SKIP_REASON, USERS_KEY, type UserFilters, protection, useLastSuperadminId, useRoleNames, useUserList } from "./use-users";
+import { SKIP_REASON, USERS_KEY, protection, useLastSuperadminId, useRoleNames } from "./use-users";
 
-const SORTS = [
-  { value: "name", label: "Name A–Z" }, { value: "-name", label: "Name Z–A" }, { value: "email", label: "Email A–Z" },
-  { value: "-lastLoginAt", label: "Last sign-in, newest" }, { value: "-createdAt", label: "Created, newest" },
-] as const;
 const STATUSES = [{ value: "", label: "Any" }, { value: "active", label: "Active" }, { value: "inactive", label: "Inactive" }] as const;
+type Filters = { q: string; role: string; status: (typeof STATUSES)[number]["value"] };
+const SPEC: TableSpec<Filters> = {
+  sorts: USER_SORTS, defaultSort: "name", search: ["q"],
+  filters: { q: text(200), role: text(64), status: oneOf(STATUSES.map((s) => s.value), "") },
+};
 const LEGEND = (["healthy", "stopped"] as const).map((h) => ({ health: h, label: h === "healthy" ? "Active" : "Inactive", description: h === "healthy" ? "Can sign in." : HEALTH.stopped.description }));
 
 type BulkAction = "activate" | "deactivate" | "delete" | "assignRole";
@@ -37,43 +42,27 @@ const BULK_NOTE: Record<BulkAction, string> = {
 };
 const LABEL: Record<BulkAction, string> = { activate: "Activate users", deactivate: "Deactivate users", delete: "Delete users", assignRole: "Assign role" };
 
-/** Filters live in the URL (q, role, status, sort); Load more extends the list. */
-function useFilters(): [UserFilters, (patch: Partial<UserFilters>) => void] {
-  const sp = useSearchParams();
-  const router = useRouter();
-  const path = usePathname();
-  const st = sp.get("status");
-  const sort = sp.get("sort") ?? "name";
-  const f: UserFilters = {
-    q: sp.get("q") ?? "", role: sp.get("role") ?? "", status: st === "active" || st === "inactive" ? st : "",
-    sort: SORTS.some((s) => s.value === sort) ? sort : "name",
-  };
-  const set = (patch: Partial<UserFilters>) => {
-    const next = { ...f, ...patch };
-    const p = new URLSearchParams();
-    for (const [k, v] of Object.entries(next)) if (v && !(k === "sort" && v === "name")) p.set(k, v);
-    router.replace(p.size ? `${path}?${p}` : path, { scroll: false });
-  };
-  return [f, set];
-}
-
 export function UsersPage() {
   const { user: me, can } = useAuth();
   const qc = useQueryClient();
   const router = useRouter();
-  const [f, setFilters] = useFilters();
-  const list = useUserList(f);
+  const t = useTableQuery<UserDto, Filters>({ key: USERS_KEY[0], path: "/api/users", spec: SPEC });
+  const f = t.state;
   const roles = useRoleNames();
   const lastSuperId = useLastSuperadminId();
+  // Selection belongs to the rows on screen: another page, size, sort or filter starts empty.
+  const shown = `${f.page}|${f.pageSize}|${f.sort}|${t.filterQuery}`;
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
+  const [selectedOn, setSelectedOn] = useState(shown);
+  if (selectedOn !== shown) { setSelectedOn(shown); setSelected(new Set()); }
   const [pending, setPending] = useState<Pending | null>(null);
   const [role, setRole] = useState("");
 
-  const rows = useMemo(() => list.data?.pages.flatMap((p) => p.items) ?? [], [list.data]);
-  const total = list.data?.pages[0]?.total;
+  const rows = t.rows;
   const canAct = can("user.edit") || can("user.delete");
   const filtered = f.q !== "" || f.role !== "" || f.status !== "";
-  const change = useCallback((patch: Partial<UserFilters>) => { setSelected(new Set()); setFilters(patch); }, [setFilters]);
+  const set = t.set;
+  const onSearch = useCallback((q: string) => set({ q }), [set]);
   const toggle = (id: string) => setSelected((s) => { const n = new Set(s); if (!n.delete(id)) n.add(id); return n; });
   const columns = useMemo(() => userColumns(canAct ? { has: (id) => selected.has(id), toggle } : undefined), [canAct, selected]);
 
@@ -104,7 +93,6 @@ export function UsersPage() {
     } catch (e) { toast.error(errorText(e)); }
   }
 
-  const paging: DataTablePaging = { mode: "infinite", hasMore: !!list.hasNextPage, loadingMore: list.isFetchingNextPage, onLoadMore: () => void list.fetchNextPage(), total, error: list.isFetchNextPageError };
   const ids = [...selected];
   const dialog = pending && (pending.kind === "bulk"
     ? { title: `${VERB[pending.action]} ${pending.ids.length} ${pending.ids.length === 1 ? "user" : "users"}`, description: BULK_NOTE[pending.action], label: LABEL[pending.action] }
@@ -118,21 +106,20 @@ export function UsersPage() {
     <div className="grid gap-section">
       <PageHeader title="Users" description="Accounts that can sign in, their roles and status."
         actions={can("user.create") ? <Button asChild><Link href="/users/new">Create user</Link></Button> : undefined} />
-      {list.error && list.data && <Notice tone="warn" live>Couldn&apos;t refresh the list; showing the last loaded users.</Notice>}
+      {t.staleError && <Notice tone="warn" live>Couldn&apos;t refresh the users; showing the ones loaded before. {errorText(t.staleError)}</Notice>}
       <Toolbar end={<StatusLegend items={LEGEND} />}>
-        <div className="w-full max-w-80"><QueryInput value={f.q} onChange={(q) => change({ q })} keys={[]} label="Search users" placeholder="Search name, username or email" /></div>
-        <FilterMenu label="Role" value={f.role} options={[{ value: "", label: "Any" }, ...(roles.data ?? []).map((r) => ({ value: r, label: r }))]} onChange={(role) => change({ role })} />
-        <FilterMenu label="Status" value={f.status} options={STATUSES} onChange={(status) => change({ status })} />
-        <FilterMenu label="Sort by" value={f.sort} options={SORTS} onChange={(sort) => change({ sort })} />
-        {filtered && <Button variant="ghost" size="sm" onClick={() => change({ q: "", role: "", status: "" })}>Clear filters</Button>}
+        <div className="w-full max-w-80"><QueryInput value={f.q} onChange={onSearch} keys={[]} label="Search users" placeholder="Search name, username or email" /></div>
+        <FilterMenu label="Role" value={f.role} options={[{ value: "", label: "Any" }, ...(roles.data ?? []).map((r) => ({ value: r, label: r }))]} onChange={(role) => set({ role })} />
+        <FilterMenu label="Status" value={f.status} options={STATUSES} onChange={(status) => set({ status })} />
+        {filtered && <Button variant="ghost" size="sm" onClick={() => set({ q: "", role: "", status: "" })}>Clear filters</Button>}
       </Toolbar>
-      <Panel flush icon={UsersIcon} title="Users" count={total} description="Select rows for bulk actions">
+      <Panel flush icon={UsersIcon} title="Users" count={t.total != null ? `${formatNumber(t.total)}${t.totalCapped ? "+" : ""}` : undefined} description="Select rows for bulk actions">
         {canAct && rows.length > 0 && (
           <div role="region" aria-label="Bulk actions" className="flex min-h-12 flex-wrap items-center gap-2 border-b border-line px-3 py-2">
             <label className="flex items-center gap-2 text-body-sm text-fg-2">
               <input type="checkbox" className="size-4 cursor-pointer accent-primary" checked={selected.size > 0 && rows.every((u) => selected.has(u.id))}
                 onChange={(e) => setSelected(e.target.checked ? new Set(rows.map((u) => u.id)) : new Set())} />
-              {selected.size > 0 ? `${selected.size} selected` : `Select all ${rows.length} loaded`}
+              {selected.size > 0 ? `${selected.size} selected` : `Select all ${rows.length} on this page`}
             </label>
             {selected.size > 0 && <>
               {can("user.edit") && <>
@@ -145,9 +132,9 @@ export function UsersPage() {
             </>}
           </div>
         )}
-        <DataTable label="Users" rowHeight="identity" columns={columns} rows={rows} rowKey={(u) => u.id} loading={list.isPending}
-          isSelected={(u) => selected.has(u.id)} paging={paging}
-          error={list.error && !list.data ? { title: "Couldn't load users", cause: errorText(list.error), onRetry: () => void list.refetch() } : null}
+        <DataTable label="Users" rowHeight="identity" columns={columns} rows={rows} rowKey={(u) => u.id} loading={t.loading}
+          isSelected={(u) => selected.has(u.id)} sort={t.sort} onSortChange={t.onSortChange} paging={t.paging}
+          error={t.loadError ? { title: "Couldn't load users", cause: errorText(t.loadError), onRetry: () => void t.query.refetch() } : null}
           empty={filtered
             ? { icon: UsersIcon, title: "No users match", description: "Change the search or filters, or clear them to see every user." }
             : { icon: UsersIcon, title: "No users yet", description: "Users appear here after you create them." }}

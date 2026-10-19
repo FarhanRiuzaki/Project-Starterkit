@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { ActionMenu, type Column, ConfirmActionDialog, DataTable, Notice, Panel } from "@starterkit/ui/ds";
+import { useCallback, useState } from "react";
+import { ActionMenu, type Column, ConfirmActionDialog, DataTable, Notice, Panel, QueryInput, Toolbar } from "@starterkit/ui/ds";
 import { formatNumber, plural } from "@starterkit/ui/lib/format";
 import { Button } from "@starterkit/ui/ui/button";
 import { KeyIcon } from "@starterkit/ui/ui/icons";
@@ -11,28 +11,36 @@ import { toast } from "@starterkit/ui/ui/sonner";
 import { PageHeader } from "@/components/shell/page-header";
 import { api, errorText } from "@/lib/client/api";
 import { useAuth } from "@/lib/client/auth-context";
+import { useTableQuery } from "@/lib/client/use-table-query";
 import type { RoleDto } from "@/lib/shared/contracts/rbac";
+import { ROLE_SORTS } from "@/lib/shared/paging";
 import { PERMISSIONS } from "@/lib/shared/permissions";
+import { type TableSpec, text } from "@/lib/shared/table-state";
 import { assertRoleName, deleteBlock, RoleNameField } from "./role-name";
-import { rolePage, roleUrl, useAfterRbacChange, useRoles } from "./use-rbac";
+import { RBAC_KEY, rolePage, roleUrl, useAfterRbacChange } from "./use-rbac";
+
+type Filters = { q: string };
+const SPEC: TableSpec<Filters> = { sorts: ROLE_SORTS, defaultSort: "name", search: ["q"], filters: { q: text(200) } };
 
 const LINK = "font-medium text-fg hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary";
 
 export function RolesPage() {
   const { can } = useAuth();
   const router = useRouter();
-  const q = useRoles();
+  const t = useTableQuery<RoleDto, Filters>({ key: RBAC_KEY[0], path: "/api/roles", spec: SPEC });
+  const set = t.set;
+  const onSearch = useCallback((q: string) => set({ q }), [set]);
   const changed = useAfterRbacChange();
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
   const [deleting, setDeleting] = useState<RoleDto | null>(null);
 
   const columns: Column<RoleDto>[] = [
-    { key: "name", header: "Role", icon: KeyIcon, cell: (r) => (
+    { key: "name", header: "Role", icon: KeyIcon, sortable: true, cell: (r) => (
       <span className="flex items-center gap-2"><Link href={rolePage(r.id)} className={LINK}>{r.name}</Link>{r.locked && <span className="text-caption text-fg-3">Locked</span>}</span>
     ) },
-    { key: "permissions", header: "Permissions", cell: (r) => `${formatNumber(r.permissions.length)} of ${formatNumber(PERMISSIONS.length)}` },
-    { key: "users", header: "Users", cell: (r) => (can("user.view") && r.userCount > 0
+    { key: "permissions", header: "Permissions", sortable: true, cell: (r) => `${formatNumber(r.permissions.length)} of ${formatNumber(PERMISSIONS.length)}` },
+    { key: "users", header: "Users", sortable: true, cell: (r) => (can("user.view") && r.userCount > 0
       ? <Link href={`/users?role=${encodeURIComponent(r.name)}`} className="text-fg hover:underline">{plural(r.userCount, "user", "users")}</Link>
       : plural(r.userCount, "user", "users")) },
   ];
@@ -55,11 +63,17 @@ export function RolesPage() {
     <div className="grid gap-section">
       <PageHeader title="Roles" description="Each role is a set of permissions. A user gets the permissions of every role they have."
         actions={can("role.create") ? <Button onClick={() => { setName(""); setCreating(true); }}>Create role</Button> : undefined} />
-      {q.error && q.data && <Notice tone="warn" live>Couldn&apos;t refresh the roles; showing the last loaded list.</Notice>}
-      <Panel flush icon={KeyIcon} title="Roles" count={q.data?.length}>
-        <DataTable label="Roles" columns={columns} rows={q.data ?? []} rowKey={(r) => r.id} loading={q.isPending}
-          error={q.error && !q.data ? { title: "Couldn't load roles", cause: errorText(q.error), onRetry: () => void q.refetch() } : null}
-          empty={{ icon: KeyIcon, title: "No roles yet", description: "Roles appear here after you create them." }}
+      {t.staleError && <Notice tone="warn" live>Couldn&apos;t refresh the roles; showing the ones loaded before. {errorText(t.staleError)}</Notice>}
+      <Toolbar>
+        <div className="w-full max-w-80"><QueryInput value={t.state.q} onChange={onSearch} keys={[]} label="Search roles" placeholder="Search role name" /></div>
+      </Toolbar>
+      <Panel flush icon={KeyIcon} title="Roles" count={t.total != null ? formatNumber(t.total) : undefined}>
+        <DataTable label="Roles" columns={columns} rows={t.rows} rowKey={(r) => r.id} loading={t.loading}
+          sort={t.sort} onSortChange={t.onSortChange} paging={t.paging}
+          error={t.loadError ? { title: "Couldn't load roles", cause: errorText(t.loadError), onRetry: () => void t.query.refetch() } : null}
+          empty={t.state.q
+            ? { icon: KeyIcon, title: "No roles match", description: "Change the search, or clear it to see every role." }
+            : { icon: KeyIcon, title: "No roles yet", description: "Roles appear here after you create them." }}
           rowActions={(r) => {
             const block = deleteBlock(r);
             return <ActionMenu label={`Actions for ${r.name}`} actions={[

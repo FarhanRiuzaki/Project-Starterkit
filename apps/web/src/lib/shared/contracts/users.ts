@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { ListQuery } from "./common";
+import { USER_SORTS } from "../paging";
+import { ListQuery, sortParam } from "./common";
 import { Password } from "./auth";
-import type { SessionDto } from "./me";
 import type { PermissionName } from "../permissions";
 
 export const UserDto = z.object({
@@ -20,10 +20,10 @@ export const UserDto = z.object({
 });
 export type UserDto = z.infer<typeof UserDto>;
 
-export const USER_SORTS = ["name", "email", "lastLoginAt", "createdAt"] as const;
+export { USER_SORTS };
 
 export const UserListQuery = ListQuery.extend({
-  sort: z.string().regex(/^-?[a-zA-Z]+$/).refine((v) => (USER_SORTS as readonly string[]).includes(v.replace(/^-/, ""))).optional(),
+  sort: sortParam(USER_SORTS),
   role: z.string().max(64).optional(),
   status: z.enum(["active", "inactive"]).optional(),
 });
@@ -67,7 +67,10 @@ export type BulkUserBody = z.infer<typeof BulkUserBody>;
 /** One activity row on the user detail page: no before/after. */
 export type ActivityBrief = { id: string; at: string; actor: { name: string }; action: string };
 
-/** GET /api/users/[id]: the user plus what the detail page shows (effective permissions, sessions, last 20 activity entries targeting the user). */
-export type UserDetailDto = UserDto & { permissions: PermissionName[]; sessions: SessionDto[]; recentActivity: ActivityBrief[] | null };
+/**
+ * GET /api/users/[id]: the user plus what the detail page shows (effective permissions, last 20 activity entries
+ * targeting the user). Their sessions are a list of their own: GET /api/users/[id]/sessions.
+ */
+export type UserDetailDto = UserDto & { permissions: PermissionName[]; recentActivity: ActivityBrief[] | null };
 
 export const SetUserStatusBody = z.object({ active: z.boolean() });

@@ -3,12 +3,11 @@ import { CSV_BOM, csvFileName, toCsv } from "@starterkit/ui/lib/csv";
 import { appDayStart, shiftDate } from "@starterkit/ui/lib/format";
 import { changeText, CSV_MAX_ROWS } from "@/lib/shared/audit";
 import type { ActivityDto, ActivityQuery, AuthLogDto, AuthLogQuery } from "@/lib/shared/contracts/audit";
-import { json } from "./api";
 import { db } from "./mock/db";
-import { paginate, type Sorters, sortRows } from "./paginate";
+import { type Sorters, sortRows } from "./paginate";
 
 /** Both logs sort newest first unless the query asks otherwise; CSV is always newest first. */
-const NEWEST = "-at";
+export const NEWEST = "-at";
 
 /** Entry time inside the from–to calendar days (app time zone, both days whole); no range = always. */
 function inRange(from: string | undefined, to: string | undefined): (at: string) => boolean {
@@ -56,12 +55,11 @@ export const AUTH_LOG_CSV: CsvSpec<AuthLogDto> = {
 };
 
 /**
- * The answer of an audit list endpoint: JSON = one page sorted as asked; CSV = the whole filtered list newest first,
- * at most CSV_MAX_ROWS rows, as a UTF-8 (BOM) attachment `<prefix>-<date>.csv`. Cells go through `toCsv`, which
- * neutralises formulas. Never cached.
+ * CSV answer of an audit list endpoint (`format=csv`): the whole filtered list newest first, at most CSV_MAX_ROWS rows,
+ * as a UTF-8 (BOM) attachment `<prefix>-<date>.csv`. Cells go through `toCsv`, which neutralises formulas. Never cached.
+ * The JSON answer is one page: `paginate(rows, q, sorters, NEWEST)` in the route.
  */
-export function auditAnswer<T extends { id: string }>(q: { format: "json" | "csv"; page: number; pageSize: number; sort?: string }, rows: T[], sorters: Sorters<T>, csv: CsvSpec<T>): Response {
-  if (q.format === "json") return json(paginate(rows, q, sorters, NEWEST));
+export function auditCsv<T extends { id: string }>(rows: T[], sorters: Sorters<T>, csv: CsvSpec<T>): Response {
   const body = toCsv([csv.header, ...sortRows(rows, NEWEST, sorters).slice(0, CSV_MAX_ROWS).map(csv.row)]);
   return new Response(CSV_BOM + body, {
     headers: {

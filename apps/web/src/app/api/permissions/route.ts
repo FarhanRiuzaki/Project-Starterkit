@@ -1,11 +1,21 @@
-import { apiError, badRequest, json, withPermission } from "@/lib/server/api";
+import { apiError, badRequest, handleError, json, withPermission } from "@/lib/server/api";
 import { recordActivity } from "@/lib/server/audit";
 import { db } from "@/lib/server/mock/db";
-import { listPermissions } from "@/lib/server/rbac";
-import { CATALOG_MAX, CreatePermissionsBody, type CreatePermissionsResult } from "@/lib/shared/contracts/rbac";
+import { paginate } from "@/lib/server/paginate";
+import { listPermissions, permissionSorters } from "@/lib/server/rbac";
+import { CATALOG_MAX, CreatePermissionsBody, type CreatePermissionsResult, PermissionListQuery } from "@/lib/shared/contracts/rbac";
 
+/** One page of the catalog, catalog order unless `sort` says otherwise; `q` matches the name, `module` is exact. */
 export async function GET(req: Request): Promise<Response> {
-  return withPermission(req, "permission.view", async () => json(listPermissions()));
+  const parsed = PermissionListQuery.safeParse(Object.fromEntries(new URL(req.url).searchParams));
+  if (!parsed.success) return handleError(parsed.error); // 400 before the guard reads anything
+  const q = parsed.data;
+  return withPermission(req, "permission.view", async () => {
+    const all = listPermissions();
+    const needle = q.q?.trim().toLowerCase();
+    const rows = all.filter((p) => (!needle || p.name.includes(needle)) && (!q.module || p.name.startsWith(`${q.module}.`)));
+    return json(paginate(rows, q, permissionSorters(all), "module"));
+  });
 }
 
 /**

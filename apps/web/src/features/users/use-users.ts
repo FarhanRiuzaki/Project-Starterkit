@@ -1,24 +1,10 @@
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/client/api";
 import type { Page } from "@/lib/shared/contracts/common";
 import type { UserDetailDto, UserDto } from "@/lib/shared/contracts/users";
 
 export const USERS_KEY = ["users"] as const;
-export const PAGE_SIZE = 50;
-
-export type UserFilters = { q: string; role: string; status: "" | "active" | "inactive"; sort: string };
-
 const qs = (o: Record<string, string | number>) => new URLSearchParams(Object.entries(o).filter(([, v]) => v !== "").map(([k, v]) => [k, String(v)])).toString();
-
-/** Server-paged list; pages accumulate ("Load more"). Filters and sort are part of the key. */
-export function useUserList(f: UserFilters) {
-  return useInfiniteQuery({
-    queryKey: [...USERS_KEY, "list", f],
-    initialPageParam: 1,
-    queryFn: ({ pageParam }) => api<Page<UserDto>>(`/api/users?${qs({ ...f, page: pageParam, pageSize: PAGE_SIZE })}`),
-    getNextPageParam: (last) => (last.page * last.pageSize < last.total ? last.page + 1 : undefined),
-  });
-}
 
 export const useUserDetail = (id: string) => useQuery({ queryKey: [...USERS_KEY, "detail", id], queryFn: () => api<UserDetailDto>(`/api/users/${encodeURIComponent(id)}`) });
 

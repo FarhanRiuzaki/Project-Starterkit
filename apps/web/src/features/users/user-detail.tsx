@@ -6,10 +6,11 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { BlockedButton, ConfirmActionDialog, type Column, DataTable, Failure, Facts, Notice, Panel, RelativeTime, SecretOnceDialog } from "@starterkit/ui/ds";
 import { Button } from "@starterkit/ui/ui/button";
-import { ActivityIcon, KeyIcon, LogIcon, SecureIcon, SessionsIcon, UsersIcon } from "@starterkit/ui/ui/icons";
+import { ActivityIcon, KeyIcon, LogIcon, SecureIcon, UsersIcon } from "@starterkit/ui/ui/icons";
 import { Skeleton } from "@starterkit/ui/ui/skeleton";
 import { toast } from "@starterkit/ui/ui/sonner";
 import { RoleChips } from "@/components/role-chips";
+import { SessionsTable } from "@/components/sessions-table";
 import { PageHeader } from "@/components/shell/page-header";
 import { api, errorText } from "@/lib/client/api";
 import { useAuth } from "@/lib/client/auth-context";
@@ -21,11 +22,6 @@ import { USERS_KEY, protection, useLastSuperadminId, useUserDetail } from "./use
 
 const PROVIDER = { google: "Google", apple: "Apple" } as const;
 
-const SESSION_COLUMNS: Column<SessionDto>[] = [
-  { key: "device", header: "Device", cell: (s) => <span className="font-medium text-fg">{s.device}{s.current && <span className="ml-2 text-caption font-normal text-primary-ink">Your session</span>}</span> },
-  { key: "ip", header: "IP address", cell: (s) => <span className="font-mono text-mono">{s.ip}</span> },
-  { key: "last", header: "Last active", cell: (s) => <RelativeTime at={Date.parse(s.lastSeenAt)} /> },
-];
 const ACTIVITY_COLUMNS: Column<ActivityBrief>[] = [
   { key: "at", header: "When", cell: (a) => <RelativeTime at={Date.parse(a.at)} /> },
   { key: "actor", header: "By", cell: (a) => a.actor.name },
@@ -99,11 +95,9 @@ export function UserDetail({ id }: { id: string }) {
           </dl>
         </Panel>
       </div>
-      <Panel flush icon={SessionsIcon} title="Active sessions" description="Where this user is signed in" count={u.sessions.length}>
-        <DataTable label="Active sessions" columns={SESSION_COLUMNS} rows={u.sessions} rowKey={(s) => s.id}
-          rowActions={can("user.edit") ? (s) => (s.current ? <span className="text-caption text-fg-3">Your session</span> : <Button size="sm" variant="ghost" onClick={() => setDialog({ end: s })}>End session</Button>) : undefined}
-          empty={{ icon: SessionsIcon, title: "No active sessions", description: "Sessions appear here when this user signs in." }} />
-      </Panel>
+      <SessionsTable queryKey={USERS_KEY[0]} path={`/api/users/${encodeURIComponent(id)}/sessions`} title="Active sessions" description="Where this user is signed in"
+        current="Your session" emptyHint="Sessions appear here when this user signs in."
+        action={can("user.edit") ? (s) => (s.current ? <span className="text-caption text-fg-3">Your session</span> : <Button size="sm" variant="ghost" onClick={() => setDialog({ end: s })}>End session</Button>) : undefined} />
       {u.recentActivity && (
       <Panel flush icon={LogIcon} title="Recent activity" description="The last 20 actions on this user" count={u.recentActivity.length}>
         <DataTable label="Recent activity" columns={ACTIVITY_COLUMNS} rows={u.recentActivity} rowKey={(a) => a.id}

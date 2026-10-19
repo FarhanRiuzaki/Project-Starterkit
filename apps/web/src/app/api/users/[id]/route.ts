@@ -11,15 +11,13 @@ export async function GET(req: Request, { params }: Ctx): Promise<Response> {
   return withPermission(req, "user.view", async (ctx) => {
     const u = db().users.get(id);
     if (!u) return notFound("user");
-    const sessions = [...db().sessions.values()].filter((s) => s.userId === id)
-      .map((s) => ({ id: s.id, device: s.device, ip: s.ip, lastSeenAt: s.lastSeenAt, current: s.id === ctx.sid }));
     // Audit history needs audit.view; the entries carry no before/after snapshots.
     const recentActivity = ctx.perms.has("audit.view")
       ? [...db().activity.values()].filter((a) => a.target.id === id)
         .sort((a, b) => b.at.localeCompare(a.at)).slice(0, 20)
         .map((a) => ({ id: a.id, at: a.at, actor: { name: a.actor.name }, action: a.action }))
       : null;
-    return json({ ...toUserDto(u), permissions: [...effectivePermissions(u, db().roles)], sessions, recentActivity } satisfies UserDetailDto);
+    return json({ ...toUserDto(u), permissions: [...effectivePermissions(u, db().roles)], recentActivity } satisfies UserDetailDto);
   });
 }
 

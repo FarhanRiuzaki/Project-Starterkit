@@ -26,18 +26,6 @@ describe("nextNewKeys", () => {
   it("a scope change while loading (empty keys) baselines on the first rows after", () => {
     expect(run([["a"], [], ["x", "y"]], (i) => ({ enabled: true, scope: i === 0 ? "p" : "q" }))).toEqual([[], [], []]);
   });
-  describe("infinite", () => {
-    const inf = { enabled: true, infinite: true };
-    it("load more appends rows: no flash", () => {
-      expect(run([["a", "b"], ["a", "b", "c", "d"]], inf)).toEqual([[], []]);
-    });
-    it("a row at the head is new; appended rows after it are not", () => {
-      expect(run([["a", "b"], ["n", "a", "b", "c"], ["n", "a", "b", "c"]], inf)).toEqual([[], ["n"], []]);
-    });
-    it("a list with nothing in common is a replacement, not new rows", () => {
-      expect(run([["a", "b"], ["x", "y"]], inf)).toEqual([[], []]);
-    });
-  });
 });
 
 describe("nextUntil", () => {

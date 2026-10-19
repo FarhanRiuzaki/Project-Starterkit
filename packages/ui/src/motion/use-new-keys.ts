@@ -10,26 +10,17 @@ export type NewKeysOpts = {
   enabled: boolean;
   /** Signature of the list's filter / query. A different scope is a different list: it re-baselines, nothing is new. */
   scope?: string;
-  /** Load-more lists: only keys ahead of the first already-seen key (the head) are new; appended pages are not. */
-  infinite?: boolean;
 };
 
 /**
  * R4. The first non-empty key list of a scope is the baseline, so a page load, a filter change or a new query never
  * flashes. After that, a key not seen before is `fresh` in the render it first appears in only (the hook below holds
- * it for the flash). Paging back to or reordering seen keys is never new. In `infinite` mode, keys after the head are
- * pages that were loaded, not rows that arrived: they join `seen` silently. Pure: the hook only stores `state`.
+ * it for the flash). Paging back to or reordering seen keys is never new. Pure: the hook only stores `state`.
  */
-export function nextNewKeys(prev: NewKeysState | null, keys: readonly string[], { enabled, scope = "", infinite = false }: NewKeysOpts): { state: NewKeysState | null; fresh: ReadonlySet<string> } {
+export function nextNewKeys(prev: NewKeysState | null, keys: readonly string[], { enabled, scope = "" }: NewKeysOpts): { state: NewKeysState | null; fresh: ReadonlySet<string> } {
   if (!enabled) return { state: null, fresh: EMPTY };
   if (prev == null || prev.scope !== scope || prev.seen == null) {
     return { state: { scope, seen: keys.length > 0 ? new Set(keys) : null }, fresh: EMPTY };
-  }
-  const head = new Set<string>();
-  if (infinite) {
-    for (const k of keys) { if (prev.seen.has(k)) break; head.add(k); }
-    // Nothing in common with what was seen: a replaced list, not new rows.
-    if (head.size === keys.length) head.clear();
   }
   const fresh = new Set<string>();
   let next: Set<string> | null = null;
@@ -37,7 +28,7 @@ export function nextNewKeys(prev: NewKeysState | null, keys: readonly string[], 
     if (prev.seen.has(k)) continue;
     next ??= new Set(prev.seen);
     next.add(k);
-    if (infinite ? head.has(k) : true) fresh.add(k);
+    fresh.add(k);
   }
   return { state: next ? { scope, seen: next } : prev, fresh: fresh.size ? fresh : EMPTY };
 }

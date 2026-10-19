@@ -10,6 +10,7 @@ vi.mock("next/headers", () => ({
 }));
 
 import { db, resetDb } from "@/lib/server/mock/db";
+import type { Page } from "@/lib/shared/contracts/common";
 import { addSession, signInAs, TEST_CSRF } from "@/test/session";
 import { hashToken, verifyPassword } from "@/lib/server/mock/password";
 import { SEED_PASSWORD } from "@/lib/server/mock/seed";
@@ -18,6 +19,7 @@ import { POST as resetPost } from "../auth/reset/route";
 import { DELETE as userDelete, GET as userGet, PATCH as userPatch } from "./[id]/route";
 import { POST as resetPassword } from "./[id]/reset-password/route";
 import { DELETE as sessionDelete } from "./[id]/sessions/[sid]/route";
+import { GET as sessionsGet } from "./[id]/sessions/route";
 import { POST as statusPost } from "./[id]/status/route";
 import { POST as bulkPost } from "./bulk/route";
 import { GET as rolesGet } from "./roles/route";
@@ -171,16 +173,16 @@ describe("POST /api/users", () => {
 });
 
 describe("GET/PATCH /api/users/[id]", () => {
-  it("GET returns the user with sessions and the last 20 activity entries targeting them", async () => {
+  it("GET returns the user and the last 20 activity entries targeting them (sessions are their own list)", async () => {
     await signIn("admin");
     const target = idOf("viewer");
     addSession(target);
     const mk = (n: number) => db().activity.set(`a${n}`, { id: `a${n}`, at: new Date(Date.UTC(2030, 0, 1, 0, n)).toISOString(), actor: { id: "x", name: "X" }, action: "user.update", target: { type: "user", id: target, label: "Viewer User" }, before: null, after: null });
     for (let n = 0; n < 25; n++) mk(n);
     const r = await userGet(req("GET"), params(target));
-    const body = (await r.json()) as { id: string; sessions: { device: string }[]; recentActivity: { id: string; action: string }[] | null };
+    const body = (await r.json()) as { id: string; sessions?: unknown; recentActivity: { id: string; action: string }[] | null };
     expect(body.id).toBe(target);
-    expect(body.sessions).toHaveLength(1);
+    expect(body.sessions).toBeUndefined();
     expect(body.recentActivity).toHaveLength(20);
     expect(body.recentActivity![0]).toEqual({ id: "a24", at: expect.any(String), actor: { name: "X" }, action: "user.update" }); // no target, before, after
     expect(body.recentActivity!.every((a) => Object.keys(a).sort().join() === "action,actor,at,id")).toBe(true);
@@ -348,6 +350,23 @@ describe("reset password and sessions", () => {
     expect(await code(await resetPassword(req("POST"), params(user.id)))).toBe("self_action");
     await signIn("viewer");
     expect((await resetPassword(req("POST"), params(idOf("apple")))).status).toBe(403);
+  });
+
+  it("GET sessions: user.view, a page of that user's sessions newest first, current one marked, 404 for an unknown user", async () => {
+    const list = (id: string, qs = "") => sessionsGet(req("GET", undefined, `http://c/api/users/${id}/sessions?${qs}`), params(id));
+    const v = idOf("viewer");
+    expect((await list(v)).status).toBe(401);
+    expect((await list(v, "pageSize=10")).status).toBe(400); // before the guard
+    const { sid } = await signIn("viewer");
+    const older = addSession(v);
+    db().sessions.get(older)!.lastSeenAt = "2020-01-01T00:00:00.000Z";
+    addSession(idOf("apple"));
+    const page = (await (await list(v)).json()) as Page<{ id: string; current: boolean }>;
+    expect(page).toMatchObject({ total: 2, page: 1, pageSize: 15 });
+    expect(page.items.map((x) => [x.id, x.current])).toEqual([[sid, true], [older, false]]);
+    expect((await list("nope")).status).toBe(404);
+    db().roles.get("role-viewer")!.permissions = [];
+    expect((await list(v)).status).toBe(403);
   });
 
   it("DELETE session ends another user's session; a session of someone else or an unknown one is 404", async () => {
