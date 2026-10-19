@@ -41,7 +41,7 @@ Nama-nama ini dipakai di lintas task; jangan diganti nama.
 - Permission (RECON-style): `user.{view,create,edit,delete}`, `role.{view,create,edit,delete}`,
   `permission.{view,create}`, `audit.view`. Tipe `PermissionName`. Katalog di `apps/web/src/lib/shared/permissions.ts`.
 - Role seed: `Superadmin` (semua permission, terkunci), `Admin` (semua kecuali `role.*` dan `permission.*`), `Viewer`
-  (semua `*.view` kecuali `permission.view`).
+  (`user.view` dan `audit.view` saja).
 - Bentuk error: `{ error: { code: string; message: string } }`. Kode tetap:
   `unauthenticated`(401) `forbidden`(403) `csrf`(403) `not_found`(404) `bad_request`(400) `duplicate`(409)
   `rate_limited`(429) `invalid_credentials`(401) `account_inactive`(403) `invalid_code`(400) `superadmin_locked`(409)
