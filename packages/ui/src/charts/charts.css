@@ -1,0 +1,41 @@
+/* Chart motion (spec §7.4) and textures (spec §3.3). Recharts' own animation is off; these run once on mount.
+   Reduced motion: no grow, no draw — a 100 ms fade only (spec §7.6). */
+@keyframes chart-grow { from { transform: scaleY(0); } }
+@keyframes chart-grow-x { from { transform: scaleX(0); } }
+@keyframes chart-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@keyframes chart-fade { from { opacity: 0; } }
+
+/* Bars grow from the baseline (the shape sets transform-origin to the baseline), 280 ms, staggered inline. */
+.chart-grow { animation: chart-grow var(--dur-slow) var(--ease-out) both; }
+.chart-hbar { transform-origin: left; animation: chart-grow-x var(--dur-slow) var(--ease-out) both; }
+/* Lines draw once (pathLength = 1 on the curve). Only the curve: markers keep their solid ring. */
+.chart-draw, .chart-line .recharts-line-curve {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+  animation: chart-draw var(--dur-draw) var(--ease-out) both;
+}
+.chart-fade { animation: chart-fade var(--dur-slow) var(--ease-out) both; }
+/* Played once: Recharts remounts shapes on any re-render (hover, refetch, resize), so a settled plot (useSettled)
+   shows them in their final state instead of replaying. */
+[data-settled] .chart-grow, [data-settled] .chart-fade, [data-settled] .chart-draw,
+[data-settled] .chart-line .recharts-line-curve { animation: none; }
+/* Tooltip and inset wells: radius 10 (spec §6.6, §6.7). */
+.chart-tip { border-radius: 10px; animation: chart-fade 120ms linear both; }
+.chart-well { border-radius: 10px; }
+
+/* Bar hover (spec §6.3): while one band is active, the others drop to 40 %. */
+.chart-bars .chart-bar { transition: opacity var(--dur-fast) var(--ease-standard); }
+.chart-bars:has(.chart-bar[data-active="true"]) .chart-bar:not([data-active="true"]) { opacity: 0.4; }
+
+/* 45° stripes, 2 px line / 4 px gap (spec §3.3) for HTML fills; SVG uses the <pattern> in ChartDefs. */
+.chart-stripes { background-image: repeating-linear-gradient(-45deg, var(--stripe) 0 2px, transparent 2px 6px); }
+
+/* Heatmap cells: radius 3, hover ring 2 px fg (spec §6.6); ramp legend steps radius 2. */
+.chart-ramp-step { border-radius: 2px; }
+.chart-cell { border-radius: 3px; transition: box-shadow var(--dur-instant) var(--ease-standard); }
+.chart-cell:hover { box-shadow: 0 0 0 2px var(--fg); position: relative; z-index: 1; }
+
+@media (prefers-reduced-motion: reduce) {
+  .chart-grow, .chart-hbar, .chart-fade { animation: chart-fade var(--dur-instant) linear both; }
+  .chart-draw, .chart-line .recharts-line-curve { animation: chart-fade var(--dur-instant) linear both; stroke-dasharray: none; }
+}

@@ -3,6 +3,7 @@ import path from "node:path";
 import { createElement as h } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { Segmented } from "../ds/segmented";
 import { Tabs, TabsList, TabsTrigger } from "../ui/tabs";
 import { MotionLayer } from "./layer";
 import { PageTransition } from "./page-transition";
@@ -42,5 +43,13 @@ describe("before the layer loads (server HTML, blocked chunk): CSS motion, nothi
     expect(html).toContain("[&amp;_[role=tab][data-state=active]]:after:bg-fg");
     expect(html).toContain('data-state="active"');
     expect(html).not.toContain("motion-indicator");
+  });
+  it("Segmented: the active segment fills itself, no motion indicator", () => {
+    const html = renderToStaticMarkup(h(Segmented, { label: "Range", value: "b", onChange: () => undefined,
+      options: [{ value: "a", label: "A" }, { value: "b", label: "B" }] }));
+    expect(html).toContain('aria-checked="true"');
+    expect(html).toMatch(/aria-checked="true"[^>]*class="[^"]*bg-seg-active/);
+    expect(html).not.toContain("motion-indicator");
+    expect(html).not.toMatch(/opacity:\s*0/);
   });
 });
