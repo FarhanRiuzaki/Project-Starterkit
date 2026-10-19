@@ -3,29 +3,13 @@ import { apiError, badRequest, handleError, json, withPermission } from "@/lib/s
 import { recordActivity } from "@/lib/server/audit";
 import { type UserRecord, db, toUserDto } from "@/lib/server/mock/db";
 import { hashPassword } from "@/lib/server/mock/password";
-import { paginate, type Sorters } from "@/lib/server/paginate";
-import { duplicateOf, roleGrantDenied, rolesExist, sendInvite } from "@/lib/server/users";
+import { duplicateOf, roleGrantDenied, rolesExist, sendInvite, userPage } from "@/lib/server/users";
 import { CreateUserBody, UserListQuery } from "@/lib/shared/contracts/users";
-
-/** Never signed in = no value (sorts last both ways). */
-const USER_SORTERS: Sorters<UserRecord> = {
-  name: (u) => u.name, email: (u) => u.email, lastLoginAt: (u) => (u.lastLoginAt ? Date.parse(u.lastLoginAt) : null), createdAt: (u) => Date.parse(u.createdAt),
-};
 
 export async function GET(req: Request): Promise<Response> {
   const parsed = UserListQuery.safeParse(Object.fromEntries(new URL(req.url).searchParams));
   if (!parsed.success) return handleError(parsed.error); // 400 before the guard reads anything
-  const query = parsed.data;
-  const { q, role, status } = query;
-  return withPermission(req, "user.view", async () => {
-    const needle = q?.trim().toLowerCase();
-    const rows = [...db().users.values()].filter((u) =>
-      (!needle || [u.name, u.username, u.email].some((s) => s.toLowerCase().includes(needle)))
-      && (!role || u.roles.includes(role))
-      && (!status || u.isActive === (status === "active")));
-    const page = paginate(rows, query, USER_SORTERS, "name");
-    return json({ ...page, items: page.items.map(toUserDto) });
-  });
+  return withPermission(req, "user.view", async () => json(userPage(parsed.data)));
 }
 
 export async function POST(req: Request): Promise<Response> {

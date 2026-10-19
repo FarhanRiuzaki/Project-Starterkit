@@ -129,14 +129,30 @@ const NON_LIST_GETS: Record<string, string> = {
   "users/[id]/route.ts": "one user; its recent activity is fixed at 20",
 };
 
-/** A GET route not in `allow` must call paginate( in its GET handler; an `allow` entry must name a route that has a GET. */
+/**
+ * lib/server read functions that page with paginate( (userPage, rolePage, …): one function per resource, shared by
+ * its GET route and the server prefetch. An exported function or const counts when its own text calls paginate(.
+ */
+function pagers(fs: F[]): string[] {
+  return fs.filter(({ r }) => r.startsWith(`${WEB}lib/server/`)).flatMap(({ src }) => {
+    const s = strip(src);
+    const fns = [...s.matchAll(/export\s+(?:async\s+)?(?:function\s+(\w+)|const\s+(\w+)\s*=)/g)];
+    return fns.flatMap((m, i) => (/\bpaginate\(/.test(s.slice(m.index, fns[i + 1]?.index ?? s.length)) ? [m[1] ?? m[2]!] : []));
+  });
+}
+
+/**
+ * A GET route not in `allow` must page in its GET handler: paginate( itself or a lib/server pager; an `allow` entry
+ * must name a route that has a GET.
+ */
 function listGetViolations(fs: F[], allow: Record<string, string> = NON_LIST_GETS): string[] {
+  const paging = new RegExp(`\\b(?:${["paginate", ...pagers(fs)].join("|")})\\(`);
   const gets = fs.filter(({ r }) => ROUTE.test(r)).flatMap(({ r, src }) => {
     const get = handlers(strip(src)).find((h) => h.method === "GET");
     return get ? [{ key: r.slice(`${WEB}app/api/`.length), body: get.body }] : [];
   });
   return [
-    ...gets.filter((g) => !(g.key in allow) && !/\bpaginate\(/.test(g.body)).map((g) => `app/api/${g.key}: GET answers a list without paginate(`),
+    ...gets.filter((g) => !(g.key in allow) && !paging.test(g.body)).map((g) => `app/api/${g.key}: GET answers a list without paginate(`),
     ...Object.keys(allow).filter((k) => !gets.some((g) => g.key === k)).map((k) => `app/api/${k}: listed as a non-list GET but has no GET handler`),
   ];
 }
@@ -237,7 +253,7 @@ describe("architecture", () => {
     expect(motionLiteralViolations(files, cssFiles)).toEqual([]);
   });
 
-  it("every GET route that answers a list pages it with paginate(; the non-list allowlist is exact", () => {
+  it("every GET route that answers a list pages it with paginate( (itself or a lib/server pager); the non-list allowlist is exact", () => {
     expect(listGetViolations(files)).toEqual([]);
   });
 
@@ -371,9 +387,13 @@ export async function POST(req: Request) { recordActivity(ctx, e); return json(1
       route(guarded("json(db().users.get(id))"), "users/[id]"),
       route(`export async function POST(req: Request) { return withPermission(req, "x", async () => json([])); }`, "bulk"),
       route(guarded("json(rows) // paginate( only in a comment"), "logs"),
+      route(guarded("json(userPage(q))"), "people"),
+      route(guarded("json(rowsOf(q))"), "things"),
+      f(`${WEB}lib/server/people.ts`, `export function userPage(q: Q) { return paginate(rows(), q, S, "name"); }\nexport const rowsOf = (q: Q) => rows(q);`),
     ], { "users/[id]/route.ts": "one user", "gone/route.ts": "removed route" })).toEqual([
       "app/api/users/route.ts: GET answers a list without paginate(",
       "app/api/logs/route.ts: GET answers a list without paginate(",
+      "app/api/things/route.ts: GET answers a list without paginate(",
       "app/api/gone/route.ts: listed as a non-list GET but has no GET handler",
     ]);
   });

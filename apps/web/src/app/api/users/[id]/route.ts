@@ -1,23 +1,16 @@
 import { apiError, badRequest, blocked, json, notFound, withPermission } from "@/lib/server/api";
 import { recordActivity } from "@/lib/server/audit";
 import { db, toUserDto } from "@/lib/server/mock/db";
-import { checkUserChange, effectivePermissions } from "@/lib/server/mock/rules";
-import { dropTokens, duplicateOf, endSessions, roleGrantDenied, rolesExist } from "@/lib/server/users";
-import { UpdateUserBody, type UserDetailDto } from "@/lib/shared/contracts/users";
+import { checkUserChange } from "@/lib/server/mock/rules";
+import { dropTokens, duplicateOf, endSessions, roleGrantDenied, rolesExist, userDetail } from "@/lib/server/users";
+import { UpdateUserBody } from "@/lib/shared/contracts/users";
 
 type Ctx = { params: Promise<{ id: string }> };
 export async function GET(req: Request, { params }: Ctx): Promise<Response> {
   const { id } = await params;
   return withPermission(req, "user.view", async (ctx) => {
-    const u = db().users.get(id);
-    if (!u) return notFound("user");
-    // Audit history needs audit.view; the entries carry no before/after snapshots.
-    const recentActivity = ctx.perms.has("audit.view")
-      ? [...db().activity.values()].filter((a) => a.target.id === id)
-        .sort((a, b) => b.at.localeCompare(a.at)).slice(0, 20)
-        .map((a) => ({ id: a.id, at: a.at, actor: { name: a.actor.name }, action: a.action }))
-      : null;
-    return json({ ...toUserDto(u), permissions: [...effectivePermissions(u, db().roles)], recentActivity } satisfies UserDetailDto);
+    const u = userDetail(id, ctx);
+    return u ? json(u) : notFound("user");
   });
 }
 

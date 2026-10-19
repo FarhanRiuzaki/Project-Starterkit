@@ -1,7 +1,6 @@
 import { handleError, json, notFound, withPermission } from "@/lib/server/api";
 import { db } from "@/lib/server/mock/db";
-import { paginate } from "@/lib/server/paginate";
-import { SESSION_SORTERS, sessionsOf, toSessionDto } from "@/lib/server/users";
+import { sessionPage } from "@/lib/server/users";
 import { SessionListQuery } from "@/lib/shared/contracts/me";
 
 /** One page of a user's sessions, newest activity first unless `sort` says otherwise; the caller's own is marked current. */
@@ -12,7 +11,6 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const q = parsed.data;
   return withPermission(req, "user.view", async (ctx) => {
     if (!db().users.has(id)) return notFound("user");
-    const page = paginate(sessionsOf(id), q, SESSION_SORTERS, "-lastSeenAt");
-    return json({ ...page, items: page.items.map((s) => toSessionDto(s, ctx.sid)) });
+    return json(sessionPage(id, q, ctx.sid));
   });
 }

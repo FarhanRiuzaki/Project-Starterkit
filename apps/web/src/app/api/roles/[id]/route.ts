@@ -2,7 +2,7 @@ import { apiError, badRequest, blocked, json, notFound, withPermission } from "@
 import { recordActivity } from "@/lib/server/audit";
 import { db } from "@/lib/server/mock/db";
 import { checkPermissionGrant, checkRoleChange } from "@/lib/server/mock/rules";
-import { inCatalogOrder, renameRoleOnUsers, roleNameTaken, toRoleDto } from "@/lib/server/rbac";
+import { inCatalogOrder, renameRoleOnUsers, roleById, roleNameTaken, toRoleDto } from "@/lib/server/rbac";
 import { UpdateRoleBody } from "@/lib/shared/contracts/rbac";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -10,8 +10,8 @@ type Ctx = { params: Promise<{ id: string }> };
 export async function GET(req: Request, { params }: Ctx): Promise<Response> {
   const { id } = await params;
   return withPermission(req, "role.view", async () => {
-    const r = db().roles.get(id);
-    return r ? json(toRoleDto(r)) : notFound("role");
+    const r = roleById(id);
+    return r ? json(r) : notFound("role");
   });
 }
 

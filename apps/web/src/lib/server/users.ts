@@ -1,11 +1,15 @@
 import { randomBytes, randomInt } from "node:crypto";
 import { apiError } from "./api";
 import { log } from "./logger";
-import { db, type SessionRecord, type UserRecord } from "./mock/db";
+import { db, type SessionRecord, toUserDto, type UserRecord } from "./mock/db";
 import { hashToken } from "./mock/password";
-import { checkRoleGrant } from "./mock/rules";
-import type { Sorters } from "./paginate";
-import type { SessionDto } from "@/lib/shared/contracts/me";
+import { checkRoleGrant, effectivePermissions } from "./mock/rules";
+import { paginate, type Sorters } from "./paginate";
+import type { AuthCtx } from "./session";
+import type { Page } from "@/lib/shared/contracts/common";
+import type { SessionDto, SessionListQuery } from "@/lib/shared/contracts/me";
+import type { RoleOption, RoleOptionQuery } from "@/lib/shared/contracts/rbac";
+import type { UserDetailDto, UserDto, UserListQuery } from "@/lib/shared/contracts/users";
 import type { PermissionName } from "@/lib/shared/permissions";
 
 const INVITE_TTL_MS = 72 * 3600_000;
@@ -30,6 +34,52 @@ export const rolesExist = (roles: readonly string[]): boolean => {
   const names = new Set([...db().roles.values()].map((r) => r.name));
   return roles.every((r) => names.has(r));
 };
+
+// Read functions: one per resource, called by its GET route and by the page's server prefetch (lib/server/prefetch.tsx)
+// after the same permission check, so both answer the same data.
+
+/** Never signed in = no value (sorts last both ways). */
+const USER_SORTERS: Sorters<UserRecord> = {
+  name: (u) => u.name, email: (u) => u.email, lastLoginAt: (u) => (u.lastLoginAt ? Date.parse(u.lastLoginAt) : null), createdAt: (u) => Date.parse(u.createdAt),
+};
+
+/** One page of users (GET /api/users): `q` matches name, username or email; `role` and `status` are exact. */
+export function userPage(query: UserListQuery): Page<UserDto> {
+  const { q, role, status } = query;
+  const needle = q?.trim().toLowerCase();
+  const rows = [...db().users.values()].filter((u) =>
+    (!needle || [u.name, u.username, u.email].some((s) => s.toLowerCase().includes(needle)))
+    && (!role || u.roles.includes(role))
+    && (!status || u.isActive === (status === "active")));
+  const page = paginate(rows, query, USER_SORTERS, "name");
+  return { ...page, items: page.items.map(toUserDto) };
+}
+
+/** Role options for pickers (GET /api/users/roles): one page of { id, name }, name A–Z; `q` matches the name. */
+export function roleOptionPage(q: RoleOptionQuery): Page<RoleOption> {
+  const needle = q.q?.trim().toLowerCase();
+  const rows: RoleOption[] = [...db().roles.values()].filter((r) => !needle || r.name.toLowerCase().includes(needle)).map((r) => ({ id: r.id, name: r.name }));
+  return paginate(rows, q, { name: (r) => r.name }, "name");
+}
+
+/** One user with effective permissions (GET /api/users/[id]); recent activity only with audit.view. Null = no such user. */
+export function userDetail(id: string, ctx: AuthCtx): UserDetailDto | null {
+  const u = db().users.get(id);
+  if (!u) return null;
+  // Audit history needs audit.view; the entries carry no before/after snapshots.
+  const recentActivity = ctx.perms.has("audit.view")
+    ? [...db().activity.values()].filter((a) => a.target.id === id)
+      .sort((a, b) => b.at.localeCompare(a.at)).slice(0, 20)
+      .map((a) => ({ id: a.id, at: a.at, actor: { name: a.actor.name }, action: a.action }))
+    : null;
+  return { ...toUserDto(u), permissions: [...effectivePermissions(u, db().roles)], recentActivity };
+}
+
+/** One page of a user's sessions (GET /api/me/sessions, GET /api/users/[id]/sessions), newest activity first by default; `currentSid` is marked. */
+export function sessionPage(userId: string, q: SessionListQuery, currentSid: string): Page<SessionDto> {
+  const page = paginate(sessionsOf(userId), q, SESSION_SORTERS, "-lastSeenAt");
+  return { ...page, items: page.items.map((s) => toSessionDto(s, currentSid)) };
+}
 
 /** Store sessions of one user (unsorted); GET /api/me/sessions and GET /api/users/[id]/sessions page them. */
 export const sessionsOf = (userId: string): SessionRecord[] => [...db().sessions.values()].filter((s) => s.userId === userId);

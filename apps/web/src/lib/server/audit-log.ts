@@ -4,7 +4,8 @@ import { appDayStart, shiftDate } from "@starterkit/ui/lib/format";
 import { changeText, CSV_MAX_ROWS } from "@/lib/shared/audit";
 import type { ActivityDto, ActivityQuery, AuthLogDto, AuthLogQuery } from "@/lib/shared/contracts/audit";
 import { db } from "./mock/db";
-import { type Sorters, sortRows } from "./paginate";
+import type { Page } from "@/lib/shared/contracts/common";
+import { paginate, type Sorters, sortRows } from "./paginate";
 
 /** Both logs sort newest first unless the query asks otherwise; CSV is always newest first. */
 export const NEWEST = "-at";
@@ -41,6 +42,11 @@ export function authLogRows(q: AuthLogQuery): AuthLogDto[] {
 }
 
 type Cell = string | number | null;
+/** One page of the activity log (GET /api/audit/activity and the /audit/activity prefetch), newest first by default. */
+export const activityPage = (q: ActivityQuery): Page<ActivityDto> => paginate(activityRows(q), q, ACTIVITY_SORTERS, NEWEST);
+/** One page of the sign-in log (GET /api/audit/auth and the /audit/auth prefetch), newest first by default. */
+export const authLogPage = (q: AuthLogQuery): Page<AuthLogDto> => paginate(authLogRows(q), q, AUTH_LOG_SORTERS, NEWEST);
+
 export type CsvSpec<T> = { prefix: string; header: string[]; row: (r: T) => Cell[] };
 
 export const ACTIVITY_CSV: CsvSpec<ActivityDto> = {
