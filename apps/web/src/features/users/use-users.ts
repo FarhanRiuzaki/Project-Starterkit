@@ -4,24 +4,22 @@ import { api } from "@/lib/client/api";
 import type { Page } from "@/lib/shared/contracts/common";
 import type { RoleOption } from "@/lib/shared/contracts/rbac";
 import type { UserDetailDto, UserDto } from "@/lib/shared/contracts/users";
+import { roleOptions, SUPERADMINS, userDetail, USERS_KEY } from "@/lib/shared/queries";
 
-export const USERS_KEY = ["users"] as const;
-const qs = (o: Record<string, string | number>) => new URLSearchParams(Object.entries(o).filter(([, v]) => v !== "").map(([k, v]) => [k, String(v)])).toString();
+export { USERS_KEY };
 
-export const useUserDetail = (id: string) => useQuery({ queryKey: [...USERS_KEY, "detail", id], queryFn: () => api<UserDetailDto>(`/api/users/${encodeURIComponent(id)}`) });
-
-/** Role pickers ask for one page of 100; beyond that they search on the server. */
-const ROLE_PAGE = 100;
+export function useUserDetail(id: string) {
+  const { key, url } = userDetail(id);
+  return useQuery({ queryKey: key, queryFn: () => api<UserDetailDto>(url) });
+}
 
 /**
  * Role names for pickers (filter, bulk assign, user form): the first 100 by name, or those matching `q`.
  * `more` = roles exist beyond this page, so the picker offers type-to-search instead of a fixed list.
  */
 export function useRoleNames(q = "") {
-  const query = useQuery({
-    queryKey: [...USERS_KEY, "roles", q], staleTime: 60_000, placeholderData: keepPreviousData,
-    queryFn: () => api<Page<RoleOption>>(`/api/users/roles?${qs({ pageSize: ROLE_PAGE, q })}`),
-  });
+  const { key, url } = roleOptions(q);
+  const query = useQuery({ queryKey: key, staleTime: 60_000, placeholderData: keepPreviousData, queryFn: () => api<Page<RoleOption>>(url) });
   const data = query.data;
   return { query, names: data?.items.map((r) => r.name) ?? [], more: !!data && data.total > data.items.length };
 }
@@ -38,10 +36,7 @@ export function useDebounced<T>(value: T, ms = 200): T {
 
 /** Id of the only active Superadmin, or null when there are several (that user can't be deactivated or deleted). */
 export function useLastSuperadminId(): string | null {
-  const q = useQuery({
-    queryKey: [...USERS_KEY, "superadmins"],
-    queryFn: () => api<Page<UserDto>>(`/api/users?${qs({ role: "Superadmin", status: "active" })}`),
-  });
+  const q = useQuery({ queryKey: SUPERADMINS.key, queryFn: () => api<Page<UserDto>>(SUPERADMINS.url) });
   return q.data && q.data.total === 1 ? q.data.items[0]!.id : null;
 }
 

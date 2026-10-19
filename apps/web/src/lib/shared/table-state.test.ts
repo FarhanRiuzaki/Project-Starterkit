@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { historyMode, isoDate, oneOf, readTable, sortState, tableView, text, toSortParam, writeTable } from "./table-state";
+import { historyMode, isoDate, oneOf, readTable, sortState, tableRequest, tableView, text, toSortParam, writeTable } from "./table-state";
 
 const SPEC = {
   sorts: ["at", "login"], defaultSort: "-at", search: ["user"] as const,
@@ -23,6 +23,19 @@ describe("readTable", () => {
     expect(read(`user=${"x".repeat(80)}`).user).toHaveLength(64);
     expect(read("from=2026-02-28").from).toBe("2026-02-28");
     for (const d of ["2026-02-30", "2026-2-1", "20261001", "2026-10-01T00:00", "x"]) expect(read(`from=${d}`).from).toBe("");
+  });
+});
+
+describe("tableRequest (the query key the browser hook and the server prefetch share)", () => {
+  it("filters first (empty ones dropped), then page, pageSize and sort", () => {
+    expect(tableRequest("/api/audit/auth", read("user=ann&page=2"), SPEC)).toEqual({
+      filterQuery: "user=ann&range=7d", url: "/api/audit/auth?user=ann&range=7d&page=2&pageSize=15&sort=-at",
+    });
+    expect(tableRequest("/api/audit/auth", read(""), { ...SPEC, filters: {} } as never).url).toBe("/api/audit/auth?page=1&pageSize=15&sort=-at");
+  });
+  it("`params` maps the URL filters to API parameters first", () => {
+    const r = tableRequest("/api/x", read("range=30d"), SPEC, ({ range, ...f }) => ({ ...f, days: range === "30d" ? "30" : "7" }));
+    expect(r.url).toBe("/api/x?days=30&page=1&pageSize=15&sort=-at");
   });
 });
 

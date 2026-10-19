@@ -12,23 +12,14 @@ import { toast } from "@starterkit/ui/ui/sonner";
 import { PageHeader } from "@/components/shell/page-header";
 import { download, errorText } from "@/lib/client/api";
 import { useTableQuery } from "@/lib/client/use-table-query";
-import { AUDIT_RANGES, type AuditRange, CSV_MAX_ROWS, MAX_RANGE_DAYS, presetRange, RANGE_LABEL, rangeProblem } from "@/lib/shared/audit";
-import { type FilterParser, isoDate, oneOf, type TableSpec, type TableState, text } from "@/lib/shared/table-state";
+import { AUDIT_RANGES, CSV_MAX_ROWS, MAX_RANGE_DAYS, RANGE_LABEL, rangeProblem } from "@/lib/shared/audit";
+import { type AuditFilters, customRange, type TableDef } from "@/lib/shared/queries";
+import type { FilterParser, TableState } from "@/lib/shared/table-state";
 
 const EntryDialog = dynamic(() => import("./entry-dialog").then((m) => m.EntryDialog), { ssr: false });
 
-/** Filters both logs share: who (free text, debounced) and the range: a preset, or a custom from–to pair that wins when valid. */
-export type AuditFilters = { user: string; range: AuditRange; from: string; to: string };
-export const AUDIT_FILTERS = { user: text(64), range: oneOf(AUDIT_RANGES, "7d"), from: isoDate, to: isoDate } satisfies { [K in keyof AuditFilters]: FilterParser<AuditFilters[K]> };
-/** The filter typed into (debounced): its URL updates replace the history entry. */
-export const AUDIT_SEARCH = ["user"] as const;
 /** Filters that set the time range, not the match: "Clear filters" leaves them. */
 const RANGE_KEYS = new Set(["range", "from", "to"]);
-
-const customRange = (f: { from: string; to: string }) => (f.from && f.to && rangeProblem(f.from, f.to) === null ? { from: f.from, to: f.to } : null);
-/** API parameters: a valid custom from–to, else the preset as from/to calendar dates (app time zone, today included). */
-const toParams = ({ range, from, to, ...rest }: AuditFilters & Record<string, string>) =>
-  ({ ...rest, ...(customRange({ from, to }) ?? presetRange(range, Date.now())) });
 
 const RANGE_ERROR = {
   pair: "Pick an end date too.",
@@ -85,17 +76,16 @@ export type AuditDetail = { title: string; rows: [string, ReactNode][]; extra?: 
 /**
  * The page both audit logs share: header with the range picker, user search + the log's own filters, a server-driven
  * table (paging, sort, filters in the URL), CSV export of the same filters, and a read-only detail dialog per row.
- * `spec` must be a module constant whose filters include AUDIT_FILTERS.
+ * `table` is a lib/shared/queries constant (ACTIVITY, AUTH_LOG): its filters include the shared audit filters.
  */
 export function AuditTable<T extends { id: string; at: string }, F extends AuditFilters>({
-  title, description, noun, icon, path, spec, columns, rowLabel, filters, legend, emptyHint, detail,
+  title, description, noun, icon, table, columns, rowLabel, filters, legend, emptyHint, detail,
 }: {
   title: string; description: string;
   /** Plural, lower case: "activity entries". */
   noun: string;
   icon: IconData;
-  path: "/api/audit/activity" | "/api/audit/auth";
-  spec: TableSpec<F>;
+  table: TableDef<F>;
   columns: Column<T>[];
   /** Names the row for its "View entry" button. */
   rowLabel: (r: T) => string;
@@ -107,7 +97,8 @@ export function AuditTable<T extends { id: string; at: string }, F extends Audit
   emptyHint: string;
   detail: (r: T) => AuditDetail;
 }) {
-  const t = useTableQuery<T, F>({ key: path, path, spec, params: toParams });
+  const { path, spec } = table;
+  const t = useTableQuery<T, F>(table);
   const f = t.state;
   const [open, setOpen] = useState<T | null>(null);
   const [exporting, setExporting] = useState(false);

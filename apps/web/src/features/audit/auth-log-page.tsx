@@ -4,18 +4,12 @@ import { type Column, CopyValue, FilterMenu, StatusChip, Truncate } from "@start
 import { formatDateTimeLong } from "@starterkit/ui/lib/format";
 import type { Health } from "@starterkit/ui/lib/status";
 import { SessionsIcon } from "@starterkit/ui/ui/icons";
-import { AUTH_EVENTS, AUTH_LOG_SORTS, AUTH_METHODS, EVENT_LABEL, METHOD_LABEL } from "@/lib/shared/audit";
+import { AUTH_EVENTS, AUTH_METHODS, EVENT_LABEL, METHOD_LABEL } from "@/lib/shared/audit";
 import type { AuthLogDto } from "@/lib/shared/contracts/audit";
-import { oneOf, type TableSpec } from "@/lib/shared/table-state";
-import { AUDIT_FILTERS, AUDIT_SEARCH, type AuditFilters, AuditTable, timeCell } from "./audit-table";
+import { AUTH_LOG, type AuthLogFilters } from "@/lib/shared/queries";
+import { AuditTable, timeCell } from "./audit-table";
 
 type Event = AuthLogDto["event"];
-type Method = AuthLogDto["method"];
-type Filters = AuditFilters & { event: Event | ""; method: Method | "" };
-const SPEC: TableSpec<Filters> = {
-  sorts: AUTH_LOG_SORTS, defaultSort: "-at", search: AUDIT_SEARCH,
-  filters: { ...AUDIT_FILTERS, event: oneOf(["", ...AUTH_EVENTS], ""), method: oneOf(["", ...AUTH_METHODS], "") },
-};
 const EVENTS = [{ value: "" as const, label: "Any" }, ...AUTH_EVENTS.map((e) => ({ value: e, label: EVENT_LABEL[e] }))];
 const METHODS = [{ value: "" as const, label: "Any" }, ...AUTH_METHODS.map((m) => ({ value: m, label: METHOD_LABEL[m] }))];
 
@@ -42,7 +36,7 @@ const COLUMNS: Column<AuthLogDto>[] = [
 /** Sign-in log: sign-ins, failed attempts, one-time codes and sign-outs, with method, IP, device and location. */
 export function AuthLogPage() {
   return (
-    <AuditTable<AuthLogDto, Filters> title="Sign-in log" noun="sign-in entries" icon={SessionsIcon} path="/api/audit/auth" spec={SPEC}
+    <AuditTable<AuthLogDto, AuthLogFilters> title="Sign-in log" noun="sign-in entries" icon={SessionsIcon} table={AUTH_LOG}
       description="Sign-ins, failed attempts, one-time codes and sign-outs, with the method, IP address and device."
       columns={COLUMNS} rowLabel={(r) => `${EVENT_LABEL[r.event]}, ${r.login}`} legend={LEGEND}
       emptyHint="Entries appear here each time someone signs in, enters a one-time code or signs out."

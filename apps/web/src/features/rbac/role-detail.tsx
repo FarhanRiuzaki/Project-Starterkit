@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { BlockedButton, ConfirmActionDialog, EmptyState, Failure, Notice, Panel } from "@starterkit/ui/ds";
+import { useDelayedFlag } from "@starterkit/ui/motion";
 import { formatNumber, plural } from "@starterkit/ui/lib/format";
 import { Button } from "@starterkit/ui/ui/button";
 import { KeyIcon, NotFoundIcon } from "@starterkit/ui/ui/icons";
@@ -31,6 +32,8 @@ export function RoleDetail({ id }: { id: string }) {
   /** Set once this page deleted the role: stop fetching it, drop it from the cache when the page goes away. */
   const [deleted, setDeleted] = useState(false);
   const q = useRole(id, !deleted);
+  // No flash: the loading shape appears after 150 ms and then stays at least 300 ms (it holds its place hidden before).
+  const skeleton = useDelayedFlag(!q.data && !q.error);
   const changed = useAfterRbacChange();
   const [draft, setDraft] = useState<Draft | null>(null);
   const [dialog, setDialog] = useState<Dialog>(null);
@@ -47,7 +50,7 @@ export function RoleDetail({ id }: { id: string }) {
   }
   if (q.error && !q.data) return <div className="grid gap-section"><PageHeader title="Role" /><Panel><Failure title="Couldn't load this role" error={q.error} source="Starterkit" onRetry={() => void q.refetch()} /></Panel></div>;
   const r = q.data;
-  if (!r) return <div className="grid gap-section" aria-busy="true"><PageHeader title="Role" /><Skeleton className="h-60 w-full" /></div>;
+  if (!r || skeleton) return <div className={skeleton ? "grid gap-section" : "invisible grid gap-section"} aria-busy={skeleton || undefined}><PageHeader title="Role" /><Skeleton className="h-60 w-full" /></div>;
 
   const saved = new Set(r.permissions);
   // Unsaved edits as add / remove: the matrix shows the server's current set with them applied, and Save sends only

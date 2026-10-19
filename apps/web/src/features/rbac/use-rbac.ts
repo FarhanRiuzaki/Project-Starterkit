@@ -2,13 +2,11 @@ import { hashKey, type QueryKey, useQuery, useQueryClient } from "@tanstack/reac
 import { useRouter } from "next/navigation";
 import { ApiError, api } from "@/lib/client/api";
 import type { RoleDto } from "@/lib/shared/contracts/rbac";
+import { RBAC_KEY, roleKey, roleUrl } from "@/lib/shared/queries";
 
-export const RBAC_KEY = ["rbac"] as const;
-
-/** One place that encodes a role id: its API URL, its page and its query key. */
-export const roleUrl = (id: string) => `/api/roles/${encodeURIComponent(id)}`;
+/** One place that encodes a role id: its API URL and query key (lib/shared/queries), and its page. */
+export { RBAC_KEY, roleKey, roleUrl };
 export const rolePage = (id: string) => `/roles/${encodeURIComponent(id)}`;
-export const roleKey = (id: string) => [...RBAC_KEY, "role", id] as const;
 
 export const isNotFound = (e: unknown) => e instanceof ApiError && e.status === 404;
 

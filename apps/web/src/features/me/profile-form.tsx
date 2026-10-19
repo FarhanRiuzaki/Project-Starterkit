@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useState } from "react";
 import { Failure, Field, Panel } from "@starterkit/ui/ds";
+import { Reveal } from "@starterkit/ui/motion";
 import { Button } from "@starterkit/ui/ui/button";
 import { Icon } from "@starterkit/ui/ui/icon";
 import { IdentityIcon, SpinnerIcon } from "@starterkit/ui/ui/icons";
@@ -19,9 +20,9 @@ export function ProfileForm() {
   if (q.error && !q.data) return <Panel><Failure title="Couldn't load your profile" error={q.error} source="Starterkit" onRetry={() => void q.refetch()} /></Panel>;
   return (
     <Panel icon={IdentityIcon} title="Profile" description="Shown to other users and in the activity log">
-      {q.data ? <Form key={q.data.id} user={q.data} /> : (
-        <div className="grid max-w-md gap-4" aria-busy="true"><Skeleton className="h-8 w-full" /><Skeleton className="h-8 w-full" /><Skeleton className="h-8 w-full" /></div>
-      )}
+      <Reveal loading={!q.data} skeleton={<div className="grid max-w-md gap-4"><Skeleton className="h-8 w-full" /><Skeleton className="h-8 w-full" /><Skeleton className="h-8 w-full" /></div>}>
+        {q.data && <Form key={q.data.id} user={q.data} />}
+      </Reveal>
     </Panel>
   );
 }

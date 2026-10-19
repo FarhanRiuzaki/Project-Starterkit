@@ -3,18 +3,11 @@
 import { Avatar, type Column, CopyValue, FilterMenu, Truncate } from "@starterkit/ui/ds";
 import { formatDateTimeLong } from "@starterkit/ui/lib/format";
 import { LogIcon } from "@starterkit/ui/ui/icons";
-import { ACTION_OPTIONS, ACTIVITY_SORTS, actionLabel } from "@/lib/shared/audit";
+import { actionLabel } from "@/lib/shared/audit";
 import type { ActivityDto } from "@/lib/shared/contracts/audit";
-import { oneOf, type TableSpec } from "@/lib/shared/table-state";
-import { AUDIT_FILTERS, AUDIT_SEARCH, type AuditFilters, AuditTable, timeCell } from "./audit-table";
+import { ACTIONS, ACTIVITY, type ActivityFilters } from "@/lib/shared/queries";
+import { AuditTable, timeCell } from "./audit-table";
 import { DiffView } from "./diff-view";
-
-type Filters = AuditFilters & { action: string };
-const ACTIONS = [{ value: "", label: "Any" }, ...ACTION_OPTIONS];
-const SPEC: TableSpec<Filters> = {
-  sorts: ACTIVITY_SORTS, defaultSort: "-at", search: AUDIT_SEARCH,
-  filters: { ...AUDIT_FILTERS, action: oneOf(ACTIONS.map((a) => a.value), "") },
-};
 
 const COLUMNS: Column<ActivityDto>[] = [
   { key: "at", header: "Time", sortable: true, cell: (r) => timeCell(r.at) },
@@ -30,7 +23,7 @@ const COLUMNS: Column<ActivityDto>[] = [
 /** Activity log: who changed what, on which record, when. */
 export function ActivityPage() {
   return (
-    <AuditTable<ActivityDto, Filters> title="Activity log" noun="activity entries" icon={LogIcon} path="/api/audit/activity" spec={SPEC}
+    <AuditTable<ActivityDto, ActivityFilters> title="Activity log" noun="activity entries" icon={LogIcon} table={ACTIVITY}
       description="Changes to users, roles, permissions and profiles: who made them, to which record, and when."
       columns={COLUMNS} rowLabel={(r) => `${actionLabel(r.action)}, ${r.target.label}`}
       emptyHint="Entries appear here when someone changes a user, role, permission or their own profile."

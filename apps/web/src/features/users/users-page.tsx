@@ -16,18 +16,13 @@ import { useAuth } from "@/lib/client/auth-context";
 import { useTableQuery } from "@/lib/client/use-table-query";
 import type { BulkResult } from "@/lib/shared/contracts/common";
 import type { UserDto } from "@/lib/shared/contracts/users";
-import { USER_SORTS } from "@/lib/shared/paging";
-import { oneOf, type TableSpec, text } from "@/lib/shared/table-state";
+import { USER_STATUSES, type UserFilters, USERS } from "@/lib/shared/queries";
 import { RoleSearch } from "./role-search";
 import { userColumns } from "./user-columns";
 import { SKIP_REASON, USERS_KEY, protection, useLastSuperadminId, useRoleNames } from "./use-users";
 
-const STATUSES = [{ value: "", label: "Any" }, { value: "active", label: "Active" }, { value: "inactive", label: "Inactive" }] as const;
-type Filters = { q: string; role: string; status: (typeof STATUSES)[number]["value"] };
-const SPEC: TableSpec<Filters> = {
-  sorts: USER_SORTS, defaultSort: "name", search: ["q"],
-  filters: { q: text(200), role: text(64), status: oneOf(STATUSES.map((s) => s.value), "") },
-};
+const STATUS_LABEL = { "": "Any", active: "Active", inactive: "Inactive" } as const;
+const STATUSES = USER_STATUSES.map((value) => ({ value, label: STATUS_LABEL[value] }));
 const LEGEND = (["healthy", "stopped"] as const).map((h) => ({ health: h, label: h === "healthy" ? "Active" : "Inactive", description: h === "healthy" ? "Can sign in." : HEALTH.stopped.description }));
 
 type BulkAction = "activate" | "deactivate" | "delete" | "assignRole";
@@ -46,7 +41,7 @@ export function UsersPage() {
   const { user: me, can } = useAuth();
   const qc = useQueryClient();
   const router = useRouter();
-  const t = useTableQuery<UserDto, Filters>({ key: USERS_KEY[0], path: "/api/users", spec: SPEC });
+  const t = useTableQuery<UserDto, UserFilters>(USERS);
   const f = t.state;
   const roles = useRoleNames();
   const lastSuperId = useLastSuperadminId();

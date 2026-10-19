@@ -14,17 +14,12 @@ import { api, errorText } from "@/lib/client/api";
 import { useAuth } from "@/lib/client/auth-context";
 import { useTableQuery } from "@/lib/client/use-table-query";
 import type { CreatePermissionsResult, PermissionDto } from "@/lib/shared/contracts/rbac";
-import { PERMISSION_SORTS } from "@/lib/shared/paging";
 import { MODULES, PERMISSION_KEY, permissionLabel } from "@/lib/shared/permissions";
-import { oneOf, type TableSpec, text } from "@/lib/shared/table-state";
-import { RBAC_KEY, useAfterRbacChange } from "./use-rbac";
+import { PERMISSION_MODULES, PERMISSIONS_TABLE } from "@/lib/shared/queries";
+import { useAfterRbacChange } from "./use-rbac";
 
-const MODULE_OPTIONS = [{ value: "", label: "Any" }, ...MODULES.map((m) => ({ value: m.key, label: permissionLabel(m.key) }))];
+const MODULE_OPTIONS = PERMISSION_MODULES.map((m) => ({ value: m, label: m ? permissionLabel(m) : "Any" }));
 type Filters = { q: string; module: string };
-const SPEC: TableSpec<Filters> = {
-  sorts: PERMISSION_SORTS, defaultSort: "module", search: ["q"],
-  filters: { q: text(200), module: oneOf(MODULE_OPTIONS.map((m) => m.value), "") },
-};
 
 const COLUMNS: Column<PermissionDto>[] = [
   { key: "name", header: "Permission", icon: SecureIcon, sortable: true, cell: (p) => <span className="font-mono text-mono text-fg">{p.name}</span> },
@@ -44,7 +39,7 @@ function namesOf(module: string, actions: string): string[] {
 
 export function PermissionsPage() {
   const { can } = useAuth();
-  const t = useTableQuery<PermissionDto, Filters>({ key: RBAC_KEY[0], path: "/api/permissions", spec: SPEC });
+  const t = useTableQuery<PermissionDto, Filters>(PERMISSIONS_TABLE);
   const f = t.state;
   const set = t.set;
   const onSearch = useCallback((q: string) => set({ q }), [set]);

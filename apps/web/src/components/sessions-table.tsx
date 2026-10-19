@@ -6,24 +6,20 @@ import { SessionsIcon } from "@starterkit/ui/ui/icons";
 import { errorText } from "@/lib/client/api";
 import { useTableQuery } from "@/lib/client/use-table-query";
 import type { SessionDto } from "@/lib/shared/contracts/me";
-import { SESSION_SORTS } from "@/lib/shared/paging";
-import type { TableSpec } from "@/lib/shared/table-state";
-
-type NoFilters = Record<never, string>;
-const SPEC: TableSpec<NoFilters> = { sorts: SESSION_SORTS, defaultSort: "-lastSeenAt", filters: {} };
+import type { NoFilters, TableDef } from "@/lib/shared/queries";
 
 /**
  * One user's sessions as a server-paged card (your own on /me/sessions, another user's on their page): device, IP
- * address, last active; page, size and sort in the URL. `queryKey` is the first query-key part the caller invalidates
- * after ending a session; `current` labels the session making the request.
+ * address, last active; page, size and sort in the URL. `table` = MY_SESSIONS or userSessions(id) (lib/shared/queries);
+ * its key is the prefix the caller invalidates after ending a session; `current` labels the session making the request.
  */
-export function SessionsTable({ queryKey, path, title, description, current, emptyHint, action }: {
-  queryKey: string; path: `/api/${string}`; title: string; description: string; current: string;
+export function SessionsTable({ table, title, description, current, emptyHint, action }: {
+  table: TableDef<NoFilters>; title: string; description: string; current: string;
   /** Empty state: when sessions appear. */
   emptyHint: string;
   action?: (s: SessionDto) => ReactNode;
 }) {
-  const t = useTableQuery<SessionDto, NoFilters>({ key: queryKey, path, spec: SPEC });
+  const t = useTableQuery<SessionDto, NoFilters>(table);
   const columns: Column<SessionDto>[] = [
     { key: "device", header: "Device", sortable: true, cell: (s) => <span className="font-medium text-fg">{s.device}{s.current && <span className="ml-2 text-caption font-normal text-primary-ink">{current}</span>}</span> },
     { key: "ip", header: "IP address", cell: (s) => <span className="font-mono text-mono">{s.ip}</span> },

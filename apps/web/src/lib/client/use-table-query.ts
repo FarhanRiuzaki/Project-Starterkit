@@ -7,9 +7,7 @@ import type { DataTablePaging } from "@starterkit/ui/ds";
 import { api } from "@/lib/client/api";
 import type { Page } from "@/lib/shared/contracts/common";
 import { MAX_PAGE, PAGE_SIZES, type PageSize } from "@/lib/shared/paging";
-import { historyMode, readTable, type SortState, sortState, tableView, type TableSpec, type TableState, toSortParam, writeTable } from "@/lib/shared/table-state";
-
-const clean = (o: Record<string, string>) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== ""));
+import { historyMode, readTable, type SortState, sortState, tableRequest, tableView, type TableSpec, type TableState, toSortParam, writeTable } from "@/lib/shared/table-state";
 
 /**
  * A server-driven table: page, page size, sort and filters live in the URL (shareable; a change other than the page
@@ -43,9 +41,7 @@ export function useTableQuery<T, F extends Record<string, string>>({ key, path, 
     else router.push(href, { scroll: false });
   }, [state, spec, router, pathname]);
 
-  const filters = Object.fromEntries(Object.keys(spec.filters).map((k) => [k, state[k]])) as F;
-  const filterQuery = new URLSearchParams(clean(params ? params(filters) : filters)).toString();
-  const url = `${path}?${filterQuery}${filterQuery ? "&" : ""}${new URLSearchParams({ page: String(state.page), pageSize: String(state.pageSize), sort: state.sort })}`;
+  const { filterQuery, url } = tableRequest(path, state, spec, params);
   const q = useQuery({ queryKey: [key, url], queryFn: () => api<Page<T>>(url), placeholderData: keepPreviousData });
 
   const view = tableView(q, state.page);

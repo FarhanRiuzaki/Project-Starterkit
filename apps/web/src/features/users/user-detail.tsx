@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { BlockedButton, ConfirmActionDialog, type Column, DataTable, Failure, Facts, Notice, Panel, RelativeTime, SecretOnceDialog } from "@starterkit/ui/ds";
-import { Stagger, StaggerItem } from "@starterkit/ui/motion";
+import { Stagger, StaggerItem, useDelayedFlag } from "@starterkit/ui/motion";
 import { Button } from "@starterkit/ui/ui/button";
 import { ActivityIcon, KeyIcon, LogIcon, SecureIcon, UsersIcon } from "@starterkit/ui/ui/icons";
 import { Skeleton } from "@starterkit/ui/ui/skeleton";
@@ -18,6 +18,7 @@ import { useAuth } from "@/lib/client/auth-context";
 import type { SessionDto } from "@/lib/shared/contracts/me";
 import type { ActivityBrief } from "@/lib/shared/contracts/users";
 import { MODULES, permissionLabel } from "@/lib/shared/permissions";
+import { userSessions } from "@/lib/shared/queries";
 import { UserStatusChip } from "./user-columns";
 import { USERS_KEY, protection, useLastSuperadminId, useUserDetail } from "./use-users";
 
@@ -36,13 +37,15 @@ export function UserDetail({ id }: { id: string }) {
   const qc = useQueryClient();
   const router = useRouter();
   const q = useUserDetail(id);
+  // No flash: the loading shape appears after 150 ms and then stays at least 300 ms (it holds its place hidden before).
+  const skeleton = useDelayedFlag(!q.data);
   const lastSuperId = useLastSuperadminId();
   const [dialog, setDialog] = useState<Dialog>(null);
   const [temp, setTemp] = useState<string | null>(null);
 
   if (q.error && !q.data) return <div className="grid gap-section"><PageHeader title="User" /><Panel><Failure title="Couldn't load this user" error={q.error} source="Starterkit" onRetry={() => void q.refetch()} /></Panel></div>;
   const u = q.data;
-  if (!u) return <div className="grid gap-section" aria-busy="true"><PageHeader title="User" /><Skeleton className="h-40 w-full" /><Skeleton className="h-40 w-full" /></div>;
+  if (!u || skeleton) return <div className={skeleton ? "grid gap-section" : "invisible grid gap-section"} aria-busy={skeleton || undefined}><PageHeader title="User" /><Skeleton className="h-40 w-full" /><Skeleton className="h-40 w-full" /></div>;
 
   const refresh = () => qc.invalidateQueries({ queryKey: USERS_KEY });
   const block = protection(u, me.id, lastSuperId);
@@ -97,7 +100,7 @@ export function UserDetail({ id }: { id: string }) {
           </dl>
         </Panel></StaggerItem>
       </Stagger>
-      <SessionsTable queryKey={USERS_KEY[0]} path={`/api/users/${encodeURIComponent(id)}/sessions`} title="Active sessions" description="Where this user is signed in"
+      <SessionsTable table={userSessions(id)} title="Active sessions" description="Where this user is signed in"
         current="Your session" emptyHint="Sessions appear here when this user signs in."
         action={can("user.edit") ? (s) => (s.current ? <span className="text-caption text-fg-3">Your session</span> : <Button size="sm" variant="ghost" onClick={() => setDialog({ end: s })}>End session</Button>) : undefined} />
       {u.recentActivity && (

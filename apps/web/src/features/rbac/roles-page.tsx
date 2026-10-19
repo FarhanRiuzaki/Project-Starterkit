@@ -13,21 +13,17 @@ import { api, errorText } from "@/lib/client/api";
 import { useAuth } from "@/lib/client/auth-context";
 import { useTableQuery } from "@/lib/client/use-table-query";
 import type { RoleDto } from "@/lib/shared/contracts/rbac";
-import { ROLE_SORTS } from "@/lib/shared/paging";
 import { PERMISSIONS } from "@/lib/shared/permissions";
-import { type TableSpec, text } from "@/lib/shared/table-state";
+import { ROLES } from "@/lib/shared/queries";
 import { assertRoleName, deleteBlock, RoleNameField } from "./role-name";
-import { RBAC_KEY, rolePage, roleUrl, useAfterRbacChange } from "./use-rbac";
-
-type Filters = { q: string };
-const SPEC: TableSpec<Filters> = { sorts: ROLE_SORTS, defaultSort: "name", search: ["q"], filters: { q: text(200) } };
+import { rolePage, roleUrl, useAfterRbacChange } from "./use-rbac";
 
 const LINK = "font-medium text-fg hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary";
 
 export function RolesPage() {
   const { can } = useAuth();
   const router = useRouter();
-  const t = useTableQuery<RoleDto, Filters>({ key: RBAC_KEY[0], path: "/api/roles", spec: SPEC });
+  const t = useTableQuery<RoleDto, { q: string }>(ROLES);
   const set = t.set;
   const onSearch = useCallback((q: string) => set({ q }), [set]);
   const changed = useAfterRbacChange();

@@ -3,6 +3,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useState } from "react";
 import { ConfirmActionDialog, Failure, Notice, Panel, SecretOnceDialog, StatusChip } from "@starterkit/ui/ds";
+import { useDelayedFlag } from "@starterkit/ui/motion";
 import { Button } from "@starterkit/ui/ui/button";
 import { Icon } from "@starterkit/ui/ui/icon";
 import { KeyIcon, SecureIcon, SpinnerIcon } from "@starterkit/ui/ui/icons";
@@ -19,20 +20,22 @@ import { ME_KEY, useMe } from "./use-me";
 /** Password, two-factor authentication and connected accounts of the signed-in user. */
 export function SecurityPanel() {
   const q = useMe();
+  // No flash: the loading cards appear after 150 ms and then stay at least 300 ms (they hold their place hidden before).
+  const skeleton = useDelayedFlag(!q.data);
   if (q.error && !q.data) return <Panel><Failure title="Couldn't load your security settings" error={q.error} source="Starterkit" onRetry={() => void q.refetch()} /></Panel>;
-  const u = q.data;
+  const u = skeleton ? undefined : q.data;
   return (
     <div className="grid items-start gap-section lg:grid-cols-2">
       {q.error && <div className="lg:col-span-2"><Notice tone="warn" live>Couldn&apos;t refresh your settings; showing the last loaded values.</Notice></div>}
-      {u ? <PasswordCard user={u} /> : <Loading title="Password" />}
-      {u ? <TwoFactorCard user={u} /> : <Loading title="Two-factor authentication" />}
-      {u ? <ConnectionsCard user={u} /> : <Loading title="Connected accounts" />}
+      {u ? <PasswordCard user={u} /> : <Loading title="Password" shown={skeleton} />}
+      {u ? <TwoFactorCard user={u} /> : <Loading title="Two-factor authentication" shown={skeleton} />}
+      {u ? <ConnectionsCard user={u} /> : <Loading title="Connected accounts" shown={skeleton} />}
     </div>
   );
 }
 
-function Loading({ title }: { title: string }) {
-  return <Panel title={title}><div className="grid gap-3" aria-busy="true"><Skeleton className="h-8 w-full" /><Skeleton className="h-8 w-2/3" /></div></Panel>;
+function Loading({ title, shown }: { title: string; shown: boolean }) {
+  return <div className={shown ? undefined : "invisible"}><Panel title={title}><div className="grid gap-3" aria-busy={shown || undefined}><Skeleton className="h-8 w-full" /><Skeleton className="h-8 w-2/3" /></div></Panel></div>;
 }
 
 function PasswordCard({ user }: { user: UserDto }) {

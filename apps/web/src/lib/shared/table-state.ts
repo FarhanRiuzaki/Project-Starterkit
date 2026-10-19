@@ -82,6 +82,18 @@ export function historyMode(patch: object, spec: { search?: readonly string[] })
   return keys.length > 0 && keys.every((k) => spec.search?.includes(k)) ? "replace" : "push";
 }
 
+/**
+ * The API request for a table state: `filterQuery` = the filters (through `params` when the URL form differs from the
+ * API's, e.g. a range preset → from/to), empty values dropped; `url` = `path?filters&page&pageSize&sort`. The browser
+ * hook keys its query on `url` and the server prefetch builds the same key from the same URL, so they always match.
+ */
+export function tableRequest<F extends Record<string, string>>(path: string, state: TableState<F>, spec: TableSpec<F>, params?: (filters: F) => Record<string, string>) {
+  const filters = Object.fromEntries(Object.keys(spec.filters).map((k) => [k, state[k]])) as F;
+  const filterQuery = new URLSearchParams(Object.entries(params ? params(filters) : filters).filter(([, v]) => v !== "")).toString();
+  const paging = new URLSearchParams({ page: String(state.page), pageSize: String(state.pageSize), sort: state.sort });
+  return { filterQuery, url: `${path}?${filterQuery}${filterQuery ? "&" : ""}${paging}` };
+}
+
 export const sortState = (sort: string): SortState => (sort.startsWith("-") ? { key: sort.slice(1), dir: "desc" } : { key: sort, dir: "asc" });
 export const toSortParam = (s: SortState): string => (s.dir === "desc" ? `-${s.key}` : s.key);
 
