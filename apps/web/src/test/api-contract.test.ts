@@ -13,13 +13,13 @@ const README = readFileSync(path.join(DOCS, "README.md"), "utf8");
 function routesOf(files: { r: string; src: string }[]): string[] {
   return files.flatMap(({ r, src }) => {
     const url = `/api/${r.replace(/^app\/api\//, "").replace(/\/?route\.ts$/, "").replace(/\[(\w+)\]/g, "{$1}")}`;
-    return [...src.matchAll(/export\s+(?:async\s+)?function\s+(GET|POST|PATCH|PUT|DELETE)\b/g)].map((m) => `${m[1]} ${url}`);
+    return [...src.matchAll(/export\s+(?:async\s+)?function\s+(GET|HEAD|OPTIONS|POST|PATCH|PUT|DELETE)\b/g)].map((m) => `${m[1]} ${url}`);
   });
 }
 
 /** "METHOD /api/path" for every row of the README's endpoint table. */
 function documented(md: string): string[] {
-  return [...md.matchAll(/^\| (GET|POST|PATCH|PUT|DELETE) \| `([^`]+)` \|/gm)].map((m) => `${m[1]} ${m[2]}`);
+  return [...md.matchAll(/^\| (GET|HEAD|OPTIONS|POST|PATCH|PUT|DELETE) \| `([^`]+)` \|/gm)].map((m) => `${m[1]} ${m[2]}`);
 }
 
 const PERM = /\b[a-z]+\.(?:view|create|edit|delete)\b/g;
@@ -31,7 +31,7 @@ function guardsOf(files: { r: string; src: string }[]): Record<string, string> {
   const out: Record<string, string> = {};
   for (const { r, src } of files) {
     const url = `/api/${r.replace(/^app\/api\//, "").replace(/\/?route\.ts$/, "").replace(/\[(\w+)\]/g, "{$1}")}`;
-    const hs = [...src.matchAll(/export\s+(?:async\s+)?function\s+(GET|POST|PATCH|PUT|DELETE)\b/g)];
+    const hs = [...src.matchAll(/export\s+(?:async\s+)?function\s+(GET|HEAD|OPTIONS|POST|PATCH|PUT|DELETE)\b/g)];
     hs.forEach((m, i) => {
       const body = src.slice(m.index, hs[i + 1]?.index ?? src.length);
       const arg = body.match(/withPermission\(\s*\w+\s*,\s*([^]*?),\s*async\b/)?.[1];
@@ -43,7 +43,7 @@ function guardsOf(files: { r: string; src: string }[]): Record<string, string> {
 
 /** The same from the README's Permission column: backticked permissions before any "(" note; "signed in…"; anything else = none. */
 function documentedGuards(md: string): Record<string, string> {
-  return Object.fromEntries([...md.matchAll(/^\| (GET|POST|PATCH|PUT|DELETE) \| `([^`]+)` \| ([^|]*) \|/gm)].map((m) => {
+  return Object.fromEntries([...md.matchAll(/^\| (GET|HEAD|OPTIONS|POST|PATCH|PUT|DELETE) \| `([^`]+)` \| ([^|]*) \|/gm)].map((m) => {
     const cell = m[3]!.split("(")[0]!;
     const perms = [...new Set(cell.match(PERM))].sort().join(",");
     return [`${m[1]} ${m[2]}`, perms || (cell.trim().startsWith("signed in") ? "signed in" : "none")];
