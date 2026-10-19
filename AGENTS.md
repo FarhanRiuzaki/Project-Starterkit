@@ -48,6 +48,7 @@ Package manager is Bun 1.4.3; runtime for Next is Node 24.
 - Ignore `X-Forwarded-For` unless `TRUSTED_PROXY=true`. (`clientIp` in `apps/web/src/lib/server/api.ts`)
 - Bound every in-memory `Map` (default 10,000 keys) and evict the oldest key on overflow; never clear all. (`ratelimit.ts`)
 - Never use `dangerouslySetInnerHTML`. (`architecture.test.ts`)
+- The browser calls only same-origin `/api/*` on the Next server, never the backend: every `fetch(`/`api(` literal in client code starts with `/api/`, and no `NEXT_PUBLIC_*API*`/`*URL*` variable exists; `API_BASE_URL` is server env only. (CSP `connect-src 'self'` in `apps/web/src/security-headers.ts`, `architecture.test.ts`)
 - Redact `password, token, cookie, code, csrf, otpauth, uri, secret, formToken, phone, email` in logs, top level and one level down, and mask `otpauth://` and `secret=` inside strings. (`apps/web/src/lib/server/logger.ts`, `logger-redact.test.ts`)
 - Commit no secret; `gitleaks` scans the tree. (`.gitleaks.toml`)
 - Call `recordActivity` in every non-GET handler outside `/api/auth/*`. (`architecture.test.ts`)
@@ -135,3 +136,4 @@ The API contract is the zod schemas in `apps/web/src/lib/shared/contracts/*`. A 
 - Every POST/PATCH/PUT/DELETE requires header `x-csrf-token`; the token lives in the session and the server hands it to the layout.
 - Permissions: `user.{view,create,edit,delete}`, `role.{view,create,edit,delete}`, `permission.{view,create}`, `audit.view`; catalog in `apps/web/src/lib/shared/permissions.ts`.
 - Responses send `Cache-Control: no-store`. (`json()` in `apps/web/src/lib/server/api.ts`)
+- The backend is reached only from Next route handlers and server code through `API_BASE_URL` (server env, never `NEXT_PUBLIC_*`); the browser never sees its address, so CORS and cookies stay same-origin. (CSP `connect-src 'self'` in `apps/web/src/security-headers.ts`, `architecture.test.ts`)

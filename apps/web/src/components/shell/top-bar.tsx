@@ -1,0 +1,58 @@
+"use client";
+
+import { Kbd } from "@starterkit/ui/ds";
+import { Icon } from "@starterkit/ui/ui/icon";
+import { SearchIcon, ThemeDarkIcon, ThemeLightIcon } from "@starterkit/ui/ui/icons";
+import { useTheme } from "next-themes";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { crumbs } from "@/lib/shared/nav";
+import { OPEN_PALETTE } from "./command-palette";
+import { NavGlyph } from "./nav-icon";
+
+const SEARCH = "Search pages";
+const openPalette = () => window.dispatchEvent(new CustomEvent(OPEN_PALETTE));
+
+/**
+ * Top bar: 56 px, 1 px bottom line. Breadcrumb from the route (16 px icon + body per crumb, current in fg), the ⌘K
+ * search field (32 × 280, opens the command palette) and a 32 px theme toggle. The shell never animates on navigation.
+ */
+export function TopBar() {
+  const path = usePathname();
+  const list = crumbs(path);
+  const { resolvedTheme, setTheme } = useTheme();
+  return (
+    <div data-print="hide" className="flex h-14 shrink-0 items-center gap-3 border-b border-line px-6">
+      {/* A route without crumbs keeps the spacer but no empty landmark. */}
+      {list.length === 0 ? <div className="flex-1" /> : <nav aria-label="Breadcrumb" className="min-w-0 flex-1">
+        <ol className="flex min-w-0 items-center gap-2 text-body text-fg-2">
+          {list.map((c, i) => {
+            const last = i === list.length - 1;
+            return (
+              <li key={`${c.label}-${i}`} className="inline-flex min-w-0 items-center gap-2">
+                {i > 0 && <span aria-hidden="true" className="text-fg-4">/</span>}
+                {c.icon && <NavGlyph icon={c.icon} className="size-4 shrink-0 text-fg-3" />}
+                {last
+                  ? <span aria-current="page" className="truncate font-medium text-fg">{c.label}</span>
+                  : c.href ? <Link href={c.href} className="truncate rounded-xs hover:text-fg">{c.label}</Link> : <span className="truncate">{c.label}</span>}
+              </li>
+            );
+          })}
+        </ol>
+      </nav>}
+      <button type="button" onClick={openPalette} aria-label={SEARCH}
+        className="flex h-8 w-70 shrink-0 cursor-pointer items-center gap-2 rounded-md border border-line-strong bg-card pr-1.5 pl-2.5 text-body-sm text-fg-3 transition-colors duration-(--dur-fast) hover:border-fg-4 hover:text-fg-2 max-lg:w-48">
+        <Icon icon={SearchIcon} className="size-4 shrink-0" />
+        <span className="min-w-0 flex-1 truncate text-left">{SEARCH}…</span>
+        <Kbd keys={["⌘K"]} />
+      </button>
+      {/* Stable name: the theme is unknown on the server, so a theme-dependent label would not hydrate. */}
+      <button type="button" onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")} aria-label="Switch between light and dark theme"
+        className="inline-grid size-8 shrink-0 cursor-pointer place-items-center rounded-md border border-line-strong bg-card text-fg-2 shadow-xs transition-colors duration-(--dur-fast) hover:bg-tray hover:text-fg">
+        {/* Both icons render; CSS picks one, so the server HTML matches before the theme is known. */}
+        <Icon icon={ThemeDarkIcon} className="size-4 dark:hidden" />
+        <Icon icon={ThemeLightIcon} className="hidden size-4 dark:block" />
+      </button>
+    </div>
+  );
+}

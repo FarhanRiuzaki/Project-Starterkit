@@ -44,6 +44,24 @@ function clientImportsServer(fs: F[]): string[] {
     && imp.some((s) => resolveSpec(r, s)?.startsWith(`${WEB}lib/server`))).map(({ r }) => r);
 }
 
+/**
+ * Browser code reaches the backend only through same-origin `/api/*` (CSP connect-src 'self'; the backend URL is
+ * server env only). Client = features/, components/, lib/client/, or any file with "use client".
+ */
+const isClient = ({ r, src }: F) => /^["']use client["']/m.test(src)
+  || [`${WEB}features/`, `${WEB}components/`, `${WEB}lib/client/`].some((p) => r.startsWith(p));
+function clientApiViolations(fs: F[]): string[] {
+  return fs.filter(isClient).flatMap(({ r, src: raw }) => {
+    // Comments only: a "//" inside a string ("https://…") must not swallow the rest of the line.
+    const src = raw.replace(/\/\*[\s\S]*?\*\/|(^|\s)\/\/.*$/gm, "$1");
+    // First argument written as a string or template literal must start with "/api/" (not http(s)://, //, a ${base}).
+    const calls = [...src.matchAll(/\b(fetch|api)\s*(?:<[^<>()]*>)?\(\s*(["'`])([^]{0,12})/g)]
+      .filter((m) => !m[3]!.startsWith("/api/")).map((m) => `${r}: ${m[1]}(${m[2]}${m[3]!.split(m[2]!)[0]}…) must start with "/api/"`);
+    const env = [...src.matchAll(/process\.env\.NEXT_PUBLIC_\w*(?:API|URL)\w*/g)].map((m) => `${r}: ${m[0]} exposes a backend URL to the browser`);
+    return [...calls, ...env];
+  });
+}
+
 const METHODS = "GET|POST|PUT|PATCH|DELETE";
 /** Exported HTTP handlers of a route file with their source text (up to the next exported handler). */
 const handlers = (src: string) => {
@@ -94,6 +112,10 @@ describe("architecture", () => {
       return /^(react|next)(\/|$)/.test(s) || !!t?.startsWith(`${WEB}lib/server`) || !!t?.startsWith(`${WEB}components`) || !!t?.startsWith(`${WEB}features`);
     }));
     expect(bad.map((f) => f.r)).toEqual([]);
+  });
+
+  it("client code calls only same-origin /api/ and reads no NEXT_PUBLIC API/URL variable", () => {
+    expect(clientApiViolations(files)).toEqual([]);
   });
 
   it("no dangerouslySetInnerHTML", () => {
@@ -160,6 +182,24 @@ describe("architecture checkers (fixtures)", () => {
       f(`${WEB}features/users/a.tsx`, `"use client";\nimport { db } from "@/lib/server/mock/db";`),
       f(`${WEB}features/users/b.tsx`, `import { db } from "@/lib/server/mock/db";`),
     ])).toEqual([`${WEB}features/users/a.tsx`]);
+  });
+
+  it("client fetch/api to an absolute, protocol-relative or ${base} URL; NEXT_PUBLIC API/URL env", () => {
+    const bad = clientApiViolations([
+      f(`${WEB}features/users/a.tsx`, `await fetch("https://backend.example/api/users"); await api<X>("//evil.example/x"); fetch(\`${"${BASE}"}/api/users\`); fetch('http://x');`),
+      f(`${WEB}lib/client/b.ts`, `const u = process.env.NEXT_PUBLIC_API_BASE_URL; const v = process.env.NEXT_PUBLIC_SITE_NAME;`),
+      f(`${WEB}app/x/c.tsx`, `"use client";\nfetch("http://x");`),
+    ]);
+    expect(bad).toHaveLength(6);
+    expect(bad.filter((b) => b.includes("NEXT_PUBLIC_API_BASE_URL"))).toHaveLength(1);
+    expect(bad.filter((b) => b.includes("SITE_NAME"))).toHaveLength(0);
+  });
+
+  it("client fetch/api to /api/ paths, variables, and server code pass", () => {
+    expect(clientApiViolations([
+      f(`${WEB}features/users/a.tsx`, `fetch("/api/users"); api<X>(\`/api/users/${"${id}"}\`); fetch(path); // fetch("http://x")`),
+      f(`${WEB}lib/server/s.ts`, `fetch("https://backend.example/x"); process.env.NEXT_PUBLIC_API_URL;`),
+    ])).toEqual([]);
   });
 
   it("a route handler without withPermission(", () => {
