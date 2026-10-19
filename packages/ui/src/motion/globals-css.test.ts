@@ -59,8 +59,10 @@ describe("motion utilities", () => {
     expect([...vars.matchAll(/(--[a-z-]+):\s*([^;]+)/g)].map((m) => `${m[1]}=${m[2]}`)).toHaveLength(6);
     expect(universal).toMatch(/animation-duration:\s*var\(--dur-instant\) !important/);
     expect(universal).toMatch(/transition-duration:\s*var\(--dur-instant\), 0s !important/);
-    // visibility is listed last with 0s: un-hiding a container never fades its subtree in level by level
-    expect(universal).toMatch(/transition-property:\s*all, visibility;/);
+    // Only opacity gets the 100 ms an element had no transition for (never transform: a menu's popper wrapper, placed
+    // by an inline transform, would slide in from off-screen); visibility is listed last with 0s: un-hiding a
+    // container never fades its subtree in level by level
+    expect(universal).toMatch(/transition-property:\s*opacity, visibility;/);
   });
   it("the preview mirrors every other reduced branch: disclosure, shimmer, card lift, utilities", () => {
     const SCOPE = '[data-motion-preview="reduced"]';
