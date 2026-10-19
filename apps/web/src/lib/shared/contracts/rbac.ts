@@ -22,7 +22,12 @@ const permissionList = z.array(PermissionEnum).max(PERMISSIONS.length);
 export const CreateRoleBody = z.object({ name: roleName, permissions: permissionList.default([]) });
 export type CreateRoleBody = z.infer<typeof CreateRoleBody>;
 
-export const UpdateRoleBody = z.object({ name: roleName.optional(), permissions: permissionList.optional() });
+/**
+ * `add` and `remove` apply to the role's current set on the server, so a page loaded before someone else's change
+ * can't undo it by sending a whole stale set. The same permission can't be in both.
+ */
+export const UpdateRoleBody = z.strictObject({ name: roleName.optional(), add: permissionList.optional(), remove: permissionList.optional() })
+  .refine((b) => !b.add?.some((p) => b.remove?.includes(p)), { message: "A permission can't be both added and removed." });
 export type UpdateRoleBody = z.infer<typeof UpdateRoleBody>;
 
 const MODULE_KEYS: readonly string[] = MODULES.map((m) => m.key);
@@ -31,6 +36,9 @@ export const PermissionKey = z.string().regex(PERMISSION_KEY).refine((n) => MODU
 
 export const CreatePermissionsBody = z.object({ names: z.array(PermissionKey).min(1).max(50) });
 export type CreatePermissionsBody = z.infer<typeof CreatePermissionsBody>;
+
+/** Most names the catalog may hold; a POST that would pass it is 400. */
+export const CATALOG_MAX = 500;
 
 /** Names already in the catalog are skipped, not an error. */
 export type CreatePermissionsResult = { created: string[]; skipped: string[] };

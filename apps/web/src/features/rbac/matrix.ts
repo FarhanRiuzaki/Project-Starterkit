@@ -18,10 +18,13 @@ function toggle(s: Perms, cells: readonly PermissionName[]): Set<PermissionName>
   return out;
 }
 
+/** `allowed` (the actor's own permissions): header toggles change only those cells, the rest keep their state. */
+const only = (cells: readonly PermissionName[], allowed?: Perms) => (allowed ? cells.filter((c) => allowed.has(c)) : cells);
+
 export const toggleCell = (s: Perms, p: PermissionName) => toggle(s, [p]);
-export const toggleRow = (s: Perms, module: Module) => toggle(s, rowCells(module));
-export const toggleColumn = (s: Perms, action: Action) => toggle(s, columnCells(action));
-export const toggleAll = (s: Perms) => toggle(s, PERMISSIONS);
+export const toggleRow = (s: Perms, module: Module, allowed?: Perms) => toggle(s, only(rowCells(module), allowed));
+export const toggleColumn = (s: Perms, action: Action, allowed?: Perms) => toggle(s, only(columnCells(action), allowed));
+export const toggleAll = (s: Perms, allowed?: Perms) => toggle(s, only(PERMISSIONS, allowed));
 
 /** Header checkbox state for a group: true (all), false (none or empty group), "mixed" (some). */
 export function cellState(s: Perms, cells: readonly PermissionName[]): boolean | "mixed" {

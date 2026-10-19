@@ -56,7 +56,7 @@ function Form({ user }: { user: UserDto }) {
       <Field id="me-name" label="Name"><Input id="me-name" value={name} maxLength={100} required onChange={(e) => setName(e.target.value)} autoComplete="name" /></Field>
       <Field id="me-email" label="Email"><Input id="me-email" type="email" value={email} maxLength={254} required onChange={(e) => setEmail(e.target.value)} autoComplete="email" /></Field>
       <Field id="me-username" label="Username" note="You can't change your username. Ask an administrator.">
-        <Input id="me-username" value={user.username} readOnly aria-describedby="me-username-note" />
+        <Input id="me-username" value={user.username} readOnly />
       </Field>
       {msg && <p role={msg.ok ? "status" : "alert"} className={msg.ok ? "text-body-sm text-healthy-ink" : "text-body-sm text-down-ink"}>{msg.text}</p>}
       <div className="flex items-center gap-3">

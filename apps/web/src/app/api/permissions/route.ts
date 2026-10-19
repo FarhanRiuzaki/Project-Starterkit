@@ -1,8 +1,8 @@
-import { badRequest, json, withPermission } from "@/lib/server/api";
+import { apiError, badRequest, json, withPermission } from "@/lib/server/api";
 import { recordActivity } from "@/lib/server/audit";
 import { db } from "@/lib/server/mock/db";
 import { listPermissions } from "@/lib/server/rbac";
-import { CreatePermissionsBody, type CreatePermissionsResult } from "@/lib/shared/contracts/rbac";
+import { CATALOG_MAX, CreatePermissionsBody, type CreatePermissionsResult } from "@/lib/shared/contracts/rbac";
 
 export async function GET(req: Request): Promise<Response> {
   return withPermission(req, "permission.view", async () => json(listPermissions()));
@@ -18,6 +18,8 @@ export async function POST(req: Request): Promise<Response> {
   return withPermission(req, "permission.create", async (ctx) => {
     if (!body.success) return badRequest();
     const catalog = db().permissionCatalog;
+    const fresh = new Set(body.data.names.filter((n) => !catalog.has(n)));
+    if (catalog.size + fresh.size > CATALOG_MAX) return apiError(400, "bad_request", `The list can hold at most ${CATALOG_MAX} permissions. Add fewer names.`);
     const res: CreatePermissionsResult = { created: [], skipped: [] };
     for (const name of new Set(body.data.names)) {
       if (catalog.has(name)) res.skipped.push(name);

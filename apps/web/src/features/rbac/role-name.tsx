@@ -7,7 +7,7 @@ import type { RoleDto } from "@/lib/shared/contracts/rbac";
 export function RoleNameField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (
     <Field id="role-name" label="Name" note="2–40 characters. Each role needs a different name.">
-      <Input id="role-name" value={value} maxLength={40} required autoFocus autoComplete="off" aria-describedby="role-name-note" onChange={(e) => onChange(e.target.value)} />
+      <Input id="role-name" value={value} maxLength={40} required autoFocus autoComplete="off" onChange={(e) => onChange(e.target.value)} />
     </Field>
   );
 }

@@ -14,7 +14,7 @@ import { useAuth } from "@/lib/client/auth-context";
 import type { RoleDto } from "@/lib/shared/contracts/rbac";
 import { PERMISSIONS } from "@/lib/shared/permissions";
 import { assertRoleName, deleteBlock, RoleNameField } from "./role-name";
-import { useAfterRbacChange, useRoles } from "./use-rbac";
+import { rolePage, roleUrl, useAfterRbacChange, useRoles } from "./use-rbac";
 
 const LINK = "font-medium text-fg hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary";
 
@@ -29,7 +29,7 @@ export function RolesPage() {
 
   const columns: Column<RoleDto>[] = [
     { key: "name", header: "Role", icon: KeyIcon, cell: (r) => (
-      <span className="flex items-center gap-2"><Link href={`/roles/${r.id}`} className={LINK}>{r.name}</Link>{r.locked && <span className="text-caption text-fg-3">Locked</span>}</span>
+      <span className="flex items-center gap-2"><Link href={rolePage(r.id)} className={LINK}>{r.name}</Link>{r.locked && <span className="text-caption text-fg-3">Locked</span>}</span>
     ) },
     { key: "permissions", header: "Permissions", cell: (r) => `${formatNumber(r.permissions.length)} of ${formatNumber(PERMISSIONS.length)}` },
     { key: "users", header: "Users", cell: (r) => (can("user.view") && r.userCount > 0
@@ -42,11 +42,11 @@ export function RolesPage() {
     const role = await api<RoleDto>("/api/roles", { method: "POST", body: JSON.stringify({ name: name.trim() }) });
     toast(`Created ${role.name}. Pick its permissions next.`);
     await changed();
-    router.push(`/roles/${role.id}`);
+    router.push(rolePage(role.id));
   }
 
   async function remove(r: RoleDto) {
-    await api(`/api/roles/${r.id}`, { method: "DELETE" });
+    await api(roleUrl(r.id), { method: "DELETE" });
     toast(`Deleted ${r.name}.`);
     await changed();
   }
@@ -63,7 +63,7 @@ export function RolesPage() {
           rowActions={(r) => {
             const block = deleteBlock(r);
             return <ActionMenu label={`Actions for ${r.name}`} actions={[
-              { id: "open", label: "View role", onSelect: () => router.push(`/roles/${r.id}`) },
+              { id: "open", label: "View role", onSelect: () => router.push(rolePage(r.id)) },
               ...(can("role.delete") ? [{ id: "delete", label: "Delete role", destructive: true, disabled: !!block, hint: block ?? undefined, onSelect: () => setDeleting(r) }] : []),
             ]} />;
           }} />

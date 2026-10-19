@@ -52,4 +52,16 @@ describe("permission matrix", () => {
   it("diff lists added and removed permissions in catalog order", () => {
     expect(diff(set("user.view", "role.view"), set("role.edit", "user.view", "audit.view"))).toEqual({ added: ["role.edit", "audit.view"], removed: ["role.view"] });
   });
+  it("with `allowed`, header toggles touch only cells the actor may change", () => {
+    const allowed = set("user.view", "user.edit", "role.view");
+    const s = set("user.delete");
+    // row: allowed user cells all off -> on; user.delete (not allowed) stays as it was
+    expect(sorted(toggleRow(s, "user", allowed))).toEqual(["user.delete", "user.edit", "user.view"]);
+    // all allowed user cells on -> cleared, the not-allowed one stays
+    expect(sorted(toggleRow(set("user.view", "user.edit", "user.delete"), "user", allowed))).toEqual(["user.delete"]);
+    expect(sorted(toggleColumn(set(), "view", allowed))).toEqual(["role.view", "user.view"]);
+    expect(sorted(toggleAll(set("audit.view"), allowed))).toEqual(["audit.view", "role.view", "user.edit", "user.view"]);
+    // nothing allowed in the group: unchanged
+    expect(sorted(toggleRow(s, "audit", allowed))).toEqual(["user.delete"]);
+  });
 });

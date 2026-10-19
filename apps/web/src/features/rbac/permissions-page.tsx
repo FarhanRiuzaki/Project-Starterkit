@@ -68,7 +68,7 @@ export function PermissionsPage() {
               </Select>
             </Field>
             <Field id="perm-actions" label="Actions" note="Separate several with commas. Names already in the list are skipped.">
-              <Input id="perm-actions" value={actions} maxLength={300} autoComplete="off" className="font-mono" aria-describedby="perm-actions-note" onChange={(e) => setActions(e.target.value)} />
+              <Input id="perm-actions" value={actions} maxLength={300} autoComplete="off" className="font-mono" onChange={(e) => setActions(e.target.value)} />
             </Field>
           </>} />
       )}

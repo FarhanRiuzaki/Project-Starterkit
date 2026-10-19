@@ -136,13 +136,15 @@ describe("PATCH /api/roles/[id]", () => {
 
   it("Admin without role.edit is 403 and the role is unchanged", async () => {
     await signIn("admin");
-    expect((await patch("role-viewer", { permissions: ["user.view"] })).status).toBe(403);
+    expect((await patch("role-viewer", { remove: ["user.view"] })).status).toBe(403);
     expect(db().roles.get("role-viewer")!.permissions).toEqual(["user.view", "audit.view"]);
   });
 
   it("unknown permission or bad body is 400; unknown id is 404; taken name is 409", async () => {
     await signIn("superadmin");
-    expect((await patch("role-viewer", { permissions: ["audit.create"] })).status).toBe(400);
+    expect((await patch("role-viewer", { add: ["audit.create"] })).status).toBe(400);
+    expect((await patch("role-viewer", { add: ["user.edit"], remove: ["user.edit"] })).status).toBe(400);
+    expect((await patch("role-viewer", { permissions: ["user.view"] })).status).toBe(400);
     expect((await patch("role-viewer", { name: "" })).status).toBe(400);
     expect((await patch("role-nope", { name: "X1" })).status).toBe(404);
     expect(await code(await patch("role-viewer", { name: "ADMIN" }))).toBe("duplicate");
@@ -152,10 +154,12 @@ describe("PATCH /api/roles/[id]", () => {
     giveOnlyRole("admin", ["role.view", "role.edit", "user.view"]);
     await signIn("admin");
     // Viewer = user.view + audit.view; the actor lacks audit.view and user.delete
-    expect(await code(await patch("role-viewer", { permissions: ["user.view", "audit.view", "user.delete"] }))).toBe("forbidden");
-    expect(await code(await patch("role-viewer", { permissions: ["user.view"] }))).toBe("forbidden");
+    expect(await code(await patch("role-viewer", { add: ["user.delete"] }))).toBe("forbidden");
+    expect(await code(await patch("role-viewer", { remove: ["audit.view"] }))).toBe("forbidden");
+    // checked on what is asked, even when it would change nothing
+    expect(await code(await patch("role-viewer", { add: ["audit.view"] }))).toBe("forbidden");
     expect(db().roles.get("role-viewer")!.permissions).toEqual(["user.view", "audit.view"]);
-    const ok = await patch("role-viewer", { permissions: ["audit.view", "role.view"] });
+    const ok = await patch("role-viewer", { add: ["role.view"], remove: ["user.view"] });
     expect(ok.status).toBe(200);
     expect(((await ok.json()) as RoleDto).permissions).toEqual(["role.view", "audit.view"]);
   });
@@ -163,7 +167,7 @@ describe("PATCH /api/roles/[id]", () => {
   it("after PATCH, userCount, PermissionDto.roles and the users' own permissions agree", async () => {
     await signIn("superadmin");
     const before = (await roles()).find((r) => r.id === "role-viewer")!.userCount;
-    const r = await patch("role-viewer", { permissions: ["user.view", "user.create", "audit.view"] });
+    const r = await patch("role-viewer", { add: ["user.create", "user.view"] });
     const dto = (await r.json()) as RoleDto;
     expect(dto.userCount).toBe(before);
     expect((await perms()).find((p) => p.name === "user.create")!.roles).toContain("Viewer");
@@ -187,9 +191,46 @@ describe("PATCH /api/roles/[id]", () => {
   it("removing a permission takes effect on the holder's next request", async () => {
     giveOnlyRole("admin", ["role.view", "role.edit"]);
     await signIn("superadmin");
-    expect((await patch("role-custom", { permissions: ["role.edit"] })).status).toBe(200);
+    expect((await patch("role-custom", { remove: ["role.view"] })).status).toBe(200);
     await signIn("admin");
     expect((await listGet(req("GET"))).status).toBe(403);
+  });
+});
+
+describe("PATCH applies add/remove to the current set", () => {
+  it("concurrent revoke is not undone by a stale save that adds another permission", async () => {
+    await signIn("superadmin");
+    // two pages loaded Viewer = user.view + audit.view; the first revokes audit.view
+    expect((await patch("role-viewer", { remove: ["audit.view"] })).status).toBe(200);
+    // the stale page only added user.create; it must not send audit.view back
+    const dto = (await (await patch("role-viewer", { add: ["user.create"] })).json()) as RoleDto;
+    expect(dto.permissions).toEqual(["user.view", "user.create"]);
+    const last = acts().filter((a) => a.action === "role.update").at(-1)!;
+    expect(last.after).toEqual({ name: "Viewer", added: ["user.create"], removed: [] });
+  });
+
+  it("activity records only the effective change", async () => {
+    await signIn("superadmin");
+    await patch("role-viewer", { add: ["user.view", "user.edit"], remove: ["role.view"] });
+    expect(acts().find((a) => a.action === "role.update")!.after).toEqual({ name: "Viewer", added: ["user.edit"], removed: [] });
+  });
+
+  it("a PATCH that changes nothing is 200 with the role and writes no activity", async () => {
+    await signIn("superadmin");
+    for (const body of [{}, { name: "Viewer" }, { add: ["user.view"] }, { remove: ["role.view"] }]) {
+      const r = await patch("role-viewer", body);
+      expect(r.status).toBe(200);
+      expect(((await r.json()) as RoleDto).permissions).toEqual(["user.view", "audit.view"]);
+    }
+    expect(acts()).toHaveLength(0);
+  });
+
+  it("the Superadmin name can't be taken by create or rename (409 duplicate)", async () => {
+    await signIn("superadmin");
+    expect(await code(await createPost(req("POST", { name: "Superadmin" })))).toBe("duplicate");
+    expect(await code(await createPost(req("POST", { name: "superadmin" })))).toBe("duplicate");
+    expect(await code(await patch("role-viewer", { name: "SUPERADMIN" }))).toBe("duplicate");
+    expect(db().roles.size).toBe(3);
   });
 });
 
@@ -230,6 +271,15 @@ describe("/api/permissions", () => {
   it.each([[["foo"]], [["billing.view"]], [["user."]], [["User.view"]], [["user.view.x"]], [["user.vi ew"]], [[]], [null]])("POST %j is 400", async (names) => {
     await signIn("superadmin");
     expect((await addPerms({ names })).status).toBe(400);
+  });
+
+  it("POST is 400 when the catalog would pass 500 names; nothing is added", async () => {
+    await signIn("superadmin");
+    for (let i = db().permissionCatalog.size; i < 499; i++) db().permissionCatalog.add(`audit.x${i}`);
+    expect((await addPerms({ names: ["audit.one", "audit.two"] })).status).toBe(400);
+    expect(db().permissionCatalog.size).toBe(499);
+    expect((await addPerms({ names: ["audit.one", "user.view"] })).status).toBe(200);
+    expect(db().permissionCatalog.size).toBe(500);
   });
 
   it("POST needs permission.create; adds new names, skips existing ones, logs only the added", async () => {

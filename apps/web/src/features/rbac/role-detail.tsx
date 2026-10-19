@@ -1,12 +1,13 @@
 "use client";
 
+import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { BlockedButton, ConfirmActionDialog, Failure, Notice, Panel } from "@starterkit/ui/ds";
+import { useEffect, useState } from "react";
+import { BlockedButton, ConfirmActionDialog, EmptyState, Failure, Notice, Panel } from "@starterkit/ui/ds";
 import { formatNumber, plural } from "@starterkit/ui/lib/format";
 import { Button } from "@starterkit/ui/ui/button";
-import { KeyIcon } from "@starterkit/ui/ui/icons";
+import { KeyIcon, NotFoundIcon } from "@starterkit/ui/ui/icons";
 import { Skeleton } from "@starterkit/ui/ui/skeleton";
 import { toast } from "@starterkit/ui/ui/sonner";
 import { PageHeader } from "@/components/shell/page-header";
@@ -17,29 +18,45 @@ import { PERMISSIONS, type PermissionName } from "@/lib/shared/permissions";
 import { diff } from "./matrix";
 import { PermissionMatrix } from "./permission-matrix";
 import { assertRoleName, deleteBlock, RoleNameField } from "./role-name";
-import { useAfterRbacChange, useRole } from "./use-rbac";
+import { isNotFound, roleKey, roleUrl, useAfterRbacChange, useRole } from "./use-rbac";
 
 type Dialog = "save" | "rename" | "delete" | null;
+/**
+ * Unsaved edits as add / remove, not a whole set: the matrix shows the server's current set with these applied, and
+ * Save sends only these, so a change someone else made meanwhile is neither shown as an edit nor undone.
+ */
+type Draft = ReturnType<typeof diff>;
 
 const list = (ps: readonly PermissionName[]) => ps.join(", ");
 
 export function RoleDetail({ id }: { id: string }) {
-  const { can } = useAuth();
+  const { can, perms } = useAuth();
   const router = useRouter();
-  const q = useRole(id);
+  const qc = useQueryClient();
+  /** Set once this page deleted the role: stop fetching it, drop it from the cache when the page goes away. */
+  const [deleted, setDeleted] = useState(false);
+  const q = useRole(id, !deleted);
   const changed = useAfterRbacChange();
-  /** Unsaved matrix edits; null = showing the saved permissions. */
-  const [draft, setDraft] = useState<ReadonlySet<PermissionName> | null>(null);
+  const [draft, setDraft] = useState<Draft | null>(null);
   const [dialog, setDialog] = useState<Dialog>(null);
   const [name, setName] = useState("");
+  useEffect(() => () => { if (deleted) qc.removeQueries({ queryKey: roleKey(id) }); }, [deleted, id, qc]);
 
+  if (isNotFound(q.error)) {
+    return (
+      <div className="grid gap-section"><PageHeader title="Role" />
+        <Panel><EmptyState icon={NotFoundIcon} title="This role doesn't exist" description="It may have been deleted. Roles that exist are listed on the Roles page."
+          action={<Button asChild variant="secondary"><Link href="/roles">Go to roles</Link></Button>} /></Panel>
+      </div>
+    );
+  }
   if (q.error && !q.data) return <div className="grid gap-section"><PageHeader title="Role" /><Panel><Failure title="Couldn't load this role" error={q.error} source="Starterkit" onRetry={() => void q.refetch()} /></Panel></div>;
   const r = q.data;
   if (!r) return <div className="grid gap-section" aria-busy="true"><PageHeader title="Role" /><Skeleton className="h-60 w-full" /></div>;
 
   const saved = new Set(r.permissions);
-  const value = draft ?? saved;
-  const { added, removed } = diff(saved, value);
+  const { added, removed } = draft ?? { added: [], removed: [] };
+  const value = new Set([...r.permissions.filter((p) => !removed.includes(p)), ...added]);
   const dirty = added.length + removed.length > 0;
   const readOnly = r.locked
     ? "Superadmin always holds every permission, so this matrix can't be changed."
@@ -47,22 +64,25 @@ export function RoleDetail({ id }: { id: string }) {
   const editBlock = r.locked ? "The Superadmin role can't be renamed." : null;
 
   async function save() {
-    const next = await api<RoleDto>(`/api/roles/${id}`, { method: "PATCH", body: JSON.stringify({ permissions: [...value] }) });
-    toast(`Saved permissions for ${next.name}.`);
+    const next = await api<RoleDto>(roleUrl(id), { method: "PATCH", body: JSON.stringify({ add: added, remove: removed }) });
+    qc.setQueryData(roleKey(id), next);
     setDraft(null);
+    toast(`Saved permissions for ${next.name}.`);
     await changed();
   }
   async function rename() {
     assertRoleName(name);
-    const next = await api<RoleDto>(`/api/roles/${id}`, { method: "PATCH", body: JSON.stringify({ name: name.trim() }) });
+    const next = await api<RoleDto>(roleUrl(id), { method: "PATCH", body: JSON.stringify({ name: name.trim() }) });
+    qc.setQueryData(roleKey(id), next);
     toast(`Renamed to ${next.name}.`);
     await changed();
   }
   async function remove(role: RoleDto) {
-    await api(`/api/roles/${id}`, { method: "DELETE" });
+    await api(roleUrl(id), { method: "DELETE" });
+    setDeleted(true);
     toast(`Deleted ${role.name}.`);
-    await changed();
     router.push("/roles");
+    await changed(roleKey(id));
   }
 
   return (
@@ -84,7 +104,8 @@ export function RoleDetail({ id }: { id: string }) {
           </div>
         )}>
         {readOnly && <div className="px-3 pt-3"><Notice>{readOnly}</Notice></div>}
-        <PermissionMatrix label={`Permissions of ${r.name}`} value={value} onChange={readOnly ? undefined : setDraft} />
+        <PermissionMatrix label={`Permissions of ${r.name}`} value={value} allowed={perms}
+          onChange={readOnly ? undefined : (next) => setDraft(diff(saved, next))} />
       </Panel>
 
       {dialog === "save" && (
@@ -93,6 +114,7 @@ export function RoleDetail({ id }: { id: string }) {
           impact={[
             ...(added.length ? [`Adds ${list(added)}`] : []),
             ...(removed.length ? [`Removes ${list(removed)}`] : []),
+            "Other permissions of this role stay as they are now, including changes someone else made after you opened this page.",
             `${plural(r.userCount, "user gets", "users get")} the change on their next request.`,
           ]}
           actionLabel="Save permissions" onConfirm={save} />
