@@ -13,7 +13,7 @@ and the DS/chart port: Task 3; `bundle-budget.mjs`, e2e: Task 13). Until a guard
 - Layers import downward only: `ui`/`motion` → `ds` → `charts` → `components/shell` → `features/*`. (`apps/web/src/test/architecture.test.ts`)
 - A feature never imports a sibling feature. (`architecture.test.ts`)
 - `packages/ui/src/**` never imports from `apps/` or the `@/` alias; use relative paths inside the package. (`apps/web/src/test/no-domain.test.ts`)
-- `page.tsx` stays thin: `features/<domain>` → React Query hook → `fetch('/api/...')` → route handler (zod → `withPermission` → store).
+- `page.tsx` stays thin: `features/<domain>` → React Query hook → `fetch('/api/...')` → route handler (zod → `withPermission` → store); the page wraps its screen in `<Prefetch reads={[…]}>` (`lib/server/prefetch.tsx`), which runs the route's own read function on the server under the hook's key (`lib/shared/queries.ts`). (`apps/web/src/lib/server/prefetch.test.ts`)
 - Client code (`"use client"`) never imports `lib/server`. (`architecture.test.ts`)
 - `lib/shared` is pure: no React, Next, `lib/server` or components. (`architecture.test.ts`)
 - Only `charts` imports `recharts`; only `packages/ui/src/motion/framer.tsx` imports `motion`; only `packages/ui/src/ui/icons.ts` imports `@hugeicons/core-free-icons`; no `lucide-react`. (`architecture.test.ts`, `packages/ui/src/motion/layer.test.ts`)
@@ -30,7 +30,7 @@ Package manager is Bun 1.4.3; runtime for Next is Node 24.
 - `bun run check` = typecheck + lint (`--max-warnings 0`) + unit tests. Must pass before every commit.
 - `bun run --filter @starterkit/web test -- <name>` runs one test file.
 - `bun run test:changed` runs, in each workspace, the tests touched by files changed since the last commit (`vitest --changed`); `bunx vitest related <files>` inside a package runs the tests that import those files.
-- `bun run build` builds `apps/web`; `bun run e2e` and `bun run budget` arrive in Task 13.
+- `bun run build` builds `apps/web`; `bun run --filter @starterkit/web e2e` runs the Playwright E2E against a production build on :3123 (`apps/web/playwright.config.ts`); the root `bun run e2e` and `bun run budget` arrive in Task 13.
 - Commit messages end with the `Co-Authored-By` line required by the plan.
 
 ## 3. Security
@@ -107,7 +107,7 @@ A change that touches routes, guards, redirects or exports needs a test for each
 - No literal duration, delay, easing or spring anywhere in `apps/web/src` or `packages/ui/src` (Tailwind `duration-150`, `{ duration: 0.2 }`, `ease: [` or `ease: "linear"`, `cubic-bezier(`, `stiffness:`/`bounce:`, `200ms` in CSS) outside `packages/ui/src/motion/tokens.ts` and CSS custom-property definitions, and no arithmetic on a token with a number (`DUR.slow + 0.32`); use `duration-(--dur-*)`, `DUR`, `EASE`, `SPRING_*`, `CHART_STAGGER`/`barDelay`, `var(--stagger)`. Every `--dur-*`/`--ease-*` has a `DUR`/`EASE` key and the other way round. (`architecture.test.ts` "motion timings come from tokens", `packages/ui/src/motion/tokens.test.ts`)
 - App motion is wired once: `(main)/layout.tsx` wraps the page slot in `MotionLayer` + `PageTransitionRoot`, `(main)/template.tsx` renders `PageTransition`. (`architecture.test.ts` "app motion is wired once")
 - Card grids and KPI trays stagger on first data reveal (`Stagger`/`StaggerItem`, `stagger-children`); numbers tween (`NumberTween`, `StatTile tween`); indicators use the shared indicator; overlays open and close with the tokens in `OVERLAY_MOTION`. The `/ds` Motion section is the inventory and prints those tokens. (`packages/ui/src/ui/overlay-motion.test.ts`, `apps/web/src/features/ds/motion-section.test.ts`)
-- No flicker: paging, sorting and filtering keep the previous rows on screen with a busy dim (`placeholderData`, `paging.busy`), never a skeleton; a page past the end shows the loading shape, not an empty state. (`apps/web/src/lib/shared/table-state.test.ts` "tableView")
+- No flicker: a page renders filled on first paint, with no `/api` request after hydration (its first data is server-prefetched through `Prefetch`, see §1); every skeleton, busy dim and `aria-busy` goes through `useDelayedFlag` with the `LOADING` tokens (hidden for the first 150 ms, then at least 300 ms), route `loading.tsx` shapes included (`RouteSkeleton`, held by `PageTransition`); paging, sorting and filtering keep the previous rows on screen with the busy dim (`placeholderData`), never a skeleton; a page past the end shows the loading shape, not an empty state; layout shift stays under 0.01. (`apps/web/tests/e2e/no-flicker.spec.ts`, `packages/ui/src/motion/use-delayed-flag.test.ts`, `apps/web/src/lib/shared/table-state.test.ts` "tableView")
 - A refetch never replays an enter animation, only the new-row flash. (`packages/ui/src/motion/use-new-keys.test.ts`, `packages/ui/src/ds/data-table.test.ts` "highlightNew")
 - Exits are faster than enters. The Framer layer loads after idle, outside first-load JS. (`design-system.md` §7.8 R1)
 

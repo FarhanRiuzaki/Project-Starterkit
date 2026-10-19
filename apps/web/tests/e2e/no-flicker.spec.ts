@@ -141,6 +141,51 @@ test.describe("client navigation and table changes", () => {
     expect(api, "requests to /api during client navigation (the server prefetched each page)").toEqual([]);
   });
 
+  test("revisiting a page after its cache went stale: the server's fresh data is used, no /api refetch", async ({ page }) => {
+    test.setTimeout(60_000);
+    await page.addInitScript(installProbe);
+    await page.goto("/users");
+    await settle(page);
+    const menu = page.getByRole("navigation", { name: "Menu" });
+    await menu.getByRole("link", { name: "Dashboard" }).click();
+    await expect(page.getByRole("heading", { level: 1, name: "Dashboard" })).toBeVisible();
+    await page.waitForTimeout(11_000); // past the 10 s staleTime of the cached users query
+    const api: string[] = [];
+    page.on("request", (r) => { if (new URL(r.url()).pathname.startsWith("/api/")) api.push(`${r.method()} ${r.url()}`); });
+    await menu.getByRole("link", { name: "Users" }).click();
+    await expect(page.getByRole("heading", { level: 1, name: "Users" })).toBeVisible();
+    const m = await settle(page);
+    save("revisit after stale", { api, intervals: m.intervals });
+    expect(api, "requests to /api after revisiting with a stale cache").toEqual([]);
+    expect(flashes(m.intervals)).toEqual([]);
+  });
+
+  for (const delay of [100, 250, 600]) {
+    test(`slow server (${delay} ms per page): the route loading shape shows only after 150 ms and then stays at least 300 ms`, async ({ page }) => {
+      await page.addInitScript(installProbe);
+      // Slows the page payload of each client navigation (not the prefetches) as a slow backend would.
+      await page.route("**/*", async (route) => {
+        const h = route.request().headers();
+        if (h.rsc === "1" && !h["next-router-prefetch"]) await new Promise((r) => setTimeout(r, delay));
+        await route.continue();
+      });
+      await page.goto("/");
+      await settle(page);
+      await page.evaluate(() => { window.__flicker.intervals = []; });
+      const menu = page.getByRole("navigation", { name: "Menu" });
+      for (const [link, title] of [["Users", "Users"], ["Roles", "Roles"], ["Activity log", "Activity log"], ["Dashboard", "Dashboard"]]) {
+        await menu.getByRole("link", { name: link }).click();
+        await expect(page.getByRole("heading", { level: 1, name: title })).toBeVisible();
+        await page.waitForTimeout(400);
+      }
+      const m = await settle(page);
+      save(`slow server ${delay} ms`, { intervals: m.intervals });
+      expect(flashes(m.intervals), "loading states shown for 1–300 ms").toEqual([]);
+      expect(stuck(m.intervals)).toEqual([]);
+      if (delay >= 600) expect(m.intervals.filter((i) => i.what === "busy:div").length, "a slow page shows its loading shape").toBeGreaterThan(0);
+    });
+  }
+
   test("sort and page change keep the previous rows on screen, no flash", async ({ page }) => {
     await page.addInitScript(installProbe);
     await page.goto("/users");

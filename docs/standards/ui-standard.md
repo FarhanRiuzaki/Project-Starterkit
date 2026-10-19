@@ -77,7 +77,7 @@ Detail pages add `Tabs` (line variant) directly under the header; the tab value 
 
 | State | Component | Rule |
 |---|---|---|
-| Loading | `Skeleton` in the final layout shape, revealed with `Reveal` | No spinners for regions; no layout shift (skeleton and content share one grid cell). Route-level: a route's `loading.tsx` renders a skeleton in the page's shape, so the footer doesn't jump |
+| Loading | `Skeleton` in the final layout shape, revealed with `Reveal` | A page's first data is server-prefetched (`Prefetch` in `page.tsx`), so a page load shows no loading state. Any loading state shows only after 150 ms and then stays at least 300 ms (`useDelayedFlag`, `LOADING`): no flash. No spinners for regions; no layout shift (skeleton and content share one grid cell). Route-level: a route's `loading.tsx` renders `RouteSkeleton` in the page's shape, so the footer doesn't jump |
 | Empty | `EmptyState` | Explains when data appears; filtered-empty offers "Clear filters" |
 | Error (no data) | `ErrorState` with retry | What + why + next step (copy guide) |
 | Error (has data) | keep data + page `Notice` | Never replace loaded rows with an error |
