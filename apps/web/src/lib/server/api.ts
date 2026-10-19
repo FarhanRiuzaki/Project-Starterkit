@@ -1,9 +1,10 @@
 import "server-only";
 import { $ZodError } from "zod/v4/core";
-import type { ErrorCode } from "@/lib/shared/contracts/common";
+import { type ErrorCode, ERROR_STATUS } from "@/lib/shared/contracts/common";
 import type { PermissionName } from "@/lib/shared/permissions";
 import { CSRF_HEADER, csrfOk } from "./csrf";
 import { log } from "./logger";
+import { db } from "./mock/db";
 import { type AuthCtx, authOf, getSession } from "./session";
 
 export type { AuthCtx };
@@ -12,8 +13,7 @@ export function json(data: unknown, status = 200): Response {
   return Response.json(data, { status, headers: { "Cache-Control": "no-store" } });
 }
 
-/** `internal` is the generic 500 of handleError; every other code is in the shared contract. */
-export function apiError(status: number, code: ErrorCode | "internal", message: string): Response {
+export function apiError(status: number, code: ErrorCode, message: string): Response {
   return json({ error: { code, message } }, status);
 }
 
@@ -21,13 +21,13 @@ export function apiError(status: number, code: ErrorCode | "internal", message: 
 export function handleError(e: unknown): Response {
   if (e instanceof $ZodError) return apiError(400, "bad_request", "A request parameter has an unsupported value.");
   log.error({ err: e instanceof Error ? { name: e.name, message: e.message } : String(e) }, "api error");
-  return apiError(500, "internal", "The server hit an unexpected error. Try again; if it continues, contact your administrator.");
+  return apiError(ERROR_STATUS.internal, "internal", "The server hit an unexpected error. Try again; if it continues, contact your administrator.");
 }
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
 /**
- * The API route guard. In order: a live session (else 401, cookie cleared) → on a mutation, the session's CSRF token
+ * The API route guard. In order: a live session (else 401, cookie cleared; else its lastSeenAt is stamped) → on a mutation, the session's CSRF token
  * in `x-csrf-token` (else 403 csrf) → `perm` among the user's current permissions (else 403 forbidden; the handler
  * never runs, so nothing is read) → handler; errors map through handleError. `perm: null` = signed in is enough.
  */
@@ -40,6 +40,7 @@ export async function withPermission(
     if (s.sid) s.destroy(); // a stale sid; a cookie waiting for its second factor is left alone
     return apiError(401, "unauthenticated", "Sign in to continue.");
   }
+  db().sessions.get(ctx.sid)!.lastSeenAt = new Date().toISOString(); // authOf found it, so it exists
   if (!SAFE_METHODS.has(req.method) && !csrfOk(req.headers.get(CSRF_HEADER), s.csrf)) {
     return apiError(403, "csrf", "The security token is missing or expired. Reload the page and try again.");
   }

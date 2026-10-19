@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { sealData } from "iron-session";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
+import { ERROR_CODES } from "@/lib/shared/contracts/common";
 
 const SECRET = vi.hoisted(() => (process.env.SESSION_SECRET = "s".repeat(40)));
 /** The cookie jar behind the mocked `cookies()`: iron-session reads and writes `sk_session` here. */
@@ -15,7 +16,7 @@ vi.mock("next/headers", () => ({
 
 import { db, resetDb } from "./mock/db";
 import { apiError, clientIp, handleError, json, tooManyAttempts, withPermission } from "./api";
-import { SESSION_COOKIE } from "./session";
+import { SESSION_COOKIE, sessionOptions } from "./session";
 
 const CSRF = "c".repeat(43);
 
@@ -132,7 +133,38 @@ describe("withPermission", () => {
     await signIn("admin");
     const r = await withPermission(req(), "user.view", async () => { throw new Error("db secret"); });
     expect(r.status).toBe(500);
-    expect(JSON.stringify(await r.json())).not.toContain("db secret");
+    const b = await body(r);
+    expect(JSON.stringify(b)).not.toContain("db secret");
+    expect(ERROR_CODES).toContain(b.error.code);
+  });
+
+  it("each authenticated request stamps the store session's lastSeenAt; a 401 touches no session", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      vi.setSystemTime(new Date("2026-10-19T10:00:00.000Z"));
+      const { sid } = await signIn("viewer");
+      await withPermission(req(), null, ok);
+      expect(db().sessions.get(sid)!.lastSeenAt).toBe("2026-10-19T10:00:00.000Z");
+      vi.setSystemTime(new Date("2026-10-19T10:05:00.000Z"));
+      await withPermission(req(), "role.create", ok); // 403 forbidden still passed the session check
+      expect(db().sessions.get(sid)!.lastSeenAt).toBe("2026-10-19T10:05:00.000Z");
+      const before = JSON.stringify([...db().sessions.values()]);
+      jar.clear();
+      vi.setSystemTime(new Date("2026-10-19T10:10:00.000Z"));
+      expect((await withPermission(req(), null, ok)).status).toBe(401);
+      expect(JSON.stringify([...db().sessions.values()])).toBe(before);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("session cookie", () => {
+  it("httpOnly, sameSite strict, secure follows COOKIE_SECURE, ttl = hours × 3600", () => {
+    for (const secure of [true, false]) {
+      const o = sessionOptions({ SESSION_SECRET: SECRET, SESSION_TTL_HOURS: 5, COOKIE_SECURE: secure });
+      expect(o).toMatchObject({ cookieName: "sk_session", ttl: 5 * 3600, cookieOptions: { httpOnly: true, sameSite: "strict", secure, path: "/" } });
+    }
   });
 });
 

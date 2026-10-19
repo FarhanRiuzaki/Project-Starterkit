@@ -178,6 +178,12 @@ describe("architecture checkers (fixtures)", () => {
     expect(routeViolations([route(`export const dynamic = "force-dynamic";`)])).toEqual([`${WEB}app/api/users/route.ts: no exported handler found`]);
   });
 
+  it("a guarded GET next to an unguarded POST in one file: exactly the POST is reported", () => {
+    const src = `export async function GET(req: Request) { return withPermission(req, "user.view", async () => json(1)); }
+export async function POST(req: Request) { recordActivity(ctx, e); return json(1); }`;
+    expect(routeViolations([route(src)])).toEqual([`${WEB}app/api/users/route.ts POST: no withPermission(`]);
+  });
+
   it("guarded routes pass; app/api/auth/** is exempt", () => {
     const ok = `export async function PATCH(req: Request) { return withPermission(req, "user.edit", async (ctx) => { recordActivity(ctx, e); return json(1); }); }`;
     expect(routeViolations([route(ok), f(`${WEB}app/api/auth/login/route.ts`, `export async function POST() { return json(1); }`)])).toEqual([]);

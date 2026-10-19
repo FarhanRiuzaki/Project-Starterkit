@@ -127,7 +127,7 @@ A change that touches routes, guards, redirects or exports needs a test for each
 The API contract is the zod schemas in `apps/web/src/lib/shared/contracts/*`. A Bun or Rust backend must follow them and the rules below.
 
 - Error body: `{ "error": { "code": string, "message": string } }`.
-- Error codes (fixed): `unauthenticated` 401, `forbidden` 403, `csrf` 403, `not_found` 404, `bad_request` 400, `duplicate` 409, `rate_limited` 429, `invalid_credentials` 401, `account_inactive` 403, `invalid_code` 400, `superadmin_locked` 409, `last_superadmin` 409, `self_action` 409, `role_in_use` 409, `ldap_password` 409.
+- Error codes (fixed): `unauthenticated` 401, `forbidden` 403, `csrf` 403, `not_found` 404, `bad_request` 400, `duplicate` 409, `rate_limited` 429, `invalid_credentials` 401, `account_inactive` 403, `invalid_code` 400, `superadmin_locked` 409, `last_superadmin` 409, `self_action` 409, `role_in_use` 409, `ldap_password` 409, `internal` 500.
 - Rate-limited responses (429) send `Retry-After` in seconds.
 - Paging query: `page` (≥ 1), `pageSize` (10, 25, 50 or 100; default 25), `q`, `sort` (`field` or `-field`).
 - Paging answer: `{ items: T[]; total: number; page: number; pageSize: number }`.
