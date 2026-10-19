@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { type ReactNode, useCallback, useId, useState } from "react";
-import { BlockedButton, type Column, DataTable, Notice, Panel, QueryInput, RelativeTime, TimeRangePicker, Toolbar } from "@starterkit/ui/ds";
+import { BlockedButton, type Column, DataTable, type LegendItem, Notice, Panel, QueryInput, RelativeTime, TimeRangePicker, Toolbar } from "@starterkit/ui/ds";
 import { APP_TIME_ZONE_LABEL, appDayStart, formatDateTimeLong, formatDateWIB, formatNumber } from "@starterkit/ui/lib/format";
 import { Button } from "@starterkit/ui/ui/button";
 import { Icon, type IconData } from "@starterkit/ui/ui/icon";
@@ -101,7 +101,8 @@ export function AuditTable<T extends { id: string; at: string }, F extends Audit
   rowLabel: (r: T) => string;
   /** The log's own filter controls. */
   filters: (f: TableState<F>, set: (patch: Partial<TableState<F>>) => void) => ReactNode;
-  legend?: ReactNode;
+  /** Statuses the table shows: the info button in its card header. */
+  legend?: readonly LegendItem[];
   /** Empty state with no filters: when entries appear. */
   emptyHint: string;
   detail: (r: T) => AuditDetail;
@@ -133,7 +134,7 @@ export function AuditTable<T extends { id: string; at: string }, F extends Audit
   return (
     <div className="grid gap-section">
       <PageHeader title={title} description={description}
-        actions={<><TimeRangePicker value={custom ? null : f.range} ranges={AUDIT_RANGES} onChange={(range) => set({ range, from: "", to: "" } as Partial<TableState<F>>)} />{legend}</>} />
+        actions={<TimeRangePicker value={custom ? null : f.range} ranges={AUDIT_RANGES} onChange={(range) => set({ range, from: "", to: "" } as Partial<TableState<F>>)} />} />
       {t.staleError && <Notice tone="warn" live>Couldn&apos;t refresh the {noun}; showing the ones loaded before. {errorText(t.staleError)}</Notice>}
       <Toolbar end={<>
         {narrowed.length > 0 && <Button variant="ghost" size="sm" onClick={clear}>Clear filters</Button>}
@@ -146,7 +147,7 @@ export function AuditTable<T extends { id: string; at: string }, F extends Audit
         {filters(f, set)}
         <CustomRange from={f.from} to={f.to} onCommit={(from, to) => set({ from, to } as Partial<TableState<F>>)} />
       </Toolbar>
-      <Panel flush icon={icon} title={title} count={t.total != null ? `${formatNumber(t.total)}${t.totalCapped ? "+" : ""}` : undefined}
+      <Panel flush icon={icon} title={title} legend={legend} count={t.total != null ? `${formatNumber(t.total)}${t.totalCapped ? "+" : ""}` : undefined}
         description={`${custom ? rangeText(custom) : RANGE_LABEL[f.range]} · times in ${APP_TIME_ZONE_LABEL}`}
         footnote={`Export CSV saves every matching entry, newest first, up to ${formatNumber(CSV_MAX_ROWS)} rows.`}>
         <DataTable label={title} rowHeight="identity" columns={columns} rows={t.rows} rowKey={(r) => r.id} loading={t.loading}

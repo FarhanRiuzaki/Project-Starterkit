@@ -64,7 +64,7 @@ export type StatusChipProps = {
  * - `nested`: inside a link/button, or in a `[data-card]`/`article` with a link (stretched-link card): no tab stop,
  *   description as sr-only text (or hidden behind `descriptionId`); raised above the card's link overlay so hover works.
  * - `static`: inside `[data-status-static]` (DataTable): no tab stop, no repeated SR text; hover tooltip only —
- *   the page's StatusLegend explains the values.
+ *   the card's legend (Panel `legend`) explains the values.
  */
 type Mode = "focusable" | "nested" | "static";
 function detect(el: HTMLElement | null): { mode: Mode; card: boolean } {

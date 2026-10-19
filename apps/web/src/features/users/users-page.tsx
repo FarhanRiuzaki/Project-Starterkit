@@ -4,7 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
-import { ActionMenu, BlockedButton, ConfirmActionDialog, DataTable, Field, FilterMenu, Notice, Panel, QueryInput, StatusLegend, Toolbar } from "@starterkit/ui/ds";
+import { ActionMenu, BlockedButton, ConfirmActionDialog, DataTable, Field, FilterMenu, Notice, Panel, QueryInput, Toolbar } from "@starterkit/ui/ds";
 import { formatNumber } from "@starterkit/ui/lib/format";
 import { HEALTH } from "@starterkit/ui/lib/status";
 import { Button } from "@starterkit/ui/ui/button";
@@ -107,13 +107,13 @@ export function UsersPage() {
       <PageHeader title="Users" description="Accounts that can sign in, their roles and status."
         actions={can("user.create") ? <Button asChild><Link href="/users/new">Create user</Link></Button> : undefined} />
       {t.staleError && <Notice tone="warn" live>Couldn&apos;t refresh the users; showing the ones loaded before. {errorText(t.staleError)}</Notice>}
-      <Toolbar end={<StatusLegend items={LEGEND} />}>
+      <Toolbar>
         <div className="w-full max-w-80"><QueryInput value={f.q} onChange={onSearch} keys={[]} label="Search users" placeholder="Search name, username or email" /></div>
         <FilterMenu label="Role" value={f.role} options={[{ value: "", label: "Any" }, ...(roles.data ?? []).map((r) => ({ value: r, label: r }))]} onChange={(role) => set({ role })} />
         <FilterMenu label="Status" value={f.status} options={STATUSES} onChange={(status) => set({ status })} />
         {filtered && <Button variant="ghost" size="sm" onClick={() => set({ q: "", role: "", status: "" })}>Clear filters</Button>}
       </Toolbar>
-      <Panel flush icon={UsersIcon} title="Users" count={t.total != null ? `${formatNumber(t.total)}${t.totalCapped ? "+" : ""}` : undefined} description="Select rows for bulk actions">
+      <Panel flush icon={UsersIcon} title="Users" count={t.total != null ? `${formatNumber(t.total)}${t.totalCapped ? "+" : ""}` : undefined} description="Select rows for bulk actions" legend={LEGEND}>
         {canAct && rows.length > 0 && (
           <div role="region" aria-label="Bulk actions" className="flex min-h-12 flex-wrap items-center gap-2 border-b border-line px-3 py-2">
             <label className="flex items-center gap-2 text-body-sm text-fg-2">

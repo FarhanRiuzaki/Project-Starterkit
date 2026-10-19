@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Icon, type IconData } from "../ui/icon";
 import { cn } from "../lib/cn";
 import { CountBadge } from "./badges";
+import { type LegendItem, StatusLegend } from "./status-legend";
 
 /**
  * Panel = tray + card, the v3 signature (spec §5.4).
@@ -13,18 +14,21 @@ import { CountBadge } from "./badges";
  * - `variant="flat"`: card only (dialogs, the login card); the header then sits inside the card.
  * - `cards`: render several cards side by side inside one tray (KPI strip, legend cards): pass the cards as
  *   children and set `cards` so no outer card wraps them.
+ * - `legend`: the statuses this card shows; an info button at the end of the header opens their `StatusLegend`
+ *   (the only place a status legend is rendered).
  */
-export function Panel({ title, description, actions, children, flush, className, icon, count, footnote, variant = "tray", cards, bodyClassName }: {
+export function Panel({ title, description, actions, children, flush, className, icon, count, footnote, variant = "tray", cards, bodyClassName, legend }: {
   title?: ReactNode; description?: ReactNode; actions?: ReactNode; children: ReactNode; flush?: boolean; className?: string;
   icon?: IconData; count?: number | string; footnote?: ReactNode; variant?: "tray" | "flat"; cards?: boolean; bodyClassName?: string;
+  legend?: readonly LegendItem[];
 }) {
-  const header = (title || actions) && (
+  const header = (title || actions || legend) && (
     <header className={cn("flex min-h-11 flex-wrap items-center gap-x-2 gap-y-1", variant === "tray" ? "px-3 py-1.5" : "px-4 pt-3")}>
       {icon && <Icon icon={icon} className="size-4 shrink-0 text-fg-3" />}
       {title && <h2 className="text-title-2 text-fg">{title}</h2>}
       {count != null && <CountBadge inTray={variant === "tray"}>{count}</CountBadge>}
       {description && <p className="text-body-sm text-fg-3"><span aria-hidden="true" className="mr-2 text-fg-4">·</span>{description}</p>}
-      {actions && <div className="ml-auto flex flex-wrap items-center gap-2">{actions}</div>}
+      {(actions || legend) && <div className="ml-auto flex flex-wrap items-center gap-2">{actions}{legend && <StatusLegend items={legend} />}</div>}
     </header>
   );
   const foot = footnote && <div className="px-3 pt-2 pb-1.5 text-caption text-fg-3">{footnote}</div>;

@@ -2,11 +2,10 @@
 
 import { CHART_HEIGHT, Sparkline, TimeSeriesChart } from "@starterkit/ui/charts";
 import {
-  ActionMenu, CategoryChip, CountBadge, LazyMount, Notice, Panel, StaleNote, StatTile, StatTiles, StatusLegend, TickMeter,
+  ActionMenu, CategoryChip, CountBadge, LazyMount, Notice, Panel, StaleNote, StatTile, StatTiles, TickMeter,
   TimeRangePicker, type RangeKey,
 } from "@starterkit/ui/ds";
 import { formatCompact, formatNumber } from "@starterkit/ui/lib/format";
-import { HEALTH } from "@starterkit/ui/lib/status";
 import { Button } from "@starterkit/ui/ui/button";
 import { Icon } from "@starterkit/ui/ui/icon";
 import { ActivityIcon, DeniedIcon, GaugeIcon, LineChartIcon, SessionsIcon, UsersIcon } from "@starterkit/ui/ui/icons";
@@ -24,7 +23,6 @@ const GallerySections = dynamic(() => import("./sections").then((m) => m.Gallery
   loading: () => <div aria-busy="true" className="min-h-screen" />,
 });
 
-const LEGEND = (["healthy", "degraded", "down", "stopped", "unknown"] as const).map((h) => ({ health: h, label: HEALTH[h].label, description: HEALTH[h].description }));
 const SERVICES = REQUESTS_BY_SERVICE.map((s, i) => ({ label: s.label, slot: (i + 1) as 1 | 2 | 3, total: s.points.reduce((a, [, v]) => a + v, 0) }));
 
 /** The design system gallery: tokens, components, charts and states with fictional sample data. */
@@ -39,7 +37,6 @@ export function DesignGallery() {
         description="Tokens, components, charts and states, with fictional sample data. This page is also the visual test baseline."
         actions={<>
           <TimeRangePicker value={range} onChange={setRange} />
-          <StatusLegend items={LEGEND} />
           <Button variant="secondary" onClick={() => setBump((b) => b + 1)}><Icon icon={ActivityIcon} />Replay numbers</Button>
           <ActionMenu label="Gallery actions" actions={[{ id: "export", label: "Export sample" }, { id: "reset", label: "Reset sample", destructive: true }]} />
         </>} />

@@ -241,6 +241,10 @@ describe("architecture", () => {
     expect(listGetViolations(files)).toEqual([]);
   });
 
+  it("StatusLegend is rendered only by Panel (per-card legend)", () => {
+    expect(legendViolations(files)).toEqual([]);
+  });
+
   it("no literal colour or arbitrary pixel class in .tsx", () => {
     const LITERAL = /#[0-9a-fA-F]{3,8}\b|\brgba?\(|\bhsla?\(|\boklch\(|-\[\d+(?:\.\d+)?px\]/;
     const bad = files.filter(({ r, src }) => r.endsWith(".tsx") && LITERAL.test(strip(src)))

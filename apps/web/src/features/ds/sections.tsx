@@ -3,7 +3,7 @@
 import { BarChart, CHART_HEIGHT, HBarChart, Heatmap } from "@starterkit/ui/charts";
 import {
   ActionMenu, Avatar, AvatarStack, BlockedButton, CategoryChip, Checkbox, ConfirmActionDialog, CountBadge, DataTable, EmptyState, ErrorState, Field, FilterChip, FilterMenu,
-  Kbd, LazyMount, Meter, Panel, QueryInput, SecretOnceDialog, Segmented, Spec, StatusChip, StatusLegend, TickMeter, Toolbar, Truncate,
+  Kbd, LazyMount, Meter, Panel, QueryInput, SecretOnceDialog, Segmented, Spec, StatusChip, TickMeter, Toolbar, Truncate,
   type Column,
 } from "@starterkit/ui/ds";
 import { formatNumber } from "@starterkit/ui/lib/format";
@@ -63,13 +63,13 @@ export function GallerySections() {
   return (
     <>
       <SectionTitle>Toolbar and data table</SectionTitle>
-      <Toolbar end={<StatusLegend items={LEGEND} />}>
+      <Toolbar>
         <div className="w-full max-w-80"><QueryInput value={query} onChange={setQuery} keys={["status", "city"]} label="Search users" placeholder="status:degraded city:oslo" /></div>
         <Segmented label="Status" value={status} onChange={setStatus} options={STATUS_OPTIONS} />
         <FilterMenu label="Sort by" value={sortBy} options={SORTS} onChange={setSortBy} />
         {chip && <FilterChip removeLabel="Remove filter role:viewer" onRemove={() => setChip(false)}>role:viewer</FilterChip>}
       </Toolbar>
-      <Panel flush icon={UsersIcon} title="Users" count={rows.length} description="Sort, selection, paging, row actions">
+      <Panel flush icon={UsersIcon} title="Users" count={rows.length} description="Sort, selection, paging, row actions; the info button explains the statuses" legend={LEGEND}>
         <DataTable label="Sample users" rowHeight="identity" columns={columns} rows={rows} rowKey={(r) => r.id} sort={sort} onSortChange={setSort}
           isSelected={(r) => r.id === "row-2"} empty={EMPTY} paging={{ mode: "paged", page, onPageChange: setPage }}
           rowActions={(r) => <><Button size="sm" variant="ghost">Open</Button><ActionMenu label={`Actions for ${r.name}`} actions={[{ id: "edit", label: "Edit user" }, { id: "delete", label: "Delete user", destructive: true }]} /></>} />

@@ -1,6 +1,6 @@
 "use client";
 
-import { type Column, CopyValue, FilterMenu, StatusChip, StatusLegend, Truncate } from "@starterkit/ui/ds";
+import { type Column, CopyValue, FilterMenu, StatusChip, Truncate } from "@starterkit/ui/ds";
 import { formatDateTimeLong } from "@starterkit/ui/lib/format";
 import type { Health } from "@starterkit/ui/lib/status";
 import { SessionsIcon } from "@starterkit/ui/ui/icons";
@@ -44,7 +44,7 @@ export function AuthLogPage() {
   return (
     <AuditTable<AuthLogDto, Filters> title="Sign-in log" noun="sign-in entries" icon={SessionsIcon} path="/api/audit/auth" spec={SPEC}
       description="Sign-ins, failed attempts, one-time codes and sign-outs, with the method, IP address and device."
-      columns={COLUMNS} rowLabel={(r) => `${EVENT_LABEL[r.event]}, ${r.login}`} legend={<StatusLegend items={LEGEND} />}
+      columns={COLUMNS} rowLabel={(r) => `${EVENT_LABEL[r.event]}, ${r.login}`} legend={LEGEND}
       emptyHint="Entries appear here each time someone signs in, enters a one-time code or signs out."
       filters={(f, set) => <>
         <FilterMenu label="Event" value={f.event} options={EVENTS} onChange={(event) => set({ event })} />

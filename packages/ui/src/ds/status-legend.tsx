@@ -13,7 +13,7 @@ const TITLE = "What these statuses mean";
 
 export type LegendItem = { health: Health; label: string; description?: string };
 
-/** The legend body: one vertical list, the same in every status guide (per card or per page). */
+/** The legend body: one vertical list, the same in every card. */
 export function StatusLegendList({ items }: { items: readonly LegendItem[] }) {
   return (
     <dl className="grid gap-2">
@@ -28,35 +28,24 @@ export function StatusLegendList({ items }: { items: readonly LegendItem[] }) {
 }
 
 /**
- * Explains every status a page or card shows. Always a popover.
- * `popover` (default): "Status guide" button (size sm, secondary). Place it in the PageHeader actions slot.
- * `icon`: icon-only trigger (28 px ghost, tooltip) for the top-right of the card or table that shows these statuses:
- *   the Panel `actions` slot (last), or the Toolbar `end`. The legend never renders in place under content.
+ * Explains every status a card shows: an icon-only info button (28 px ghost, tooltip "Status legend") opening a
+ * popover with the list. Rendered only by `Panel` (its `legend` prop) at the end of the card header; never on a page,
+ * a toolbar or inline (architecture test).
  */
-export function StatusLegend({ items, variant = "popover", className }: {
-  items: readonly LegendItem[];
-  variant?: "popover" | "icon"; className?: string;
-}) {
+export function StatusLegend({ items }: { items: readonly LegendItem[] }) {
   const headingId = useId();
-  const trigger = variant === "icon" ? (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <PopoverTrigger asChild>
-          <Button variant="ghost" size="icon-sm" className={className} aria-label={`Status guide: ${items.map((i) => i.label).join(", ")}`}>
-            <Icon icon={InfoIcon} />
-          </Button>
-        </PopoverTrigger>
-      </TooltipTrigger>
-      <TooltipContent>Status guide</TooltipContent>
-    </Tooltip>
-  ) : (
-    <PopoverTrigger asChild>
-      <Button variant="secondary" size="sm" className={className}><Icon icon={InfoIcon} />Status guide</Button>
-    </PopoverTrigger>
-  );
   return (
     <Popover>
-      {trigger}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <PopoverTrigger asChild>
+            <Button variant="ghost" size="icon-sm" aria-label={`Status legend: ${items.map((i) => i.label).join(", ")}`}>
+              <Icon icon={InfoIcon} />
+            </Button>
+          </PopoverTrigger>
+        </TooltipTrigger>
+        <TooltipContent>Status legend</TooltipContent>
+      </Tooltip>
       <PopoverContent aria-labelledby={headingId} tabIndex={0} className="grid gap-3 focus-visible:outline-2 focus-visible:outline-primary">
         <h2 id={headingId} className="text-title-3 text-fg">{TITLE}</h2>
         <StatusLegendList items={items} />
