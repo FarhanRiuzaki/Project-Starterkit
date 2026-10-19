@@ -75,7 +75,7 @@ function TabsTrigger({ className, children, ...props }: React.ComponentProps<typ
     <TabsPrimitive.Trigger
       data-slot="tabs-trigger"
       className={cn(
-        "relative z-10 inline-flex cursor-pointer items-center gap-1.5 whitespace-nowrap text-fg-2 transition-colors duration-150 outline-none hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-50 data-[state=active]:text-fg [&_svg]:size-4",
+        "relative z-10 inline-flex cursor-pointer items-center gap-1.5 whitespace-nowrap text-fg-2 transition-colors duration-(--dur-fast) outline-none hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-50 data-[state=active]:text-fg [&_svg]:size-4",
         "group-data-[variant=line]/tabs-list:h-10 group-data-[variant=line]/tabs-list:text-body group-data-[variant=line]/tabs-list:font-medium",
         "group-data-[variant=line]/tabs-list:after:absolute group-data-[variant=line]/tabs-list:after:inset-x-0 group-data-[variant=line]/tabs-list:after:bottom-0 group-data-[variant=line]/tabs-list:after:h-0.5 group-data-[variant=line]/tabs-list:after:rounded-xs",
         "group-data-[variant=default]/tabs-list:h-7 group-data-[variant=default]/tabs-list:rounded-md group-data-[variant=default]/tabs-list:px-2.5 group-data-[variant=default]/tabs-list:text-label",

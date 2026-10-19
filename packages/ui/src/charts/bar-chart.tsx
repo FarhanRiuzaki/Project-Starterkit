@@ -4,6 +4,7 @@ import "./charts.css";
 import { type RefObject, useEffect, useRef } from "react";
 import { Bar, BarChart as RBarChart, CartesianGrid, ReferenceLine, ResponsiveContainer, Tooltip, useActiveTooltipDataPoints, useIsTooltipActive, XAxis, YAxis } from "recharts";
 import { ColumnChartIcon } from "../ui/icons";
+import { barDelay } from "../motion/tokens";
 import { barPath, barRadius, barWidth, maxIndex } from "../lib/chart-layout";
 import { niceTicks, tickLabel, yTickWidth } from "../lib/chart-scale";
 import { ellipsize, foldBarSeries, stackTopKey } from "../lib/series";
@@ -90,7 +91,7 @@ export function BarChart({ label, categories, series, stacked, format, height = 
     // Grow from the chart's zero baseline (stackedBarStart = y-scale(0) for the whole stack), not the segment bottom.
     const base = Number.isFinite(p.stackedBarStart) ? p.stackedBarStart!
       : p.background?.y != null && p.background.height != null ? p.background.y + p.background.height : p.y + p.height;
-    const motion = { transformBox: "view-box", transformOrigin: `0px ${base}px`, animationDelay: `${Math.min(200, i * 12)}ms` } as const;
+    const motion = { transformBox: "view-box", transformOrigin: `0px ${base}px`, animationDelay: `${barDelay(i)}s` } as const;
     return (
       <g className="chart-bar" data-i={i}>
         <path d={d} fill={x.fill} className="chart-grow" style={motion} />

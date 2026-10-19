@@ -22,7 +22,7 @@ function TooltipContent({ className, sideOffset = 6, children, ...props }: React
         sideOffset={sideOffset}
         className={cn(
           "z-50 max-w-70 rounded-md bg-action px-2.5 py-1.5 text-body-sm text-action-fg shadow-overlay",
-          "animate-in fade-in-0 duration-120 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:duration-80",
+          "animate-in fade-in-0 duration-(--dur-fast) data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:duration-(--dur-instant)",
           className,
         )}
         {...props}

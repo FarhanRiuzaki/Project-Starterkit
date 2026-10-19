@@ -2,6 +2,7 @@
 
 import "./charts.css";
 import { RankedListIcon } from "../ui/icons";
+import { barDelay } from "../motion/tokens";
 import { EmptyState } from "../ds/states";
 import { Truncate } from "../ds/truncate";
 import { ChartFrame } from "./chart-frame";
@@ -27,7 +28,7 @@ export function HBarChart({ label, items, format, max = 8, slot = 1 }: {
           <li key={d.label} className="grid h-5 grid-cols-[minmax(0,2fr)_minmax(0,3fr)_auto] items-center gap-3 text-body-sm">
             <span className="min-w-0 text-fg"><Truncate title={d.label}>{d.label}</Truncate></span>
             <span className="h-2 min-w-0 overflow-hidden rounded-full bg-inset" aria-hidden="true">
-              <span className={`chart-hbar block h-full rounded-full ${SLOT_BG[slot]}`} style={{ width: `${Math.max(1, (d.value / top) * 100)}%`, animationDelay: `${Math.min(200, i * 12)}ms` }} />
+              <span className={`chart-hbar block h-full rounded-full ${SLOT_BG[slot]}`} style={{ width: `${Math.max(1, (d.value / top) * 100)}%`, animationDelay: `${barDelay(i)}s` }} />
             </span>
             <span className="min-w-12 text-right font-medium tabular text-fg">{format(d.value)}</span>
           </li>

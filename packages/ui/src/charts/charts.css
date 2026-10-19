@@ -20,7 +20,7 @@
 [data-settled] .chart-grow, [data-settled] .chart-fade, [data-settled] .chart-draw,
 [data-settled] .chart-line .recharts-line-curve { animation: none; }
 /* Tooltip and inset wells: radius 10 (spec §6.6, §6.7). */
-.chart-tip { border-radius: 10px; animation: chart-fade 120ms linear both; }
+.chart-tip { border-radius: 10px; animation: chart-fade var(--dur-instant) linear both; }
 .chart-well { border-radius: 10px; }
 
 /* Bar hover (spec §6.3): while one band is active, the others drop to 40 %. */

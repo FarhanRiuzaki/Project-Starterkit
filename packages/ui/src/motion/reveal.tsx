@@ -2,6 +2,7 @@
 
 import { type ReactNode, useEffect, useState } from "react";
 import { cn } from "../lib/cn";
+import { DUR } from "./tokens";
 
 /**
  * Skeleton → content crossfade (spec §7.2), in CSS. Both layers share one grid cell, so the region keeps the
@@ -20,7 +21,7 @@ export function Reveal({ loading, skeleton, children, className }: {
   const fading = !loading && !skeletonGone;
   useEffect(() => {
     if (!fading) return;
-    const t = setTimeout(() => setSkeletonGone(true), 200);
+    const t = setTimeout(() => setSkeletonGone(true), DUR.enter * 1000);
     return () => clearTimeout(t);
   }, [fading]);
 

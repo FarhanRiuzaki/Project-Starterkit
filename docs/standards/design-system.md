@@ -489,14 +489,15 @@ Library: **`motion` 14.0.0** (Framer Motion's current package name), imported fr
 | `--ease-in` | `cubic-bezier(0.4, 0, 1, 1)` | exits |
 | `--ease-standard` | `cubic-bezier(0.2, 0, 0, 1)` | state changes |
 | spring `indicator` | `{ type: "spring", stiffness: 520, damping: 40, mass: 0.8 }` | segment thumb, tab underline, nav pill |
+| spring `flip` | `{ type: "spring", stiffness: 420, damping: 42, mass: 0.9 }` (`SPRING_FLIP`) | card reorder glide |
 | `--shift-enter` | 6 px | translateY distance for enters |
 | `--stagger` | 35 ms per item, max 8 items staggered (cap 280 ms total), the rest appear with the 8th |
 
-Exported once from `packages/ui/src/motion/tokens.ts` as JS constants (seconds) mirroring the CSS variables; `packages/ui/src/motion/tokens.test.ts` keeps them in sync.
+Exported once from `packages/ui/src/motion/tokens.ts` as JS constants (seconds) mirroring the CSS variables; `packages/ui/src/motion/tokens.test.ts` keeps them in sync. No literal duration, delay, easing or spring anywhere else in `apps/web/src` or `packages/ui/src` (CSS custom-property definitions excepted): `apps/web/src/test/architecture.test.ts` ("motion timings come from tokens").
 
 ### 7.2 Opening the app, page transitions, content reveal
-- **App open**: sidebar fades in (opacity 0 → 1, 220 ms); sheet fades + rises 6 px (260 ms, `--ease-out`, 40 ms
-  delay). Happens once per hard load.
+- **App open**: sidebar fades in (opacity 0 → 1, 220 ms); sheet fades + rises 6 px (260 ms, `--ease-out`, one
+  `--stagger` step, 35 ms, later). Happens once per hard load.
 - **Page transitions**: `PageTransition` (the app group's `template.tsx`) wraps the page content keyed by route segment (not search
   params, so filter/tab URL changes never re-animate the page). Enter: opacity 0 → 1 + y 6 → 0 over `--dur-page`; the
   deferred Framer layer adds an exit (opacity 1 → 0 over `--dur-exit`, no movement). The shell (sidebar, top
@@ -520,7 +521,7 @@ allowed. Reduced motion: the indicator jumps (no spring) and crossfades 100 ms.
   writing to a ref'd text node through `format.ts` (so separators/units stay correct). First render counts from 0
   only on app open; later refreshes tween from the previous value. `aria-live` regions announce the final value only.
 - **Chart mount**: bars grow from the baseline (`scaleY` 0 → 1 with `transform-origin: bottom`, 280 ms, stagger
-  12 ms per bar, cap 200 ms); lines draw via `strokeDashoffset` 100 % → 0 (400 ms); areas fade 0 → 1 (280 ms).
+  12 ms per bar, cap 200 ms: `CHART_STAGGER`, `barDelay(i)`); lines draw via `strokeDashoffset` 100 % → 0 (400 ms); areas fade 0 → 1 (280 ms).
   Recharts' own animation is disabled (`isAnimationActive={false}`) in favour of these CSS-transform equivalents so
   the timing is uniform. Data refresh never re-runs the mount animation: values transition 220 ms.
 - Charts below the fold mount when `LazyMount` reveals them — the mount animation runs then.
@@ -531,9 +532,9 @@ allowed. Reduced motion: the indicator jumps (no spring) and crossfades 100 ms.
   translateY −1 px, 150 ms; press scale 0.995.
 - Table rows: hover background 100 ms only (no movement).
 - Toggle thumb: 100 ms; checkbox check-path draw 150 ms.
-- Menus/popovers: opacity + scale 0.98 → 1 from the trigger origin, 180 ms in / 120 ms out.
-- Tooltip: opacity only, 120 ms in, 80 ms out, 300 ms open delay (0 when moving between chart points).
-- Dialog: scrim fade 200 ms; panel opacity + scale 0.98 → 1, 280 ms in / 160 ms out.
+- Menus/popovers: opacity + scale 0.98 → 1 from the trigger origin, `--dur-pop` (180 ms) in / `--dur-instant` (100 ms) out.
+- Tooltip: opacity only, `--dur-fast` (150 ms) in, `--dur-instant` (100 ms) out, 300 ms open delay (0 when moving between chart points).
+- Dialog: scrim fade `--dur-enter` in / `--dur-exit` out; panel opacity + scale 0.98 → 1, `--dur-slow` (280 ms) in / `--dur-exit` (160 ms) out.
 
 ### 7.6 Reduced motion
 `useReducedMotion()` + `@media (prefers-reduced-motion: reduce)`: **no translate, no scale, no spring, no

@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { DUR, EASE, SHIFT_ENTER, SPRING_SOFT, STAGGER, staggerDelay, tweenDuration } from "./tokens";
+import { barDelay, DUR, EASE, SHIFT_ENTER, SPRING_FLIP, SPRING_SOFT, STAGGER, staggerDelay, tweenDuration } from "./tokens";
 
 const CSS = readFileSync(path.resolve(import.meta.dirname, "../styles/tokens.css"), "utf8");
 const cssVar = (name: string) => new RegExp(`--${name}:\\s*([^;]+);`).exec(CSS)?.[1]?.trim();
@@ -36,6 +36,21 @@ describe("pop / flash / SPRING_SOFT", () => {
   it("SPRING_SOFT is near-critically damped (damping ratio ≥ 0.92, no visible overshoot)", () => {
     const { stiffness, damping, mass } = SPRING_SOFT;
     expect(damping / (2 * Math.sqrt(stiffness * mass))).toBeGreaterThanOrEqual(0.92); // critically damped within 8%
+  });
+});
+
+describe("barDelay (spec §7.4)", () => {
+  it("12 ms per bar, capped at 200 ms; bad index → 0", () => {
+    expect([0, 1, 3, 16, 17, 100].map(barDelay)).toEqual([0, 0.012, 0.036, 0.192, 0.2, 0.2]);
+    expect(barDelay(-1)).toBe(0);
+    expect(barDelay(Number.NaN)).toBe(0);
+  });
+});
+
+describe("SPRING_FLIP", () => {
+  it("no visible overshoot (damping ratio ≥ 0.92)", () => {
+    const { stiffness, damping, mass } = SPRING_FLIP;
+    expect(damping / (2 * Math.sqrt(stiffness * mass))).toBeGreaterThanOrEqual(0.92);
   });
 });
 

@@ -20,10 +20,21 @@ export const EASE = {
 export const SPRING_INDICATOR = { type: "spring", stiffness: 520, damping: 40, mass: 0.8 } as const;
 /** The one general-purpose spring of the deferred layer (number tweens, badge settle): no overshoot. */
 export const SPRING_SOFT = { type: "spring", stiffness: 380, damping: 36, mass: 1 } as const;
+/** Card reorder (FLIP) glide of the deferred layer: a touch softer than the indicator, no overshoot. */
+export const SPRING_FLIP = { type: "spring", stiffness: 420, damping: 42, mass: 0.9 } as const;
 /** translateY distance for enters, px. */
 export const SHIFT_ENTER = 6;
 /** 35 ms per item; the first `max` items are staggered, the rest appear with the last staggered one. */
 export const STAGGER = { step: 0.035, max: 8 } as const;
+
+/** Chart bars grow one after another (spec §7.4): 12 ms per bar, at most 200 ms in total. */
+export const CHART_STAGGER = { step: 0.012, max: 0.2 } as const;
+
+/** Grow delay of bar `index`, seconds. */
+export function barDelay(index: number): number {
+  if (!Number.isFinite(index) || index <= 0) return 0;
+  return Math.round(Math.min(CHART_STAGGER.max, Math.floor(index) * CHART_STAGGER.step) * 1000) / 1000;
+}
 
 export function staggerDelay(index: number, reduced = false): number {
   if (reduced || !Number.isFinite(index) || index <= 0) return 0;

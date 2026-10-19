@@ -7,6 +7,7 @@ type F = { r: string; src: string; imp: string[] };
 const WEB = "apps/web/src/";
 const UI = "packages/ui/src/";
 const files: F[] = scan([WEB_SRC, UI_SRC]).map((f) => ({ r: repoRel(f), src: read(f), imp: importsOf(f) }));
+const cssFiles: F[] = scan([WEB_SRC, UI_SRC], /\.css$/).map((f) => ({ r: repoRel(f), src: read(f), imp: [] }));
 const strip = (s: string) => s.replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, "");
 
 /** ui/motion/lib = primitives (0) → ds (1) → charts (2) → shell (3) → features (4). */
@@ -78,7 +79,7 @@ const allTypes = (clause: string | undefined) => {
  * (ui-standard §5). Value lists the screens need live in zod-free lib/shared modules.
  */
 function clientZodViolations(fs: F[]): string[] {
-  return fs.filter(isClient).flatMap(({ r, src }) => [...strip(src).matchAll(/^\s*import\s+(type\s+)?(?:([\s\S]*?)\s+from\s+)?["']([^"']+)["']/gm)]
+  return fs.filter(isClient).flatMap(({ r, src }) => [...strip(src).matchAll(/^\s*import\s+(type\s+)?(?:([^;"']*?)\s+from\s+)?["']([^"']+)["']/gm)]
     .filter((m) => {
       const spec = m[3]!;
       return spec === "zod" || spec.startsWith("zod/") || !!resolveSpec(r, spec)?.startsWith(`${WEB}lib/shared/contracts/`);
@@ -112,6 +113,66 @@ function routeViolations(fs: F[]): string[] {
         ...(h.method === "GET" || /\brecordActivity\(/.test(h.body) ? [] : [`${r} ${h.method}: no recordActivity(`]),
       ]);
     });
+}
+
+const ROUTE = new RegExp(`^${WEB}app/api/(.+/)?route\\.tsx?$`);
+
+/**
+ * GET routes that answer one record, a summary or a redirect, not a list; every other GET pages with paginate(
+ * (spec "Standar tabel & skalabilitas": no list endpoint without a bound). Keys are paths under app/api/.
+ */
+const NON_LIST_GETS: Record<string, string> = {
+  "auth/oauth/[provider]/route.ts": "redirect to the provider",
+  "dashboard/route.ts": "summary numbers; its recent list is fixed at 5",
+  "me/route.ts": "the signed-in user",
+  "roles/[id]/route.ts": "one role",
+  "users/[id]/route.ts": "one user; its recent activity is fixed at 20",
+  // ponytail: role names for the filter and the user form; switch to a searchable picker on /api/roles?q= if roles grow past a few hundred.
+  "users/roles/route.ts": "role names for selects",
+};
+
+/** A GET route not in `allow` must call paginate( in its GET handler; an `allow` entry must name a route that has a GET. */
+function listGetViolations(fs: F[], allow: Record<string, string> = NON_LIST_GETS): string[] {
+  const gets = fs.filter(({ r }) => ROUTE.test(r)).flatMap(({ r, src }) => {
+    const get = handlers(strip(src)).find((h) => h.method === "GET");
+    return get ? [{ key: r.slice(`${WEB}app/api/`.length), body: get.body }] : [];
+  });
+  return [
+    ...gets.filter((g) => !(g.key in allow) && !/\bpaginate\(/.test(g.body)).map((g) => `app/api/${g.key}: GET answers a list without paginate(`),
+    ...Object.keys(allow).filter((k) => !gets.some((g) => g.key === k)).map((k) => `app/api/${k}: listed as a non-list GET but has no GET handler`),
+  ];
+}
+
+const MOTION_TOKENS = `${UI}motion/tokens.ts`;
+/** Literal timings in TS/TSX (motion values come from motion/tokens.ts or the CSS --dur-* / --ease-* tokens). */
+const TS_TIMING: RegExp[] = [
+  /\b(?:duration|delay)-(?:\[|\d)/, // Tailwind duration-150, delay-[40ms]
+  /\bease-\[/, // ease-[cubic-bezier(…)]
+  /\b(?:duration|delay)\s*:\s*\d/, // { duration: 0.2 }
+  /\bease\s*:\s*\[/, // { ease: [0.2, 0, 0, 1] }
+  /\bcubic-bezier\(/,
+  /\b(?:stiffness|damping)\s*:\s*\d/, // inline spring
+  /\b(?:animation|transition)(?:Delay|Duration)\s*:[^,;\n]*\d/, // animationDelay: `${i * 12}ms`
+  /["'`\s:]\d*\.?\d+m?s\b\s*(?:ease|linear|cubic|["'`;])/, // "200ms", "0.2s ease"
+];
+/** CSS: a time other than 0 or a cubic-bezier( outside a custom-property definition (`--dur-x: 150ms`). */
+const CSS_TIMING = /(?<![\w.-])(?!0m?s\b)\d*\.?\d+m?s\b|\bcubic-bezier\(/;
+
+function motionLiteralViolations(ts: F[], css: F[]): string[] {
+  const inTs = ts.filter(({ r }) => r !== MOTION_TOKENS).flatMap(({ r, src }) => {
+    const hit = TS_TIMING.map((re) => strip(src).match(re)?.[0]).find(Boolean);
+    return hit ? [`${r}: ${hit}`] : [];
+  });
+  const inCss = css.flatMap(({ r, src }) => src.replace(/\/\*[\s\S]*?\*\//g, "").split("\n")
+    .flatMap((line) => line.split(";")).map((d) => d.slice(d.lastIndexOf("{") + 1)).filter((d) => !/^\s*--[\w-]+\s*:/.test(d))
+    .flatMap((d) => { const m = d.match(CSS_TIMING); return m ? [`${r}: ${m[0]}`] : []; }));
+  return [...inTs, ...inCss];
+}
+
+/** Status legends live in a card header (Panel `legend`), never on a page, toolbar or inline (spec "Legend status per card"). */
+const LEGEND_HOME = `${UI}ds/panel.tsx`;
+function legendViolations(fs: F[]): string[] {
+  return fs.filter(({ r, src }) => r !== LEGEND_HOME && /<StatusLegend\b/.test(strip(src))).map(({ r }) => `${r}: renders StatusLegend; pass Panel legend instead`);
 }
 
 describe("architecture", () => {
@@ -172,10 +233,8 @@ describe("architecture", () => {
     expect(files.filter(({ src }) => /motion-safe:animate-(pop|swap)\b/.test(src)).map((f) => f.r)).toEqual([]);
   });
 
-  it("features, ds and shell use motion tokens, never literal timings", () => {
-    const bad = files.filter(({ r, src }) => (r.startsWith(`${WEB}features/`) || r.startsWith(`${WEB}components/shell/`) || r.startsWith(`${UI}ds/`))
-      && /\b(duration|delay)-(\[|\d)|\banimation-duration:|\btransition-duration:\s*\d|["'`\s:]\d*\.?\d+m?s\b\s*(ease|linear|cubic|["'`;])/.test(src));
-    expect(bad.map((f) => f.r)).toEqual([]);
+  it("motion timings come from tokens: no literal duration, delay, easing or spring outside motion/tokens.ts and CSS token definitions", () => {
+    expect(motionLiteralViolations(files, cssFiles)).toEqual([]);
   });
 
   it("no literal colour or arbitrary pixel class in .tsx", () => {
@@ -282,5 +341,61 @@ export async function POST(req: Request) { recordActivity(ctx, e); return json(1
   it("guarded routes pass; app/api/auth/** is exempt", () => {
     const ok = `export async function PATCH(req: Request) { return withPermission(req, "user.edit", async (ctx) => { recordActivity(ctx, e); return json(1); }); }`;
     expect(routeViolations([route(ok), f(`${WEB}app/api/auth/login/route.ts`, `export async function POST() { return json(1); }`)])).toEqual([]);
+  });
+
+  it("zod import check: a side-effect import followed by a type-only contract import passes", () => {
+    expect(clientZodViolations([
+      f(`${WEB}features/x/a.tsx`, `import "./x.css";\nimport type { A } from "@/lib/shared/contracts/audit";`),
+    ])).toEqual([]);
+  });
+
+  it("list GET without paginate(, allowlisted and paged GETs pass, a stale allowlist entry is reported", () => {
+    const guarded = (inner: string) => `export async function GET(req: Request) { return withPermission(req, "user.view", async () => ${inner}); }`;
+    expect(listGetViolations([
+      route(guarded("json([...db().users.values()])"), "users"),
+      route(guarded("json(paginate(rows, q, SORTERS, \"name\"))"), "roles"),
+      route(guarded("json(db().users.get(id))"), "users/[id]"),
+      route(`export async function POST(req: Request) { return withPermission(req, "x", async () => json([])); }`, "bulk"),
+      route(guarded("json(rows) // paginate( only in a comment"), "logs"),
+    ], { "users/[id]/route.ts": "one user", "gone/route.ts": "removed route" })).toEqual([
+      "app/api/users/route.ts: GET answers a list without paginate(",
+      "app/api/logs/route.ts: GET answers a list without paginate(",
+      "app/api/gone/route.ts: listed as a non-list GET but has no GET handler",
+    ]);
+  });
+
+  it("motion literals in TS/TSX and CSS; tokens, token definitions and 0ms pass", () => {
+    const bad = motionLiteralViolations([
+      f(`${UI}ui/a.tsx`, `<div className="transition-opacity duration-200" />`),
+      f(`${UI}ui/b.tsx`, `animate(el, { x: 0 }, { duration: 0.2 });`),
+      f(`${UI}ui/c.tsx`, `const t = { ease: [0.2, 0, 0, 1] };`),
+      f(`${UI}ui/d.tsx`, `style={{ transition: "opacity 200ms ease" }}`),
+      f(`${UI}ui/e.tsx`, `const s = { type: "spring", stiffness: 420 };`),
+      f(`${UI}charts/f.tsx`, "const m = { animationDelay: `${Math.min(200, i * 12)}ms` };"),
+      f(`${WEB}features/g.tsx`, `const e = "cubic-bezier(0.2, 0, 0, 1)";`),
+      f(`${UI}ui/ok.tsx`, "<div className=\"duration-(--dur-fast)\" style={{ animationDelay: `${staggerDelay(i)}s` }} /> // duration-200 in a comment"),
+      f(MOTION_TOKENS, `export const DUR = { fast: 0.15 }; export const EASE = { out: [0.22, 1, 0.36, 1] };`),
+    ], [
+      f(`${UI}styles/x.css`, `.a { transition: opacity 150ms linear; }\n.b { animation-delay: 35ms; }\n.c { animation: s 1.2s linear infinite; }\n.d { transition-timing-function: cubic-bezier(0, 0, 1, 1); }`),
+      f(`${UI}styles/ok.css`, `:root { --dur-fast: 150ms; --ease-out: cubic-bezier(0.22, 1, 0.36, 1); }\n.e { animation-delay: 0ms; height: 100svh; transition: opacity var(--dur-fast) var(--ease-out); } /* 200ms */`),
+    ]);
+    expect(bad).toEqual([
+      `${UI}ui/a.tsx: duration-2`, `${UI}ui/b.tsx: duration: 0`, `${UI}ui/c.tsx: ease: [`, `${UI}ui/d.tsx:  200ms ease`,
+      `${UI}ui/e.tsx: stiffness: 4`, `${UI}charts/f.tsx: animationDelay: \`\${Math.min(200`, `${WEB}features/g.tsx: cubic-bezier(`,
+      `${UI}styles/x.css: 150ms`, `${UI}styles/x.css: 35ms`, `${UI}styles/x.css: 1.2s`, `${UI}styles/x.css: cubic-bezier(`,
+    ]);
+  });
+
+  it("StatusLegend outside Panel (page header, toolbar, gallery) is reported; Panel and StatusLegendList pass", () => {
+    expect(legendViolations([
+      f(`${WEB}features/users/page.tsx`, `<Toolbar end={<StatusLegend items={LEGEND} />} />`),
+      f(`${WEB}features/ds/gallery.tsx`, `<PageHeader actions={<StatusLegend items={L} />} />`),
+      f(LEGEND_HOME, `{legend && <StatusLegend items={legend} />}`),
+      f(`${UI}ds/status-legend.tsx`, `<StatusLegendList items={items} />`),
+      f(`${WEB}features/audit/x.tsx`, `<Panel legend={LEGEND} /> // <StatusLegend items={x} />`),
+    ])).toEqual([
+      `${WEB}features/users/page.tsx: renders StatusLegend; pass Panel legend instead`,
+      `${WEB}features/ds/gallery.tsx: renders StatusLegend; pass Panel legend instead`,
+    ]);
   });
 });

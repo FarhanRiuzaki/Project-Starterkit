@@ -11,7 +11,7 @@ import { animate, AnimatePresence, domMax, LazyMotion, m, MotionConfig, useIsPre
 import { LayoutRouterContext } from "next/dist/shared/lib/app-router-context.shared-runtime";
 import { type ReactNode, useContext, useState } from "react";
 import type { MotionKit } from "./layer";
-import { DUR, EASE, SHIFT_ENTER, SPRING_INDICATOR } from "./tokens";
+import { DUR, EASE, SHIFT_ENTER, SPRING_FLIP, SPRING_INDICATOR } from "./tokens";
 
 function Scope({ children }: { children: ReactNode }) {
   return <LazyMotion features={domMax} strict><MotionConfig reducedMotion="user">{children}</MotionConfig></LazyMotion>;
@@ -74,7 +74,7 @@ export const kit: MotionKit = {
     return () => c.stop();
   },
   flip(el, dx, dy) {
-    const c = animate(el, { x: [dx, 0], y: [dy, 0] }, { type: "spring", stiffness: 420, damping: 42, mass: 0.9 });
+    const c = animate(el, { x: [dx, 0], y: [dy, 0] }, SPRING_FLIP);
     return () => c.stop();
   },
 };
