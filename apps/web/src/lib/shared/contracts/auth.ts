@@ -6,20 +6,23 @@ export const LoginBody = z.object({
   login: z.string().min(1).max(254),
   password: z.string().min(1).max(256),
   method: z.enum(["password", "ldap"]).default("password"),
+  /** Deep link to return to; the server keeps it only when internal (afterSignIn). */
+  next: z.string().max(2048).optional(),
 });
 export type LoginBody = z.infer<typeof LoginBody>;
 
-export const LoginResult = z.object({ twoFactorRequired: z.boolean() });
+/** Where the browser goes next: `/login/2fa[?next=…]` when a second factor is due, else the signed-in landing page. */
+export const LoginResult = z.object({ next: z.string() });
 export type LoginResult = z.infer<typeof LoginResult>;
 
 /** `code` is a 6-digit one-time code or a recovery code. */
-export const TwoFactorBody = z.object({ code: z.string().trim().min(6).max(32) });
+export const TwoFactorBody = z.object({ code: z.string().trim().min(6).max(32), next: z.string().max(2048).optional() });
 export type TwoFactorBody = z.infer<typeof TwoFactorBody>;
 
 export const ForgotPasswordBody = z.object({ email: z.string().email().max(254) });
 export type ForgotPasswordBody = z.infer<typeof ForgotPasswordBody>;
 
-export const Password = z.string().min(8).max(128);
+export const Password = z.string().min(12).max(128);
 
 export const ResetPasswordBody = z.object({ token: z.string().min(1).max(256), password: Password });
 export type ResetPasswordBody = z.infer<typeof ResetPasswordBody>;

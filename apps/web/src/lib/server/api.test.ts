@@ -25,7 +25,7 @@ async function signIn(username: string, cookie: Record<string, unknown> = {}) {
   const user = [...db().users.values()].find((u) => u.username === username)!;
   const sid = randomUUID();
   const now = new Date().toISOString();
-  db().sessions.set(sid, { id: sid, userId: user.id, device: "test", ip: "test", createdAt: now, lastSeenAt: now });
+  db().sessions.set(sid, { id: sid, userId: user.id, method: "password", device: "test", ip: "test", createdAt: now, lastSeenAt: now });
   jar.set(SESSION_COOKIE, await sealData({ sid, csrf: CSRF, ...cookie }, { password: SECRET, ttl: 3600 }));
   return { user, sid };
 }

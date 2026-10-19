@@ -21,7 +21,7 @@ import { SESSION_COOKIE } from "./session";
 async function signIn(username: string) {
   const user = [...db().users.values()].find((u) => u.username === username)!;
   const sid = randomUUID();
-  db().sessions.set(sid, { id: sid, userId: user.id, device: "t", ip: "t", createdAt: "", lastSeenAt: "" });
+  db().sessions.set(sid, { id: sid, userId: user.id, method: "password", device: "t", ip: "t", createdAt: "", lastSeenAt: "" });
   jar.set(SESSION_COOKIE, await sealData({ sid, csrf: "tok" }, { password: SECRET, ttl: 3600 }));
   return { user, sid };
 }

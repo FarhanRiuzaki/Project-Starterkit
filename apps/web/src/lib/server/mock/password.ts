@@ -19,3 +19,8 @@ export function verifyPassword(pw: string, hash: string): boolean {
 export function hashRecoveryCode(code: string): string {
   return createHash("sha256").update(code.trim().toLowerCase()).digest("hex");
 }
+
+/** Reset-link tokens are stored as this hash (random 256-bit tokens, so a fast hash is enough). */
+export function hashToken(token: string): string {
+  return createHash("sha256").update(token).digest("hex");
+}

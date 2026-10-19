@@ -5,6 +5,7 @@
   "type": "module",
   "sideEffects": ["*.css"],
   "exports": {
+    "./ui/icons": "./src/ui/icons.ts",
     "./ui/*": "./src/ui/*.tsx",
     "./motion": "./src/motion/index.ts",
     "./ds": "./src/ds/index.ts",

@@ -1,4 +1,5 @@
 import type { ActivityDto, AuthLogDto } from "../../shared/contracts/audit";
+import type { AuthMethod } from "../../shared/contracts/auth";
 import type { RoleDto } from "../../shared/contracts/rbac";
 import { UserDto } from "../../shared/contracts/users";
 import { seed } from "./seed";
@@ -10,7 +11,7 @@ export function toUserDto(record: UserRecord): UserDto {
 }
 
 export type RoleRecord = Omit<RoleDto, "userCount">;
-export type SessionRecord = { id: string; userId: string; device: string; ip: string; createdAt: string; lastSeenAt: string };
+export type SessionRecord = { id: string; userId: string; method: AuthMethod; device: string; ip: string; createdAt: string; lastSeenAt: string };
 export type ResetTokenRecord = { userId: string; expiresAt: number };
 
 export type Db = {
