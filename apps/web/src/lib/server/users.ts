@@ -3,14 +3,14 @@ import { apiError } from "./api";
 import { log } from "./logger";
 import { db, type SessionRecord, toUserDto, type UserRecord } from "./mock/db";
 import { hashToken } from "./mock/password";
-import { checkRoleGrant, effectivePermissions } from "./mock/rules";
+import { checkRoleGrant, checkTargetRank, effectivePermissions } from "./mock/rules";
 import { paginate, type Sorters } from "./paginate";
 import type { AuthCtx } from "./session";
-import type { Page } from "@/lib/shared/contracts/common";
+import type { ErrorCode, Page } from "@/lib/shared/contracts/common";
 import type { SessionDto, SessionListQuery } from "@/lib/shared/contracts/me";
 import type { RoleOption, RoleOptionQuery } from "@/lib/shared/contracts/rbac";
-import type { UserDetailDto, UserDto, UserListQuery } from "@/lib/shared/contracts/users";
-import type { PermissionName } from "@/lib/shared/permissions";
+import type { UserDetailDto, UserListQuery, UserRowDto } from "@/lib/shared/contracts/users";
+import { PERMISSIONS, type PermissionName } from "@/lib/shared/permissions";
 
 const INVITE_TTL_MS = 72 * 3600_000;
 
@@ -29,6 +29,15 @@ export function roleGrantDenied(actorPerms: ReadonlySet<PermissionName>, names: 
   return null;
 }
 
+/** Actor rank (checkTargetRank) of the request's user over `target`: "forbidden" when `target` holds a permission the actor lacks. */
+export const targetRank = (ctx: AuthCtx, target: UserRecord): ErrorCode | null => checkTargetRank(ctx.perms, effectivePermissions(target, db().roles));
+
+/** The 403 for a route acting on one user who outranks the actor; null when the actor may act. */
+export function rankDenied(ctx: AuthCtx, target: UserRecord): Response | null {
+  return targetRank(ctx, target) ? apiError(403, "forbidden", RANK_TEXT) : null;
+}
+export const RANK_TEXT = "This user has permissions your role doesn't hold. Ask an administrator who has all of them.";
+
 /** Every name in `roles` is an existing role. */
 export const rolesExist = (roles: readonly string[]): boolean => {
   const names = new Set([...db().roles.values()].map((r) => r.name));
@@ -44,7 +53,7 @@ const USER_SORTERS: Sorters<UserRecord> = {
 };
 
 /** One page of users (GET /api/users): `q` matches name, username or email; `role` and `status` are exact. */
-export function userPage(query: UserListQuery): Page<UserDto> {
+export function userPage(query: UserListQuery): Page<UserRowDto> {
   const { q, role, status } = query;
   const needle = q?.trim().toLowerCase();
   const rows = [...db().users.values()].filter((u) =>
@@ -52,7 +61,7 @@ export function userPage(query: UserListQuery): Page<UserDto> {
     && (!role || u.roles.includes(role))
     && (!status || u.isActive === (status === "active")));
   const page = paginate(rows, query, USER_SORTERS, "name");
-  return { ...page, items: page.items.map(toUserDto) };
+  return { ...page, items: page.items.map(toUserRow) };
 }
 
 /** Role options for pickers (GET /api/users/roles): one page of { id, name }, name A–Z; `q` matches the name. */
@@ -60,6 +69,12 @@ export function roleOptionPage(q: RoleOptionQuery): Page<RoleOption> {
   const needle = q.q?.trim().toLowerCase();
   const rows: RoleOption[] = [...db().roles.values()].filter((r) => !needle || r.name.toLowerCase().includes(needle)).map((r) => ({ id: r.id, name: r.name }));
   return paginate(rows, q, { name: (r) => r.name }, "name");
+}
+
+/** A user with their effective permissions, in catalog order. */
+export function toUserRow(u: UserRecord): UserRowDto {
+  const have = effectivePermissions(u, db().roles);
+  return { ...toUserDto(u), permissions: PERMISSIONS.filter((p) => have.has(p)) };
 }
 
 /** One user with effective permissions (GET /api/users/[id]); recent activity only with audit.view. Null = no such user. */
@@ -72,7 +87,7 @@ export function userDetail(id: string, ctx: AuthCtx): UserDetailDto | null {
       .sort((a, b) => b.at.localeCompare(a.at)).slice(0, 20)
       .map((a) => ({ id: a.id, at: a.at, actor: { name: a.actor.name }, action: a.action }))
     : null;
-  return { ...toUserDto(u), permissions: [...effectivePermissions(u, db().roles)], recentActivity };
+  return { ...toUserRow(u), recentActivity };
 }
 
 /** One page of a user's sessions (GET /api/me/sessions, GET /api/users/[id]/sessions), newest activity first by default; `currentSid` is marked. */

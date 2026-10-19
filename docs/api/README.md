@@ -70,6 +70,12 @@ other schema describes the answer exactly (`additionalProperties: false`).
   (`apps/web/src/lib/shared/permissions.ts`); the catalog holds at most 500 names (more is 400).
 - No privilege escalation: a role's permissions can be added or removed, and a role can be given to or taken from a
   user, only by an actor who holds every permission involved (403 `forbidden`).
+- Actor rank: an actor may act on another user (`PATCH`/`DELETE /api/users/{id}`, `/status`, `/reset-password`,
+  `DELETE /api/users/{id}/sessions/{sid}`, every bulk action) only when they hold every permission that user has
+  (their effective permissions, the union of their roles). Otherwise 403 `forbidden`, checked after the 404 and before
+  the other rules; bulk skips such a row with `forbidden`. So a `user.edit` holder can't reset, edit, deactivate,
+  delete or sign out a Superadmin. The rows of `GET /api/users` and `GET /api/users/{id}` carry `permissions` so the
+  screen can block those actions up front.
 - Every POST/PATCH/PUT/DELETE outside `/api/auth/*` that changes something writes an activity entry; sign-in, sign-out
   and 2FA steps write sign-in log entries.
 
@@ -104,17 +110,17 @@ endpoint adds to the guard's 401/403 and the 400 for an invalid body or query.
 | GET | `/api/roles/{id}` | `role.view` | none | [RoleDto](schemas/RoleDto.json) | `not_found` |
 | PATCH | `/api/roles/{id}` | `role.edit` | [UpdateRoleBody](schemas/UpdateRoleBody.json) | [RoleDto](schemas/RoleDto.json) | `not_found`, `superadmin_locked`, `forbidden` (escalation), `duplicate` |
 | DELETE | `/api/roles/{id}` | `role.delete` | none | [OkDto](schemas/OkDto.json) | `not_found`, `superadmin_locked`, `role_in_use` |
-| GET | `/api/users` | `user.view` | [UserListQuery](schemas/UserListQuery.json) | [UserPage](schemas/UserPage.json) | none |
+| GET | `/api/users` | `user.view` | [UserListQuery](schemas/UserListQuery.json) | [UserPage](schemas/UserPage.json) (rows are [UserRowDto](schemas/UserRowDto.json): the user plus effective `permissions`) | none |
 | POST | `/api/users` | `user.create` | [CreateUserBody](schemas/CreateUserBody.json) | 201 [UserDto](schemas/UserDto.json) | `bad_request` (unknown role), `forbidden` (escalation), `duplicate` |
 | POST | `/api/users/bulk` | `user.edit`; `user.delete` for `action: "delete"` | [BulkUserBody](schemas/BulkUserBody.json) | [BulkResult](schemas/BulkResult.json); skipped codes `self_action`, `last_superadmin`, `forbidden`, `not_found` | `bad_request` (unknown role) |
 | GET | `/api/users/roles` | `user.view` | [RoleOptionQuery](schemas/RoleOptionQuery.json) | [RoleOptionPage](schemas/RoleOptionPage.json) | none |
 | GET | `/api/users/{id}` | `user.view` (recent activity needs `audit.view`, else null) | none | [UserDetailDto](schemas/UserDetailDto.json) | `not_found` |
-| PATCH | `/api/users/{id}` | `user.edit` | [UpdateUserBody](schemas/UpdateUserBody.json) (deactivating ends the user's sessions) | [UserDto](schemas/UserDto.json) | `not_found`, `bad_request` (unknown role), `duplicate`, `forbidden` (escalation), `self_action`, `last_superadmin` |
-| DELETE | `/api/users/{id}` | `user.delete` | none | [OkDto](schemas/OkDto.json) | `not_found`, `self_action`, `last_superadmin` |
-| POST | `/api/users/{id}/reset-password` | `user.edit` | none (the user's sessions end) | [TemporaryPasswordDto](schemas/TemporaryPasswordDto.json) (shown once, never logged) | `not_found`, `self_action`, `ldap_password` |
+| PATCH | `/api/users/{id}` | `user.edit` | [UpdateUserBody](schemas/UpdateUserBody.json) (deactivating ends the user's sessions) | [UserDto](schemas/UserDto.json) | `not_found`, `bad_request` (unknown role), `duplicate`, `forbidden` (escalation, actor rank), `self_action`, `last_superadmin` |
+| DELETE | `/api/users/{id}` | `user.delete` | none | [OkDto](schemas/OkDto.json) | `not_found`, `forbidden` (actor rank), `self_action`, `last_superadmin` |
+| POST | `/api/users/{id}/reset-password` | `user.edit` | none (the user's sessions end) | [TemporaryPasswordDto](schemas/TemporaryPasswordDto.json) (shown once, never logged) | `not_found`, `forbidden` (actor rank), `self_action`, `ldap_password` |
 | GET | `/api/users/{id}/sessions` | `user.view` | [SessionListQuery](schemas/SessionListQuery.json) | [SessionPage](schemas/SessionPage.json) | `not_found` |
-| DELETE | `/api/users/{id}/sessions/{sid}` | `user.edit` | none | [OkDto](schemas/OkDto.json) | `not_found` (also when the session isn't that user's), `self_action` |
-| POST | `/api/users/{id}/status` | `user.edit` | [SetUserStatusBody](schemas/SetUserStatusBody.json) (deactivating ends the user's sessions) | [UserDto](schemas/UserDto.json) | `not_found`, `self_action`, `last_superadmin` |
+| DELETE | `/api/users/{id}/sessions/{sid}` | `user.edit` | none | [OkDto](schemas/OkDto.json) | `not_found` (also when the session isn't that user's), `forbidden` (actor rank), `self_action` |
+| POST | `/api/users/{id}/status` | `user.edit` | [SetUserStatusBody](schemas/SetUserStatusBody.json) (deactivating ends the user's sessions) | [UserDto](schemas/UserDto.json) | `not_found`, `forbidden` (actor rank), `self_action`, `last_superadmin` |
 | GET | `/api/audit/activity` | `audit.view` | [ActivityQuery](schemas/ActivityQuery.json) | [ActivityPage](schemas/ActivityPage.json), or CSV with `format=csv` | none |
 | GET | `/api/audit/auth` | `audit.view` | [AuthLogQuery](schemas/AuthLogQuery.json) | [AuthLogPage](schemas/AuthLogPage.json), or CSV with `format=csv` | none |
 

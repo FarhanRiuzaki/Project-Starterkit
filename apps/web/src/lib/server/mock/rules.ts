@@ -39,6 +39,15 @@ export function checkRoleGrant(actorPerms: ReadonlySet<PermissionName>, role: Ro
   return checkPermissionGrant(actorPerms, role.permissions);
 }
 
+/**
+ * Actor rank: an actor may act on another user (edit, status, password reset, sessions, delete, bulk) only when they
+ * hold every permission that user has, so a `user.edit` holder can't take over an account that outranks them.
+ */
+export function checkTargetRank(actorPerms: ReadonlySet<PermissionName>, targetPerms: ReadonlySet<PermissionName>): ErrorCode | null {
+  for (const p of targetPerms) if (!actorPerms.has(p)) return "forbidden";
+  return null;
+}
+
 export function checkPasswordOp(target: UserRecord): ErrorCode | null {
   return target.isLdap ? "ldap_password" : null;
 }

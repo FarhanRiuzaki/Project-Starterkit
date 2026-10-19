@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { PERMISSIONS, type PermissionName } from "@/lib/shared/permissions";
 import type { RoleRecord, UserRecord } from "./db";
-import { bulk, checkPasswordOp, checkPermissionGrant, checkRoleChange, checkRoleGrant, checkUserChange, effectivePermissions } from "./rules";
+import { bulk, checkPasswordOp, checkPermissionGrant, checkRoleChange, checkRoleGrant, checkTargetRank, checkUserChange, effectivePermissions } from "./rules";
 
 const role = (name: string, permissions: PermissionName[], locked = false): RoleRecord => ({
   id: `r-${name}`, name, locked, permissions,
@@ -75,5 +75,14 @@ describe("rules", () => {
     expect(checkPermissionGrant(actor, ["user.view", "user.delete"])).toBe("forbidden");
     expect(checkRoleGrant(actor, role("R", ["role.view"]))).toBeNull();
     expect(checkRoleGrant(actor, superRole)).toBe("forbidden");
+  });
+  it("actor rank: an actor may act on a user only when they hold every permission that user has", () => {
+    const perms = (u: UserRecord) => effectivePermissions(u, roles);
+    expect(checkTargetRank(perms(me), perms(onlySuper))).toBe("forbidden"); // Admin on Superadmin
+    expect(checkTargetRank(perms(me), perms(otherAdmin))).toBeNull(); // same permissions
+    expect(checkTargetRank(perms(me), perms(user("x", [])))).toBeNull(); // no permissions at all
+    expect(checkTargetRank(perms(onlySuper), perms(me))).toBeNull();
+    // Admin lacks role.view, which Viewer holds in this fixture: a partial overlap is still refused.
+    expect(checkTargetRank(perms(me), perms(viewerUser))).toBe("forbidden");
   });
 });

@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "UserRowDto",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "username": {
+      "type": "string"
+    },
+    "email": {
+      "type": "string"
+    },
+    "avatarUrl": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "isActive": {
+      "type": "boolean"
+    },
+    "isLdap": {
+      "type": "boolean"
+    },
+    "twoFactorEnabled": {
+      "type": "boolean"
+    },
+    "roles": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "connected": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "google",
+          "apple"
+        ]
+      }
+    },
+    "lastLoginAt": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "createdAt": {
+      "type": "string"
+    },
+    "permissions": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "user.view",
+          "user.create",
+          "user.edit",
+          "user.delete",
+          "role.view",
+          "role.create",
+          "role.edit",
+          "role.delete",
+          "permission.view",
+          "permission.create",
+          "audit.view"
+        ]
+      }
+    }
+  },
+  "required": [
+    "id",
+    "name",
+    "username",
+    "email",
+    "avatarUrl",
+    "isActive",
+    "isLdap",
+    "twoFactorEnabled",
+    "roles",
+    "connected",
+    "lastLoginAt",
+    "createdAt",
+    "permissions"
+  ],
+  "additionalProperties": false
+}

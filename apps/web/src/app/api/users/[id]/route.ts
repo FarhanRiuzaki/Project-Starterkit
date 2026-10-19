@@ -2,7 +2,7 @@ import { apiError, badRequest, blocked, json, notFound, withPermission } from "@
 import { recordActivity } from "@/lib/server/audit";
 import { db, toUserDto } from "@/lib/server/mock/db";
 import { checkUserChange } from "@/lib/server/mock/rules";
-import { dropTokens, duplicateOf, endSessions, roleGrantDenied, rolesExist, userDetail } from "@/lib/server/users";
+import { dropTokens, duplicateOf, endSessions, rankDenied, roleGrantDenied, rolesExist, userDetail } from "@/lib/server/users";
 import { UpdateUserBody } from "@/lib/shared/contracts/users";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -21,6 +21,8 @@ export async function PATCH(req: Request, { params }: Ctx): Promise<Response> {
     const u = db().users.get(id);
     if (!u) return notFound("user");
     if (!body.success) return badRequest();
+    const outranked = rankDenied(ctx, u);
+    if (outranked) return outranked;
     const b = body.data;
     if (b.roles && !rolesExist(b.roles)) return apiError(400, "bad_request", "One of the roles doesn't exist. Pick roles from the list.");
     if (duplicateOf(b.username, b.email, id)) return apiError(409, "duplicate", "Another user already has this username or email. Use different ones.");
@@ -51,6 +53,8 @@ export async function DELETE(req: Request, { params }: Ctx): Promise<Response> {
   return withPermission(req, "user.delete", async (ctx) => {
     const u = db().users.get(id);
     if (!u) return notFound("user");
+    const outranked = rankDenied(ctx, u);
+    if (outranked) return outranked;
     const c = checkUserChange(ctx.user, u, { kind: "delete" }, db());
     if (c) return blocked(c);
     const before = toUserDto(u);

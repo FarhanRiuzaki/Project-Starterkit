@@ -15,7 +15,9 @@ import { addSession, signInAs, TEST_CSRF } from "@/test/session";
 import { hashToken, verifyPassword } from "@/lib/server/mock/password";
 import { SEED_PASSWORD } from "@/lib/server/mock/seed";
 import { SESSION_COOKIE } from "@/lib/server/session";
+import { PERMISSIONS } from "@/lib/shared/permissions";
 import { POST as resetPost } from "../auth/reset/route";
+import { POST as rolePost } from "../roles/route";
 import { DELETE as userDelete, GET as userGet, PATCH as userPatch } from "./[id]/route";
 import { POST as resetPassword } from "./[id]/reset-password/route";
 import { DELETE as sessionDelete } from "./[id]/sessions/[sid]/route";
@@ -242,11 +244,27 @@ describe("GET/PATCH /api/users/[id]", () => {
     expect((await userPatch(req("PATCH", { name: "Renamed Admin" }), params(user.id))).status).toBe(200);
   });
 
-  it("PATCH removing Superadmin from the last one is 409 last_superadmin; deactivating ends sessions", async () => {
-    db().roles.get("role-admin")!.permissions = ["user.view", "user.edit", "role.view", "role.create", "role.edit", "role.delete", "permission.view", "permission.create", "audit.view", "user.create", "user.delete"]; // all, so the grant rule passes
+  it("the last active Superadmin can't lose the role, be deactivated or deleted; a second Superadmin frees it", async () => {
+    // Actor rank means only someone holding every permission can act on a Superadmin. The seed Superadmin sets that
+    // up through the API: a role with every permission for Admin User, and later a second Superadmin.
+    await signIn("superadmin");
+    expect((await rolePost(req("POST", { name: "Operators", permissions: [...PERMISSIONS] }, "http://c/api/roles"))).status).toBe(201);
+    expect((await userPatch(req("PATCH", { roles: ["Admin", "Operators"] }), params(idOf("admin")))).status).toBe(200);
     await signIn("admin");
-    const r = await userPatch(req("PATCH", { roles: ["Admin"] }), params(idOf("superadmin")));
-    expect(await code(r)).toBe("last_superadmin");
+    const sup = idOf("superadmin");
+    expect(await code(await userPatch(req("PATCH", { roles: ["Admin"] }), params(sup)))).toBe("last_superadmin");
+    expect(await code(await userPatch(req("PATCH", { isActive: false }), params(sup)))).toBe("last_superadmin");
+    expect(await code(await statusPost(req("POST", { active: false }), params(sup)))).toBe("last_superadmin");
+    expect(await code(await userDelete(req("DELETE"), params(sup)))).toBe("last_superadmin");
+    expect(await (await bulk({ action: "deactivate", ids: [sup] })).json()).toEqual({ done: [], skipped: [{ id: sup, code: "last_superadmin" }] });
+    await signIn("superadmin");
+    expect((await userPatch(req("PATCH", { roles: ["Viewer", "Superadmin"] }), params(idOf("viewer")))).status).toBe(200);
+    await signIn("admin");
+    expect((await statusPost(req("POST", { active: false }), params(sup))).status).toBe(200);
+  });
+
+  it("deactivating through PATCH ends the user's sessions", async () => {
+    await signIn("admin");
     const v = idOf("viewer");
     const sess = addSession(v);
     expect((await userPatch(req("PATCH", { isActive: false }), params(v))).status).toBe(200);
@@ -260,7 +278,7 @@ describe("DELETE and status", () => {
     const v = idOf("viewer");
     const sess = addSession(v);
     expect(await code(await userDelete(req("DELETE"), params(user.id)))).toBe("self_action");
-    expect(await code(await userDelete(req("DELETE"), params(idOf("superadmin"))))).toBe("last_superadmin");
+    expect(await code(await userDelete(req("DELETE"), params(idOf("superadmin"))))).toBe("forbidden"); // actor rank
     expect((await userDelete(req("DELETE"), params(v))).status).toBe(200);
     expect(db().users.has(v)).toBe(false);
     expect(db().sessions.has(sess)).toBe(false);
@@ -295,7 +313,7 @@ describe("POST /api/users/bulk", () => {
     expect((await bulk({ action: "explode", ids: ["u-003"] })).status).toBe(400);
   });
 
-  it("bulk deactivate with self and last superadmin skips both with codes, logs only done ids", async () => {
+  it("bulk deactivate with self and a Superadmin skips both with codes, logs only done ids", async () => {
     const { user } = await signIn("admin");
     const viewer = idOf("viewer");
     const sess = addSession(viewer);
@@ -303,7 +321,7 @@ describe("POST /api/users/bulk", () => {
     const before = acts().length;
     const r = await bulk({ action: "deactivate", ids: [user.id, sup, viewer] });
     expect(r.status).toBe(200);
-    expect(await r.json()).toEqual({ done: [viewer], skipped: [{ id: user.id, code: "self_action" }, { id: sup, code: "last_superadmin" }] });
+    expect(await r.json()).toEqual({ done: [viewer], skipped: [{ id: user.id, code: "self_action" }, { id: sup, code: "forbidden" }] });
     expect(db().users.get(user.id)!.isActive).toBe(true);
     expect(db().users.get(sup)!.isActive).toBe(true);
     expect(db().users.get(viewer)!.isActive).toBe(false);
@@ -455,5 +473,66 @@ describe("seed as shipped", () => {
   it("Admin can grant Viewer (its permissions are a subset of Admin's)", async () => {
     await signIn("admin");
     expect((await createPost(req("POST", NEW))).status).toBe(201);
+  });
+});
+
+describe("actor rank: no acting on a user who holds a permission the actor lacks", () => {
+  it("Admin cannot reset, edit, deactivate, delete or end sessions of Superadmin", async () => {
+    await signIn("admin");
+    const sup = idOf("superadmin");
+    const sess = addSession(sup);
+    const snapshot = structuredClone(db().users.get(sup)!);
+    const before = acts().length;
+    const answers = [
+      await resetPassword(req("POST"), params(sup)),
+      await userPatch(req("PATCH", { email: "taken-over@example.com" }), params(sup)),
+      await userPatch(req("PATCH", { name: "Renamed" }), params(sup)),
+      await userPatch(req("PATCH", { isActive: false }), params(sup)),
+      await statusPost(req("POST", { active: false }), params(sup)),
+      await userDelete(req("DELETE"), params(sup)),
+      await sessionDelete(req("DELETE"), { params: Promise.resolve({ id: sup, sid: sess }) }),
+    ];
+    for (const r of answers) {
+      expect(r.status).toBe(403);
+      expect(await code(r)).toBe("forbidden");
+    }
+    expect(db().users.get(sup)).toEqual(snapshot);
+    expect(db().sessions.has(sess)).toBe(true);
+    expect(acts().length).toBe(before);
+  });
+
+  it("Admin cannot activate an inactive Superadmin", async () => {
+    const extra = { ...structuredClone(db().users.get(idOf("superadmin"))!), id: "u-sa2", username: "sa2", email: "sa2@example.com", isActive: false };
+    db().users.set(extra.id, extra);
+    await signIn("admin");
+    expect(await code(await statusPost(req("POST", { active: true }), params(extra.id)))).toBe("forbidden");
+    expect(db().users.get(extra.id)!.isActive).toBe(false);
+  });
+
+  it("bulk skips a Superadmin with forbidden for every action and logs nothing for it", async () => {
+    await signIn("admin");
+    const sup = idOf("superadmin");
+    const before = acts().length;
+    for (const body of [{ action: "activate" }, { action: "deactivate" }, { action: "delete" }, { action: "assignRole", role: "Viewer" }]) {
+      const r = await bulk({ ...body, ids: [sup] });
+      expect(await r.json()).toEqual({ done: [], skipped: [{ id: sup, code: "forbidden" }] });
+    }
+    expect(db().users.get(sup)).toMatchObject({ isActive: true, roles: ["Superadmin"] });
+    expect(acts().length).toBe(before);
+  });
+
+  it("an equal or lower rank is allowed: Admin acts on another Admin and on a Viewer", async () => {
+    await signIn("admin");
+    expect((await resetPassword(req("POST"), params(idOf("twofa")))).status).toBe(200);
+    expect((await userPatch(req("PATCH", { name: "Renamed Viewer" }), params(idOf("viewer")))).status).toBe(200);
+    expect((await statusPost(req("POST", { active: false }), params(idOf("twofa")))).status).toBe(200);
+  });
+
+  it("an extra role outranks: Admin can't act on another Admin who also holds role.view", async () => {
+    await signIn("superadmin");
+    expect((await rolePost(req("POST", { name: "Auditors", permissions: ["audit.view", "role.view"] }, "http://c/api/roles"))).status).toBe(201);
+    expect((await userPatch(req("PATCH", { roles: ["Admin", "Auditors"] }), params(idOf("twofa")))).status).toBe(200);
+    await signIn("admin");
+    expect(await code(await resetPassword(req("POST"), params(idOf("twofa"))))).toBe("forbidden");
   });
 });

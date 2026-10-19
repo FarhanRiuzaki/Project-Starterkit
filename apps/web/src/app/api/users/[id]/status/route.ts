@@ -2,7 +2,7 @@ import { badRequest, blocked, json, notFound, withPermission } from "@/lib/serve
 import { recordActivity } from "@/lib/server/audit";
 import { db, toUserDto } from "@/lib/server/mock/db";
 import { checkUserChange } from "@/lib/server/mock/rules";
-import { endSessions } from "@/lib/server/users";
+import { endSessions, rankDenied } from "@/lib/server/users";
 import { SetUserStatusBody } from "@/lib/shared/contracts/users";
 
 /** Activate or deactivate. Deactivating ends the user's sessions. */
@@ -13,6 +13,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const u = db().users.get(id);
     if (!u) return notFound("user");
     if (!body.success) return badRequest();
+    const outranked = rankDenied(ctx, u);
+    if (outranked) return outranked;
     const { active } = body.data;
     if (!active) { const c = checkUserChange(ctx.user, u, { kind: "deactivate" }, db()); if (c) return blocked(c); }
     u.isActive = active;

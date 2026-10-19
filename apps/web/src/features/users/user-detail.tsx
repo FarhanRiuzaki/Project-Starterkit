@@ -20,7 +20,7 @@ import type { ActivityBrief } from "@/lib/shared/contracts/users";
 import { MODULES, permissionLabel } from "@/lib/shared/permissions";
 import { userSessions } from "@/lib/shared/queries";
 import { UserStatusChip } from "./user-columns";
-import { USERS_KEY, protection, useLastSuperadminId, useUserDetail } from "./use-users";
+import { USERS_KEY, protection, rankBlock, useLastSuperadminId, useUserDetail } from "./use-users";
 
 const PROVIDER = { google: "Google", apple: "Apple" } as const;
 
@@ -33,7 +33,7 @@ const ACTIVITY_COLUMNS: Column<ActivityBrief>[] = [
 type Dialog = "deactivate" | "delete" | "reset" | { end: SessionDto } | null;
 
 export function UserDetail({ id }: { id: string }) {
-  const { user: me, can } = useAuth();
+  const { user: me, perms, can } = useAuth();
   const qc = useQueryClient();
   const router = useRouter();
   const q = useUserDetail(id);
@@ -48,8 +48,9 @@ export function UserDetail({ id }: { id: string }) {
   if (!u || skeleton) return <div className={skeleton ? "grid gap-section" : "invisible grid gap-section"} aria-busy={skeleton || undefined}><PageHeader title="User" /><Skeleton className="h-40 w-full" /><Skeleton className="h-40 w-full" /></div>;
 
   const refresh = () => qc.invalidateQueries({ queryKey: USERS_KEY });
-  const block = protection(u, me.id, lastSuperId);
-  const resetBlock = u.id === me.id ? "Use Security in your account to change your own password." : u.isLdap ? "This user signs in with a directory password. Change it in your directory." : null;
+  const rank = rankBlock(u, perms);
+  const block = protection(u, me.id, perms, lastSuperId);
+  const resetBlock = u.id === me.id ? "Use Security in your account to change your own password." : rank ?? (u.isLdap ? "This user signs in with a directory password. Change it in your directory." : null);
   const granted = new Set<string>(u.permissions);
 
   async function setActive(active: boolean) {
@@ -62,11 +63,13 @@ export function UserDetail({ id }: { id: string }) {
     <div className="grid gap-section">
       <PageHeader title={u.name} status={<UserStatusChip user={u} />} description={`${u.username} · ${u.email}`}
         actions={<>
-          {can("user.edit") && <Button asChild variant="secondary"><Link href={`/users/${id}/edit`}>Edit user</Link></Button>}
+          {can("user.edit") && (rank
+            ? <BlockedButton variant="secondary" reason={rank}>Edit user</BlockedButton>
+            : <Button asChild variant="secondary"><Link href={`/users/${id}/edit`}>Edit user</Link></Button>)}
           {can("user.edit") && <BlockedButton variant="secondary" reason={resetBlock} onClick={() => setDialog("reset")}>Reset password</BlockedButton>}
           {can("user.edit") && (u.isActive
             ? <BlockedButton variant="secondary" reason={block} onClick={() => setDialog("deactivate")}>Deactivate user</BlockedButton>
-            : <Button variant="secondary" onClick={() => void setActive(true).catch((e) => toast.error(errorText(e)))}>Activate user</Button>)}
+            : <BlockedButton variant="secondary" reason={rank} onClick={() => void setActive(true).catch((e) => toast.error(errorText(e)))}>Activate user</BlockedButton>)}
           {can("user.delete") && <BlockedButton variant="destructive" reason={block} onClick={() => setDialog("delete")}>Delete user</BlockedButton>}
         </>} />
       {q.error && <Notice tone="warn" live>Couldn&apos;t refresh this user; showing the last loaded details.</Notice>}
@@ -102,7 +105,7 @@ export function UserDetail({ id }: { id: string }) {
       </Stagger>
       <SessionsTable table={userSessions(id)} title="Active sessions" description="Where this user is signed in"
         current="Your session" emptyHint="Sessions appear here when this user signs in."
-        action={can("user.edit") ? (s) => (s.current ? <span className="text-caption text-fg-3">Your session</span> : <Button size="sm" variant="ghost" onClick={() => setDialog({ end: s })}>End session</Button>) : undefined} />
+        action={can("user.edit") ? (s) => (s.current ? <span className="text-caption text-fg-3">Your session</span> : <BlockedButton size="sm" variant="ghost" reason={rank} onClick={() => setDialog({ end: s })}>End session</BlockedButton>) : undefined} />
       {u.recentActivity && (
       <Panel flush icon={LogIcon} title="Recent activity" description="The last 20 actions on this user" count={u.recentActivity.length}>
         <DataTable label="Recent activity" columns={ACTIVITY_COLUMNS} rows={u.recentActivity} rowKey={(a) => a.id}

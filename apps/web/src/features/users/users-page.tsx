@@ -15,33 +15,33 @@ import { api, errorText } from "@/lib/client/api";
 import { useAuth } from "@/lib/client/auth-context";
 import { useTableQuery } from "@/lib/client/use-table-query";
 import type { BulkResult } from "@/lib/shared/contracts/common";
-import type { UserDto } from "@/lib/shared/contracts/users";
+import type { UserRowDto } from "@/lib/shared/contracts/users";
 import { USER_STATUSES, type UserFilters, USERS } from "@/lib/shared/queries";
 import { RoleSearch } from "./role-search";
 import { userColumns } from "./user-columns";
-import { SKIP_REASON, USERS_KEY, protection, useLastSuperadminId, useRoleNames } from "./use-users";
+import { SKIP_REASON, USERS_KEY, protection, rankBlock, useLastSuperadminId, useRoleNames } from "./use-users";
 
 const STATUS_LABEL = { "": "Any", active: "Active", inactive: "Inactive" } as const;
 const STATUSES = USER_STATUSES.map((value) => ({ value, label: STATUS_LABEL[value] }));
 const LEGEND = (["healthy", "stopped"] as const).map((h) => ({ health: h, label: h === "healthy" ? "Active" : "Inactive", description: h === "healthy" ? "Can sign in." : HEALTH.stopped.description }));
 
 type BulkAction = "activate" | "deactivate" | "delete" | "assignRole";
-type Pending = { kind: "bulk"; action: BulkAction; ids: string[] } | { kind: "one"; action: "deactivate" | "delete"; user: UserDto };
+type Pending = { kind: "bulk"; action: BulkAction; ids: string[] } | { kind: "one"; action: "deactivate" | "delete"; user: UserRowDto };
 
 const VERB: Record<BulkAction, string> = { activate: "Activate", deactivate: "Deactivate", delete: "Delete", assignRole: "Assign role to" };
 const BULK_NOTE: Record<BulkAction, string> = {
-  activate: "Users who are already active stay as they are.",
-  deactivate: "Your own account and the last active Superadmin are skipped.",
-  delete: "Your own account and the last active Superadmin are skipped.",
-  assignRole: "Your own account is skipped, and so is any user when your role doesn't hold every permission of the chosen role.",
+  activate: "Users who are already active stay as they are. Users with permissions your role doesn't hold are skipped.",
+  deactivate: "Your own account, the last active Superadmin and users with permissions your role doesn't hold are skipped.",
+  delete: "Your own account, the last active Superadmin and users with permissions your role doesn't hold are skipped.",
+  assignRole: "Your own account and users with permissions your role doesn't hold are skipped, and so is everyone when your role doesn't hold every permission of the chosen role.",
 };
 const LABEL: Record<BulkAction, string> = { activate: "Activate users", deactivate: "Deactivate users", delete: "Delete users", assignRole: "Assign role" };
 
 export function UsersPage() {
-  const { user: me, can } = useAuth();
+  const { user: me, perms, can } = useAuth();
   const qc = useQueryClient();
   const router = useRouter();
-  const t = useTableQuery<UserDto, UserFilters>(USERS);
+  const t = useTableQuery<UserRowDto, UserFilters>(USERS);
   const f = t.state;
   const roles = useRoleNames();
   const lastSuperId = useLastSuperadminId();
@@ -82,7 +82,7 @@ export function UsersPage() {
     await refresh();
   }
 
-  async function activate(u: UserDto) {
+  async function activate(u: UserRowDto) {
     try {
       await api(`/api/users/${u.id}/status`, { method: "POST", body: JSON.stringify({ active: true }) });
       toast(`Activated ${u.name}.`);
@@ -138,14 +138,15 @@ export function UsersPage() {
             ? { icon: UsersIcon, title: "No users match", description: "Change the search or filters, or clear them to see every user." }
             : { icon: UsersIcon, title: "No users yet", description: "Users appear here after you create them." }}
           rowActions={(u) => {
-            const block = protection(u, me.id, lastSuperId);
+            const block = protection(u, me.id, perms, lastSuperId);
+            const rank = rankBlock(u, perms);
             return <>
               {can("user.edit") && (u.isActive
                 ? <BlockedButton reason={block} size="sm" variant="ghost" onClick={() => setPending({ kind: "one", action: "deactivate", user: u })}>Deactivate</BlockedButton>
-                : <Button size="sm" variant="ghost" onClick={() => void activate(u)}>Activate</Button>)}
+                : <BlockedButton reason={rank} size="sm" variant="ghost" onClick={() => void activate(u)}>Activate</BlockedButton>)}
               <ActionMenu label={`Actions for ${u.name}`} actions={[
                 { id: "open", label: "View user", onSelect: () => router.push(`/users/${u.id}`) },
-                ...(can("user.edit") ? [{ id: "edit", label: "Edit user", onSelect: () => router.push(`/users/${u.id}/edit`) }] : []),
+                ...(can("user.edit") ? [{ id: "edit", label: "Edit user", disabled: !!rank, hint: rank ?? undefined, onSelect: () => router.push(`/users/${u.id}/edit`) }] : []),
                 ...(can("user.delete") ? [{ id: "delete", label: "Delete user", destructive: true, disabled: !!block, hint: block ?? undefined, onSelect: () => setPending({ kind: "one", action: "delete", user: u }) }] : []),
               ]} />
             </>;

@@ -29,7 +29,7 @@ const pageOf = (item: z.ZodType) => z.object({
 });
 
 const COMPOSED = {
-  UserPage: pageOf(users.UserDto),
+  UserPage: pageOf(users.UserRowDto),
   RoleOptionPage: pageOf(rbac.RoleOption),
   SessionPage: pageOf(me.SessionDto),
   RolePage: pageOf(rbac.RoleDto),

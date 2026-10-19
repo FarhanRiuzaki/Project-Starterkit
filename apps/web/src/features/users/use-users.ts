@@ -3,7 +3,8 @@ import { useEffect, useState } from "react";
 import { api } from "@/lib/client/api";
 import type { Page } from "@/lib/shared/contracts/common";
 import type { RoleOption } from "@/lib/shared/contracts/rbac";
-import type { UserDetailDto, UserDto } from "@/lib/shared/contracts/users";
+import type { UserDetailDto, UserDto, UserRowDto } from "@/lib/shared/contracts/users";
+import type { PermissionName } from "@/lib/shared/permissions";
 import { roleOptions, SUPERADMINS, userDetail, USERS_KEY } from "@/lib/shared/queries";
 
 export { USERS_KEY };
@@ -45,11 +46,19 @@ export const SKIP_REASON: Record<string, string> = {
   last_superadmin: "the last active Superadmin",
   not_found: "no longer exists",
   ldap_password: "directory user",
+  forbidden: "has permissions your role doesn't hold",
 };
 
+/**
+ * Actor rank, as the server checks it (rules.ts checkTargetRank): the reason the viewer can't act on `u` at all (edit,
+ * status, password reset, sessions, delete) because `u` holds a permission the viewer lacks; else null.
+ */
+export function rankBlock(u: Pick<UserRowDto, "permissions">, perms: ReadonlySet<PermissionName>): string | null {
+  return u.permissions.some((p) => !perms.has(p)) ? "This user has permissions your role doesn't hold. Ask an administrator who has all of them." : null;
+}
+
 /** Reason a user can't be deactivated or deleted, or null. `lastSuperId` from useLastSuperadminId. */
-export function protection(u: UserDto, meId: string, lastSuperId: string | null): string | null {
+export function protection(u: UserRowDto, meId: string, perms: ReadonlySet<PermissionName>, lastSuperId: string | null): string | null {
   if (u.id === meId) return "You can't do this to your own account. Ask another administrator.";
-  if (u.id === lastSuperId) return "This is the last active Superadmin. Make another user Superadmin first.";
-  return null;
+  return rankBlock(u, perms) ?? (u.id === lastSuperId ? "This is the last active Superadmin. Make another user Superadmin first." : null);
 }

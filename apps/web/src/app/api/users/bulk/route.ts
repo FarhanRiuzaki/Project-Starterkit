@@ -2,12 +2,12 @@ import { apiError, handleError, json, withPermission } from "@/lib/server/api";
 import { recordActivity } from "@/lib/server/audit";
 import { db, type UserRecord } from "@/lib/server/mock/db";
 import { bulk, checkRoleGrant, checkUserChange } from "@/lib/server/mock/rules";
-import { dropTokens, endSessions, rolesExist } from "@/lib/server/users";
+import { dropTokens, endSessions, rolesExist, targetRank } from "@/lib/server/users";
 import { BulkUserBody } from "@/lib/shared/contracts/users";
 
 /**
  * Bulk activate / deactivate / delete / assignRole. Each id is checked on its own: protected rows (yourself, the last
- * active Superadmin, unknown ids) are skipped with a code; only `done` ids are applied, and only they reach the activity log.
+ * active Superadmin, a user who outranks you, unknown ids) are skipped with a code; only `done` ids are applied, and only they reach the activity log.
  */
 export async function POST(req: Request): Promise<Response> {
   const body = BulkUserBody.safeParse(await req.json().catch(() => null));
@@ -21,11 +21,11 @@ export async function POST(req: Request): Promise<Response> {
     const grant = target ? checkRoleGrant(ctx.perms, target) : null;
     const withUser = (id: string, f: (u: UserRecord) => ReturnType<typeof checkUserChange>) => { const u = users.get(id); return u ? f(u) : "not_found" as const; };
     const result = bulk(ids,
-      (id) => withUser(id, (u) =>
+      (id) => withUser(id, (u) => targetRank(ctx, u) ?? (
         action === "deactivate" ? checkUserChange(ctx.user, u, { kind: "deactivate" }, db())
           : action === "delete" ? checkUserChange(ctx.user, u, { kind: "delete" }, db())
           : action === "assignRole" ? checkUserChange(ctx.user, u, { kind: "setRoles", roles: [...u.roles, role!] }, db()) ?? grant
-          : null),
+          : null)),
       (id) => {
         const u = users.get(id)!;
         const before = { isActive: u.isActive, roles: [...u.roles] };

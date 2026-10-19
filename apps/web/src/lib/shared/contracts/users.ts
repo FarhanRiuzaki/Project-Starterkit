@@ -69,13 +69,17 @@ export const ActivityBrief = z.object({ id: z.string(), at: z.string(), actor: z
 export type ActivityBrief = z.infer<typeof ActivityBrief>;
 
 /**
- * GET /api/users/[id]: the user plus what the detail page shows (effective permissions, last 20 activity entries
- * targeting the user). Their sessions are a list of their own: GET /api/users/[id]/sessions.
+ * A row of GET /api/users: the user plus their effective permissions (the union of their roles), so a screen can
+ * block actions on a user who holds a permission the viewer lacks (actor rank) before the server refuses them.
  */
-export const UserDetailDto = UserDto.extend({
-  permissions: z.array(z.enum(PERMISSIONS as [PermissionName, ...PermissionName[]])),
-  recentActivity: z.array(ActivityBrief).nullable(),
-});
+export const UserRowDto = UserDto.extend({ permissions: z.array(z.enum(PERMISSIONS as [PermissionName, ...PermissionName[]])) });
+export type UserRowDto = z.infer<typeof UserRowDto>;
+
+/**
+ * GET /api/users/[id]: the row plus the last 20 activity entries targeting the user (null without audit.view). Their
+ * sessions are a list of their own: GET /api/users/[id]/sessions.
+ */
+export const UserDetailDto = UserRowDto.extend({ recentActivity: z.array(ActivityBrief).nullable() });
 export type UserDetailDto = z.infer<typeof UserDetailDto>;
 
 export const SetUserStatusBody = z.object({ active: z.boolean() });
