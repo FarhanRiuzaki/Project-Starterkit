@@ -19,8 +19,14 @@ export function setCsrf(token: string | null): void {
 const OWN_401 = /^\/api\/auth(\/|\?|$)/;
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
+/** The browser talks only to same-origin `/api/*` (never the backend): anything else throws before a request is made. */
+export function assertApiPath(path: string): void {
+  if (!path.startsWith("/api/") || path.startsWith("//")) throw new Error(`api(): "${path.slice(0, 40)}" must start with /api/`);
+}
+
 /** Call the app's API. 401 outside /api/auth → the sign-in page, returning here afterwards. Errors throw ApiError. */
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
+  assertApiPath(path);
   const method = (init.method ?? "GET").toUpperCase();
   const res = await fetch(path, {
     ...init,

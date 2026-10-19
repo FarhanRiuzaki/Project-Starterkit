@@ -47,6 +47,9 @@ function clientImportsServer(fs: F[]): string[] {
 /**
  * Browser code reaches the backend only through same-origin `/api/*` (CSP connect-src 'self'; the backend URL is
  * server env only). Client = features/, components/, lib/client/, or any file with "use client".
+ * Static limit: a `fetch(`/`api(` whose first argument is not a literal (fetch(url), fetch(BASE + "/x")) is NOT caught
+ * here; that is covered at runtime by the guard in `lib/client/api.ts` and by CSP connect-src 'self'. EventSource,
+ * WebSocket and sendBeacon are stricter: a non-literal argument is flagged too.
  */
 const isClient = ({ r, src }: F) => /^["']use client["']/m.test(src)
   || [`${WEB}features/`, `${WEB}components/`, `${WEB}lib/client/`].some((p) => r.startsWith(p));
@@ -55,10 +58,12 @@ function clientApiViolations(fs: F[]): string[] {
     // Comments only: a "//" inside a string ("https://…") must not swallow the rest of the line.
     const src = raw.replace(/\/\*[\s\S]*?\*\/|(^|\s)\/\/.*$/gm, "$1");
     // First argument written as a string or template literal must start with "/api/" (not http(s)://, //, a ${base}).
-    const calls = [...src.matchAll(/\b(fetch|api)\s*(?:<[^<>()]*>)?\(\s*(["'`])([^]{0,12})/g)]
+    const calls = [...src.matchAll(/\b(fetch|api)\s*(?:<[^<>()]*>)?\(\s*(["'`])(?=([^]{0,12}))/g)]
       .filter((m) => !m[3]!.startsWith("/api/")).map((m) => `${r}: ${m[1]}(${m[2]}${m[3]!.split(m[2]!)[0]}…) must start with "/api/"`);
+    const streams = [...src.matchAll(/(new\s+(?:EventSource|WebSocket)|navigator\.sendBeacon)\s*\(\s*(["'`]?)(?=([^]{0,12}))/g)]
+      .filter((m) => !(m[2] && m[3]!.startsWith("/api/"))).map((m) => `${r}: ${m[1]}( must take a literal starting with "/api/"`);
     const env = [...src.matchAll(/process\.env\.NEXT_PUBLIC_\w*(?:API|URL)\w*/g)].map((m) => `${r}: ${m[0]} exposes a backend URL to the browser`);
-    return [...calls, ...env];
+    return [...calls, ...streams, ...env];
   });
 }
 
@@ -193,6 +198,16 @@ describe("architecture checkers (fixtures)", () => {
     expect(bad).toHaveLength(6);
     expect(bad.filter((b) => b.includes("NEXT_PUBLIC_API_BASE_URL"))).toHaveLength(1);
     expect(bad.filter((b) => b.includes("SITE_NAME"))).toHaveLength(0);
+  });
+
+  it("client EventSource, WebSocket, sendBeacon: absolute URL or non-literal argument", () => {
+    expect(clientApiViolations([
+      f(`${WEB}features/x/a.tsx`, `new EventSource("https://x.example/e"); new WebSocket(url); navigator.sendBeacon(endpoint, d); new EventSource("/api/stream");`),
+    ])).toEqual([
+      `${WEB}features/x/a.tsx: new EventSource( must take a literal starting with "/api/"`,
+      `${WEB}features/x/a.tsx: new WebSocket( must take a literal starting with "/api/"`,
+      `${WEB}features/x/a.tsx: navigator.sendBeacon( must take a literal starting with "/api/"`,
+    ]);
   });
 
   it("client fetch/api to /api/ paths, variables, and server code pass", () => {
