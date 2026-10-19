@@ -1,0 +1,9 @@
+node_modules/
+.next/
+.superpowers/
+test-results/
+playwright-report/
+*.tsbuildinfo
+.env*
+!.env.example
+.DS_Store
