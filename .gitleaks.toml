@@ -1,0 +1,18 @@
+# Secret scan seluruh pohon kerja. secrets/ dikecualikan karena memang berisi secret runtime
+# dan sudah di-.gitignore; tujuan scan adalah memastikan TIDAK ada secret di luar folder itu.
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "secret runtime & artefak build (gitignored)"
+paths = [
+  '''(^|/)secrets/''',
+  '''(^|/)node_modules/''',
+  '''(^|/)\.rendered/''',
+  '''(^|/)\.git/''',
+  '''(^|/)\.superpowers/''',
+  '''(^|/)__pycache__/''',
+  '''(^|/)\.next/''',
+  '''(^|/)test-results/''',
+  '''(^|/)playwright-report/''',
+]
