@@ -1,0 +1,284 @@
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  /* next/font variables from app/fonts.ts, set on <html> by both root layouts (layout.tsx, global-error.tsx). */
+  --font-sans: var(--font-inter), "Inter Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-brand: var(--font-geist), "Geist Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: var(--font-geist-mono), "Geist Mono Variable", ui-monospace, "SFMono-Regular", Menlo, monospace;
+
+  /* v3 surfaces, lines, ink */
+  --color-bg: var(--bg);
+  --color-sheet: var(--sheet);
+  --color-tray: var(--tray);
+  --color-inset: var(--inset);
+  --color-raised: var(--raised);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-grid: var(--grid);
+  --color-fg: var(--fg);
+  --color-fg-2: var(--fg-2);
+  --color-fg-3: var(--fg-3);
+  --color-fg-4: var(--fg-4);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-soft: var(--primary-soft);
+  --color-primary-ink: var(--primary-ink);
+  --color-action: var(--action);
+  --color-action-fg: var(--action-fg);
+  --color-action-hover: var(--action-hover);
+  --color-row-selected: var(--row-selected);
+  --color-seg-active: var(--seg-active);
+  --color-healthy-mark: var(--healthy-mark);   --color-healthy-ink: var(--healthy-ink);   --color-healthy-soft: var(--healthy-soft);
+  --color-degraded-mark: var(--degraded-mark); --color-degraded-ink: var(--degraded-ink); --color-degraded-soft: var(--degraded-soft);
+  --color-down-mark: var(--down-mark);         --color-down-ink: var(--down-ink);         --color-down-soft: var(--down-soft);
+  --color-stopped-mark: var(--stopped-mark);   --color-stopped-ink: var(--stopped-ink);   --color-stopped-soft: var(--stopped-soft);
+  --color-unknown-mark: var(--unknown-mark);   --color-unknown-ink: var(--unknown-ink);   --color-unknown-soft: var(--unknown-soft);
+  --color-on-crit: var(--on-crit);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-chart-6: var(--chart-6);
+  --color-tip: var(--tip);
+  --color-tip-fg: var(--tip-fg);
+  --color-tip-2: var(--tip-2);
+  --color-scrim: var(--scrim);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-tick: 2px; /* tick meter ticks (spec §5.10) */
+  --radius-ctl: 10px; /* segmented track, tooltip-chart (spec §5.9, §6.7) */
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-full: 9999px;
+
+  --shadow-xs: var(--shadow-xs);
+  --shadow-sm: var(--shadow-sm);
+  --shadow-overlay: var(--shadow-overlay);
+
+  /* rhythm (spec §2.2): gap-section, p-tray, gap-gutter (--gap-grid), … */
+  --spacing-section: 24px;
+  --spacing-gutter: 16px; /* not "grid": Tailwind 4.3 inline-<spacing> would turn `inline-grid` into inline-size: 16px */
+  --spacing-tray: 4px;
+  --spacing-panel: 16px;
+  --spacing-dense: 8px;
+
+  /* type scale (spec §3.5) */
+  --text-display: 32px;   --text-display--line-height: 40px;   --text-display--letter-spacing: -0.02em;   --text-display--font-weight: 500;
+  --text-title-1: 22px;   --text-title-1--line-height: 28px;   --text-title-1--letter-spacing: -0.015em;  --text-title-1--font-weight: 600;
+  --text-title-2: 15px;   --text-title-2--line-height: 22px;   --text-title-2--letter-spacing: -0.01em;   --text-title-2--font-weight: 500;
+  --text-title-3: 14px;   --text-title-3--line-height: 20px;   --text-title-3--letter-spacing: -0.006em;  --text-title-3--font-weight: 600;
+  --text-stat: 28px;      --text-stat--line-height: 32px;      --text-stat--letter-spacing: -0.02em;      --text-stat--font-weight: 500;
+  --text-stat-sm: 20px;   --text-stat-sm--line-height: 28px;   --text-stat-sm--letter-spacing: -0.01em;   --text-stat-sm--font-weight: 500;
+  --text-body: 14px;      --text-body--line-height: 20px;      --text-body--letter-spacing: -0.006em;
+  --text-body-sm: 13px;   --text-body-sm--line-height: 18px;
+  --text-label: 12px;     --text-label--line-height: 16px;     --text-label--font-weight: 500;
+  --text-caption: 11px;   --text-caption--line-height: 16px;   --text-caption--letter-spacing: 0.01em;
+  /* Brand wordmark, Geist via font-brand; -desc = the "Console" descriptor, 0.62 × the hero size. */
+  --text-wordmark-sm: 15px; --text-wordmark-sm--line-height: 1; --text-wordmark-sm--letter-spacing: -0.01em;  --text-wordmark-sm--font-weight: 640;
+  --text-wordmark-md: 26px; --text-wordmark-md--line-height: 1; --text-wordmark-md--letter-spacing: -0.03em;  --text-wordmark-md--font-weight: 620;
+  --text-wordmark-lg: 30px; --text-wordmark-lg--line-height: 1; --text-wordmark-lg--letter-spacing: -0.032em; --text-wordmark-lg--font-weight: 620;
+  --text-wordmark-desc: 19px; --text-wordmark-desc--line-height: 1; --text-wordmark-desc--letter-spacing: 0; --text-wordmark-desc--font-weight: 400;
+  --text-mono: 12px;      --text-mono--line-height: 16px;
+
+  /* motion easings (spec §7.1), same values as tokens.css (literal: a var() here would reference itself);
+     durations are --dur-* in tokens.css */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+}
+
+@layer base {
+  * { @apply border-line outline-primary/60; }
+  html { -webkit-text-size-adjust: 100%; }
+  /* Spec §3.5: tabular figures for every number. Set once on body (as the specimen does) so tiles, tables, chips,
+     meters and pagination all stack digits; `.tabular` stays as an explicit marker for numeric cells. */
+  body { @apply bg-bg text-body text-fg antialiased; font-feature-settings: "cv11" 0, "ss01" 0; font-variant-numeric: tabular-nums; }
+  :focus-visible { @apply outline-2 outline-offset-2 outline-primary; }
+  ::selection { @apply bg-primary-soft text-fg; }
+  /* Spec §7.6: no translate, scale, spring or sweep; opacity fades stay, shortened to 100 ms. Keyframe enters
+     swap to fade-in in their own utilities; tw-animate (menus, dialogs, tooltips) loses its scale/slide;
+     looping indicators stop instead of spinning at 100 ms. */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: var(--dur-instant) !important; animation-delay: 0ms !important; transition-duration: var(--dur-instant) !important; }
+    * { --tw-enter-scale: 1 !important; --tw-exit-scale: 1 !important; --tw-enter-translate-x: 0 !important; --tw-enter-translate-y: 0 !important; --tw-exit-translate-x: 0 !important; --tw-exit-translate-y: 0 !important; }
+    .animate-spin, .animate-ping, .animate-pulse { animation: none !important; }
+    /* Toasts: sonner ships its own reduced-motion rule (no transition, no animation). Do not override transform here:
+       sonner positions every toast, stacked or expanded, with transform: var(--y), so "transform: none" piles them on one spot. */
+  }
+
+  /* /ds Motion section, "Preview reduced motion": the same overrides as the block above, scoped to the section
+     (the media query itself cannot be toggled from a page). The first three rule bodies must stay identical to the block above; the mirrored utility and disclosure rules are asserted too (globals-css.test.ts). */
+  [data-motion-preview="reduced"] *, [data-motion-preview="reduced"] *::before, [data-motion-preview="reduced"] *::after { animation-duration: var(--dur-instant) !important; animation-delay: 0ms !important; transition-duration: var(--dur-instant) !important; }
+  [data-motion-preview="reduced"] * { --tw-enter-scale: 1 !important; --tw-exit-scale: 1 !important; --tw-enter-translate-x: 0 !important; --tw-enter-translate-y: 0 !important; --tw-exit-translate-x: 0 !important; --tw-exit-translate-y: 0 !important; }
+  [data-motion-preview="reduced"] .animate-spin, [data-motion-preview="reduced"] .animate-ping, [data-motion-preview="reduced"] .animate-pulse { animation: none !important; }
+  /* The utilities carry their own reduced branches in @media; the preview mirrors them. */
+  [data-motion-preview="reduced"] :is(.animate-page-enter, .animate-enter, .animate-reveal-in, .animate-pop, .animate-swap, .animate-shell-sheet) { animation: fade-in var(--dur-instant) linear both !important; }
+  [data-motion-preview="reduced"] .stagger-children > * { animation: fade-in var(--dur-instant) linear both !important; }
+  [data-motion-preview="reduced"] :is(.animate-row-new, .motion-safe\:animate-row-new) { animation: none !important; }
+  [data-motion-preview="reduced"] .transition-sidebar { transition: none !important; }
+  [data-motion-preview="reduced"] .indicator-move { transition: opacity var(--dur-instant) linear !important; }
+  [data-motion-preview="reduced"] .skeleton-shimmer::after { display: none !important; }
+  [data-motion-preview="reduced"] .card-lift:hover, [data-motion-preview="reduced"] .card-lift:active { transform: none !important; }
+}
+
+/* Native disclosures (R9): open and close animate block-size + opacity where the browser supports interpolate-size
+   and ::details-content; elsewhere they are instant. The one height animation in the console, and it is native. */
+:root { interpolate-size: allow-keywords; }
+details::details-content {
+  block-size: 0; overflow: clip; opacity: 0;
+  transition: block-size var(--dur-enter) var(--ease-out), opacity var(--dur-enter) var(--ease-out), content-visibility var(--dur-enter) allow-discrete;
+}
+details[open]::details-content { block-size: auto; opacity: 1; }
+@media (prefers-reduced-motion: reduce) { details::details-content { transition: opacity var(--dur-instant) linear; } }
+/* Same rule for the /ds reduced preview; unlayered like the disclosure rules above, so it wins over them. */
+[data-motion-preview="reduced"] details::details-content { transition: opacity var(--dur-instant) linear; }
+
+/* Page enter (spec §7.2) — components/motion/page-transition.tsx. Reduced motion: fade only, 100 ms. */
+@keyframes page-enter { from { opacity: 0; transform: translateY(var(--shift-enter)); } }
+@keyframes fade-in { from { opacity: 0; } }
+@utility animate-page-enter {
+  animation: page-enter var(--dur-page) var(--ease-out) both;
+  @media (prefers-reduced-motion: reduce) { animation: fade-in var(--dur-instant) linear both; }
+}
+
+@keyframes fade-out { to { opacity: 0; } }
+
+/* Item enter (spec §7.2): opacity + 6 px rise over --dur-enter. StaggerItem sets the per-item animation-delay. */
+@utility animate-enter {
+  animation: page-enter var(--dur-enter) var(--ease-out) both;
+  @media (prefers-reduced-motion: reduce) { animation: fade-in var(--dur-instant) linear both; }
+}
+/* Children of a KPI tray / legend row enter one by one: 35 ms per item, the 8th and later together. */
+@utility stagger-children {
+  & > * { animation: page-enter var(--dur-enter) var(--ease-out) both; }
+  & > :nth-child(2) { animation-delay: 35ms; }
+  & > :nth-child(3) { animation-delay: 70ms; }
+  & > :nth-child(4) { animation-delay: 105ms; }
+  & > :nth-child(5) { animation-delay: 140ms; }
+  & > :nth-child(6) { animation-delay: 175ms; }
+  & > :nth-child(7) { animation-delay: 210ms; }
+  & > :nth-child(n + 8) { animation-delay: 245ms; }
+  @media (prefers-reduced-motion: reduce) { & > * { animation: fade-in var(--dur-instant) linear both; } }
+}
+/* Reveal crossfade: content in 220 ms, skeleton out 150 ms (both share one grid cell). */
+@utility animate-reveal-in {
+  animation: fade-in var(--dur-enter) var(--ease-out) both;
+  @media (prefers-reduced-motion: reduce) { animation: fade-in var(--dur-instant) linear both; }
+}
+@utility animate-reveal-out {
+  animation: fade-out var(--dur-fast) var(--ease-in) forwards;
+}
+
+/* Skeleton shimmer (spec §7.2): --inset block with a 1.2 s sweep on a transformed pseudo-element (GPU only);
+   reduced motion: static block. */
+@keyframes shimmer { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+@utility skeleton-shimmer {
+  position: relative; overflow: hidden; background-color: var(--inset);
+  &::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, var(--shimmer) 50%, transparent); transform: translateX(-100%); animation: shimmer 1.2s linear infinite; }
+  @media (prefers-reduced-motion: reduce) { &::after { display: none; } }
+}
+
+/* Shared-layout indicators in CSS (spec §7.3 without domMax): the thumb/underline is one positioned element moved
+   with transform; width follows. Reduced motion: it jumps and only fades. */
+@utility indicator-move {
+  transition: transform var(--dur-slow) var(--ease-out), width var(--dur-slow) var(--ease-out), opacity var(--dur-fast) linear;
+  @media (prefers-reduced-motion: reduce) { transition: opacity var(--dur-instant) linear; }
+}
+
+/* Badge / count change (R5): a small settle, scale 0.85 → 1 with opacity, --dur-pop. Plays only when keyed by a change. */
+@keyframes pop { from { opacity: 0.4; transform: scale(0.85); } }
+@utility animate-pop {
+  animation: pop var(--dur-pop) var(--ease-out) both;
+  @media (prefers-reduced-motion: reduce) { animation: fade-in var(--dur-instant) linear both; }
+}
+/* New table row (R4): soft primary wash that fades out over --dur-flash. Reduced motion: none (the row is just there). */
+@keyframes row-new { from { background-color: var(--primary-soft); } to { background-color: transparent; } }
+@utility animate-row-new {
+  animation: row-new var(--dur-flash) var(--ease-standard) both;
+  @media (prefers-reduced-motion: reduce) { animation: none; }
+}
+/* Icon swap (copy → check): fades and settles in --dur-fast. */
+@keyframes swap { from { opacity: 0; transform: scale(0.8); } }
+@utility animate-swap {
+  animation: swap var(--dur-fast) var(--ease-out) both;
+  @media (prefers-reduced-motion: reduce) { animation: fade-in var(--dur-instant) linear both; }
+}
+/* Sidebar collapse / expand (R3): the only width animation in the system. */
+@utility transition-sidebar {
+  transition: width var(--dur-slow) var(--ease-standard);
+  @media (prefers-reduced-motion: reduce) { transition: none; }
+}
+
+/* Striped fill (spec §5.10): 45°, 2 px stripe / 4 px gap, for "in progress / partial". */
+@utility striped { background-image: repeating-linear-gradient(-45deg, var(--stripe) 0 2px, transparent 2px 6px); }
+
+/* Hatched block (Activity review): time the scanner didn't cover ("Data partial"). Shape, not colour alone. */
+@utility hatched {
+  background-image: repeating-linear-gradient(135deg, var(--degraded-mark) 0 2px, transparent 2px 4px);
+  box-shadow: inset 0 0 0 1px var(--degraded-mark);
+}
+
+/* Selected table row: 2 px primary mark on the inside left edge (spec §5.7). */
+@utility row-mark { box-shadow: inset 2px 0 0 var(--primary); }
+
+/* Card that opens a detail (spec §7.5): lift 1 px, stronger line; the hover shadow is a pre-rendered pseudo-element
+   whose opacity animates (never box-shadow). */
+@utility card-lift {
+  position: relative;
+  transition: transform var(--dur-fast) var(--ease-standard), border-color var(--dur-fast) var(--ease-standard);
+  &::after { content: ""; position: absolute; inset: -1px; border-radius: inherit; box-shadow: var(--shadow-sm); opacity: 0; transition: opacity var(--dur-fast) linear; pointer-events: none; }
+  &:hover { transform: translateY(-1px); border-color: var(--line-strong); }
+  &:hover::after { opacity: 1; }
+  &:active { transform: scale(0.995); }
+  @media (prefers-reduced-motion: reduce) { &:hover, &:active { transform: none; } }
+}
+
+/* App open (spec §7.2): sidebar fades in, the sheet fades + rises 6 px 40 ms later. Once per hard load (the shell
+   never re-mounts on navigation). */
+@utility animate-shell-side {
+  animation: fade-in var(--dur-enter) var(--ease-out) both;
+}
+@utility animate-shell-sheet {
+  animation: page-enter var(--dur-page) var(--ease-out) 40ms both;
+  @media (prefers-reduced-motion: reduce) { animation: fade-in var(--dur-instant) linear both; }
+}
+
+@utility tabular { font-variant-numeric: tabular-nums; }
+@utility eyebrow { font-family: var(--font-mono); font-size: 11px; line-height: 16px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; }
+@utility min-h-sheet { min-height: calc(100svh - 16px); }
+
+/* Card elevation (spec §3.4 level 2): light = --shadow-xs; dark = no shadow, a 1 px inner top highlight. */
+@utility shadow-card {
+  box-shadow: var(--shadow-xs);
+  :where(.dark) & { box-shadow: var(--card-highlight); }
+}
+
+/* Print / save as PDF of Activity review (spec §4): the page content only, light colours, one person per page. */
+@media print {
+  :root { color-scheme: light; }
+  html, body { background: #fff !important; }
+  [data-print="hide"] { display: none !important; }
+  .print-break { break-after: page; }
+  .print-keep { break-inside: avoid; }
+}

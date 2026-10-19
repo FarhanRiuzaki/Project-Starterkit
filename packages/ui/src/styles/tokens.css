@@ -1,0 +1,159 @@
+/* v3 "Tray" — semantic tokens. Every component colour comes from here (spec §3). Light and dark are both
+   chosen values, not a computed inversion.
+   Surfaces step bg → sheet → tray → card (→ inset); raised = floating layers (menus, dialogs).
+   The Blueprint aliases (--surface, --sunken, --ok/--warn/--crit/--off, --chart-grid) are gone; use the v3 names.
+   shadcn names (--background, --card, …) keep the primitives working; shadcn --accent = neutral hover (tray),
+   the brand accent is --primary. Hex literals only inside :root and .dark (tokens.test resolves var() aliases). */
+:root {
+  /* surfaces */
+  --bg: #f3f3f4;
+  --sheet: #ffffff;
+  --tray: #f7f7f8;
+  --card: #ffffff;
+  --inset: #f4f4f5;
+  --raised: #ffffff;
+  /* lines */
+  --line: #ececee;
+  --line-strong: #dcdce0;
+  --grid: #ececee;
+  /* ink */
+  --fg: #151518;
+  --fg-2: #55555c;
+  --fg-3: #6e6e77;
+  --fg-4: #a1a1aa;
+  /* selection, primary, action */
+  --primary: #0a6bdb;
+  --primary-hover: #0959b8;
+  --primary-foreground: #ffffff;
+  --primary-soft: #ebf4ff;
+  --primary-ink: #0a6bdb;
+  --action: #18181b;
+  --action-fg: #ffffff;
+  --action-hover: #2c2c31;
+  --row-selected: #f5f9ff;
+  --seg-active: #ffffff;
+  /* status: mark (icon/dot, ≥ 3:1), ink (text, ≥ 4.5:1 on soft and on every surface), soft (chip bg) */
+  --healthy-mark: #16a05a;  --healthy-ink: #117a46;  --healthy-soft: #e9f7ef;
+  --degraded-mark: #c96a05; --degraded-ink: #b25309; --degraded-soft: #fff2e6;
+  --down-mark: #e5303a;     --down-ink: #c8262f;     --down-soft: #feeced;
+  --stopped-mark: #8a8a93;  --stopped-ink: #55555c;  --stopped-soft: #f1f1f3;
+  --unknown-mark: #a1a1aa;  --unknown-ink: #55555c;  --unknown-soft: #f1f1f3;
+  --on-crit: #ffffff;
+  /* categorical chart palette — fixed order (spec §3.3, CVD-validated) */
+  --chart-1: #1a7cf0;
+  --chart-2: #e8690c;
+  --chart-3: #0f9e86;
+  --chart-4: #8a3ff0;
+  --chart-5: #b88700;
+  --chart-6: #d6428e;
+  --chart-seq-1: #ebf4ff; --chart-seq-2: #cfe3fd; --chart-seq-3: #a6cbfa; --chart-seq-4: #74adf5;
+  --chart-seq-5: #3f8cef; --chart-seq-6: #1a7cf0; --chart-seq-7: #0f5fc2; --chart-seq-8: #0a4590;
+  --chart-area-alpha: 0.16;
+  --stripe: rgb(255 255 255 / 0.35);
+  --shimmer: rgb(255 255 255 / 0.6);
+  /* chart tooltip (dark in both themes) */
+  --tip: #18181b;
+  --tip-fg: #f2f2f3;
+  --tip-2: #a8a8b1;
+  /* elevation */
+  --scrim: rgb(21 21 24 / 0.32);
+  --shadow-xs: 0 1px 2px rgb(21 21 24 / 0.04);
+  --shadow-sm: 0 1px 2px rgb(21 21 24 / 0.06), 0 1px 1px rgb(21 21 24 / 0.04);
+  --shadow-overlay: 0 1px 2px rgb(21 21 24 / 0.06), 0 12px 32px rgb(21 21 24 / 0.12);
+  --card-highlight: none;
+  /* rhythm (spec §2.2) */
+  --gap-section: 24px;
+  --gap-grid: 16px;
+  --gap-tray: 4px;
+  --gap-panel: 16px;
+  --gap-dense: 8px;
+  --row-h: 44px; /* table row, single line (spec §5.7) */
+  --row-h-identity: 52px; /* identity row: avatar 28 + name + secondary line (DataTable rowHeight="identity") */
+  /* motion (spec §7.1; mirrored in components/motion/tokens.ts) */
+  --dur-instant: 100ms;
+  --dur-fast: 150ms;
+  --dur-pop: 180ms;
+  --dur-flash: 1200ms;
+  --dur-enter: 220ms;
+  --dur-page: 260ms;
+  --dur-exit: 160ms;
+  --dur-slow: 280ms;
+  --dur-tween: 600ms;
+  --dur-draw: 400ms; /* chart line draw on mount (spec §7.4) */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --shift-enter: 6px;
+  --stagger: 35ms;
+
+  /* shadcn mapping (spec §11.1) */
+  --background: var(--bg);
+  --foreground: var(--fg);
+  --card-foreground: var(--fg);
+  --popover: var(--raised);
+  --popover-foreground: var(--fg);
+  --secondary: var(--tray);
+  --secondary-foreground: var(--fg);
+  --muted: var(--tray);
+  --muted-foreground: var(--fg-2);
+  --accent: var(--tray);
+  --accent-foreground: var(--fg);
+  --destructive: var(--down-ink);
+  --border: var(--line);
+  --input: var(--line-strong);
+  --ring: var(--primary);
+}
+
+.dark {
+  --bg: #0e0e10;
+  --sheet: #151517;
+  --tray: #1a1a1d;
+  --card: #1f1f23;
+  --inset: #18181b;
+  --raised: #26262b;
+  --line: #2c2c31;
+  --line-strong: #3a3a40;
+  --grid: #2c2c31;
+  --fg: #f2f2f3;
+  --fg-2: #a8a8b1;
+  --fg-3: #8e8e98;
+  --fg-4: #5d5d66;
+  --primary: #5aa6ff;
+  --primary-hover: #7ab8ff;
+  --primary-foreground: #0b1230;
+  --primary-soft: #18233a;
+  --primary-ink: #5aa6ff;
+  --action: #f2f2f3;
+  --action-fg: #151517;
+  --action-hover: #d9d9dc;
+  --row-selected: #172033;
+  --seg-active: #2c2c31;
+  --healthy-mark: #3ec27e;  --healthy-ink: #4cc98a;  --healthy-soft: #143323;
+  --degraded-mark: #f0a040; --degraded-ink: #f5a25a; --degraded-soft: #3a2614;
+  --down-mark: #ff6b70;     --down-ink: #ff7a7f;     --down-soft: #3d1a1d;
+  --stopped-mark: #7d7d86;  --stopped-ink: #a8a8b1;  --stopped-soft: #2a2a2f;
+  --unknown-mark: #5d5d66;  --unknown-ink: #a8a8b1;  --unknown-soft: #2a2a2f;
+  --on-crit: #1f0a07;
+  --chart-1: #3a8ff5;
+  --chart-2: #d9692a;
+  --chart-3: #1a9c86;
+  --chart-4: #9b6bf0;
+  --chart-5: #b8890f;
+  --chart-6: #d65592;
+  --chart-seq-1: #162236; --chart-seq-2: #1b3254; --chart-seq-3: #214577; --chart-seq-4: #2a5c9e;
+  --chart-seq-5: #3a78cc; --chart-seq-6: #5aa6ff; --chart-seq-7: #8cc1ff; --chart-seq-8: #bfdcff;
+  --chart-area-alpha: 0.24;
+  --stripe: rgb(0 0 0 / 0.25);
+  --shimmer: rgb(255 255 255 / 0.04);
+  --tip: #26262b;
+  --tip-fg: #f2f2f3;
+  --tip-2: #a8a8b1;
+  --scrim: rgb(0 0 0 / 0.55);
+  --shadow-xs: none;
+  --shadow-sm: none;
+  --shadow-overlay: 0 0 0 1px #2c2c31, 0 16px 40px rgb(0 0 0 / 0.5);
+  --card-highlight: inset 0 1px 0 rgb(255 255 255 / 0.03);
+  color-scheme: dark;
+}
+
+:root[data-density="compact"] { --row-h: 36px; --row-h-identity: 44px; }

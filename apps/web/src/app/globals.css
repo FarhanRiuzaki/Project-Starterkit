@@ -1,0 +1,6 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "@starterkit/ui/styles/tokens.css";
+@import "@starterkit/ui/styles/base.css";
+
+@source "../../../../packages/ui/src";
