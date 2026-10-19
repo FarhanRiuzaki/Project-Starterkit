@@ -36,9 +36,27 @@ export function isActive(pathname: string, href: string, exact = false): boolean
 
 export type Crumb = { label: string; href?: string; icon?: NavIcon };
 
-/** Top bar breadcrumb: the nav page the path belongs to (longest href wins, so /audit/auth is not /audit). */
-export function crumbs(pathname: string): Crumb[] {
-  const p = (pathname.split(/[?#]/)[0] ?? "/").replace(/\/+$/, "") || "/";
-  const top = [...NAV].sort((a, b) => b.href.length - a.href.length).find((n) => isActive(p, n.href));
-  return top ? [{ label: top.label, href: top.href, icon: top.icon }] : [];
+const clean = (pathname: string) => (pathname.split(/[?#]/)[0] ?? "/").replace(/\/+$/, "") || "/";
+/** The nav page a path belongs to (longest href wins, so /audit/auth is not /audit). */
+const navItemOf = (p: string) => [...NAV].sort((a, b) => b.href.length - a.href.length).find((n) => isActive(p, n.href));
+
+/**
+ * Top bar breadcrumb: the nav page the path belongs to, only when the viewer may open it, so a page the role can't
+ * open ("Page not found") doesn't name itself in the breadcrumb.
+ */
+export function crumbs(pathname: string, perms: ReadonlySet<PermissionName>): Crumb[] {
+  const top = navItemOf(clean(pathname));
+  return top && (top.perm === null || perms.has(top.perm)) ? [{ label: top.label, href: top.href, icon: top.icon }] : [];
+}
+
+/**
+ * The permission a signed-in page needs, by path: its nav page's, with the finer rules of sub-pages (/users/new needs
+ * user.create, /users/<id>/edit user.edit). The (main) layout answers a real 404 with it before streaming starts;
+ * each page.tsx guards with the same (architecture.test.ts compares them), which covers client navigations.
+ */
+export function pagePerm(pathname: string): PermissionName | null {
+  const p = clean(pathname);
+  if (p === "/users/new") return "user.create";
+  if (/^\/users\/[^/]+\/edit$/.test(p)) return "user.edit";
+  return navItemOf(p)?.perm ?? null;
 }

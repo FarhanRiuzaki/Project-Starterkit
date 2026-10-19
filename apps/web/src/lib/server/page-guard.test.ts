@@ -14,7 +14,7 @@ vi.mock("next/navigation", () => ({
 
 import { db, resetDb } from "./mock/db";
 import { signInAs, TEST_CSRF } from "@/test/session";
-import { requirePagePermission } from "./page-guard";
+import { guardedTitle, requirePagePermission } from "./page-guard";
 
 const signIn = (username: string) => signInAs(jar, username);
 
@@ -61,5 +61,20 @@ describe("requirePagePermission", () => {
     expect(r.perms).toContain("user.view");
     expect(r.perms).not.toContain("user.edit");
     expect(r.csrf).toBe(TEST_CSRF);
+  });
+});
+
+describe("guardedTitle", () => {
+  it("names the page only for a viewer who may open it", async () => {
+    await signIn("viewer");
+    path.value = "/roles";
+    expect(await guardedTitle("Roles")).toEqual({ title: "Page not found" });
+    path.value = "/users/u-001/edit";
+    expect(await guardedTitle("Edit user")).toEqual({ title: "Page not found" });
+    path.value = "/users?page=2";
+    expect(await guardedTitle("Users")).toEqual({ title: "Users" });
+    await signIn("superadmin");
+    path.value = "/roles";
+    expect(await guardedTitle("Roles")).toEqual({ title: "Roles" });
   });
 });

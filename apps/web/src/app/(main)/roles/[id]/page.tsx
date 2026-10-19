@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import { RoleDetail } from "@/features/rbac/role-detail";
-import { requirePagePermission } from "@/lib/server/page-guard";
+import { guardedTitle, requirePagePermission } from "@/lib/server/page-guard";
 import { Prefetch, reads } from "@/lib/server/prefetch";
 
-export const metadata: Metadata = { title: "Role · Starterkit" };
+export const generateMetadata = (): Promise<Metadata> => guardedTitle("Role");
 
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {
   await requirePagePermission("role.view");

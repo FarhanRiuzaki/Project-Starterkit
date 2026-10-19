@@ -25,7 +25,7 @@ const COLUMNS: Column<PermissionDto>[] = [
   { key: "name", header: "Permission", icon: SecureIcon, sortable: true, cell: (p) => <span className="font-mono text-mono text-fg">{p.name}</span> },
   { key: "module", header: "Module", sortable: true, cell: (p) => permissionLabel(p.name.split(".")[0]!) },
   { key: "action", header: "Action", sortable: true, cell: (p) => permissionLabel(p.name.split(".")[1]!) },
-  { key: "roles", header: "Roles", cell: (p) => <RoleChips roles={p.roles} /> },
+  { key: "roles", header: "Roles", cell: (p) => <RoleChips roles={p.roles} total={p.roleCount} /> },
 ];
 
 /** Comma- or space-separated actions → `<module>.<action>` names; throws the message the dialog shows. */

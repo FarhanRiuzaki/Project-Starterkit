@@ -4,24 +4,33 @@ import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { BlockedButton, ConfirmActionDialog, EmptyState, Failure, Notice, Panel } from "@starterkit/ui/ds";
+import { BlockedButton, ConfirmActionDialog, Failure, Notice, Panel } from "@starterkit/ui/ds";
 import { useDelayedFlag } from "@starterkit/ui/motion";
 import { formatNumber, plural } from "@starterkit/ui/lib/format";
 import { Button } from "@starterkit/ui/ui/button";
-import { KeyIcon, NotFoundIcon } from "@starterkit/ui/ui/icons";
-import { Skeleton } from "@starterkit/ui/ui/skeleton";
+import { KeyIcon } from "@starterkit/ui/ui/icons";
 import { toast } from "@starterkit/ui/ui/toast";
+import { DetailNotFound } from "@/components/detail-not-found";
+import { LoadingShape, type Section } from "@/components/route-skeleton";
 import { PageHeader } from "@/components/shell/page-header";
-import { api } from "@/lib/client/api";
+import { api, isNotFound } from "@/lib/client/api";
 import { useAuth } from "@/lib/client/auth-context";
 import type { RoleDto } from "@/lib/shared/contracts/rbac";
 import { PERMISSIONS, type PermissionName } from "@/lib/shared/permissions";
-import { applyEdit, type Draft, withDraft } from "./matrix";
+import { BRAND } from "@/lib/shared/brand";
+import { useLeaveGuard } from "@/lib/client/use-leave-guard";
+import { applyEdit, type Draft, rebase, withDraft } from "./matrix";
 import { PermissionMatrix } from "./permission-matrix";
 import { assertRoleName, deleteBlock, RoleNameField } from "./role-name";
-import { isNotFound, roleKey, roleUrl, useAfterRbacChange, useRole } from "./use-rbac";
+import { roleKey, roleUrl, useAfterRbacChange, useRole } from "./use-rbac";
 
 type Dialog = "save" | "rename" | "delete" | null;
+
+/** Loading shape of /roles/[id] (its loading.tsx uses the same list), section heights at the 1440 px reference width. */
+export const ROLE_DETAIL_SHAPE: readonly Section[] = [
+  { kind: "header", h: 50 },
+  { kind: "panels", panels: [[12, 256]] },
+];
 
 const list = (ps: readonly PermissionName[]) => ps.join(", ");
 
@@ -38,24 +47,20 @@ export function RoleDetail({ id }: { id: string }) {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [dialog, setDialog] = useState<Dialog>(null);
   const [name, setName] = useState("");
+  // Labels and Save use the draft rebased on the current set: a refetch that already holds part of it shrinks it.
+  const effective = q.data ? rebase(new Set(q.data.permissions), draft) : { added: [], removed: [] };
+  const guard = useLeaveGuard(effective.added.length + effective.removed.length > 0);
   useEffect(() => () => { if (deleted) qc.removeQueries({ queryKey: roleKey(id) }); }, [deleted, id, qc]);
 
-  if (isNotFound(q.error)) {
-    return (
-      <div className="grid gap-section"><PageHeader title="Role" />
-        <Panel><EmptyState icon={NotFoundIcon} title="This role doesn't exist" description="It may have been deleted. Roles that exist are listed on the Roles page."
-          action={<Button asChild variant="secondary"><Link href="/roles">Go to roles</Link></Button>} /></Panel>
-      </div>
-    );
-  }
-  if (q.error && !q.data) return <div className="grid gap-section"><PageHeader title="Role" /><Panel><Failure title="Couldn't load this role" error={q.error} source="Starterkit" onRetry={() => void q.refetch()} /></Panel></div>;
+  if (isNotFound(q.error)) return <DetailNotFound title="Role" noun="role" list={{ href: "/roles", label: "Roles" }} />;
+  if (q.error && !q.data) return <div className="grid gap-section"><PageHeader title="Role" /><Panel><Failure title="Couldn't load this role" error={q.error} source={BRAND.name} onRetry={() => void q.refetch()} /></Panel></div>;
   const r = q.data;
-  if (!r || skeleton) return <div className={skeleton ? "grid gap-section" : "invisible grid gap-section"} aria-busy={skeleton || undefined}><PageHeader title="Role" /><Skeleton className="h-60 w-full" /></div>;
+  if (!r || skeleton) return <LoadingShape sections={ROLE_DETAIL_SHAPE} shown={skeleton} />;
 
   const saved = new Set(r.permissions);
   // Unsaved edits as add / remove: the matrix shows the server's current set with them applied, and Save sends only
   // them, so a change someone else made meanwhile is neither shown as an edit nor undone.
-  const { added, removed } = draft ?? { added: [], removed: [] };
+  const { added, removed } = effective;
   const value = withDraft(saved, draft);
   const dirty = added.length + removed.length > 0;
   const readOnly = r.locked
@@ -118,6 +123,11 @@ export function RoleDetail({ id }: { id: string }) {
             `${plural(r.userCount, "user gets", "users get")} the change on their next request.`,
           ]}
           actionLabel="Save permissions" onConfirm={save} />
+      )}
+      {guard.leaving && (
+        <ConfirmActionDialog open onOpenChange={(o) => { if (!o) guard.stay(); }} auditFields={false} reasons={[]} destructive title="Leave without saving"
+          description={`${plural(added.length + removed.length, "permission change", "permission changes")} to ${r.name} aren't saved.`}
+          impact={["The unsaved changes are discarded."]} actionLabel="Leave page" onConfirm={async () => { setDraft(null); guard.leave(); }} />
       )}
       {dialog === "rename" && (
         <ConfirmActionDialog open onOpenChange={(o) => { if (!o) setDialog(null); }} auditFields={false} reasons={[]} title={`Rename ${r.name}`}

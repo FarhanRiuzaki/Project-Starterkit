@@ -61,8 +61,10 @@ describe("motion utilities", () => {
     expect(universal).toMatch(/transition-duration:\s*var\(--dur-instant\), 0s !important/);
     // Only opacity gets the 100 ms an element had no transition for (never transform: a menu's popper wrapper, placed
     // by an inline transform, would slide in from off-screen); visibility is listed last with 0s: un-hiding a
-    // container never fades its subtree in level by level
-    expect(universal).toMatch(/transition-property:\s*opacity, visibility;/);
+    // container never fades its subtree in level by level. !important: a component's own multi-property list
+    // (`transition-[transform,opacity]`) would otherwise keep its properties and take these two durations by
+    // position, giving an animatable property (opacity in second place) the 0s meant for visibility.
+    expect(universal).toMatch(/transition-property:\s*opacity, visibility !important;/);
   });
   it("the preview mirrors every other reduced branch: disclosure, shimmer, card lift, utilities", () => {
     const SCOPE = '[data-motion-preview="reduced"]';

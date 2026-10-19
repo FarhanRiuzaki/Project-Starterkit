@@ -8,6 +8,11 @@ export class ApiError extends Error {
   }
 }
 
+/** The record asked for doesn't exist (404): final, so detail screens don't retry it and show their not-found state. */
+export const isNotFound = (e: unknown): boolean => e instanceof ApiError && e.status === 404;
+/** React Query `retry` for a detail query: once for anything but a 404. */
+export const retryUnlessNotFound = (failures: number, e: Error): boolean => !isNotFound(e) && failures < 1;
+
 /** The server's message for an API error (it is written as UI copy, 429 included); a fixed line when unreachable. */
 export function errorText(e: unknown): string {
   return e instanceof ApiError ? e.message : "The server can't be reached. Check your connection, then try again.";
@@ -33,15 +38,11 @@ export function assertApiPath(path: string): void {
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   assertApiPath(path);
   const method = (init.method ?? "GET").toUpperCase();
-  const res = await fetch(path, {
-    ...init,
-    credentials: "same-origin",
-    headers: {
-      "Content-Type": "application/json",
-      ...(csrfToken && !SAFE_METHODS.has(method) ? { "x-csrf-token": csrfToken } : {}),
-      ...(init.headers ?? {}),
-    },
-  });
+  // Headers in any form the Fetch API takes (object, tuple list, Headers instance); the caller's own values win.
+  const headers = new Headers(init.headers);
+  if (!headers.has("content-type")) headers.set("content-type", "application/json");
+  if (csrfToken && !SAFE_METHODS.has(method) && !headers.has("x-csrf-token")) headers.set("x-csrf-token", csrfToken);
+  const res = await fetch(path, { ...init, credentials: "same-origin", headers });
   if (!res.ok) throw await failure(res, path);
   return (await res.json().catch(() => ({}))) as T;
 }

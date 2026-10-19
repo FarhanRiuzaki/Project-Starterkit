@@ -1,6 +1,5 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
-import { api } from "@/lib/client/api";
+import { api, retryUnlessNotFound } from "@/lib/client/api";
 import type { Page } from "@/lib/shared/contracts/common";
 import type { RoleOption } from "@/lib/shared/contracts/rbac";
 import type { UserDetailDto, UserDto, UserRowDto } from "@/lib/shared/contracts/users";
@@ -9,9 +8,10 @@ import { roleOptions, SUPERADMINS, userDetail, USERS_KEY } from "@/lib/shared/qu
 
 export { USERS_KEY };
 
-export function useUserDetail(id: string) {
+/** A 404 is final (no retry); `enabled: false` once the user is deleted from their own page. */
+export function useUserDetail(id: string, enabled = true) {
   const { key, url } = userDetail(id);
-  return useQuery({ queryKey: key, queryFn: () => api<UserDetailDto>(url) });
+  return useQuery({ queryKey: key, queryFn: () => api<UserDetailDto>(url), enabled, retry: retryUnlessNotFound });
 }
 
 /**
@@ -25,29 +25,21 @@ export function useRoleNames(q = "") {
   return { query, names: data?.items.map((r) => r.name) ?? [], more: !!data && data.total > data.items.length };
 }
 
-/** `value` after it has stopped changing for `ms` (search-as-you-type). */
-export function useDebounced<T>(value: T, ms = 200): T {
-  const [settled, setSettled] = useState(value);
-  useEffect(() => {
-    const t = setTimeout(() => setSettled(value), ms);
-    return () => clearTimeout(t);
-  }, [value, ms]);
-  return settled;
-}
-
 /** Id of the only active Superadmin, or null when there are several (that user can't be deactivated or deleted). */
 export function useLastSuperadminId(): string | null {
   const q = useQuery({ queryKey: SUPERADMINS.key, queryFn: () => api<Page<UserDto>>(SUPERADMINS.url) });
   return q.data && q.data.total === 1 ? q.data.items[0]!.id : null;
 }
 
-export const SKIP_REASON: Record<string, string> = {
+/** Why a bulk row was skipped, by the code the server sent (POST /api/users/bulk); never a raw code in a toast. */
+const SKIP_REASON: Record<string, string> = {
   self_action: "your own account",
   last_superadmin: "the last active Superadmin",
   not_found: "no longer exists",
-  ldap_password: "directory user",
-  forbidden: "has permissions your role doesn't hold",
+  forbidden: "outside what your role may change",
+  bad_request: "already has the most roles (20)",
 };
+export const skipReason = (code: string): string => SKIP_REASON[code] ?? "couldn't be changed";
 
 /**
  * Actor rank, as the server checks it (rules.ts checkTargetRank): the reason the viewer can't act on `u` at all (edit,

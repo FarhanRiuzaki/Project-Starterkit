@@ -1,6 +1,8 @@
 // What a screen reads first, as query keys and API URLs: the browser hooks (features/*) and the server prefetch
 // (lib/server/prefetch.tsx) both build their keys here, so a server-prefetched query is exactly the one the hook asks
 // for and the browser never fetches it again. Pure (no React, no zod).
+// Key scheme: the first element is the module that owns the data (users, rbac, me, audit, dashboard), then what
+// identifies the read (a table's URL, "detail" + id, …), so invalidating a module's key refreshes all of it.
 import { ACTION_OPTIONS, ACTIVITY_SORTS, AUDIT_RANGES, AUTH_EVENTS, AUTH_LOG_SORTS, AUTH_METHODS, presetRange, rangeProblem } from "./audit";
 import type { AuthLogDto } from "./contracts/audit";
 import { PERMISSION_SORTS, ROLE_SORTS, SESSION_SORTS, USER_SORTS } from "./paging";
@@ -48,6 +50,8 @@ export const PERMISSIONS_TABLE: TableDef<{ q: string; module: string }> = {
   spec: { sorts: PERMISSION_SORTS, defaultSort: "module", search: ["q"], filters: { q: text(200), module: oneOf(PERMISSION_MODULES, "") } },
 };
 
+export const AUDIT_KEY = ["audit"] as const;
+
 /** Filters both audit logs share: who (free text, debounced) and the range: a preset, or a custom from–to pair that wins when valid. */
 export type AuditFilters = { user: string; range: (typeof AUDIT_RANGES)[number]; from: string; to: string };
 const AUDIT_FILTERS = { user: text(64), range: oneOf(AUDIT_RANGES, "7d"), from: isoDate, to: isoDate } satisfies { [K in keyof AuditFilters]: FilterParser<AuditFilters[K]> };
@@ -59,12 +63,12 @@ const auditParams = ({ range, from, to, ...rest }: AuditFilters & Record<string,
 export type ActivityFilters = AuditFilters & { action: string };
 export const ACTIONS = [{ value: "", label: "Any" }, ...ACTION_OPTIONS];
 export const ACTIVITY: TableDef<ActivityFilters> = {
-  key: "/api/audit/activity", path: "/api/audit/activity", params: auditParams,
+  key: AUDIT_KEY[0], path: "/api/audit/activity", params: auditParams,
   spec: { sorts: ACTIVITY_SORTS, defaultSort: "-at", search: ["user"], filters: { ...AUDIT_FILTERS, action: oneOf(ACTIONS.map((a) => a.value), "") } },
 };
 export type AuthLogFilters = AuditFilters & { event: AuthLogDto["event"] | ""; method: AuthLogDto["method"] | "" };
 export const AUTH_LOG: TableDef<AuthLogFilters> = {
-  key: "/api/audit/auth", path: "/api/audit/auth", params: auditParams,
+  key: AUDIT_KEY[0], path: "/api/audit/auth", params: auditParams,
   spec: {
     sorts: AUTH_LOG_SORTS, defaultSort: "-at", search: ["user"],
     filters: { ...AUDIT_FILTERS, event: oneOf(["", ...AUTH_EVENTS], ""), method: oneOf(["", ...AUTH_METHODS], "") },

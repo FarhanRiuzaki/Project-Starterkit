@@ -2,64 +2,80 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import dynamic from "next/dynamic";
-import { type FormEvent, useState } from "react";
-import { ConfirmActionDialog, Failure, Notice, Panel, SecretOnceDialog, StatusChip } from "@starterkit/ui/ds";
+import { type FormEvent, useRef, useState } from "react";
+import { BlockedButton, ConfirmActionDialog, Failure, Field, Notice, Panel, SecretOnceDialog, StatusChip } from "@starterkit/ui/ds";
 import { useDelayedFlag } from "@starterkit/ui/motion";
 import { Button } from "@starterkit/ui/ui/button";
 import { Icon } from "@starterkit/ui/ui/icon";
 import { KeyIcon, SecureIcon, SpinnerIcon } from "@starterkit/ui/ui/icons";
 import { Input } from "@starterkit/ui/ui/input";
-import { Skeleton } from "@starterkit/ui/ui/skeleton";
+import { toast } from "@starterkit/ui/ui/toast";
+import { LoadingShape, type Section } from "@/components/route-skeleton";
+import { PageHeader } from "@/components/shell/page-header";
 import { api, errorText } from "@/lib/client/api";
+import { BRAND } from "@/lib/shared/brand";
 import type { MeDto, TwoFactorSetupDto } from "@/lib/shared/contracts/me";
 import { ConnectionsCard } from "./connections-card";
+import { MeNav } from "./me-nav";
 import { ME_KEY, useMe } from "./use-me";
 
-/** Mounted on click: the QR code generator stays out of the page's first load. */
-const TwoFactorSetup = dynamic(() => import("./two-factor-setup").then((m) => m.TwoFactorSetup), { ssr: false });
+/** Mounted on click: the QR code generator stays out of the page's first load (start() fetches it alongside the POST). */
+const loadSetup = () => import("./two-factor-setup");
+const TwoFactorSetup = dynamic(() => loadSetup().then((m) => m.TwoFactorSetup), { ssr: false });
 
-/** Password, two-factor authentication and connected accounts of the signed-in user. */
-export function SecurityPanel() {
+/** Loading shape of /me/security (its loading.tsx uses the same list), section heights at the 1440 px reference width. */
+export const SECURITY_SHAPE: readonly Section[] = [{ kind: "header", h: 50 }, { kind: "panels", panels: [[6, 541], [6, 541]] }];
+
+/** No password and not a directory user: signs in only through a connected Google or Apple account. */
+const providerOnly = (u: MeDto) => !u.hasPassword && !u.isLdap;
+
+/** /me/security: password, two-factor authentication and connected accounts of the signed-in user. */
+export function SecurityPage() {
   const q = useMe();
-  // No flash: the loading cards appear after 150 ms and then stay at least 300 ms (they hold their place hidden before).
-  const skeleton = useDelayedFlag(!q.data);
-  if (q.error && !q.data) return <Panel><Failure title="Couldn't load your security settings" error={q.error} source="Starterkit" onRetry={() => void q.refetch()} /></Panel>;
-  const u = skeleton ? undefined : q.data;
+  // No flash: the loading shape appears after 150 ms and then stays at least 300 ms (it holds its place hidden before).
+  const skeleton = useDelayedFlag(!q.data && !q.error);
+  const header = <PageHeader title="Security" description="Password, two-factor authentication and connected accounts." actions={<MeNav />} />;
+  if (q.error && !q.data) return <div className="grid gap-section">{header}<Panel><Failure title="Couldn't load your security settings" error={q.error} source={BRAND.name} onRetry={() => void q.refetch()} /></Panel></div>;
+  const u = q.data;
+  if (!u || skeleton) return <LoadingShape sections={SECURITY_SHAPE} shown={skeleton} />;
   return (
-    <div className="grid items-start gap-section lg:grid-cols-2">
-      {q.error && <div className="lg:col-span-2"><Notice tone="warn" live>Couldn&apos;t refresh your settings; showing the last loaded values.</Notice></div>}
-      {u ? <PasswordCard user={u} /> : <Loading title="Password" shown={skeleton} />}
-      {u ? <TwoFactorCard user={u} /> : <Loading title="Two-factor authentication" shown={skeleton} />}
-      {u ? <ConnectionsCard user={u} /> : <Loading title="Connected accounts" shown={skeleton} />}
+    <div className="grid gap-section">
+      {header}
+      {q.error && <Notice tone="warn" live>Couldn&apos;t refresh your settings; showing the last loaded values.</Notice>}
+      <div className="grid items-start gap-section lg:grid-cols-2">
+        <PasswordCard user={u} />
+        <TwoFactorCard user={u} />
+        <ConnectionsCard user={u} />
+      </div>
     </div>
   );
 }
 
-function Loading({ title, shown }: { title: string; shown: boolean }) {
-  return <div className={shown ? undefined : "invisible"}><Panel title={title}><div className="grid gap-3" aria-busy={shown || undefined}><Skeleton className="h-8 w-full" /><Skeleton className="h-8 w-2/3" /></div></Panel></div>;
-}
-
 function PasswordCard({ user }: { user: MeDto }) {
   const qc = useQueryClient();
+  const currentRef = useRef<HTMLInputElement>(null);
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [again, setAgain] = useState("");
   const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const mismatch = again !== "" && again !== next;
 
   async function save(e: FormEvent) {
     e.preventDefault();
     if (next !== again) return;
     setBusy(true);
-    setMsg(null);
+    setError(null);
     try {
       await api("/api/me/password", { method: "POST", body: JSON.stringify({ current, next }) });
       setCurrent(""); setNext(""); setAgain("");
-      setMsg({ ok: true, text: "Password changed. Your other sessions were signed out." });
+      toast("Password changed. Your other sessions were signed out.");
       void qc.invalidateQueries({ queryKey: ME_KEY }); // your session list (under "me") lost the other sessions
     } catch (err) {
-      setMsg({ ok: false, text: errorText(err) });
+      setError(errorText(err));
+      // The fix is almost always the current password: clear it and put the cursor there (the error is announced).
+      setCurrent("");
+      currentRef.current?.focus();
     } finally {
       setBusy(false);
     }
@@ -69,25 +85,24 @@ function PasswordCard({ user }: { user: MeDto }) {
     <Panel icon={KeyIcon} title="Password" description="Changing it signs out your other sessions">
       {user.isLdap ? (
         <p className="text-body-sm text-fg-2">This account signs in with your directory password. Change it in your directory; it can&apos;t be changed here.</p>
+      ) : !user.hasPassword ? (
+        <p className="text-body-sm text-fg-2">This account signs in with a connected Google or Apple account and has no password.</p>
       ) : (
         <form onSubmit={save} className="grid gap-4">
-          <div className="grid gap-1.5">
-            <label htmlFor="pw-current" className="text-label text-fg">Current password</label>
-            <Input id="pw-current" type="password" autoComplete="current-password" value={current} required onChange={(e) => setCurrent(e.target.value)} />
-          </div>
-          <div className="grid gap-1.5">
-            <label htmlFor="pw-next" className="text-label text-fg">New password</label>
-            <Input id="pw-next" type="password" autoComplete="new-password" minLength={12} value={next} required onChange={(e) => setNext(e.target.value)} aria-describedby="pw-next-note" />
-            <span id="pw-next-note" className="text-caption text-fg-3">At least 12 characters.</span>
-          </div>
-          <div className="grid gap-1.5">
-            <label htmlFor="pw-again" className="text-label text-fg">Repeat new password</label>
+          <Field id="pw-current" label="Current password">
+            <Input ref={currentRef} id="pw-current" type="password" autoComplete="current-password" value={current} required onChange={(e) => setCurrent(e.target.value)}
+              aria-invalid={error ? true : undefined} aria-errormessage={error ? "pw-error" : undefined} />
+          </Field>
+          <Field id="pw-next" label="New password" note="At least 12 characters.">
+            <Input id="pw-next" type="password" autoComplete="new-password" minLength={12} value={next} required onChange={(e) => setNext(e.target.value)} />
+          </Field>
+          <Field id="pw-again" label="Repeat new password">
             <Input id="pw-again" type="password" autoComplete="new-password" value={again} required onChange={(e) => setAgain(e.target.value)}
               aria-invalid={mismatch || undefined} aria-describedby={mismatch ? "pw-again-err" : undefined} />
-            {mismatch && <span id="pw-again-err" className="text-body-sm text-down-ink">The passwords don&apos;t match. Enter the same new password twice.</span>}
-          </div>
-          {msg && <p role={msg.ok ? "status" : "alert"} className={msg.ok ? "text-body-sm text-healthy-ink" : "text-body-sm text-down-ink"}>{msg.text}</p>}
-          <div><Button type="submit" disabled={busy || next.length < 12 || next !== again || !current}>
+          </Field>
+          {mismatch && <span id="pw-again-err" className="-mt-2.5 text-body-sm text-down-ink">The passwords don&apos;t match. Enter the same new password twice.</span>}
+          {error && <p id="pw-error" role="alert" className="text-body-sm text-down-ink">{error}</p>}
+          <div><Button type="submit" disabled={busy || next.length < 12 || next !== again || !current} aria-busy={busy || undefined}>
             {busy && <Icon icon={SpinnerIcon} className="motion-safe:animate-spin" />}Change password</Button></div>
         </form>
       )}
@@ -106,15 +121,20 @@ function TwoFactorCard({ user }: { user: MeDto }) {
   const [setup, setSetup] = useState<TwoFactorSetupDto | null>(null);
   const [codes, setCodes] = useState<string[] | null>(null);
   const [disabling, setDisabling] = useState(false);
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [proof, setProof] = useState("");
   const refresh = () => qc.invalidateQueries({ queryKey: ME_KEY });
+  // Google or Apple checks these users, and their sign-in never asks for a code: nothing to turn on. One that somehow
+  // has 2FA turns it off with a recovery code (no password to give).
+  const oauth = providerOnly(user);
+  const proofLabel = oauth ? "Recovery code" : user.isLdap ? "Directory password" : "Password";
 
   async function start() {
     setStarting(true);
-    setError(null);
-    try { setSetup(await api<TwoFactorSetupDto>("/api/me/2fa", { method: "POST" })); }
-    catch (e) { setError(errorText(e)); }
+    try {
+      // The dialog's code (QR generator) downloads while the server makes the secret, not after.
+      const [s] = await Promise.all([api<TwoFactorSetupDto>("/api/me/2fa", { method: "POST" }), loadSetup()]);
+      setSetup(s);
+    } catch (e) { toast.error(errorText(e)); }
     finally { setStarting(false); }
   }
 
@@ -125,32 +145,33 @@ function TwoFactorCard({ user }: { user: MeDto }) {
           <StatusChip health={user.twoFactorEnabled ? "healthy" : "stopped"} label={user.twoFactorEnabled ? "On" : "Off"} />
           <span className="text-body-sm text-fg-2">{user.twoFactorEnabled ? "Sign-in asks for a code after your password." : "Sign-in asks for your password only."}</span>
         </div>
-        {error && <p role="alert" className="text-body-sm text-down-ink">{error}</p>}
         <div>
           {user.twoFactorEnabled
             ? <Button variant="secondary" onClick={() => setDisabling(true)}>Turn off two-factor authentication</Button>
-            : <Button onClick={() => void start()} disabled={starting}>{starting && <Icon icon={SpinnerIcon} className="motion-safe:animate-spin" />}Turn on two-factor authentication</Button>}
+            : <BlockedButton onClick={() => void start()} disabled={starting} aria-busy={starting || undefined}
+                reason={oauth ? "You sign in with Google or Apple, which checks you itself: sign-in never asks for a code." : null}>
+              {starting && <Icon icon={SpinnerIcon} className="motion-safe:animate-spin" />}Turn on two-factor authentication</BlockedButton>}
         </div>
       </div>
-      {setup && <TwoFactorSetup setup={setup} onCancel={() => setSetup(null)} onDone={(c) => { setSetup(null); setCodes(c); void refresh(); }} />}
+      {setup && <TwoFactorSetup setup={setup} onCancel={() => setSetup(null)} onDone={(c) => { setSetup(null); setCodes(c); toast("Two-factor authentication is on."); void refresh(); }} />}
       {codes && (
         <SecretOnceDialog title="Save your recovery codes" secret={codes} label="recovery code"
           notes={["Each code works once if you lose access to your authenticator app.", "This is the only time they are shown.", "Store them somewhere safe, such as a password manager."]}
           onClose={() => setCodes(null)} />
       )}
-      <ConfirmActionDialog open={disabling} onOpenChange={(o) => { setDisabling(o); if (!o) setPassword(""); }} auditFields={false} reasons={[]}
+      <ConfirmActionDialog open={disabling} onOpenChange={(o) => { setDisabling(o); if (!o) setProof(""); }} auditFields={false} reasons={[]}
         title="Turn off two-factor authentication" description="Sign-in will ask for your password only."
         impact={["Your recovery codes stop working."]} actionLabel="Turn off" destructive
         extra={(
-          <div className="grid gap-1.5">
-            <label htmlFor="tf-off-pw" className="text-label text-fg">{user.isLdap ? "Directory password" : "Password"}</label>
-            <Input id="tf-off-pw" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
-          </div>
+          <Field id="tf-off-proof" label={proofLabel} note={oauth ? "One of the recovery codes you saved; it is used up." : undefined}>
+            <Input id="tf-off-proof" type={oauth ? "text" : "password"} autoComplete={oauth ? "one-time-code" : "current-password"} value={proof} onChange={(e) => setProof(e.target.value)} />
+          </Field>
         )}
         onConfirm={async () => {
-          if (!password) throw new Error("Enter your password to continue.");
-          await api("/api/me/2fa", { method: "DELETE", body: JSON.stringify({ password }) });
-          setPassword("");
+          if (!proof) throw new Error(oauth ? "Enter one of your recovery codes to continue." : "Enter your password to continue.");
+          await api("/api/me/2fa", { method: "DELETE", body: JSON.stringify(oauth ? { recoveryCode: proof } : { password: proof }) });
+          setProof("");
+          toast("Two-factor authentication is off.");
           await refresh();
         }} />
     </Panel>

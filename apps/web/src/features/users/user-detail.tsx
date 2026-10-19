@@ -3,22 +3,25 @@
 import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { BlockedButton, ConfirmActionDialog, type Column, DataTable, Failure, Facts, Notice, Panel, RelativeTime, SecretOnceDialog } from "@starterkit/ui/ds";
 import { Stagger, StaggerItem, useDelayedFlag } from "@starterkit/ui/motion";
 import { Button } from "@starterkit/ui/ui/button";
-import { ActivityIcon, KeyIcon, LogIcon, SecureIcon, UsersIcon } from "@starterkit/ui/ui/icons";
-import { Skeleton } from "@starterkit/ui/ui/skeleton";
+import { Icon } from "@starterkit/ui/ui/icon";
+import { ActivityIcon, KeyIcon, LogIcon, SecureIcon, SpinnerIcon, UsersIcon } from "@starterkit/ui/ui/icons";
 import { toast } from "@starterkit/ui/ui/toast";
+import { DetailNotFound } from "@/components/detail-not-found";
 import { RoleChips } from "@/components/role-chips";
+import { LoadingShape, type Section } from "@/components/route-skeleton";
 import { SessionsTable } from "@/components/sessions-table";
 import { PageHeader } from "@/components/shell/page-header";
-import { api, errorText } from "@/lib/client/api";
+import { api, errorText, isNotFound } from "@/lib/client/api";
 import { useAuth } from "@/lib/client/auth-context";
 import type { SessionDto } from "@/lib/shared/contracts/me";
 import type { ActivityBrief } from "@/lib/shared/contracts/users";
 import { MODULES, permissionLabel } from "@/lib/shared/permissions";
-import { userSessions } from "@/lib/shared/queries";
+import { userDetail, userSessions } from "@/lib/shared/queries";
+import { BRAND } from "@/lib/shared/brand";
 import { UserStatusChip } from "./user-columns";
 import { USERS_KEY, protection, rankBlock, useLastSuperadminId, useUserDetail } from "./use-users";
 
@@ -32,22 +35,41 @@ const ACTIVITY_COLUMNS: Column<ActivityBrief>[] = [
 
 type Dialog = "deactivate" | "delete" | "reset" | { end: SessionDto } | null;
 
+/**
+ * Loading shape of /users/[id] (its loading.tsx uses the same list) with the loaded page's section heights at the
+ * 1440 px reference width (components/route-skeleton): the detail cards (two rows, 16 px apart on the page; the second
+ * row is 8 px shorter here for the 24 px section gap), sessions, activity.
+ */
+export const USER_DETAIL_SHAPE: readonly Section[] = [
+  { kind: "header", h: 50 },
+  { kind: "panels", panels: [[6, 203], [6, 203]] },
+  { kind: "panels", panels: [[12, 195]] },
+  { kind: "table", chrome: 154, rows: 3, rowHeight: 44 },
+  { kind: "table", chrome: 96, rows: 2, rowHeight: 44, perm: "audit.view" },
+];
+
 export function UserDetail({ id }: { id: string }) {
   const { user: me, perms, can } = useAuth();
   const qc = useQueryClient();
   const router = useRouter();
-  const q = useUserDetail(id);
+  /** Set once this page deleted the user: stop fetching them (no 404 flash), drop them from the cache when the page goes away. */
+  const [deleted, setDeleted] = useState(false);
+  const q = useUserDetail(id, !deleted);
   // No flash: the loading shape appears after 150 ms and then stays at least 300 ms (it holds its place hidden before).
-  const skeleton = useDelayedFlag(!q.data);
+  const skeleton = useDelayedFlag(!q.data && !q.error);
   const lastSuperId = useLastSuperadminId();
   const [dialog, setDialog] = useState<Dialog>(null);
   const [temp, setTemp] = useState<string | null>(null);
+  const [activating, setActivating] = useState(false);
+  useEffect(() => () => { if (deleted) qc.removeQueries({ queryKey: userDetail(id).key }); }, [deleted, id, qc]);
 
-  if (q.error && !q.data) return <div className="grid gap-section"><PageHeader title="User" /><Panel><Failure title="Couldn't load this user" error={q.error} source="Starterkit" onRetry={() => void q.refetch()} /></Panel></div>;
+  if (isNotFound(q.error)) return <DetailNotFound title="User" noun="user" list={{ href: "/users", label: "Users" }} />;
+  if (q.error && !q.data) return <div className="grid gap-section"><PageHeader title="User" /><Panel><Failure title="Couldn't load this user" error={q.error} source={BRAND.name} onRetry={() => void q.refetch()} /></Panel></div>;
   const u = q.data;
-  if (!u || skeleton) return <div className={skeleton ? "grid gap-section" : "invisible grid gap-section"} aria-busy={skeleton || undefined}><PageHeader title="User" /><Skeleton className="h-40 w-full" /><Skeleton className="h-40 w-full" /></div>;
+  if (!u || skeleton) return <LoadingShape sections={USER_DETAIL_SHAPE} shown={skeleton} />;
 
-  const refresh = () => qc.invalidateQueries({ queryKey: USERS_KEY });
+  /** Every users query but this user's own detail once it's deleted (it would answer 404). */
+  const refresh = () => qc.invalidateQueries({ queryKey: USERS_KEY, predicate: (x) => !(deleted && x.queryKey[2] === id) });
   const rank = rankBlock(u, perms);
   const block = protection(u, me.id, perms, lastSuperId);
   const resetBlock = u.id === me.id ? "Use Security in your account to change your own password." : rank ?? (u.isLdap ? "This user signs in with a directory password. Change it in your directory." : null);
@@ -57,6 +79,18 @@ export function UserDetail({ id }: { id: string }) {
     await api(`/api/users/${id}/status`, { method: "POST", body: JSON.stringify({ active }) });
     toast(active ? `Activated ${u!.name}.` : `Deactivated ${u!.name}. Their sessions ended.`);
     await refresh();
+  }
+  async function activate() {
+    setActivating(true);
+    try { await setActive(true); } catch (e) { toast.error(errorText(e)); } finally { setActivating(false); }
+  }
+  async function remove(name: string) {
+    await api(`/api/users/${id}`, { method: "DELETE" });
+    // Leave first and stop the detail query, so the page never refetches itself into a "doesn't exist" flash.
+    setDeleted(true);
+    router.push("/users");
+    toast(`Deleted ${name}.`);
+    await qc.invalidateQueries({ queryKey: USERS_KEY, predicate: (x) => x.queryKey[2] !== id });
   }
 
   return (
@@ -69,7 +103,8 @@ export function UserDetail({ id }: { id: string }) {
           {can("user.edit") && <BlockedButton variant="secondary" reason={resetBlock} onClick={() => setDialog("reset")}>Reset password</BlockedButton>}
           {can("user.edit") && (u.isActive
             ? <BlockedButton variant="secondary" reason={block} onClick={() => setDialog("deactivate")}>Deactivate user</BlockedButton>
-            : <BlockedButton variant="secondary" reason={rank} onClick={() => void setActive(true).catch((e) => toast.error(errorText(e)))}>Activate user</BlockedButton>)}
+            : <BlockedButton variant="secondary" reason={rank} disabled={activating} aria-busy={activating || undefined} onClick={() => void activate()}>
+              {activating && <Icon icon={SpinnerIcon} className="motion-safe:animate-spin" />}Activate user</BlockedButton>)}
           {can("user.delete") && <BlockedButton variant="destructive" reason={block} onClick={() => setDialog("delete")}>Delete user</BlockedButton>}
         </>} />
       {q.error && <Notice tone="warn" live>Couldn&apos;t refresh this user; showing the last loaded details.</Notice>}
@@ -120,7 +155,7 @@ export function UserDetail({ id }: { id: string }) {
       {dialog === "delete" && (
         <ConfirmActionDialog open onOpenChange={(o) => { if (!o) setDialog(null); }} auditFields={false} reasons={[]} destructive title={`Delete ${u.name}`} description={u.email}
           impact={["The account is removed and its sessions end.", "This can't be undone."]} actionLabel="Delete user"
-          onConfirm={async () => { await api(`/api/users/${id}`, { method: "DELETE" }); toast(`Deleted ${u.name}.`); await refresh(); router.push("/users"); }} />
+          onConfirm={() => remove(u.name)} />
       )}
       {dialog === "reset" && (
         <ConfirmActionDialog open onOpenChange={(o) => { if (!o) setDialog(null); }} auditFields={false} reasons={[]} title={`Reset password for ${u.name}`} description={u.email}
@@ -130,7 +165,7 @@ export function UserDetail({ id }: { id: string }) {
       {typeof dialog === "object" && dialog && (
         <ConfirmActionDialog open onOpenChange={(o) => { if (!o) setDialog(null); }} auditFields={false} reasons={[]} destructive title="End this session" description={`${dialog.end.device} · ${dialog.end.ip}`}
           impact={["That device is signed out and must sign in again."]} actionLabel="End session"
-          onConfirm={async () => { await api(`/api/users/${id}/sessions/${encodeURIComponent(dialog.end.id)}`, { method: "DELETE" }); await refresh(); }} />
+          onConfirm={async () => { await api(`/api/users/${id}/sessions/${encodeURIComponent(dialog.end.id)}`, { method: "DELETE" }); toast(`Ended the session on ${dialog.end.device}.`); await refresh(); }} />
       )}
       {temp && (
         <SecretOnceDialog title="Temporary password" secret={temp} label="Temporary password" onClose={() => setTemp(null)}

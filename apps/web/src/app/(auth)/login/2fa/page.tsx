@@ -4,7 +4,7 @@ import { afterSignIn, signInHref } from "@starterkit/ui/lib/safe-path";
 import { TwoFactorForm } from "@/features/auth/two-factor-form";
 import { getSession, pending2faOf } from "@/lib/server/session";
 
-export const metadata: Metadata = { title: "Two-factor authentication · Starterkit" };
+export const metadata: Metadata = { title: "Two-factor authentication" };
 
 /** Only reachable with a pending sign-in (password accepted, second factor due, under 10 minutes old); otherwise back to sign-in. */
 export default async function TwoFactorPage({ searchParams }: { searchParams: Promise<{ next?: string | string[] }> }) {

@@ -1,11 +1,7 @@
-import { RouteSkeleton, type Section } from "../../route-skeleton";
+import { RouteSkeleton } from "@/components/route-skeleton";
+import { ROLE_DETAIL_SHAPE } from "@/features/rbac/role-detail";
 
-/** Loading shape of /roles/[id] with the loaded page's section heights at the 1440 px reference width (see route-skeleton). */
-const SECTIONS: readonly Section[] = [
-  { kind: "header", h: 50 },
-  { kind: "panels", panels: [[12, 256]] },
-];
-
+/** Loading shape of /roles/[id]: the same sections the screen shows while its data loads (ROLE_DETAIL_SHAPE). */
 export default function Loading() {
-  return <RouteSkeleton sections={SECTIONS} />;
+  return <RouteSkeleton sections={ROLE_DETAIL_SHAPE} />;
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { PERMISSIONS, type PermissionName } from "@/lib/shared/permissions";
-import { ACTIONS, applyEdit, cellState, columnCells, diff, type Draft, rowCells, toggleAll, toggleCell, toggleColumn, toggleRow, withDraft } from "./matrix";
+import { ACTIONS, applyEdit, cellState, columnCells, diff, type Draft, rebase, rowCells, toggleAll, toggleCell, toggleColumn, toggleRow, withDraft } from "./matrix";
 
 const set = (...p: PermissionName[]) => new Set<PermissionName>(p);
 const sorted = (s: ReadonlySet<PermissionName>) => [...s].sort();
@@ -57,8 +57,8 @@ describe("permission matrix", () => {
     const s = set("user.delete");
     // row: allowed user cells all off -> on; user.delete (not allowed) stays as it was
     expect(sorted(toggleRow(s, "user", allowed))).toEqual(["user.delete", "user.edit", "user.view"]);
-    // all allowed user cells on -> cleared, the not-allowed one stays
-    expect(sorted(toggleRow(set("user.view", "user.edit", "user.delete"), "user", allowed))).toEqual(["user.delete"]);
+    // all allowed user cells on but user.create off: the header is mixed, so the click fills (nothing left to fill)
+    expect(sorted(toggleRow(set("user.view", "user.edit", "user.delete"), "user", allowed))).toEqual(["user.delete", "user.edit", "user.view"]);
     expect(sorted(toggleColumn(set(), "view", allowed))).toEqual(["role.view", "user.view"]);
     expect(sorted(toggleAll(set("audit.view"), allowed))).toEqual(["audit.view", "role.view", "user.edit", "user.view"]);
     // nothing allowed in the group: unchanged
@@ -74,5 +74,29 @@ describe("permission matrix", () => {
     expect(sorted(withDraft(saved, draft))).toEqual(["role.edit", "role.view", "user.view"]);
     // toggling a cell back drops it from the draft
     expect(applyEdit(saved, draft, (v) => toggleCell(v, "audit.view"))).toEqual({ added: ["role.view", "role.edit"], removed: [] });
+  });
+  it("tri-state: a mixed header fills the cells the actor may change, even when those are all on already", () => {
+    const allowed = set("user.view", "user.edit");
+    // allowed cells on, user.create / user.delete (not allowed) off: the header shows mixed, so a click fills (no-op), never clears
+    const s = set("user.view", "user.edit");
+    expect(cellState(s, rowCells("user"))).toBe("mixed");
+    expect(sorted(toggleRow(s, "user", allowed))).toEqual(["user.edit", "user.view"]);
+    // only a fully checked header clears (and only what the actor may change)
+    expect(sorted(toggleRow(set("user.view", "user.edit", "user.create", "user.delete"), "user", allowed))).toEqual(["user.create", "user.delete"]);
+  });
+
+  it("a module's view comes with its other actions: on adds view, view off takes the module's other actions with it", () => {
+    const saved = set("audit.view");
+    expect(applyEdit(saved, null, (v) => toggleCell(v, "user.edit"))).toEqual({ added: ["user.view", "user.edit"], removed: [] });
+    expect(applyEdit(saved, null, (v) => toggleColumn(v, "delete"))).toEqual({ added: ["user.view", "user.delete", "role.view", "role.delete"], removed: [] });
+    const full = set("user.view", "user.edit", "user.delete", "audit.view");
+    expect(applyEdit(full, null, (v) => toggleCell(v, "user.view"))).toEqual({ added: [], removed: ["user.view", "user.edit", "user.delete"] });
+  });
+
+  it("rebase: a draft made against an older set shows and sends only what still changes something", () => {
+    const draft: Draft = { added: ["role.view", "role.edit"], removed: ["audit.view"] };
+    // meanwhile someone else added role.view and removed audit.view
+    expect(rebase(set("user.view", "role.view"), draft)).toEqual({ added: ["role.edit"], removed: [] });
+    expect(rebase(set("user.view"), null)).toEqual({ added: [], removed: [] });
   });
 });

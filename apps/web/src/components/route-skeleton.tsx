@@ -6,6 +6,7 @@ import { Panel, StatTiles, StatTileSkeletons } from "@starterkit/ui/ds";
 import { DUR, LOADING, useDelayedFlag, useHoldShape } from "@starterkit/ui/motion";
 import { Skeleton } from "@starterkit/ui/ui/skeleton";
 import { useAuth } from "@/lib/client/auth-context";
+import { scrubCopy } from "./frozen-copy";
 import { DEFAULT_PAGE_SIZE, PAGE_SIZES } from "@/lib/shared/paging";
 import type { PermissionName } from "@/lib/shared/permissions";
 
@@ -62,7 +63,12 @@ function TableBlock({ chrome, rows, rowHeight }: { chrome: number; rows: number;
   );
 }
 
-type Previous = { copy: HTMLElement; rect: DOMRect; scrolled: [HTMLElement, number, number][] };
+type Copy = { copy: HTMLElement; rect: DOMRect; scrolled: [HTMLElement, number, number][] };
+/** A fresh copy to put up, or the copy already up (a navigation started within the previous one's first 150 ms). */
+type Previous = (Copy | { adopt: HTMLElement }) & { owner: object };
+
+/** The frozen copy on screen and the loading shape that owns it (only the owner takes it down). */
+let up: { holder: HTMLElement; owner: object } | null = null;
 
 /**
  * What the page region showed when this shape mounted on a client navigation (the page, or a held shape over it),
@@ -76,19 +82,29 @@ function usePreviousPage(): Previous | null {
     const page = [...document.querySelectorAll<HTMLElement>("[data-page]")]
       .find((p) => !p.closest("[inert]")); // not a page the Framer layer is fading out (motion/framer.tsx Frozen)
     const root = page?.parentElement;
-    if (!page || !root || page.querySelector("[data-route-skeleton]")) return null;
+    if (!page || !root) return null;
+    const owner = {};
+    if (page.querySelector("[data-route-skeleton]")) {
+      // The page region is another loading shape: a navigation started while the previous one was still in its
+      // first 150 ms. Its copy of the page before it stays up, handed to this shape now (while rendering, before the
+      // old shape's cleanup could take it down), so the screen never goes blank in between.
+      if (!up?.holder.isConnected) return null;
+      up.owner = owner;
+      return { adopt: up.holder, owner };
+    }
     const copy = root.cloneNode(true) as HTMLElement;
     // Same order in both trees: the copy's twin of each scrolled box, to restore its position once the copy is shown.
     const from = [root, ...root.querySelectorAll<HTMLElement>("*")];
     const to = [copy, ...copy.querySelectorAll<HTMLElement>("*")];
     const scrolled = from.flatMap((el, i): [HTMLElement, number, number][] => (el.scrollTop || el.scrollLeft ? [[to[i]!, el.scrollTop, el.scrollLeft]] : []));
     for (const el of copy.querySelectorAll("[data-page]")) el.removeAttribute("data-page");
+    scrubCopy(to); // no duplicate ids, no label or ARIA pointing into the live page, no field names
     // A held shape already fading out over the page would stand at full opacity in the copy (no animations there).
     for (const el of copy.querySelectorAll("[data-held].animate-reveal-out")) el.remove();
     copy.setAttribute("data-frozen", "");
     copy.setAttribute("aria-hidden", "true");
     copy.inert = true;
-    return { copy, rect: root.getBoundingClientRect(), scrolled };
+    return { copy, rect: root.getBoundingClientRect(), scrolled, owner };
   });
   return previous;
 }
@@ -98,14 +114,22 @@ function usePreviousPage(): Previous | null {
  * source of the old page: a page the Framer layer is still fading out is hidden meanwhile, by globals.css). Leaves with a short fade,
  * over the page or the shape that takes its place.
  */
-function showCopy({ copy, rect, scrolled }: Previous): () => void {
-  const holder = document.createElement("div");
-  holder.setAttribute("data-frozen-holder", "");
-  Object.assign(holder.style, { position: "fixed", top: `${rect.top}px`, left: `${rect.left}px`, width: `${rect.width}px`, pointerEvents: "none" });
-  holder.append(copy);
-  document.body.append(holder);
-  for (const [el, top, left] of scrolled) { el.scrollTop = top; el.scrollLeft = left; }
+function showCopy(previous: Previous): () => void {
+  let holder: HTMLElement;
+  if ("adopt" in previous) holder = previous.adopt;
+  else {
+    const { copy, rect, scrolled } = previous;
+    holder = document.createElement("div");
+    holder.setAttribute("data-frozen-holder", "");
+    Object.assign(holder.style, { position: "fixed", top: `${rect.top}px`, left: `${rect.left}px`, width: `${rect.width}px`, pointerEvents: "none" });
+    holder.append(copy);
+    document.body.append(holder);
+    for (const [el, top, left] of scrolled) { el.scrollTop = top; el.scrollLeft = left; }
+  }
+  up = { holder, owner: previous.owner };
   return () => {
+    if (up?.owner !== previous.owner) return; // handed to the next navigation's shape
+    up = null;
     const fade = holder.animate([{ opacity: 1 }, { opacity: 0 }], { duration: DUR.fast * 1000, fill: "forwards" });
     fade.finished.then(() => holder.remove(), () => holder.remove());
   };
@@ -121,12 +145,17 @@ export function RouteSkeleton({ sections }: { sections: readonly Section[] }) {
   useLayoutEffect(() => (previous && !shown ? showCopy(previous) : undefined), [previous, shown]);
   // As the page replaces it (layout cleanup: before the browser paints the page), stay up for the rest of the minimum.
   useLayoutEffect(() => () => {
-    if (shownAt.current) hold(<Shape sections={sections} shown />, shownAt.current + (LOADING.minVisible + LOADING.margin) * 1000);
+    if (shownAt.current) hold(<LoadingShape sections={sections} shown />, shownAt.current + (LOADING.minVisible + LOADING.margin) * 1000);
   }, [hold, sections]);
-  return <Shape sections={sections} shown={shown} />;
+  return <LoadingShape sections={sections} shown={shown} />;
 }
 
-function Shape({ sections, shown }: { sections: readonly Section[]; shown: boolean }) {
+/**
+ * A screen's loading shape: the same sections its route's `loading.tsx` lists. A detail screen whose query has no data
+ * yet renders it with `shown` from `useDelayedFlag` (hidden for the first 150 ms, then at least 300 ms), so a client
+ * navigation without a server prefetch looks exactly like the route loading.
+ */
+export function LoadingShape({ sections, shown }: { sections: readonly Section[]; shown: boolean }) {
   const { can } = useAuth();
   const size = Number(useSearchParams().get("pageSize"));
   const pageRows = (PAGE_SIZES as readonly number[]).includes(size) ? size : DEFAULT_PAGE_SIZE;

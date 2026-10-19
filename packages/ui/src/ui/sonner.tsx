@@ -1,12 +1,16 @@
 "use client";
 
 import { useTheme } from "next-themes";
+import { useEffect } from "react";
 import { Toaster as Sonner, type ToasterProps } from "sonner";
 import { Icon } from "./icon";
 import { ErrorIcon, InfoIcon, SpinnerIcon, SuccessIcon, WarningIcon } from "./icons";
+import { toasterMounted } from "./toast";
 
 const Toaster = (props: ToasterProps) => {
   const { resolvedTheme } = useTheme();
+  // After sonner's own effect (a child's effects run first) has subscribed: toasts waiting in ./toast go out now.
+  useEffect(() => { toasterMounted(true); return () => toasterMounted(false); }, []);
   return (
     <Sonner
       theme={(resolvedTheme ?? "system") as ToasterProps["theme"]}

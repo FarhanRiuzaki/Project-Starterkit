@@ -6,6 +6,7 @@ import { SearchIcon, ThemeDarkIcon, ThemeLightIcon } from "@starterkit/ui/ui/ico
 import { useTheme } from "next-themes";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useAuth } from "@/lib/client/auth-context";
 import { crumbs } from "@/lib/shared/nav";
 import { OPEN_PALETTE } from "./command-palette";
 import { NavGlyph } from "./nav-icon";
@@ -19,7 +20,8 @@ const openPalette = () => window.dispatchEvent(new CustomEvent(OPEN_PALETTE));
  */
 export function TopBar() {
   const path = usePathname();
-  const list = crumbs(path);
+  const { perms } = useAuth();
+  const list = crumbs(path, perms);
   const { resolvedTheme, setTheme } = useTheme();
   return (
     <div data-print="hide" className="flex h-14 shrink-0 items-center gap-3 border-b border-line px-6">

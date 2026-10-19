@@ -1,11 +1,7 @@
-import { RouteSkeleton, type Section } from "../../../route-skeleton";
+import { RouteSkeleton } from "@/components/route-skeleton";
+import { EDIT_USER_SHAPE } from "@/features/users/user-form";
 
-/** Loading shape of /users/[id]/edit with the loaded page's section heights at the 1440 px reference width (see route-skeleton). */
-const SECTIONS: readonly Section[] = [
-  { kind: "header", h: 50 },
-  { kind: "panels", panels: [[12, 502]] },
-];
-
+/** Loading shape of /users/[id]/edit: the same sections the screen shows while its data loads (EDIT_USER_SHAPE). */
 export default function Loading() {
-  return <RouteSkeleton sections={SECTIONS} />;
+  return <RouteSkeleton sections={EDIT_USER_SHAPE} />;
 }

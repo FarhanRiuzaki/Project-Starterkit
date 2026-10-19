@@ -7,7 +7,8 @@ import { useCallback, useMemo, useState } from "react";
 import { ActionMenu, BlockedButton, ConfirmActionDialog, DataTable, Field, FilterMenu, Notice, Panel, QueryInput, Toolbar } from "@starterkit/ui/ds";
 import { HEALTH } from "@starterkit/ui/lib/status";
 import { Button } from "@starterkit/ui/ui/button";
-import { UsersIcon } from "@starterkit/ui/ui/icons";
+import { Icon } from "@starterkit/ui/ui/icon";
+import { SpinnerIcon, UsersIcon } from "@starterkit/ui/ui/icons";
 import { Select } from "@starterkit/ui/ui/select";
 import { toast } from "@starterkit/ui/ui/toast";
 import { PageHeader } from "@/components/shell/page-header";
@@ -19,7 +20,7 @@ import type { UserRowDto } from "@/lib/shared/contracts/users";
 import { USER_STATUSES, type UserFilters, USERS } from "@/lib/shared/queries";
 import { RoleSearch } from "./role-search";
 import { userColumns } from "./user-columns";
-import { SKIP_REASON, USERS_KEY, protection, rankBlock, useLastSuperadminId, useRoleNames } from "./use-users";
+import { skipReason, USERS_KEY, protection, rankBlock, useLastSuperadminId, useRoleNames } from "./use-users";
 
 const STATUS_LABEL = { "": "Any", active: "Active", inactive: "Inactive" } as const;
 const STATUSES = USER_STATUSES.map((value) => ({ value, label: STATUS_LABEL[value] }));
@@ -52,6 +53,7 @@ export function UsersPage() {
   if (selectedOn !== shown) { setSelectedOn(shown); setSelected(new Set()); }
   const [pending, setPending] = useState<Pending | null>(null);
   const [role, setRole] = useState("");
+  const [activating, setActivating] = useState<string | null>(null);
 
   const rows = t.rows;
   const canAct = can("user.edit") || can("user.delete");
@@ -73,7 +75,7 @@ export function UsersPage() {
     } else {
       if (p.action === "assignRole" && !role) throw new Error("Pick a role: type its name and choose it from the list.");
       const r = await api<BulkResult>("/api/users/bulk", { method: "POST", body: JSON.stringify({ action: p.action, ids: p.ids, ...(p.action === "assignRole" ? { role } : {}) }) });
-      const reasons = [...new Set(r.skipped.map((s) => SKIP_REASON[s.code] ?? s.code))].join(", ");
+      const reasons = [...new Set(r.skipped.map((s) => skipReason(s.code)))].join(", ");
       const text = `${r.done.length} updated, ${r.skipped.length} skipped`;
       if (r.skipped.length && !r.done.length) toast.error(text, { description: `Skipped: ${reasons}.` });
       else toast(text, { description: r.skipped.length ? `Skipped: ${reasons}.` : undefined });
@@ -83,11 +85,13 @@ export function UsersPage() {
   }
 
   async function activate(u: UserRowDto) {
+    setActivating(u.id);
     try {
       await api(`/api/users/${u.id}/status`, { method: "POST", body: JSON.stringify({ active: true }) });
       toast(`Activated ${u.name}.`);
       await refresh();
     } catch (e) { toast.error(errorText(e)); }
+    finally { setActivating(null); }
   }
 
   const ids = [...selected];
@@ -143,7 +147,8 @@ export function UsersPage() {
             return <>
               {can("user.edit") && (u.isActive
                 ? <BlockedButton reason={block} size="sm" variant="ghost" onClick={() => setPending({ kind: "one", action: "deactivate", user: u })}>Deactivate</BlockedButton>
-                : <BlockedButton reason={rank} size="sm" variant="ghost" onClick={() => void activate(u)}>Activate</BlockedButton>)}
+                : <BlockedButton reason={rank} size="sm" variant="ghost" disabled={activating === u.id} aria-busy={activating === u.id || undefined} onClick={() => void activate(u)}>
+                  {activating === u.id && <Icon icon={SpinnerIcon} className="motion-safe:animate-spin" />}Activate</BlockedButton>)}
               <ActionMenu label={`Actions for ${u.name}`} actions={[
                 { id: "open", label: "View user", onSelect: () => router.push(`/users/${u.id}`) },
                 ...(can("user.edit") ? [{ id: "edit", label: "Edit user", disabled: !!rank, hint: rank ?? undefined, onSelect: () => router.push(`/users/${u.id}/edit`) }] : []),
@@ -159,8 +164,10 @@ export function UsersPage() {
             <Field id="bulk-role" label="Role">
               {roles.more
                 ? <RoleSearch id="bulk-role" label="Role" value={role} onChange={setRole} />
-                : <Select id="bulk-role" value={role} onChange={(e) => setRole(e.target.value)}>
-                  {roles.names.map((r) => <option key={r} value={r}>{r}</option>)}
+                : <Select id="bulk-role" value={role} onChange={(e) => setRole(e.target.value)} disabled={roles.names.length === 0}>
+                  {roles.names.length === 0
+                    ? <option value="">No roles yet. Create one on the Roles page.</option>
+                    : roles.names.map((r) => <option key={r} value={r}>{r}</option>)}
                 </Select>}
             </Field>
           )} />

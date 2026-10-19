@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { crumbs, isActive, NAV, navFor } from "./nav";
+import { crumbs, isActive, NAV, navFor, pagePerm } from "./nav";
 import { PERMISSIONS } from "./permissions";
 
 const labels = (perms: Parameters<typeof navFor>[0]) => navFor(perms).flatMap((s) => s.items.map((i) => i.label));
@@ -34,8 +34,29 @@ describe("isActive / crumbs", () => {
     expect(isActive("/usersx", "/users")).toBe(false);
   });
   it("breadcrumb: nav page, then nothing for unknown", () => {
-    expect(crumbs("/audit/activity").map((c) => c.label)).toEqual(["Activity log"]);
-    expect(crumbs("/ds").map((c) => c.label)).toEqual(["Design system"]);
-    expect(crumbs("/nope")).toEqual([]);
+    const all = new Set(PERMISSIONS);
+    expect(crumbs("/audit/activity", all).map((c) => c.label)).toEqual(["Activity log"]);
+    expect(crumbs("/ds", all).map((c) => c.label)).toEqual(["Design system"]);
+    expect(crumbs("/nope", all)).toEqual([]);
+  });
+  it("breadcrumb: a page the viewer can't open doesn't name itself", () => {
+    expect(crumbs("/roles", new Set(["user.view"]))).toEqual([]);
+    expect(crumbs("/roles/role-admin", new Set(["user.view"]))).toEqual([]);
+    expect(crumbs("/users/u-1", new Set(["user.view"])).map((c) => c.label)).toEqual(["Users"]);
+  });
+});
+
+describe("pagePerm", () => {
+  it("is the nav page's permission, with the finer rules for creating and editing users", () => {
+    expect(pagePerm("/")).toBeNull();
+    expect(pagePerm("/me/security")).toBeNull();
+    expect(pagePerm("/users?page=2")).toBe("user.view");
+    expect(pagePerm("/users/u-1")).toBe("user.view");
+    expect(pagePerm("/users/new")).toBe("user.create");
+    expect(pagePerm("/users/u-1/edit/")).toBe("user.edit");
+    expect(pagePerm("/roles/role-admin")).toBe("role.view");
+    expect(pagePerm("/permissions")).toBe("permission.view");
+    expect(pagePerm("/audit/auth")).toBe("audit.view");
+    expect(pagePerm("/nope")).toBeNull();
   });
 });

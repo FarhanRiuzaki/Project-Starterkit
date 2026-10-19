@@ -4,17 +4,21 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { ConfirmActionDialog } from "@starterkit/ui/ds";
 import { Button } from "@starterkit/ui/ui/button";
+import { toast } from "@starterkit/ui/ui/toast";
 import { SessionsTable } from "@/components/sessions-table";
+import { PageHeader } from "@/components/shell/page-header";
 import { api } from "@/lib/client/api";
 import type { SessionDto } from "@/lib/shared/contracts/me";
 import { MY_SESSIONS } from "@/lib/shared/queries";
+import { MeNav } from "./me-nav";
 
-/** The signed-in user's own sessions. This one is marked; any other can be ended. */
-export function MySessionsTable() {
+/** /me/sessions: the signed-in user's own sessions. This one is marked; any other can be ended. */
+export function MySessionsPage() {
   const qc = useQueryClient();
   const [ending, setEnding] = useState<SessionDto | null>(null);
   return (
-    <>
+    <div className="grid gap-section">
+      <PageHeader title="Sessions" description="Where you're signed in. End any session you don't recognize." actions={<MeNav />} />
       <SessionsTable table={MY_SESSIONS} title="My sessions" description="Where you're signed in" current="This session"
         emptyHint="Your sessions appear here after you sign in."
         action={(r) => r.current
@@ -25,8 +29,9 @@ export function MySessionsTable() {
         impact={["That device is signed out and must sign in again."]} actionLabel="End session" destructive
         onConfirm={async () => {
           await api(`/api/me/sessions/${encodeURIComponent(ending!.id)}`, { method: "DELETE" });
+          toast(`Ended the session on ${ending!.device}.`);
           await qc.invalidateQueries({ queryKey: [MY_SESSIONS.key] }); // under "me": a password change refreshes it too
         }} />
-    </>
+    </div>
   );
 }

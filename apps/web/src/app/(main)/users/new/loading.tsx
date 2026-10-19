@@ -1,11 +1,7 @@
-import { RouteSkeleton, type Section } from "../../route-skeleton";
+import { RouteSkeleton } from "@/components/route-skeleton";
+import { CREATE_USER_SHAPE } from "@/features/users/user-form";
 
-/** Loading shape of /users/new with the loaded page's section heights at the 1440 px reference width (see route-skeleton). */
-const SECTIONS: readonly Section[] = [
-  { kind: "header", h: 50 },
-  { kind: "panels", panels: [[12, 724]] },
-];
-
+/** Loading shape of /users/new: the same sections as the screen (CREATE_USER_SHAPE). */
 export default function Loading() {
-  return <RouteSkeleton sections={SECTIONS} />;
+  return <RouteSkeleton sections={CREATE_USER_SHAPE} />;
 }

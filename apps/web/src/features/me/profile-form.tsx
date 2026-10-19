@@ -4,27 +4,36 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useState } from "react";
 import { Failure, Field, Panel } from "@starterkit/ui/ds";
-import { Reveal } from "@starterkit/ui/motion";
+import { useDelayedFlag } from "@starterkit/ui/motion";
 import { Button } from "@starterkit/ui/ui/button";
 import { Icon } from "@starterkit/ui/ui/icon";
 import { IdentityIcon, SpinnerIcon } from "@starterkit/ui/ui/icons";
 import { Input } from "@starterkit/ui/ui/input";
-import { Skeleton } from "@starterkit/ui/ui/skeleton";
 import { toast } from "@starterkit/ui/ui/toast";
+import { LoadingShape, type Section } from "@/components/route-skeleton";
+import { PageHeader } from "@/components/shell/page-header";
 import { api, errorText } from "@/lib/client/api";
 import type { MeDto } from "@/lib/shared/contracts/me";
+import { BRAND } from "@/lib/shared/brand";
+import { MeNav } from "./me-nav";
 import { ME_KEY, useMe } from "./use-me";
 
-/** Own name and email; the username is read-only (an administrator changes it). */
-export function ProfileForm() {
+/** Loading shape of /me (its loading.tsx uses the same list), section heights at the 1440 px reference width. */
+export const PROFILE_SHAPE: readonly Section[] = [{ kind: "header", h: 50 }, { kind: "panels", panels: [[12, 352]] }];
+
+/** /me: own name and email; the username is read-only (an administrator changes it). */
+export function ProfilePage() {
   const q = useMe();
-  if (q.error && !q.data) return <Panel><Failure title="Couldn't load your profile" error={q.error} source="Starterkit" onRetry={() => void q.refetch()} /></Panel>;
+  // No flash: the loading shape appears after 150 ms and then stays at least 300 ms (it holds its place hidden before).
+  const skeleton = useDelayedFlag(!q.data && !q.error);
+  const header = <PageHeader title="Profile" description="Your name and email." actions={<MeNav />} />;
+  if (q.error && !q.data) return <div className="grid gap-section">{header}<Panel><Failure title="Couldn't load your profile" error={q.error} source={BRAND.name} onRetry={() => void q.refetch()} /></Panel></div>;
+  if (!q.data || skeleton) return <LoadingShape sections={PROFILE_SHAPE} shown={skeleton} />;
   return (
-    <Panel icon={IdentityIcon} title="Profile" description="Shown to other users and in the activity log">
-      <Reveal loading={!q.data} skeleton={<div className="grid max-w-md gap-4"><Skeleton className="h-8 w-full" /><Skeleton className="h-8 w-full" /><Skeleton className="h-8 w-full" /></div>}>
-        {q.data && <Form key={q.data.id} user={q.data} />}
-      </Reveal>
-    </Panel>
+    <div className="grid gap-section">
+      {header}
+      <Panel icon={IdentityIcon} title="Profile" description="Shown to other users and in the activity log"><Form key={q.data.id} user={q.data} /></Panel>
+    </div>
   );
 }
 

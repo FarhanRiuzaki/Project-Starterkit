@@ -1,4 +1,4 @@
-import { RouteSkeleton, type Section } from "../route-skeleton";
+import { RouteSkeleton, type Section } from "@/components/route-skeleton";
 
 /** Loading shape of /ds with the loaded page's section heights at the 1440 px reference width (see route-skeleton). */
 const SECTIONS: readonly Section[] = [

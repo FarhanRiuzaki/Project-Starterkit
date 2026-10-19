@@ -1,11 +1,7 @@
-import { RouteSkeleton, type Section } from "../../route-skeleton";
+import { RouteSkeleton } from "@/components/route-skeleton";
+import { SECURITY_SHAPE } from "@/features/me/security-panel";
 
-/** Loading shape of /me/security with the loaded page's section heights at the 1440 px reference width (see route-skeleton). */
-const SECTIONS: readonly Section[] = [
-  { kind: "header", h: 50 },
-  { kind: "panels", panels: [[6, 541], [6, 541]] },
-];
-
+/** Loading shape of /me/security: the same sections the screen shows while its data loads (SECURITY_SHAPE). */
 export default function Loading() {
-  return <RouteSkeleton sections={SECTIONS} />;
+  return <RouteSkeleton sections={SECURITY_SHAPE} />;
 }

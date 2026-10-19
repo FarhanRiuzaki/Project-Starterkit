@@ -2,8 +2,20 @@ import type { toast as sonnerToast } from "sonner";
 
 type Toast = typeof sonnerToast;
 
-/** sonner itself, loaded on the first toast. The Toaster (`./sonner`) is mounted lazily too, by the app's Providers. */
-const sonner = () => import("sonner").then((m) => m.toast);
+/**
+ * sonner drops a toast published while no Toaster is subscribed (its Toaster keeps no backlog), and the app mounts its
+ * Toaster lazily (next/dynamic after hydration; React StrictMode mounts it twice in development). So a toast waits
+ * until a Toaster is mounted: `./sonner` reports mount and unmount here.
+ */
+let markReady: () => void = () => {};
+let ready = new Promise<void>((r) => { markReady = r; });
+export function toasterMounted(on: boolean): void {
+  if (on) markReady();
+  else ready = new Promise<void>((r) => { markReady = r; });
+}
+
+/** sonner itself, loaded on the first toast, once a Toaster listens. */
+const sonner = () => Promise.all([import("sonner"), ready]).then(([m]) => m.toast);
 
 /**
  * Result toasts without sonner in a route's first load: a toast only follows a user action, so the library can load
