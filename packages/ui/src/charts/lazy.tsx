@@ -21,6 +21,14 @@ function ChartSkeleton({ height }: { height: number }) {
   );
 }
 
+/**
+ * The loaded chart, or for a chunk that failed to load (e.g. its hash is gone after a deploy) a component that throws
+ * that error while rendering, so the nearest error boundary shows it instead of a skeleton that never ends.
+ */
+export function orThrow<P>(chunk: Promise<ComponentType<P>>): Promise<ComponentType<P>> {
+  return chunk.catch((err: unknown) => function ChunkFailed(): never { throw err; });
+}
+
 function lazyChart<P extends { height?: number }>(load: () => Promise<ComponentType<P>>) {
   let loaded: ComponentType<P> | null = null;
   return function LazyChart(props: P) {
@@ -28,8 +36,7 @@ function lazyChart<P extends { height?: number }>(load: () => Promise<ComponentT
     useEffect(() => {
       if (Chart) return;
       let live = true;
-      // ponytail: a blocked chunk leaves the skeleton up; add a retry or an error state if that shows up in practice.
-      void load().then((c) => { loaded = c; if (live) setChart(() => c); }, () => undefined);
+      void orThrow(load().then((c) => (loaded = c))).then((c) => { if (live) setChart(() => c); });
       return () => { live = false; };
     }, [Chart]);
     return (

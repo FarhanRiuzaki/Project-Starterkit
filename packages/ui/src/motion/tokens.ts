@@ -47,9 +47,10 @@ export const STAGGER = { step: 0.035, max: 8 } as const;
 
 /**
  * Loading states (spec "Tanpa flicker"): a skeleton or busy indicator appears only when loading lasts longer than
- * `delay`, and once shown it stays at least `minVisible`, so a fast load never flashes one (useDelayedFlag). Seconds.
+ * `delay`, and once on screen it stays at least `minVisible`, so a fast load never flashes one (useDelayedFlag).
+ * `margin` (about one frame) is added to the minimum, so timer and paint jitter can't end it a little early. Seconds.
  */
-export const LOADING = { delay: 0.15, minVisible: 0.3 } as const;
+export const LOADING = { delay: 0.15, minVisible: 0.3, margin: 0.02 } as const;
 
 /** Chart bars grow one after another (spec §7.4): 12 ms per bar, at most 200 ms in total. */
 export const CHART_STAGGER = { step: 0.012, max: 0.2 } as const;

@@ -24,7 +24,7 @@ export const useHoldShape = (): Hold => useContext(HoldContext);
  * y 6 → 0 over --dur-page, reduced motion opacity only) that runs without waiting for JavaScript, so server HTML is
  * never stuck hidden. Once `PageTransitionRoot` has switched to the Framer crossfade it owns the enter and this
  * wrapper drops its CSS animation. It also holds a route loading shape for its minimum time (useHoldShape); the page
- * then fades in under it.
+ * then fades in under it. `data-page` marks the page's box (a route loading shape copies it while it waits).
  */
 export function PageTransition({ children, className }: { children: ReactNode; className?: string }) {
   const swapping = useContext(Swapping);
@@ -40,7 +40,7 @@ export function PageTransition({ children, className }: { children: ReactNode; c
     <HoldContext.Provider value={hold}>
       <div className={cn("grid min-w-0 gap-section *:col-start-1 *:row-start-1", !swapping && "animate-page-enter", className)}>
         {held && <div className="min-w-0">{held.shape}</div>}
-        <div className={cn("grid min-w-0 gap-section", held ? "invisible" : wasHeld && "animate-reveal-in")}>{children}</div>
+        <div data-page="" className={cn("grid min-w-0 gap-section", held ? "invisible" : wasHeld && "animate-reveal-in")}>{children}</div>
       </div>
     </HoldContext.Provider>
   );

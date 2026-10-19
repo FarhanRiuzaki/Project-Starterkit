@@ -40,8 +40,11 @@ function parse<T>(schema: z.ZodType<T>, url: string): T | null {
   return r.success ? r.data : null;
 }
 
-/** The first page of a server table at the URL state `sp`: the key and request useTableQuery builds (tableRequest). */
-function table<F extends Record<string, string>, Q>(
+/**
+ * The first page of a server table at the URL state `sp`: the key and request useTableQuery builds (tableRequest).
+ * A request the route's schema would reject (400) reads nothing.
+ */
+export function table<F extends Record<string, string>, Q>(
   def: TableDef<F>, sp: URLSearchParams, perm: PermissionName | null, schema: z.ZodType<Q>, page: (q: Q, ctx: AuthCtx) => unknown,
 ): Read {
   const { url } = tableRequest(def.path, readTable(sp, def.spec), def.spec, def.params);

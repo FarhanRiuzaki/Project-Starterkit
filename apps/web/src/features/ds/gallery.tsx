@@ -6,6 +6,7 @@ import {
   TimeRangePicker, type RangeKey,
 } from "@starterkit/ui/ds";
 import { formatCompact, formatNumber } from "@starterkit/ui/lib/format";
+import { useDelayedFlag } from "@starterkit/ui/motion";
 import { Button } from "@starterkit/ui/ui/button";
 import { Icon } from "@starterkit/ui/ui/icon";
 import { ActivityIcon, DeniedIcon, GaugeIcon, LineChartIcon, SessionsIcon, UsersIcon } from "@starterkit/ui/ui/icons";
@@ -18,10 +19,13 @@ import { BYTES_PER_HOUR, REQUESTS_BY_SERVICE, SPARK } from "./fixtures";
  * Everything under the first screen (tables, components, tokens) loads after hydration in its own chunk, so the /ds
  * route stays within the first-load budget (ui-standard §5: lazy load below the fold).
  */
-const GallerySections = dynamic(() => import("./sections").then((m) => m.GallerySections), {
-  ssr: false,
-  loading: () => <div aria-busy="true" className="min-h-screen" />,
-});
+const GallerySections = dynamic(() => import("./sections").then((m) => m.GallerySections), { ssr: false, loading: SectionsLoading });
+
+/** Holds the space below the fold while its chunk loads; busy only after 150 ms, like every loading state. */
+function SectionsLoading() {
+  const shown = useDelayedFlag(true);
+  return <div aria-busy={shown || undefined} className="min-h-screen" />;
+}
 
 const SERVICES = REQUESTS_BY_SERVICE.map((s, i) => ({ label: s.label, slot: (i + 1) as 1 | 2 | 3, total: s.points.reduce((a, [, v]) => a + v, 0) }));
 

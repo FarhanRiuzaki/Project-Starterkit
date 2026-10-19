@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import { ChartLegend } from "./chart-frame";
 import { legendItems, seriesColor } from "./chart-theme";
 import { DistributionBar } from "./distribution-bar";
+import { orThrow } from "./lazy";
 
 const DIR = import.meta.dirname;
 const read = (f: string) => readFileSync(path.join(DIR, f), "utf8");
@@ -101,5 +102,17 @@ describe("chart motion tokens", () => {
   it("the line draw uses --dur-draw (400 ms) from tokens.css", () => {
     expect(read("charts.css")).toContain("animation: chart-draw var(--dur-draw) var(--ease-out) both;");
     expect(readFileSync(path.join(DIR, "../styles/tokens.css"), "utf8")).toMatch(/--dur-draw: 400ms;/);
+  });
+});
+
+describe("lazy chart chunk", () => {
+  it("a chunk that loads passes through", async () => {
+    const Chart = () => createElement("p", null, "chart");
+    expect(await orThrow(Promise.resolve(Chart))).toBe(Chart);
+  });
+  it("a chunk that fails (stale hash after a deploy) becomes a component that throws while rendering, for the error boundary", async () => {
+    const err = new Error("Loading chunk 42 failed");
+    const Failed = await orThrow(Promise.reject(err));
+    expect(() => renderToStaticMarkup(createElement(Failed))).toThrow(err);
   });
 });

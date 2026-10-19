@@ -22,12 +22,15 @@ import { GET as userGet } from "@/app/api/users/[id]/route";
 import { GET as userSessionsGet } from "@/app/api/users/[id]/sessions/route";
 import { GET as roleOptionsGet } from "@/app/api/users/roles/route";
 import { GET as usersGet } from "@/app/api/users/route";
-import { resetDb } from "@/lib/server/mock/db";
+import { db, resetDb } from "@/lib/server/mock/db";
+import { UserListQuery } from "@/lib/shared/contracts/users";
+import { text } from "@/lib/shared/table-state";
 import { authOf, getSession } from "@/lib/server/session";
 import { readTable, tableRequest } from "@/lib/shared/table-state";
+import { userPage } from "./users";
 import { ACTIVITY, AUTH_LOG, DASHBOARD_KEY, ME_KEY, MY_SESSIONS, PERMISSIONS_TABLE, roleKey, roleOptions, ROLES, SUPERADMINS, type TableDef, userDetail, USERS, userSessions } from "@/lib/shared/queries";
 import { addSession, signInAs } from "@/test/session";
-import { prefetchState, reads, type Read, toSearch } from "./prefetch";
+import { Prefetch, prefetchState, reads, type Read, table, toSearch } from "./prefetch";
 
 const ctxOf = async (username: string) => {
   await signInAs(jar, username);
@@ -120,5 +123,33 @@ describe("server prefetch reads only what the user may read", () => {
     const ctx = await ctxOf("superadmin");
     const rs = [reads.user("nope"), reads.userSessions("nope", sp("")), reads.role("nope")];
     expect(prefetchState(ctx, rs).queries).toEqual([]);
+  });
+});
+
+describe("server prefetch edge cases", () => {
+  it("dashboard for a user without audit.view: the route's own answer, without the audit parts", async () => {
+    db().roles.set("role-reader", { id: "role-reader", name: "Reader", locked: false, permissions: ["user.view"] });
+    db().users.get("u-003")!.roles = ["Reader"]; // viewer
+    const ctx = await ctxOf("viewer");
+    expect(ctx.perms.has("audit.view")).toBe(false);
+    const data = dataAt([reads.dashboard()], ctx, DASHBOARD_KEY) as { failedLogins24h: unknown; recent: unknown };
+    expect(data).toEqual(await body(await dashboardGet(at("/api/dashboard"))));
+    expect(data.failedLogins24h).toBeNull();
+    expect(data.recent).toBeNull();
+  });
+
+  it("no session: nothing is prefetched (the layout sends the browser to sign-in)", async () => {
+    const el = await Prefetch({ reads: [reads.dashboard(), reads.me()], children: null });
+    expect((el.props as { state: unknown }).state).toBeUndefined();
+  });
+
+  it("a request URL the route's schema rejects (its 400) reads nothing", async () => {
+    const ctx = await ctxOf("superadmin");
+    // A table spec looser than the route: status takes any text, UserListQuery takes active | inactive only.
+    const loose = { key: "users", path: "/api/users", spec: { sorts: ["name"], defaultSort: "name", filters: { status: text(20) } } } as const;
+    const read = table(loose, sp("status=bogus"), "user.view", UserListQuery, userPage);
+    expect(read.key).toEqual(["users", "/api/users?status=bogus&page=1&pageSize=15&sort=name"]);
+    expect(prefetchState(ctx, [read]).queries).toEqual([]);
+    expect((await usersGet(at("/api/users?status=bogus"))).status).toBe(400);
   });
 });

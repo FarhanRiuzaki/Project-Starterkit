@@ -3,11 +3,12 @@ import { LOADING } from "./tokens";
 import { delayedFlag } from "./use-delayed-flag";
 
 const DELAY = LOADING.delay * 1000;
-const MIN = LOADING.minVisible * 1000;
+const MIN = (LOADING.minVisible + LOADING.margin) * 1000;
 
 describe("loading tokens (spec: no flicker)", () => {
-  it("a loading state waits 150 ms and then stays at least 300 ms", () => {
-    expect(LOADING).toEqual({ delay: 0.15, minVisible: 0.3 });
+  it("a loading state waits 150 ms and then stays at least 300 ms, plus a one-frame margin", () => {
+    expect(LOADING).toEqual({ delay: 0.15, minVisible: 0.3, margin: 0.02 });
+    expect(MIN).toBeGreaterThan(300);
   });
 });
 
@@ -17,7 +18,7 @@ describe("delayedFlag", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     seen = [];
-    flag = delayedFlag((v) => seen.push(v), LOADING);
+    flag = delayedFlag((v) => seen.push(v), LOADING, () => Date.now()); // Date is faked
   });
   afterEach(() => vi.useRealTimers());
 
@@ -42,6 +43,18 @@ describe("delayedFlag", () => {
     vi.advanceTimersByTime(DELAY + 10);
     flag.set(false);
     vi.advanceTimersByTime(MIN - 10 - 1);
+    expect(seen).toEqual([true]);
+    vi.advanceTimersByTime(1);
+    expect(seen).toEqual([true, false]);
+  });
+
+  it("the minimum counts from the commit, not the timer: render time can't shorten it", () => {
+    flag.set(true);
+    vi.advanceTimersByTime(DELAY); // timer fires, React still has to render
+    vi.advanceTimersByTime(40);
+    flag.committed(); // the effect after the skeleton reached the screen
+    flag.set(false);
+    vi.advanceTimersByTime(MIN - 1);
     expect(seen).toEqual([true]);
     vi.advanceTimersByTime(1);
     expect(seen).toEqual([true, false]);

@@ -4,3 +4,7 @@
 @import "@starterkit/ui/styles/base.css";
 
 @source "../../../../packages/ui/src";
+
+/* A route loading shape keeps a static copy of the previous page in place for its first 150 ms (route-skeleton.tsx):
+   nothing in the copy may animate again. */
+[data-frozen], [data-frozen] *, [data-frozen] *::before, [data-frozen] *::after { animation: none !important; transition: none !important; }
