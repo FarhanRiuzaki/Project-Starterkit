@@ -3,6 +3,12 @@
 import { appDate, shiftDate } from "@starterkit/ui/lib/format";
 import type { AuthLogDto } from "./contracts/audit";
 
+export const AUTH_EVENTS = ["login_success", "login_failed", "logout", "2fa_success", "2fa_failed"] as const;
+export const AUTH_METHODS = ["password", "ldap", "google", "apple"] as const;
+/** Sort keys each log's endpoint accepts (`sortParam`). */
+export const ACTIVITY_SORTS = ["at", "actor", "action"] as const;
+export const AUTH_LOG_SORTS = ["at", "login", "event"] as const;
+
 /** Longest from–to span the audit endpoints accept, both days included. */
 export const MAX_RANGE_DAYS = 92;
 /** Most rows one CSV export returns (newest first). */

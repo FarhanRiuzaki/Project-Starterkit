@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { MAX_RANGE_DAYS, rangeProblem } from "../audit";
+import { ACTIVITY_SORTS, AUTH_EVENTS, AUTH_LOG_SORTS, AUTH_METHODS, MAX_RANGE_DAYS, rangeProblem } from "../audit";
 import { ListQuery, sortParam } from "./common";
 
 export const ActivityDto = z.object({
@@ -13,8 +13,8 @@ export const ActivityDto = z.object({
 });
 export type ActivityDto = z.infer<typeof ActivityDto>;
 
-export const AUTH_EVENTS = ["login_success", "login_failed", "logout", "2fa_success", "2fa_failed"] as const;
-export const AUTH_METHODS = ["password", "ldap", "google", "apple"] as const;
+// The value lists live in ../audit (no zod) so screens can import them without shipping zod.
+export { ACTIVITY_SORTS, AUTH_EVENTS, AUTH_LOG_SORTS, AUTH_METHODS };
 
 export const AuthLogDto = z.object({
   id: z.string(),
@@ -45,12 +45,10 @@ const validRange = [
   { message: `Dates: both or neither, to on or after from, at most ${MAX_RANGE_DAYS} days.` },
 ] as const;
 
-export const ACTIVITY_SORTS = ["at", "actor", "action"] as const;
 /** GET /api/audit/activity. `user` matches the actor's name or id; `action` is exact. */
 export const ActivityQuery = AuditQuery.extend({ sort: sortParam(ACTIVITY_SORTS), action: z.string().max(64).optional() }).refine(...validRange);
 export type ActivityQuery = z.infer<typeof ActivityQuery>;
 
-export const AUTH_LOG_SORTS = ["at", "login", "event"] as const;
 /** GET /api/audit/auth. `user` matches the login or the user id. */
 export const AuthLogQuery = AuditQuery.extend({
   sort: sortParam(AUTH_LOG_SORTS),
