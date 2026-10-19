@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { toUserDto } from "./db";
 import { verifyPassword } from "./password";
 import { SEED_PASSWORD, LDAP_PASSWORD, TOTP_SECRET, seed } from "./seed";
 
@@ -13,8 +14,8 @@ describe("seed", () => {
   it("is deterministic and has every fixed account", () => {
     const again = seed(NOW);
     expect(strip(again)).toBe(strip(s));
-    expect(JSON.stringify(again.activity)).toBe(JSON.stringify(s.activity));
-    expect(JSON.stringify(again.authLog)).toBe(JSON.stringify(s.authLog));
+    expect(JSON.stringify([...again.activity.values()])).toBe(JSON.stringify([...s.activity.values()]));
+    expect(JSON.stringify([...again.authLog.values()])).toBe(JSON.stringify([...s.authLog.values()]));
     for (const e of ["superadmin", "admin", "viewer", "twofa", "inactive", "ldap", "google", "apple"])
       expect(byEmail(`${e}@example.com`), e).toBeTruthy();
   });
@@ -36,6 +37,15 @@ describe("seed", () => {
   it("shares one seed password and keeps only one active superadmin-protected set", () => {
     expect(verifyPassword(SEED_PASSWORD, byEmail("admin@example.com").passwordHash!)).toBe(true);
     expect(s.users.get(byEmail("admin@example.com").id)!.passwordHash).toBe(byEmail("viewer@example.com").passwordHash);
+  });
+  it("toUserDto strips secrets", () => {
+    const u = byEmail("twofa@example.com");
+    const dto = toUserDto(u);
+    for (const k of ["passwordHash", "totpSecret", "recoveryCodes"]) expect(dto).not.toHaveProperty(k);
+    const json = JSON.stringify(dto);
+    expect(json).not.toContain(u.passwordHash!);
+    expect(json).not.toContain(TOTP_SECRET);
+    expect(dto.email).toBe("twofa@example.com");
   });
   it("spreads logs over the last 30 days", () => {
     const ts = [...s.authLog.values()].map((l) => Date.parse(l.at));

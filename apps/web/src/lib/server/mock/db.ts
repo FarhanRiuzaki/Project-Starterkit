@@ -1,9 +1,14 @@
 import type { ActivityDto, AuthLogDto } from "../../shared/contracts/audit";
 import type { RoleDto } from "../../shared/contracts/rbac";
-import type { UserDto } from "../../shared/contracts/users";
+import { UserDto } from "../../shared/contracts/users";
 import { seed } from "./seed";
 
 export type UserRecord = UserDto & { passwordHash: string | null; totpSecret: string | null; recoveryCodes: string[] };
+/** The only safe way to return a user from a route: the schema parse drops passwordHash, totpSecret, recoveryCodes. */
+export function toUserDto(record: UserRecord): UserDto {
+  return UserDto.parse(record);
+}
+
 export type RoleRecord = Omit<RoleDto, "userCount">;
 export type SessionRecord = { id: string; userId: string; device: string; ip: string; createdAt: string; lastSeenAt: string };
 export type ResetTokenRecord = { userId: string; expiresAt: number };
