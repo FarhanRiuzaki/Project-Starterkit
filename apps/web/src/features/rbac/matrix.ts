@@ -36,3 +36,17 @@ export function cellState(s: Perms, cells: readonly PermissionName[]): boolean |
 export function diff(before: Perms, after: Perms): { added: PermissionName[]; removed: PermissionName[] } {
   return { added: PERMISSIONS.filter((p) => after.has(p) && !before.has(p)), removed: PERMISSIONS.filter((p) => before.has(p) && !after.has(p)) };
 }
+
+/** Unsaved edits of one role as add / remove against the server's current set (never a whole set). */
+export type Draft = ReturnType<typeof diff>;
+export type Edit = (current: ReadonlySet<PermissionName>) => Set<PermissionName>;
+
+/** The set the matrix shows: the saved set with the draft applied. */
+export const withDraft = (saved: Perms, d: Draft | null): Set<PermissionName> =>
+  new Set([...saved].filter((p) => !d?.removed.includes(p)).concat(d?.added ?? []));
+
+/**
+ * Apply one edit to the draft. Used as `setDraft(prev => applyEdit(saved, prev, edit))`, so toggles queued before a
+ * render compose instead of each starting from the same stale set.
+ */
+export const applyEdit = (saved: Perms, d: Draft | null, edit: Edit): Draft => diff(saved, edit(withDraft(saved, d)));

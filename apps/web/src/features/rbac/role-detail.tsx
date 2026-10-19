@@ -15,17 +15,12 @@ import { api } from "@/lib/client/api";
 import { useAuth } from "@/lib/client/auth-context";
 import type { RoleDto } from "@/lib/shared/contracts/rbac";
 import { PERMISSIONS, type PermissionName } from "@/lib/shared/permissions";
-import { diff } from "./matrix";
+import { applyEdit, type Draft, withDraft } from "./matrix";
 import { PermissionMatrix } from "./permission-matrix";
 import { assertRoleName, deleteBlock, RoleNameField } from "./role-name";
 import { isNotFound, roleKey, roleUrl, useAfterRbacChange, useRole } from "./use-rbac";
 
 type Dialog = "save" | "rename" | "delete" | null;
-/**
- * Unsaved edits as add / remove, not a whole set: the matrix shows the server's current set with these applied, and
- * Save sends only these, so a change someone else made meanwhile is neither shown as an edit nor undone.
- */
-type Draft = ReturnType<typeof diff>;
 
 const list = (ps: readonly PermissionName[]) => ps.join(", ");
 
@@ -55,8 +50,10 @@ export function RoleDetail({ id }: { id: string }) {
   if (!r) return <div className="grid gap-section" aria-busy="true"><PageHeader title="Role" /><Skeleton className="h-60 w-full" /></div>;
 
   const saved = new Set(r.permissions);
+  // Unsaved edits as add / remove: the matrix shows the server's current set with them applied, and Save sends only
+  // them, so a change someone else made meanwhile is neither shown as an edit nor undone.
   const { added, removed } = draft ?? { added: [], removed: [] };
-  const value = new Set([...r.permissions.filter((p) => !removed.includes(p)), ...added]);
+  const value = withDraft(saved, draft);
   const dirty = added.length + removed.length > 0;
   const readOnly = r.locked
     ? "Superadmin always holds every permission, so this matrix can't be changed."
@@ -105,7 +102,7 @@ export function RoleDetail({ id }: { id: string }) {
         )}>
         {readOnly && <div className="px-3 pt-3"><Notice>{readOnly}</Notice></div>}
         <PermissionMatrix label={`Permissions of ${r.name}`} value={value} allowed={perms}
-          onChange={readOnly ? undefined : (next) => setDraft(diff(saved, next))} />
+          onChange={readOnly ? undefined : (edit) => setDraft((d) => applyEdit(saved, d, edit))} />
       </Panel>
 
       {dialog === "save" && (

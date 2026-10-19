@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { PERMISSIONS, type PermissionName } from "@/lib/shared/permissions";
-import { ACTIONS, cellState, columnCells, diff, rowCells, toggleAll, toggleCell, toggleColumn, toggleRow } from "./matrix";
+import { ACTIONS, applyEdit, cellState, columnCells, diff, type Draft, rowCells, toggleAll, toggleCell, toggleColumn, toggleRow, withDraft } from "./matrix";
 
 const set = (...p: PermissionName[]) => new Set<PermissionName>(p);
 const sorted = (s: ReadonlySet<PermissionName>) => [...s].sort();
@@ -63,5 +63,16 @@ describe("permission matrix", () => {
     expect(sorted(toggleAll(set("audit.view"), allowed))).toEqual(["audit.view", "role.view", "user.edit", "user.view"]);
     // nothing allowed in the group: unchanged
     expect(sorted(toggleRow(s, "audit", allowed))).toEqual(["user.delete"]);
+  });
+  it("draft edits compose: three toggles queued in one tick all apply (functional updates, no stale closure)", () => {
+    const saved = set("user.view", "audit.view");
+    // what React does with setDraft(prev => applyEdit(saved, prev, f)) called three times before a render
+    const queue = [(v: ReadonlySet<PermissionName>) => toggleCell(v, "role.view"), (v: ReadonlySet<PermissionName>) => toggleCell(v, "role.edit"),
+      (v: ReadonlySet<PermissionName>) => toggleCell(v, "audit.view")];
+    const draft = queue.reduce<Draft | null>((d, f) => applyEdit(saved, d, f), null);
+    expect(draft).toEqual({ added: ["role.view", "role.edit"], removed: ["audit.view"] });
+    expect(sorted(withDraft(saved, draft))).toEqual(["role.edit", "role.view", "user.view"]);
+    // toggling a cell back drops it from the draft
+    expect(applyEdit(saved, draft, (v) => toggleCell(v, "audit.view"))).toEqual({ added: ["role.view", "role.edit"], removed: [] });
   });
 });
