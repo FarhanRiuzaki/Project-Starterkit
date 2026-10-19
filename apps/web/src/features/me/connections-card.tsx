@@ -6,21 +6,20 @@ import { ConfirmActionDialog, Panel } from "@starterkit/ui/ds";
 import { Button } from "@starterkit/ui/ui/button";
 import { InternetIcon } from "@starterkit/ui/ui/icons";
 import { api, errorText } from "@/lib/client/api";
-import type { ConnectionProvider } from "@/lib/shared/contracts/me";
-import type { UserDto } from "@/lib/shared/contracts/users";
+import type { ConnectionProvider, MeDto } from "@/lib/shared/contracts/me";
 import { ME_KEY } from "./use-me";
 
 const PROVIDERS: { id: ConnectionProvider; label: string }[] = [{ id: "google", label: "Google" }, { id: "apple", label: "Apple" }];
 
 /** Linked sign-in accounts (mock: no provider round trip). Disconnecting asks first. */
-export function ConnectionsCard({ user }: { user: UserDto }) {
+export function ConnectionsCard({ user }: { user: MeDto }) {
   const qc = useQueryClient();
   const [busy, setBusy] = useState<ConnectionProvider | null>(null);
   const [leaving, setLeaving] = useState<ConnectionProvider | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function run(p: ConnectionProvider, method: "POST" | "DELETE") {
-    const u = await api<UserDto>(`/api/me/connections/${p}`, { method });
+    const u = await api<MeDto>(`/api/me/connections/${p}`, { method });
     qc.setQueryData(ME_KEY, u);
   }
   async function connect(p: ConnectionProvider) {

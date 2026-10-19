@@ -33,7 +33,9 @@ export async function POST(req: Request): Promise<Response> {
     const body = LoginBody.parse(await req.json().catch(() => null));
     const user = findUser(body.login);
     const name = (user?.username ?? body.login.trim()).toLowerCase();
-    const fail = () => logAuth(req, "login_failed", body.method, body.login, user?.id ?? null);
+    // The log names the account by its email when the login matched one, else by what was typed.
+    const login = user?.email ?? body.login;
+    const fail = () => logAuth(req, "login_failed", body.method, login, user?.id ?? null);
     // Synchronous gate (counts the attempt before any await); the reserved failure stays unless the credential is right.
     const wait = loginGate(loginLimits, { step: "login", ip: clientIp(req), username: name });
     if (wait != null) {
@@ -60,12 +62,12 @@ export async function POST(req: Request): Promise<Response> {
       s.csrf = undefined;
       s.pending2fa = { userId: user.id, method: body.method, at: Date.now() };
       await s.save();
-      logAuth(req, "login_success", body.method, body.login, user.id);
+      logAuth(req, "password_ok", body.method, login, user.id); // not a sign-in yet: the code step logs 2fa_success
       const next = afterSignIn(body.next);
       return json({ next: next === "/" ? "/login/2fa" : `/login/2fa?next=${encodeURIComponent(next)}` });
     }
     await completeSignIn(s, user, body.method, req);
-    logAuth(req, "login_success", body.method, body.login, user.id);
+    logAuth(req, "login_success", body.method, login, user.id);
     return json({ next: afterSignIn(body.next) });
   } catch (e) {
     return handleError(e);

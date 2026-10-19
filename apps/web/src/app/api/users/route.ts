@@ -3,7 +3,7 @@ import { apiError, badRequest, handleError, json, withPermission } from "@/lib/s
 import { recordActivity } from "@/lib/server/audit";
 import { type UserRecord, db, toUserDto } from "@/lib/server/mock/db";
 import { hashPassword } from "@/lib/server/mock/password";
-import { duplicateOf, roleGrantDenied, rolesExist, sendInvite, userPage } from "@/lib/server/users";
+import { canonicalRoles, duplicateOf, roleGrantDenied, sendInvite, unknownRole, userPage } from "@/lib/server/users";
 import { CreateUserBody, UserListQuery } from "@/lib/shared/contracts/users";
 
 export async function GET(req: Request): Promise<Response> {
@@ -17,14 +17,15 @@ export async function POST(req: Request): Promise<Response> {
   return withPermission(req, "user.create", async (ctx) => {
     if (!body.success) return badRequest();
     const b = body.data;
-    if (!rolesExist(b.roles)) return apiError(400, "bad_request", "One of the roles doesn't exist. Pick roles from the list.");
-    const denied = roleGrantDenied(ctx.perms, b.roles);
+    const roles = canonicalRoles(b.roles);
+    if (!roles) return unknownRole();
+    const denied = roleGrantDenied(ctx.perms, roles);
     if (denied) return denied;
     if (duplicateOf(b.username, b.email)) return apiError(409, "duplicate", "Another user already has this username or email. Use different ones.");
     const id = `u-${randomUUID()}`;
     const rec: UserRecord = {
       id, name: b.name, username: b.username, email: b.email, avatarUrl: null, isActive: b.isActive, isLdap: b.isLdap, twoFactorEnabled: false,
-      roles: [...new Set(b.roles)], connected: [], lastLoginAt: null, createdAt: new Date().toISOString(),
+      roles, connected: [], lastLoginAt: null, createdAt: new Date().toISOString(),
       passwordHash: b.password ? hashPassword(b.password) : null, totpSecret: null, recoveryCodes: [],
     };
     db().users.set(id, rec);

@@ -1,5 +1,4 @@
-import { randomUUID } from "node:crypto";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.hoisted(() => (process.env.SESSION_SECRET = "s".repeat(40)));
 const jar = vi.hoisted(() => new Map<string, string>());
@@ -13,8 +12,8 @@ vi.mock("next/headers", () => ({
 import { db, resetDb } from "@/lib/server/mock/db";
 import type { Page } from "@/lib/shared/contracts/common";
 import { addSession, signInAs, TEST_CSRF } from "@/test/session";
-import { hashRecoveryCode } from "@/lib/server/mock/password";
-import { LDAP_PASSWORD, SEED_PASSWORD } from "@/lib/server/mock/seed";
+import { hashRecoveryCode, hashToken } from "@/lib/server/mock/password";
+import { LDAP_PASSWORD, RECOVERY_CODES, SEED_PASSWORD } from "@/lib/server/mock/seed";
 import { passwordFails, passwordKey } from "@/lib/server/ratelimit";
 import { totpCode } from "@/lib/server/totp";
 import { POST as loginPost } from "../auth/login/route";
@@ -46,6 +45,7 @@ beforeEach(() => {
   for (const id of db().users.keys()) passwordFails.succeed(passwordKey(id));
   jar.clear();
 });
+afterEach(() => vi.useRealTimers());
 
 describe("GET/PATCH /api/me", () => {
   it("needs a session", async () => {
@@ -57,7 +57,7 @@ describe("GET/PATCH /api/me", () => {
     const text = await (await call(getMe, "GET")).text();
     expect(text).not.toMatch(/passwordHash|totpSecret|recoveryCodes|JBSWY3DPEHPK3PXP/);
     const before = acts().length;
-    const r = await call(patchMe, "PATCH", { name: "New Name", email: "new.name@example.com" });
+    const r = await call(patchMe, "PATCH", { name: "New Name", email: "new.name@example.com", currentPassword: SEED_PASSWORD });
     expect(r.status).toBe(200);
     expect(await r.json()).toMatchObject({ name: "New Name", email: "new.name@example.com", username: "twofa" });
     expect(acts().length).toBe(before + 1);
@@ -68,7 +68,7 @@ describe("GET/PATCH /api/me", () => {
     const { user } = await signIn("twofa");
     await call(patchMe, "PATCH", { username: "hacker" });
     expect(db().users.get(user.id)!.username).toBe("twofa");
-    const r = await call(patchMe, "PATCH", { email: "ADMIN@example.com" });
+    const r = await call(patchMe, "PATCH", { email: "ADMIN@example.com", currentPassword: SEED_PASSWORD });
     expect(r.status).toBe(409);
     expect(await code(r)).toBe("duplicate");
   });
@@ -159,7 +159,9 @@ describe("/api/me/2fa", () => {
   it("confirm without a started setup is 400; start when already on is 409", async () => {
     await signIn("twofa");
     expect((await call(tfaConfirm, "PUT", { code: "123456" })).status).toBe(400);
-    expect((await call(tfaStart, "POST")).status).toBe(409);
+    const on = await call(tfaStart, "POST");
+    expect(on.status).toBe(409);
+    expect(await code(on)).toBe("already_enabled");
   });
 
   it("DELETE needs the current password: wrong is 400, right turns it off and clears secrets", async () => {
@@ -208,7 +210,7 @@ describe("/api/me/connections/[provider]", () => {
     rec.connected = ["google"];
     const r = await run(connDelete, "DELETE", "google");
     expect(r.status).toBe(409);
-    expect(await code(r)).toBe("self_action");
+    expect(await code(r)).toBe("only_sign_in_method");
     expect(rec.connected).toEqual(["google"]);
     expect((await run(connPost, "POST", "github")).status).toBe(400);
   });
@@ -217,8 +219,7 @@ describe("/api/me/connections/[provider]", () => {
 describe("/api/me/sessions", () => {
   it("lists only the caller's sessions and marks the current one", async () => {
     const { sid, other } = await signIn("admin");
-    const now = new Date().toISOString();
-    db().sessions.set("theirs", { id: "theirs", userId: "u-003", method: "password", device: "x", ip: "x", createdAt: now, lastSeenAt: now });
+    addSession("u-003", { id: "theirs" });
     const page = (await (await call(sessionsGet, "GET")).json()) as Page<{ id: string; current: boolean }>;
     expect(page).toMatchObject({ total: 2, page: 1, pageSize: 15 });
     const list = page.items;
@@ -230,7 +231,7 @@ describe("/api/me/sessions", () => {
   it("pages newest activity first by default; sorts by device; rejects bad paging before the guard", async () => {
     const { sid } = await signIn("admin");
     const me = db().sessions.get(sid)!.userId;
-    for (let i = 0; i < 20; i++) db().sessions.set(`s${i}`, { id: `s${i}`, userId: me, method: "password", device: `Device ${String(i).padStart(2, "0")}`, ip: "x", createdAt: "", lastSeenAt: new Date(Date.UTC(2020, 0, 1, 0, i)).toISOString() });
+    for (let i = 0; i < 20; i++) addSession(me, { id: `s${i}`, device: `Device ${String(i).padStart(2, "0")}`, lastSeenAt: new Date(Date.now() - (20 - i) * 60_000).toISOString() });
     const get = async (qs: string) => (await (await sessionsGet(new Request(`http://c/api/me/sessions?${qs}`))).json()) as Page<{ id: string; device: string }>;
     const first = await get("");
     expect(first.total).toBe(22);
@@ -244,9 +245,7 @@ describe("/api/me/sessions", () => {
 
   it("deletes the caller's own other session (one activity entry); someone else's or unknown is 404", async () => {
     const { other } = await signIn("admin");
-    const stranger = randomUUID();
-    const now = new Date().toISOString();
-    db().sessions.set(stranger, { id: stranger, userId: "u-003", method: "password", device: "x", ip: "x", createdAt: now, lastSeenAt: now });
+    const stranger = addSession("u-003");
     const del = (id: string) =>
       sessionDelete(new Request("http://c/api/me/sessions/x", { method: "DELETE", headers: { "x-csrf-token": CSRF } }), { params: Promise.resolve({ id }) });
     const r1 = await del(stranger);
@@ -263,6 +262,8 @@ describe("/api/me/sessions", () => {
 
 describe("password guess throttle", () => {
   const wrong = () => call(password, "POST", { current: "Wrong-password-1", next: NEW_PW });
+  // A frozen clock: the backoff after the 5th failure is 1 s, so a slow run must not let it lapse.
+  beforeEach(() => vi.useFakeTimers({ toFake: ["Date"], now: Date.now() }));
 
   it("after 5 wrong current passwords the next attempt is 429, even with the right one, and 2FA-disable shares the budget", async () => {
     const { user } = await signIn("twofa");
@@ -289,5 +290,119 @@ describe("password guess throttle", () => {
     expect((await call(password, "POST", { current: SEED_PASSWORD, next: NEW_PW })).status).toBe(200);
     for (let i = 0; i < 5; i++) expect((await call(password, "POST", { current: NEW_PW + "x", next: NEW_PW })).status).toBe(400);
     expect((await wrong()).status).toBe(429);
+  });
+});
+
+describe("PATCH /api/me: changing the email needs the current credential", () => {
+  const patch = (body: unknown) => call(patchMe, "PATCH", body);
+
+  it("a password user: missing password is 400, wrong is 400 invalid_credentials, right changes it", async () => {
+    const { user } = await signIn("admin");
+    const missing = await patch({ email: "new.admin@example.com" });
+    expect(missing.status).toBe(400);
+    expect(await code(missing)).toBe("bad_request");
+    const wrong = await patch({ email: "new.admin@example.com", currentPassword: "Wrong-password-1" });
+    expect(wrong.status).toBe(400);
+    expect(await code(wrong)).toBe("invalid_credentials");
+    expect(db().users.get(user.id)!.email).toBe("admin@example.com");
+    expect((await patch({ email: "new.admin@example.com", currentPassword: SEED_PASSWORD })).status).toBe(200);
+    expect(db().users.get(user.id)!.email).toBe("new.admin@example.com");
+  });
+
+  it("name only, or the same email in another case, needs no password", async () => {
+    await signIn("admin");
+    expect((await patch({ name: "Admin Renamed" })).status).toBe(200);
+    expect((await patch({ name: "Admin Again", email: "ADMIN@example.com" })).status).toBe(200);
+  });
+
+  it("an LDAP user confirms with the directory password", async () => {
+    await signIn("ldap");
+    expect(await code(await patch({ email: "dir@example.com", currentPassword: SEED_PASSWORD }))).toBe("invalid_credentials");
+    expect((await patch({ email: "dir@example.com", currentPassword: LDAP_PASSWORD })).status).toBe(200);
+  });
+
+  it("an account that signs in only through Google or Apple can't change its email (409 self_action)", async () => {
+    const { user } = await signIn("google");
+    db().users.get(user.id)!.passwordHash = null;
+    const r = await patch({ email: "other@example.com", currentPassword: "anything" });
+    expect(r.status).toBe(409);
+    expect(((await r.json()) as { error: { code: string; message: string } }).error).toMatchObject({ code: "self_action", message: expect.stringMatching(/Google or Apple/) });
+    expect(db().users.get(user.id)!.email).toBe("google@example.com");
+  });
+
+  it("wrong passwords share the change-password budget: the 6th attempt is 429", async () => {
+    vi.useFakeTimers({ toFake: ["Date"], now: Date.now() });
+    await signIn("admin");
+    for (let i = 0; i < 5; i++) expect((await patch({ email: "x@example.com", currentPassword: "Wrong-password-1" })).status).toBe(400);
+    expect((await patch({ email: "x@example.com", currentPassword: SEED_PASSWORD })).status).toBe(429);
+    expect((await call(password, "POST", { current: SEED_PASSWORD, next: NEW_PW })).status).toBe(429);
+  });
+});
+
+describe("credential changes end other ways in", () => {
+  it("changing the password also spends the user's reset and invitation links", async () => {
+    const { user } = await signIn("admin");
+    db().resetTokens.set(hashToken("open-link"), { userId: user.id, expiresAt: Date.now() + 3600_000 });
+    expect((await call(password, "POST", { current: SEED_PASSWORD, next: NEW_PW })).status).toBe(200);
+    expect([...db().resetTokens.values()].some((t) => t.userId === user.id)).toBe(false);
+  });
+});
+
+describe("two-factor for accounts that sign in only through Google or Apple", () => {
+  async function oauthOnly(twoFactor: boolean) {
+    const s = await signIn("google");
+    const rec = db().users.get(s.user.id)!;
+    rec.passwordHash = null;
+    if (twoFactor) Object.assign(rec, { twoFactorEnabled: true, totpSecret: "JBSWY3DPEHPK3PXP", recoveryCodes: RECOVERY_CODES.map(hashRecoveryCode) });
+    return rec;
+  }
+
+  it("can't turn it on: the provider checks them, so a second factor would never be asked (400)", async () => {
+    const rec = await oauthOnly(false);
+    const r = await call(tfaStart, "POST");
+    expect(r.status).toBe(400);
+    expect(await code(r)).toBe("bad_request");
+    expect(rec.pendingTotpSecret).toBeUndefined();
+  });
+
+  it("can turn it off with a recovery code (spent), not with a password", async () => {
+    const rec = await oauthOnly(true);
+    expect((await call(tfaDelete, "DELETE", { password: "anything" })).status).toBe(400);
+    expect(await code(await call(tfaDelete, "DELETE", { recoveryCode: "zzzz-0000" }))).toBe("invalid_code");
+    expect(rec.twoFactorEnabled).toBe(true);
+    expect((await call(tfaDelete, "DELETE", { recoveryCode: RECOVERY_CODES[0] })).status).toBe(200);
+    expect(rec).toMatchObject({ twoFactorEnabled: false, totpSecret: null, recoveryCodes: [] });
+  });
+
+  it("a password user can't use a recovery code instead of the password", async () => {
+    await signIn("twofa");
+    expect((await call(tfaDelete, "DELETE", { recoveryCode: RECOVERY_CODES[0] })).status).toBe(400);
+    expect((await call(tfaDelete, "DELETE", { password: SEED_PASSWORD, recoveryCode: RECOVERY_CODES[0] })).status).toBe(400);
+  });
+});
+
+describe("LDAP 2FA-disable throttle", () => {
+  it("5 wrong directory passwords, then 429 even with the right one", async () => {
+    vi.useFakeTimers({ toFake: ["Date"], now: Date.now() });
+    const { user } = await signIn("ldap");
+    Object.assign(db().users.get(user.id)!, { twoFactorEnabled: true, totpSecret: "JBSWY3DPEHPK3PXP" });
+    for (let i = 0; i < 5; i++) expect((await call(tfaDelete, "DELETE", { password: "Wrong-dir-pass" })).status).toBe(400);
+    const r = await call(tfaDelete, "DELETE", { password: LDAP_PASSWORD });
+    expect(r.status).toBe(429);
+    expect(db().users.get(user.id)!.twoFactorEnabled).toBe(true);
+  });
+});
+
+describe("ended sessions leave the lists", () => {
+  it("an expired or idle session of the caller is not listed and is removed from the store", async () => {
+    const { user, sid } = await signIn("admin");
+    const expired = addSession(user.id, { expiresAt: new Date(Date.now() - 1).toISOString() });
+    const idle = addSession(user.id, { lastSeenAt: new Date(Date.now() - 121 * 60_000).toISOString() });
+    const page = (await (await call(sessionsGet, "GET")).json()) as Page<{ id: string }>;
+    expect(page.items.map((s) => s.id)).not.toContain(expired);
+    expect(page.items.map((s) => s.id)).not.toContain(idle);
+    expect(page.items.map((s) => s.id)).toContain(sid);
+    expect(db().sessions.has(expired)).toBe(false);
+    expect(db().sessions.has(idle)).toBe(false);
   });
 });

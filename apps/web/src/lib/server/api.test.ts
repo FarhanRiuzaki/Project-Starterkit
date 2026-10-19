@@ -1,5 +1,5 @@
 import { sealData } from "iron-session";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { ERROR_CODES } from "@/lib/shared/contracts/common";
 
@@ -15,7 +15,7 @@ vi.mock("next/headers", () => ({
 
 import { db, resetDb } from "./mock/db";
 import { signInAs, TEST_CSRF } from "@/test/session";
-import { apiError, clientIp, handleError, json, tooManyAttempts, withPermission } from "./api";
+import { apiError, clientIp, handleError, json, sameOrigin, tooManyAttempts, withPermission } from "./api";
 import { SESSION_COOKIE, sessionOptions } from "./session";
 
 const CSRF = TEST_CSRF;
@@ -152,10 +152,45 @@ describe("withPermission", () => {
   });
 });
 
+describe("session lifetime (SESSION_TTL_HOURS absolute, SESSION_IDLE_MINUTES idle)", () => {
+  const T0 = Date.parse("2026-10-19T10:00:00.000Z");
+  const MIN = 60_000;
+  const at = async (ms: number) => { vi.setSystemTime(T0 + ms); return (await withPermission(req(), null, ok)).status; };
+  beforeEach(() => vi.useFakeTimers({ toFake: ["Date"], now: T0 }));
+  afterEach(() => vi.useRealTimers());
+
+  it("an active session still ends 12 hours after sign-in: 401 and the store record is removed", async () => {
+    const { sid } = await signIn("admin");
+    expect(db().sessions.get(sid)!.expiresAt).toBe(new Date(T0 + 12 * 60 * MIN).toISOString());
+    for (let m = 60; m < 12 * 60; m += 60) expect(await at(m * MIN)).toBe(200);
+    expect(await at(12 * 60 * MIN - 1)).toBe(200);
+    expect(await at(12 * 60 * MIN)).toBe(401);
+    expect(db().sessions.has(sid)).toBe(false);
+  });
+
+  it("a session ends after 120 minutes without a request: 401 and the record is removed", async () => {
+    const { sid } = await signIn("admin");
+    expect(await at(120 * MIN)).toBe(200); // exactly the limit still counts
+    expect(await at(240 * MIN + 1)).toBe(401);
+    expect(db().sessions.has(sid)).toBe(false);
+  });
+
+  it("lastSeenAt is written at most once per minute", async () => {
+    const { sid } = await signIn("admin");
+    const seen = () => db().sessions.get(sid)!.lastSeenAt;
+    await at(30_000);
+    expect(seen()).toBe(new Date(T0).toISOString());
+    await at(60_000);
+    expect(seen()).toBe(new Date(T0 + 60_000).toISOString());
+    await at(90_000);
+    expect(seen()).toBe(new Date(T0 + 60_000).toISOString());
+  });
+});
+
 describe("session cookie", () => {
   it("httpOnly, sameSite strict, secure follows COOKIE_SECURE, ttl = hours × 3600", () => {
     for (const secure of [true, false]) {
-      const o = sessionOptions({ SESSION_SECRET: SECRET, SESSION_TTL_HOURS: 5, COOKIE_SECURE: secure });
+      const o = sessionOptions({ SESSION_SECRET: SECRET, SESSION_TTL_HOURS: 5, SESSION_IDLE_MINUTES: 120, COOKIE_SECURE: secure });
       expect(o).toMatchObject({ cookieName: "sk_session", ttl: 5 * 3600, cookieOptions: { httpOnly: true, sameSite: "strict", secure, path: "/" } });
     }
   });
@@ -194,5 +229,18 @@ describe("clientIp (rate-limit key)", () => {
     const res = tooManyAttempts(8, "Too many attempts. Try again in 8 seconds.");
     expect(res.status).toBe(429);
     expect(res.headers.get("Retry-After")).toBe("8");
+  });
+});
+
+describe("sameOrigin behind a proxy that rewrites Host", () => {
+  const at = (headers: Record<string, string>) => new Request("http://127.0.0.1:3000/api/auth/login", { method: "POST", headers });
+
+  it("X-Forwarded-Host (and -Proto) count only when TRUSTED_PROXY=true", () => {
+    const proxied = { origin: "https://app.example.com", "x-forwarded-host": "app.example.com", "x-forwarded-proto": "https" };
+    expect(sameOrigin(at(proxied), true)).toBe(true);
+    expect(sameOrigin(at(proxied), false)).toBe(false);
+    expect(sameOrigin(at({ origin: "https://evil.example", "x-forwarded-host": "app.example.com", "x-forwarded-proto": "https" }), true)).toBe(false);
+    expect(sameOrigin(at({ origin: "http://127.0.0.1:3000" }), false)).toBe(true);
+    expect(sameOrigin(at({ origin: "http://127.0.0.1:3000" }), true)).toBe(true); // no forwarded host: the request URL
   });
 });

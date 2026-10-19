@@ -20,9 +20,13 @@ other schema describes the answer exactly (`additionalProperties: false`).
 - Error codes and statuses are fixed: `unauthenticated` 401, `forbidden` 403, `csrf` 403, `not_found` 404,
   `bad_request` 400, `duplicate` 409, `rate_limited` 429, `invalid_credentials` 401, `account_inactive` 403,
   `invalid_code` 400, `superadmin_locked` 409, `last_superadmin` 409, `self_action` 409, `role_in_use` 409,
-  `ldap_password` 409, `internal` 500. Two answers send a code with another status on purpose:
-  `invalid_credentials` is 400 when a signed-in user's current password is wrong (`/api/me/password`,
-  `DELETE /api/me/2fa`), so the browser doesn't take it for an ended session.
+  `ldap_password` 409, `already_enabled` 409, `only_sign_in_method` 409, `internal` 500. One code is sent with
+  another status on purpose: `invalid_credentials` is 400 when a signed-in user's current password is wrong
+  (`PATCH /api/me`, `/api/me/password`, `DELETE /api/me/2fa`), so the browser doesn't take it for an ended session.
+- Check order in every guarded handler: parse the body or query (400) → session, CSRF, permission (401/403) →
+  existence (404) → rules (403/409) → change → activity entry. A query is checked before the session (the GET rows
+  below); a body's 400 comes right after the guard. `apps/web/src/test/architecture.test.ts` fails when a handler
+  answers 404 before its body check.
 - 429 answers send `Retry-After` in seconds.
 
 ### Sessions, CSRF, same origin
@@ -39,17 +43,43 @@ other schema describes the answer exactly (`additionalProperties: false`).
   full session needs `x-csrf-token` too.
 - A sign-in that passed the password step of a 2FA account holds only the pending marker (10 minutes): every guarded
   endpoint answers it 401; it can only finish (`/api/auth/2fa`) or cancel (`/api/auth/logout`).
+- A session ends `SESSION_TTL_HOURS` (default 12) after sign-in (`expiresAt`, absolute) or after
+  `SESSION_IDLE_MINUTES` (default 120) without a request, whichever comes first. The next request with it answers
+  401 and the record is deleted; lists and counts of sessions (`/api/me/sessions`, `/api/users/{id}/sessions`, the
+  dashboard) drop ended ones first. Any request (API, page load, server prefetch) marks the session seen, but
+  `lastSeenAt` is written at most once a minute, so it is accurate to a minute and idle time to a minute too.
+- Changing a credential or the sign-in identity needs the current one again (re-authentication): the password change,
+  turning 2FA off, and a new email on `PATCH /api/me` (`currentPassword`; the directory password for LDAP users).
+  Wrong answers share the backoff below. An account that signs in only through Google or Apple keeps the provider's
+  email (409 `self_action`), can't turn 2FA on (the provider checks it, so a code would never be asked; 400), and turns
+  2FA off with a recovery code instead of a password.
+- A password change ends the user's other sessions and spends their open reset and invitation links; an admin reset
+  and a reset by link end all of their sessions.
 - Sign-in steps (`login`, `2fa`) are limited per client IP (10 per minute), fleet-wide (300 per minute) and per
   username (5 per minute), with a soft backoff per username after 3 failures (1 s, 2 s, 4 s … up to 60 s, cleared
-  after 15 quiet minutes or a success). A signed-in user's wrong current password (`/api/me/password`,
-  `DELETE /api/me/2fa`) backs off after 5 failures.
+  after 15 quiet minutes or a success). A signed-in user's wrong current password or recovery code (`PATCH /api/me`,
+  `/api/me/password`, `DELETE /api/me/2fa`) backs off after 5 failures (one budget per user).
+- `POST /api/auth/forgot` is limited per client IP (10 per minute) and per email (3 per 15 minutes). A throttled
+  request still answers 200 `{ ok: true }` and sends nothing, so the limit reveals nothing about which emails exist.
+- Every limiter keeps at most 10,000 keys and evicts the oldest; a backend uses a shared store (Redis or a table) so
+  the limits hold across processes.
+
+### Sign-in log
+
+- Events: `login_success` (a sign-in without a second factor, OAuth included), `password_ok` (the password step of a
+  2FA account passed; the code is still due), `2fa_success`, `2fa_failed`, `login_failed`, `logout`, and
+  `password_reset` (a new password set through a reset or invitation link). A completed sign-in is `login_success` or
+  `2fa_success`; the dashboard counts only those.
+- `login` is the account's email whenever the attempt matched an account (typed as username or email), otherwise the
+  text that was typed. `userId` is null for an unknown login.
 
 ### Lists (paging)
 
 - Query: `page` 1–1000 (default 1; deeper is 400, narrow the filters instead), `pageSize` 15, 25, 50 or 100 (default
   15), `q` up to 200 characters (lists that search), `sort` = `key` or `-key` from the endpoint's own list (the enum in
   its `…Query` schema), plus the endpoint's filters. A value outside these is 400 `bad_request`, checked before the
-  session.
+  session. Query values arrive as strings: `page` and `pageSize` are parsed as numbers (`?page=2`), so the JSON
+  Schemas give their input type as a string of digits or a number; anything else is 400.
 - Answer: `{ items, total, page, pageSize, totalCapped? }` (the `…Page` schemas). `totalCapped: true` means counting
   stopped at `total` (the UI shows "N+"). A page past the end answers empty `items` with the real `total`. No list
   answers an unbounded array.
@@ -70,6 +100,21 @@ other schema describes the answer exactly (`additionalProperties: false`).
   (`apps/web/src/lib/shared/permissions.ts`); the catalog holds at most 500 names (more is 400).
 - No privilege escalation: a role's permissions can be added or removed, and a role can be given to or taken from a
   user, only by an actor who holds every permission involved (403 `forbidden`).
+- A module's `view` comes with its other actions: a role that holds `user.create`, `user.edit` or `user.delete` also
+  holds `user.view` (the same for `role.*` → `role.view`, `permission.create` → `permission.view`). `POST /api/roles`
+  and `PATCH /api/roles/{id}` add it (and it counts for the escalation check); removing `view` while another action of
+  the module stays leaves it on.
+- Roles are referenced by name (users hold role names, like the source app). Names are unique ignoring letter case,
+  and every lookup (`roles` in user bodies, the `role` filter, bulk `role`) ignores case and stores the role's own
+  name. A rename (`PATCH /api/roles/{id}` with `name`, letter case included) moves every holder to the new name in the
+  same step; a request that still sends the old name is 400 `bad_request` (unknown role).
+- [PermissionDto](schemas/PermissionDto.json): `roles` lists at most 10 role names (A–Z), `roleCount` is how many
+  roles hold the permission.
+- `PATCH /api/users/{id}` checks every rule before changing anything. Changed fields (`name`, `username`, `email`,
+  `roles`) write one `user.update` entry with only those fields; a status change writes `user.activate` /
+  `user.deactivate`, the same rule and entry as `POST /api/users/{id}/status` and bulk activate / deactivate.
+  Nothing to change → 200 with the user, no entry.
+- Bulk `assignRole` skips a user who already holds 20 roles (the most one user holds) with `bad_request`.
 - Actor rank: an actor may act on another user (`PATCH`/`DELETE /api/users/{id}`, `/status`, `/reset-password`,
   `DELETE /api/users/{id}/sessions/{sid}`, every bulk action) only when they hold every permission that user has
   (their effective permissions, the union of their roles). Otherwise 403 `forbidden`, checked after the 404 and before
@@ -78,6 +123,56 @@ other schema describes the answer exactly (`additionalProperties: false`).
   screen can block those actions up front.
 - Every POST/PATCH/PUT/DELETE outside `/api/auth/*` that changes something writes an activity entry; sign-in, sign-out
   and 2FA steps write sign-in log entries.
+
+### Activity log entries
+
+Each entry: `{ id, at, actor: { id, name }, action, target: { type, id, label }, before, after }`
+([ActivityDto](schemas/ActivityDto.json)). `before` / `after` are plain-data snapshots taken when the entry is written
+(later edits don't change history) and are `null` when the action has none. Masking: a record's own credential fields
+(`passwordHash`, `totpSecret`, `pendingTotpSecret`, `recoveryCodes`) are dropped, and any other field whose name
+matches `password|secret|token|recovery` (any letter case, at any depth) keeps only `"••••"` when it had a value
+(`HIDDEN` and `SECRET_KEY` in `apps/web/src/lib/server/audit.ts` and `lib/shared/audit.ts`). The table below is
+generated from the action vocabulary (`ACTION_LABEL` in `apps/web/src/lib/shared/audit.ts`) by `bun run api:schemas`;
+`api-contract.test.ts` fails when it drifts.
+
+<!-- actions:start -->
+| Action | Label | Target | `before` | `after` |
+|---|---|---|---|---|
+| `user.create` | User created | user | – | the new user ([UserDto](schemas/UserDto.json)) + `invited: boolean` |
+| `user.update` | User updated | user | changed fields only, of `name`, `username`, `email`, `roles` | the same fields, new values |
+| `user.activate` | User activated | user | `{ isActive: false }` | `{ isActive: true }` |
+| `user.deactivate` | User deactivated | user | `{ isActive: true }` | `{ isActive: false }` |
+| `user.delete` | User deleted | user | the user ([UserDto](schemas/UserDto.json)) | – |
+| `user.assign_role` | Role assigned | user | `{ roles }` | `{ roles }` (bulk assign) |
+| `user.reset_password` | Password reset by admin | user | – | – (the temporary password is never recorded) |
+| `user.session_end` | User session ended | user | – | `{ session: device }` |
+| `role.create` | Role created | role | – | `{ name, added: permissions, removed: [] }` |
+| `role.update` | Role updated | role | `{ name }` (before) | `{ name, added, removed }` (effective change only) |
+| `role.delete` | Role deleted | role | `{ name, permissions }` | – |
+| `permission.create` | Permissions added | permission (id and label: the new names, comma-joined) | – | `{ created: names }` |
+| `me.update` | Profile updated | user (self) | `{ name, email }` | `{ name, email }` |
+| `me.password` | Own password changed | user (self) | – | – |
+| `me.connect` | Account connected | user (self) | – | `{ provider }` |
+| `me.disconnect` | Account disconnected | user (self) | `{ provider }` | – |
+| `me.session_end` | Own session ended | session (label: device) | – | – |
+| `me.2fa_setup` | Two-factor setup started | user (self) | – | – (the secret is never recorded) |
+| `me.2fa_enable` | Two-factor turned on | user (self) | – | – (recovery codes are never recorded) |
+| `me.2fa_disable` | Two-factor turned off | user (self) | – | – |
+<!-- actions:end -->
+
+### Backend notes
+
+- Users list: `q` searches name, username and email with a substring match; give PostgreSQL a trigram index
+  (`pg_trgm`, GIN) on those columns. `GET /api/users/{id}` reads the last 20 entries targeting the user: index
+  `activity (target_id, at DESC)`. `RoleDto.userCount` is a `GROUP BY role` count over the user–role table, not a
+  per-role query.
+- Recovery codes: the mock makes 8 codes of 32 random bits and stores plain SHA-256. A backend must use at least
+  64 bits per code and a slow hash (Argon2id, scrypt or bcrypt), and spend a code on use.
+- Reset and invitation links: 32 random bytes (base64url), stored only as a SHA-256 hash, one live link per user
+  (a new one replaces the old), single use (spent even when expired), valid 30 minutes (reset) or 72 hours
+  (invitation). They are spent by a password change, an admin reset and deleting the user. A reset by link ends all
+  of the user's sessions.
+- In-memory scans (`O(n)` filters over users, sessions, logs) are the mock's; each maps to an indexed query.
 
 ## Endpoints
 
@@ -89,18 +184,18 @@ endpoint adds to the guard's 401/403 and the 400 for an invalid body or query.
 | POST | `/api/auth/login` | none, same-origin | [LoginBody](schemas/LoginBody.json) | [LoginResult](schemas/LoginResult.json): `/login/2fa[?next=…]` when a second factor is due | `invalid_credentials` (unknown user, wrong password and wrong method answer alike), `account_inactive`, `rate_limited` |
 | POST | `/api/auth/2fa` | pending 2FA, same-origin | [TwoFactorBody](schemas/TwoFactorBody.json) (TOTP or recovery code, each works once) | [LoginResult](schemas/LoginResult.json) | `unauthenticated` (no or expired pending sign-in), `invalid_code`, `account_inactive`, `rate_limited` |
 | POST | `/api/auth/logout` | none, same-origin; `x-csrf-token` with a full session | none | [OkDto](schemas/OkDto.json) | `csrf` |
-| POST | `/api/auth/forgot` | none, same-origin | [ForgotPasswordBody](schemas/ForgotPasswordBody.json) | [OkDto](schemas/OkDto.json), the same for an unknown email | none |
-| POST | `/api/auth/reset` | none, same-origin | [ResetPasswordBody](schemas/ResetPasswordBody.json) (the token is spent on first use; the user's sessions end) | [OkDto](schemas/OkDto.json) | `invalid_code` (expired, used or LDAP user) |
+| POST | `/api/auth/forgot` | none, same-origin | [ForgotPasswordBody](schemas/ForgotPasswordBody.json) | [OkDto](schemas/OkDto.json), the same for an unknown email and for a throttled request | none |
+| POST | `/api/auth/reset` | none, same-origin | [ResetPasswordBody](schemas/ResetPasswordBody.json) (the token is spent on first use; the user's sessions end; logs `password_reset`) | [OkDto](schemas/OkDto.json) | `invalid_code` (expired, used or LDAP user) |
 | GET | `/api/auth/oauth/{provider}` | none | `provider` = [ConnectionProvider](schemas/ConnectionProvider.json); query `next` | 303 to `next` when internal, else `/` | `not_found` |
 | GET | `/api/dashboard` | signed in (audit numbers need `audit.view`, else null) | none | [DashboardDto](schemas/DashboardDto.json) | none |
-| GET | `/api/me` | signed in | none | [UserDto](schemas/UserDto.json) | none |
-| PATCH | `/api/me` | signed in | [UpdateProfileBody](schemas/UpdateProfileBody.json) | [UserDto](schemas/UserDto.json) | `duplicate` |
-| POST | `/api/me/2fa` | signed in | none (starts setup) | [TwoFactorSetupDto](schemas/TwoFactorSetupDto.json) | `duplicate` (already on) |
+| GET | `/api/me` | signed in | none | [MeDto](schemas/MeDto.json) | none |
+| PATCH | `/api/me` | signed in | [UpdateProfileBody](schemas/UpdateProfileBody.json) (`currentPassword` when `email` changes) | [MeDto](schemas/MeDto.json) | `bad_request` (new email without `currentPassword`), `invalid_credentials` (400), `rate_limited`, `self_action` (Google or Apple only account), `duplicate` |
+| POST | `/api/me/2fa` | signed in | none (starts setup) | [TwoFactorSetupDto](schemas/TwoFactorSetupDto.json) | `already_enabled`, `bad_request` (Google or Apple only account) |
 | PUT | `/api/me/2fa` | signed in | [TwoFactorEnableBody](schemas/TwoFactorEnableBody.json) | [RecoveryCodesDto](schemas/RecoveryCodesDto.json) (shown once) | `bad_request` (setup not started), `invalid_code` |
-| DELETE | `/api/me/2fa` | signed in | [DisableTwoFactorBody](schemas/DisableTwoFactorBody.json) | [OkDto](schemas/OkDto.json) | `bad_request` (already off), `invalid_credentials` (400), `rate_limited` |
-| POST | `/api/me/connections/{provider}` | signed in | `provider` = [ConnectionProvider](schemas/ConnectionProvider.json) | [UserDto](schemas/UserDto.json) | none |
-| DELETE | `/api/me/connections/{provider}` | signed in | `provider` = [ConnectionProvider](schemas/ConnectionProvider.json) | [UserDto](schemas/UserDto.json) | `self_action` (the only way left to sign in) |
-| POST | `/api/me/password` | signed in | [ChangePasswordBody](schemas/ChangePasswordBody.json) (other sessions end) | [OkDto](schemas/OkDto.json) | `ldap_password`, `invalid_credentials` (400), `rate_limited` |
+| DELETE | `/api/me/2fa` | signed in | [DisableTwoFactorBody](schemas/DisableTwoFactorBody.json) (`password`; `recoveryCode` for a Google or Apple only account) | [OkDto](schemas/OkDto.json) | `bad_request` (already off, wrong kind of proof), `invalid_credentials` (400), `invalid_code`, `rate_limited` |
+| POST | `/api/me/connections/{provider}` | signed in | `provider` = [ConnectionProvider](schemas/ConnectionProvider.json) | [MeDto](schemas/MeDto.json) | none |
+| DELETE | `/api/me/connections/{provider}` | signed in | `provider` = [ConnectionProvider](schemas/ConnectionProvider.json) | [MeDto](schemas/MeDto.json) | `only_sign_in_method` (the only way left to sign in) |
+| POST | `/api/me/password` | signed in | [ChangePasswordBody](schemas/ChangePasswordBody.json) (other sessions end; reset links are spent) | [OkDto](schemas/OkDto.json) | `ldap_password`, `invalid_credentials` (400), `rate_limited` |
 | GET | `/api/me/sessions` | signed in | [SessionListQuery](schemas/SessionListQuery.json) | [SessionPage](schemas/SessionPage.json) | none |
 | DELETE | `/api/me/sessions/{id}` | signed in | none | [OkDto](schemas/OkDto.json) | `not_found` (also for another user's session), `self_action` (the current session) |
 | GET | `/api/permissions` | `permission.view` | [PermissionListQuery](schemas/PermissionListQuery.json) | [PermissionPage](schemas/PermissionPage.json) | none |
@@ -108,14 +203,14 @@ endpoint adds to the guard's 401/403 and the 400 for an invalid body or query.
 | GET | `/api/roles` | `role.view` | [RoleListQuery](schemas/RoleListQuery.json) | [RolePage](schemas/RolePage.json) | none |
 | POST | `/api/roles` | `role.create` | [CreateRoleBody](schemas/CreateRoleBody.json) | 201 [RoleDto](schemas/RoleDto.json) | `forbidden` (escalation), `duplicate` |
 | GET | `/api/roles/{id}` | `role.view` | none | [RoleDto](schemas/RoleDto.json) | `not_found` |
-| PATCH | `/api/roles/{id}` | `role.edit` | [UpdateRoleBody](schemas/UpdateRoleBody.json) | [RoleDto](schemas/RoleDto.json) | `not_found`, `superadmin_locked`, `forbidden` (escalation), `duplicate` |
+| PATCH | `/api/roles/{id}` | `role.edit` | [UpdateRoleBody](schemas/UpdateRoleBody.json) (a rename moves the holders) | [RoleDto](schemas/RoleDto.json) | `not_found`, `superadmin_locked`, `forbidden` (escalation), `duplicate` |
 | DELETE | `/api/roles/{id}` | `role.delete` | none | [OkDto](schemas/OkDto.json) | `not_found`, `superadmin_locked`, `role_in_use` |
 | GET | `/api/users` | `user.view` | [UserListQuery](schemas/UserListQuery.json) | [UserPage](schemas/UserPage.json) (rows are [UserRowDto](schemas/UserRowDto.json): the user plus effective `permissions`) | none |
 | POST | `/api/users` | `user.create` | [CreateUserBody](schemas/CreateUserBody.json) | 201 [UserDto](schemas/UserDto.json) | `bad_request` (unknown role), `forbidden` (escalation), `duplicate` |
-| POST | `/api/users/bulk` | `user.edit`; `user.delete` for `action: "delete"` | [BulkUserBody](schemas/BulkUserBody.json) | [BulkResult](schemas/BulkResult.json); skipped codes `self_action`, `last_superadmin`, `forbidden`, `not_found` | `bad_request` (unknown role) |
+| POST | `/api/users/bulk` | `user.edit`; `user.delete` for `action: "delete"` | [BulkUserBody](schemas/BulkUserBody.json) | [BulkResult](schemas/BulkResult.json); skipped codes `self_action`, `last_superadmin`, `forbidden` (escalation, actor rank), `bad_request` (already 20 roles), `not_found` | `bad_request` (unknown role) |
 | GET | `/api/users/roles` | `user.view` | [RoleOptionQuery](schemas/RoleOptionQuery.json) | [RoleOptionPage](schemas/RoleOptionPage.json) | none |
 | GET | `/api/users/{id}` | `user.view` (recent activity needs `audit.view`, else null) | none | [UserDetailDto](schemas/UserDetailDto.json) | `not_found` |
-| PATCH | `/api/users/{id}` | `user.edit` | [UpdateUserBody](schemas/UpdateUserBody.json) (deactivating ends the user's sessions) | [UserDto](schemas/UserDto.json) | `not_found`, `bad_request` (unknown role), `duplicate`, `forbidden` (escalation, actor rank), `self_action`, `last_superadmin` |
+| PATCH | `/api/users/{id}` | `user.edit` | [UpdateUserBody](schemas/UpdateUserBody.json) (deactivating ends the user's sessions; nothing to change = no entry) | [UserDto](schemas/UserDto.json) | `not_found`, `bad_request` (unknown role), `duplicate`, `forbidden` (escalation, actor rank), `self_action`, `last_superadmin` |
 | DELETE | `/api/users/{id}` | `user.delete` | none | [OkDto](schemas/OkDto.json) | `not_found`, `forbidden` (actor rank), `self_action`, `last_superadmin` |
 | POST | `/api/users/{id}/reset-password` | `user.edit` | none (the user's sessions end) | [TemporaryPasswordDto](schemas/TemporaryPasswordDto.json) (shown once, never logged) | `not_found`, `forbidden` (actor rank), `self_action`, `ldap_password` |
 | GET | `/api/users/{id}/sessions` | `user.view` | [SessionListQuery](schemas/SessionListQuery.json) | [SessionPage](schemas/SessionPage.json) | `not_found` |

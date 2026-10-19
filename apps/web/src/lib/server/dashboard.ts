@@ -1,9 +1,10 @@
 import { appDate, shiftDate } from "@starterkit/ui/lib/format";
+import { FULL_SIGN_INS } from "@/lib/shared/audit";
 import { DASHBOARD_DAYS, type DashboardDto } from "@/lib/shared/contracts/dashboard";
 import { ACTIVITY_SORTERS } from "./audit-log";
 import { db } from "./mock/db";
 import { sortRows } from "./paginate";
-import type { AuthCtx } from "./session";
+import { type AuthCtx, pruneSessions } from "./session";
 
 const HOUR = 3_600_000;
 
@@ -16,6 +17,7 @@ export function dashboard(ctx: AuthCtx): DashboardDto {
   const store = db();
   const audit = ctx.perms.has("audit.view");
   const users = [...store.users.values()];
+  pruneSessions(now);
 
   const today = appDate(now);
   const days = new Map<string, { date: string; success: number; failed: number }>(Array.from({ length: DASHBOARD_DAYS }, (_, i) => {
@@ -24,10 +26,12 @@ export function dashboard(ctx: AuthCtx): DashboardDto {
   }));
   let failedLogins24h = 0;
   for (const e of store.authLog.values()) {
-    if (e.event !== "login_success" && e.event !== "login_failed") continue;
+    // A sign-in counts once, when it completes (a 2FA account's password step is not one); a failure is a failed password step.
+    const success = FULL_SIGN_INS.includes(e.event);
+    if (!success && e.event !== "login_failed") continue;
     const at = Date.parse(e.at);
     const day = days.get(appDate(at));
-    if (day) day[e.event === "login_success" ? "success" : "failed"]++;
+    if (day) day[success ? "success" : "failed"]++;
     if (e.event === "login_failed" && at > now - 24 * HOUR && at <= now) failedLogins24h++;
   }
 

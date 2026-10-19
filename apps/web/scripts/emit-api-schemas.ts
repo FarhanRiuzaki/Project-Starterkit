@@ -2,13 +2,16 @@
 // to docs/api/schemas/<Name>.json with zod's own z.toJSONSchema. Request schemas (names ending in Body or Query) are
 // emitted as the client sends them (fields with a default are optional); every other schema as the server answers.
 // Page answers and the two answer shapes no screen parses are composed below from the contracts.
-// Usage: bun run api:schemas (rewrites the folder). src/test/api-contract.test.ts fails when the files drift.
+// It also rewrites the activity action table in docs/api/README.md (between the actions:start/end markers) from the
+// action vocabulary (ACTION_LABEL) and the before/after shapes below.
+// Usage: bun run api:schemas (rewrites the folder and the table). src/test/api-contract.test.ts fails when either drifts.
 // Limits: refinements across fields (date range, CreateUserBody password/invite, UpdateRoleBody add/remove) and the
 // permission catalog check are code, not JSON Schema; docs/api/README.md states them.
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
+import { ACTION_LABEL } from "../src/lib/shared/audit";
 import * as audit from "../src/lib/shared/contracts/audit";
 import * as auth from "../src/lib/shared/contracts/auth";
 import * as common from "../src/lib/shared/contracts/common";
@@ -54,10 +57,51 @@ export function apiSchemas(): Record<string, string> {
   return out;
 }
 
+/** Target type and before / after of each activity action, as the routes record them ("–" = null). */
+export const ACTION_SHAPES: Record<string, [target: string, before: string, after: string]> = {
+  "user.create": ["user", "–", "the new user ([UserDto](schemas/UserDto.json)) + `invited: boolean`"],
+  "user.update": ["user", "changed fields only, of `name`, `username`, `email`, `roles`", "the same fields, new values"],
+  "user.activate": ["user", "`{ isActive: false }`", "`{ isActive: true }`"],
+  "user.deactivate": ["user", "`{ isActive: true }`", "`{ isActive: false }`"],
+  "user.delete": ["user", "the user ([UserDto](schemas/UserDto.json))", "–"],
+  "user.assign_role": ["user", "`{ roles }`", "`{ roles }` (bulk assign)"],
+  "user.reset_password": ["user", "–", "– (the temporary password is never recorded)"],
+  "user.session_end": ["user", "–", "`{ session: device }`"],
+  "role.create": ["role", "–", "`{ name, added: permissions, removed: [] }`"],
+  "role.update": ["role", "`{ name }` (before)", "`{ name, added, removed }` (effective change only)"],
+  "role.delete": ["role", "`{ name, permissions }`", "–"],
+  "permission.create": ["permission (id and label: the new names, comma-joined)", "–", "`{ created: names }`"],
+  "me.update": ["user (self)", "`{ name, email }`", "`{ name, email }`"],
+  "me.password": ["user (self)", "–", "–"],
+  "me.connect": ["user (self)", "–", "`{ provider }`"],
+  "me.disconnect": ["user (self)", "`{ provider }`", "–"],
+  "me.session_end": ["session (label: device)", "–", "–"],
+  "me.2fa_setup": ["user (self)", "–", "– (the secret is never recorded)"],
+  "me.2fa_enable": ["user (self)", "–", "– (recovery codes are never recorded)"],
+  "me.2fa_disable": ["user (self)", "–", "–"],
+};
+
+export const README = path.join(path.dirname(SCHEMA_DIR), "README.md");
+const MARK = /(<!-- actions:start -->\n)[\s\S]*?(<!-- actions:end -->)/;
+
+/** The action table: one row per action of ACTION_LABEL, in that order. */
+export function actionTable(): string {
+  const rows = Object.entries(ACTION_LABEL).map(([action, label]) => {
+    const shape = ACTION_SHAPES[action];
+    if (!shape) throw new Error(`no ACTION_SHAPES entry for ${action}`);
+    return `| \`${action}\` | ${label} | ${shape.join(" | ")} |`;
+  });
+  return ["| Action | Label | Target | `before` | `after` |", "|---|---|---|---|---|", ...rows, ""].join("\n");
+}
+
+/** README text with the action table regenerated. */
+export const withActionTable = (md: string) => md.replace(MARK, (_, start: string, end: string) => `${start}${actionTable()}${end}`);
+
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const files = apiSchemas();
   rmSync(SCHEMA_DIR, { recursive: true, force: true });
   mkdirSync(SCHEMA_DIR, { recursive: true });
   for (const [file, text] of Object.entries(files)) writeFileSync(path.join(SCHEMA_DIR, file), text);
-  console.log(`${Object.keys(files).length} schemas → ${path.relative(process.cwd(), SCHEMA_DIR)}`);
+  writeFileSync(README, withActionTable(readFileSync(README, "utf8")));
+  console.log(`${Object.keys(files).length} schemas → ${path.relative(process.cwd(), SCHEMA_DIR)}; action table → ${path.relative(process.cwd(), README)}`);
 }

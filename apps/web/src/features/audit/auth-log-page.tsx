@@ -13,11 +13,14 @@ type Event = AuthLogDto["event"];
 const EVENTS = [{ value: "" as const, label: "Any" }, ...AUTH_EVENTS.map((e) => ({ value: e, label: EVENT_LABEL[e] }))];
 const METHODS = [{ value: "" as const, label: "Any" }, ...AUTH_METHODS.map((m) => ({ value: m, label: METHOD_LABEL[m] }))];
 
-const HEALTH: Record<Event, Health> = { login_success: "healthy", "2fa_success": "healthy", login_failed: "down", "2fa_failed": "down", logout: "stopped" };
+const HEALTH: Record<Event, Health> = {
+  login_success: "healthy", "2fa_success": "healthy", password_ok: "degraded", login_failed: "down", "2fa_failed": "down", logout: "stopped", password_reset: "stopped",
+};
 const LEGEND = [
   { health: "healthy" as const, label: "Signed in, code accepted", description: "The sign-in step passed." },
+  { health: "degraded" as const, label: "Password accepted, waiting for 2FA", description: "The password was right; the sign-in finishes after a one-time code." },
   { health: "down" as const, label: "Sign-in failed, code rejected", description: "Wrong credentials or one-time code, or the account can't sign in." },
-  { health: "stopped" as const, label: "Signed out", description: "The session ended." },
+  { health: "stopped" as const, label: "Signed out, password reset", description: "The session ended. A reset by link ends every session of the user." },
 ];
 const EventChip = ({ event }: { event: Event }) => <StatusChip health={HEALTH[event]} label={EVENT_LABEL[event]} />;
 

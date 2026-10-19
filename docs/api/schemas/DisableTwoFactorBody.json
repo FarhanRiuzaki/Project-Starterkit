@@ -7,9 +7,11 @@
       "type": "string",
       "minLength": 1,
       "maxLength": 256
+    },
+    "recoveryCode": {
+      "type": "string",
+      "minLength": 6,
+      "maxLength": 32
     }
-  },
-  "required": [
-    "password"
-  ]
+  }
 }

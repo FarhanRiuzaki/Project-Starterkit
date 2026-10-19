@@ -395,7 +395,7 @@ describe("reset password and sessions", () => {
     expect((await list(v, "pageSize=10")).status).toBe(400); // before the guard
     const { sid } = await signIn("viewer");
     const older = addSession(v);
-    db().sessions.get(older)!.lastSeenAt = "2020-01-01T00:00:00.000Z";
+    db().sessions.get(older)!.lastSeenAt = new Date(Date.now() - 60 * 60_000).toISOString();
     addSession(idOf("apple"));
     const page = (await (await list(v)).json()) as Page<{ id: string; current: boolean }>;
     expect(page).toMatchObject({ total: 2, page: 1, pageSize: 15 });
@@ -534,5 +534,84 @@ describe("actor rank: no acting on a user who holds a permission the actor lacks
     expect((await userPatch(req("PATCH", { roles: ["Admin", "Auditors"] }), params(idOf("twofa")))).status).toBe(200);
     await signIn("admin");
     expect(await code(await resetPassword(req("POST"), params(idOf("twofa"))))).toBe("forbidden");
+  });
+});
+
+describe("roles are referenced by name, case-insensitively, stored in their canonical casing", () => {
+  it("create, PATCH, filter and bulk accept any letter case and store the role's own name", async () => {
+    await signIn("superadmin");
+    const r = await createPost(req("POST", { ...NEW, roles: ["viewer", "VIEWER"] }));
+    expect(r.status).toBe(201);
+    expect(((await r.json()) as { roles: string[] }).roles).toEqual(["Viewer"]);
+    const v = idOf("viewer");
+    expect((await userPatch(req("PATCH", { roles: ["viewer", "aDmIn"] }), params(v))).status).toBe(200);
+    expect(db().users.get(v)!.roles).toEqual(["Viewer", "Admin"]);
+    expect(((await (await get("?role=superADMIN")).json()) as { total: number }).total).toBe(1);
+    expect(await (await bulk({ action: "assignRole", ids: [idOf("apple")], role: "admin" })).json()).toEqual({ done: [idOf("apple")], skipped: [] });
+    expect(db().users.get(idOf("apple"))!.roles).toEqual(["Viewer", "Admin"]);
+  });
+
+  it("a stale name (the role was renamed) is 400", async () => {
+    await signIn("superadmin");
+    db().roles.get("role-viewer")!.name = "Reader";
+    for (const u of db().users.values()) u.roles = u.roles.map((r) => (r === "Viewer" ? "Reader" : r));
+    expect((await createPost(req("POST", { ...NEW, roles: ["Viewer"] }))).status).toBe(400);
+    expect((await bulk({ action: "assignRole", ids: [idOf("apple")], role: "Viewer" })).status).toBe(400);
+  });
+});
+
+describe("one deactivate path: PATCH isActive and POST /status", () => {
+  it("PATCH isActive logs user.deactivate / user.activate like /status; other fields log user.update", async () => {
+    await signIn("admin");
+    const v = idOf("viewer");
+    const mine = () => acts().filter((a) => a.target.id === v && !/^act-\d+$/.test(a.id)).map((a) => [a.action, a.before, a.after]);
+    expect((await userPatch(req("PATCH", { isActive: false }), params(v))).status).toBe(200);
+    expect((await statusPost(req("POST", { active: true }), params(v))).status).toBe(200);
+    expect((await userPatch(req("PATCH", { name: "Renamed Viewer", isActive: false }), params(v))).status).toBe(200);
+    expect(mine()).toEqual([
+      ["user.deactivate", { isActive: true }, { isActive: false }],
+      ["user.activate", { isActive: false }, { isActive: true }],
+      ["user.update", { name: "Viewer User" }, { name: "Renamed Viewer" }],
+      ["user.deactivate", { isActive: true }, { isActive: false }],
+    ]);
+  });
+
+  it("a PATCH that changes nothing is 200 and writes no activity", async () => {
+    await signIn("admin");
+    const v = idOf("viewer");
+    const before = acts().length;
+    for (const b of [{}, { name: "Viewer User" }, { email: "viewer@example.com", username: "viewer" }, { roles: ["viewer"], isActive: true }]) {
+      expect((await userPatch(req("PATCH", b), params(v))).status).toBe(200);
+    }
+    expect(acts().length).toBe(before);
+  });
+});
+
+describe("order: parse (400) → guard → existence (404) → rules", () => {
+  it("a bad body for an unknown user is 400, not 404", async () => {
+    await signIn("superadmin");
+    expect((await userPatch(req("PATCH", { email: "nope" }), params("ghost"))).status).toBe(400);
+    expect((await statusPost(req("POST", { active: "no" }), params("ghost"))).status).toBe(400);
+  });
+});
+
+describe("bulk assignRole respects the 20-role cap", () => {
+  it("a user who already has 20 roles is skipped with bad_request", async () => {
+    await signIn("superadmin");
+    const v = idOf("viewer");
+    const names = Array.from({ length: 19 }, (_, i) => `Team ${i}`);
+    names.forEach((name, i) => db().roles.set(`role-t${i}`, { id: `role-t${i}`, name, locked: false, permissions: [] }));
+    db().users.get(v)!.roles = ["Viewer", ...names];
+    const r = await bulk({ action: "assignRole", ids: [v, idOf("apple")], role: "Admin" });
+    expect(await r.json()).toEqual({ done: [idOf("apple")], skipped: [{ id: v, code: "bad_request" }] });
+    expect(db().users.get(v)!.roles).toHaveLength(20);
+  });
+});
+
+describe("ending a session that is the actor's own", () => {
+  it("answers the same self_action message as /api/me/sessions/[id]", async () => {
+    const { user, sid } = await signIn("admin");
+    const r = await sessionDelete(req("DELETE"), { params: Promise.resolve({ id: user.id, sid }) });
+    expect(await r.json()).toEqual({ error: { code: "self_action", message: "This is the session you're using. Sign out instead." } });
   });
 });

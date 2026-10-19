@@ -1,6 +1,7 @@
 import type { ActivityDto, AuthLogDto } from "../../shared/contracts/audit";
 import type { AuthMethod } from "../../shared/contracts/auth";
 import type { RoleDto } from "../../shared/contracts/rbac";
+import type { MeDto } from "../../shared/contracts/me";
 import { UserDto } from "../../shared/contracts/users";
 import { seed } from "./seed";
 
@@ -14,8 +15,12 @@ export function toUserDto(record: UserRecord): UserDto {
   return UserDto.parse(record);
 }
 
+/** The signed-in user's own view (GET /api/me): the DTO plus whether a password is set. */
+export const toMeDto = (record: UserRecord): MeDto => ({ ...toUserDto(record), hasPassword: record.passwordHash !== null });
+
 export type RoleRecord = Omit<RoleDto, "userCount">;
-export type SessionRecord = { id: string; userId: string; method: AuthMethod; device: string; ip: string; createdAt: string; lastSeenAt: string };
+/** `expiresAt` = createdAt + SESSION_TTL_HOURS (absolute); idle = no request for SESSION_IDLE_MINUTES since `lastSeenAt` (lib/server/session.ts). */
+export type SessionRecord = { id: string; userId: string; method: AuthMethod; device: string; ip: string; createdAt: string; lastSeenAt: string; expiresAt: string };
 export type ResetTokenRecord = { userId: string; expiresAt: number };
 
 export type Db = {

@@ -14,11 +14,15 @@ export const RoleDto = z.object({
 });
 export type RoleDto = z.infer<typeof RoleDto>;
 
+/** Most role names one PermissionDto lists; `roleCount` is the full number. */
+export const PERMISSION_ROLES_SHOWN = 10;
+
 /**
  * `name` is a catalog entry: every PermissionName, plus names added through POST /api/permissions (held by no role).
- * `id` = `name` (the row key every list shares).
+ * `id` = `name` (the row key every list shares). `roles` = the first PERMISSION_ROLES_SHOWN holders by name;
+ * `roleCount` = how many roles hold it.
  */
-export const PermissionDto = z.object({ id: z.string(), name: z.string(), roles: z.array(z.string()) });
+export const PermissionDto = z.object({ id: z.string(), name: z.string(), roles: z.array(z.string()).max(PERMISSION_ROLES_SHOWN), roleCount: z.number().int().min(0) });
 export type PermissionDto = z.infer<typeof PermissionDto>;
 
 /** GET /api/roles: `q` matches the role name. */

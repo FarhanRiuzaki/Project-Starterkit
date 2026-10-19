@@ -30,12 +30,14 @@ export const UserListQuery = ListQuery.extend({
 export type UserListQuery = z.infer<typeof UserListQuery>;
 
 const username = z.string().trim().min(3).max(32).regex(/^[a-zA-Z0-9._-]+$/);
+/** Most roles one user holds. */
+export const MAX_USER_ROLES = 20;
 
 export const CreateUserBody = z.object({
   name: z.string().trim().min(1).max(100),
   username,
   email: z.string().trim().email().max(254),
-  roles: z.array(z.string().min(1)).max(20).default([]),
+  roles: z.array(z.string().min(1)).max(MAX_USER_ROLES).default([]),
   isActive: z.boolean().default(true),
   isLdap: z.boolean().default(false),
   password: Password.optional(),
@@ -50,12 +52,9 @@ export const UpdateUserBody = z.object({
   username: username.optional(),
   email: z.string().trim().email().max(254).optional(),
   isActive: z.boolean().optional(),
-  roles: z.array(z.string().min(1)).max(20).optional(),
+  roles: z.array(z.string().min(1)).max(MAX_USER_ROLES).optional(),
 });
 export type UpdateUserBody = z.infer<typeof UpdateUserBody>;
-
-export const SetUserPasswordBody = z.object({ password: Password });
-export type SetUserPasswordBody = z.infer<typeof SetUserPasswordBody>;
 
 export const BulkUserBody = z.object({
   action: z.enum(["activate", "deactivate", "delete", "assignRole"]),

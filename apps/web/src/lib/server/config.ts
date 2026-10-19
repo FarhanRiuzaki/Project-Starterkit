@@ -6,10 +6,12 @@ const Env = z.object({
   /** Seals the session cookie. Required in production; elsewhere an empty value gets a random one per process. */
   SESSION_SECRET: z.preprocess((v) => (v === "" ? undefined : v), z.string().min(32).optional()),
   SESSION_TTL_HOURS: z.coerce.number().int().min(1).max(24).default(12),
+  /** A session with no request for this long ends (checked on its next request). */
+  SESSION_IDLE_MINUTES: z.coerce.number().int().min(5).max(24 * 60).default(120),
   COOKIE_SECURE: z.enum(["true", "false"]).default("false").transform((v) => v === "true"),
 });
 
-export type Config = { SESSION_SECRET: string; SESSION_TTL_HOURS: number; COOKIE_SECURE: boolean };
+export type Config = { SESSION_SECRET: string; SESSION_TTL_HOURS: number; SESSION_IDLE_MINUTES: number; COOKIE_SECURE: boolean };
 
 /** One dev secret per process, shared by every server bundle (route handlers and pages load this module separately). */
 const DEV_SECRET = Symbol.for("starterkit.devSessionSecret");

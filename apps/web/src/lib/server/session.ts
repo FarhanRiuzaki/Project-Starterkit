@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import type { AuthMethod } from "@/lib/shared/contracts/auth";
 import type { PermissionName } from "@/lib/shared/permissions";
 import { type Config, config } from "./config";
-import { db, type UserRecord } from "./mock/db";
+import { db, type SessionRecord, type UserRecord } from "./mock/db";
 import { effectivePermissions } from "./mock/rules";
 
 export const SESSION_COOKIE = "sk_session";
@@ -40,15 +40,43 @@ export async function getSession() {
   return getIronSession<AppSession>(await cookies(), sessionOptions());
 }
 
+/** lastSeenAt is written at most this often (one store write per minute per session, not one per request). */
+export const LAST_SEEN_EVERY_MS = 60_000;
+
+/** A new store session (sign-in): lasts SESSION_TTL_HOURS from now at most. */
+export function newSessionRecord(id: string, userId: string, method: AuthMethod, origin: { device: string; ip: string }, now = Date.now(), c: Config = config()): SessionRecord {
+  const at = new Date(now).toISOString();
+  return { id, userId, method, ...origin, createdAt: at, lastSeenAt: at, expiresAt: new Date(now + c.SESSION_TTL_HOURS * 3_600_000).toISOString() };
+}
+
+/** Before its absolute end and seen within SESSION_IDLE_MINUTES. */
+export function sessionLive(rec: SessionRecord, now = Date.now(), c: Config = config()): boolean {
+  return now < Date.parse(rec.expiresAt) && now - Date.parse(rec.lastSeenAt) <= c.SESSION_IDLE_MINUTES * 60_000;
+}
+
+/** Drops ended sessions from the store; reads that list or count sessions call it first. */
+// ponytail: full scan per read, fine for the in-memory mock; a database expires rows with a WHERE on expires_at/last_seen_at.
+export function pruneSessions(now = Date.now()): void {
+  for (const [id, rec] of db().sessions) if (!sessionLive(rec, now)) db().sessions.delete(id);
+}
+
 /**
  * The user behind a session, or null: no sid or csrf, second factor still pending, the sid ended in the store
- * (sign-out, terminated), or the user is gone or inactive. Permissions are computed from the current roles.
+ * (sign-out, terminated), the session expired or went idle (its record is removed), or the user is gone or inactive.
+ * A live session is marked seen (lastSeenAt, at most once per LAST_SEEN_EVERY_MS); every caller (API guard, page
+ * guard, prefetch) goes through here, so any request keeps it alive. Permissions are computed from the current roles.
  */
-export function authOf(s: AppSession): AuthCtx | null {
+export function authOf(s: AppSession, now = Date.now()): AuthCtx | null {
   if (!s.sid || !s.csrf || s.pending2fa) return null;
   const store = db();
   const rec = store.sessions.get(s.sid);
-  const user = rec ? store.users.get(rec.userId) : undefined;
+  if (!rec) return null;
+  if (!sessionLive(rec, now)) {
+    store.sessions.delete(rec.id);
+    return null;
+  }
+  const user = store.users.get(rec.userId);
   if (!user?.isActive) return null;
+  if (now - Date.parse(rec.lastSeenAt) >= LAST_SEEN_EVERY_MS) rec.lastSeenAt = new Date(now).toISOString();
   return { user, sid: s.sid, perms: effectivePermissions(user, store.roles) };
 }

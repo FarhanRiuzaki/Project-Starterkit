@@ -12,7 +12,7 @@ vi.mock("next/headers", () => ({
 import { db, resetDb } from "@/lib/server/mock/db";
 import type { AuthLogDto } from "@/lib/shared/contracts/audit";
 import type { DashboardDto } from "@/lib/shared/contracts/dashboard";
-import { signInAs } from "@/test/session";
+import { addSession, signInAs } from "@/test/session";
 import { GET } from "./route";
 
 // 20 Oct 2026, 00:30 WIB (UTC+7): early in the day, so "today" in WIB differs from the UTC date.
@@ -101,5 +101,25 @@ describe("GET /api/dashboard", () => {
     expect(b.newUsers7d).toBeGreaterThanOrEqual(1);
     expect(b.activeSessions).toBe(1);
     expect(viewer.isActive).toBe(true);
+  });
+});
+
+describe("dashboard sign-in counts and sessions", () => {
+  it("success counts only full sign-ins (login_success, 2fa_success), not a password step waiting for its code", async () => {
+    db().authLog.clear();
+    const m = NOW - 10 * 60_000; // today in the app time zone
+    for (const e of [entry("p", m, "password_ok"), entry("t", m, "2fa_success"), entry("l", m, "login_success"), entry("r", m, "password_reset")]) db().authLog.set(e.id, e);
+    await signInAs(jar, "viewer");
+    const b = await body();
+    expect(b.loginsPerDay.at(-1)!.success).toBe(2);
+  });
+
+  it("an expired or idle session is not counted and leaves the store", async () => {
+    await signInAs(jar, "viewer");
+    const n = (await body()).activeSessions;
+    const expired = addSession("u-002", { expiresAt: new Date(NOW - 1).toISOString() });
+    const idle = addSession("u-002", { lastSeenAt: new Date(NOW - 121 * 60_000).toISOString() });
+    expect((await body()).activeSessions).toBe(n);
+    expect(db().sessions.has(expired) || db().sessions.has(idle)).toBe(false);
   });
 });

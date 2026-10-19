@@ -27,10 +27,12 @@
             "type": "string",
             "enum": [
               "login_success",
+              "password_ok",
               "login_failed",
               "logout",
               "2fa_success",
-              "2fa_failed"
+              "2fa_failed",
+              "password_reset"
             ]
           },
           "method": {

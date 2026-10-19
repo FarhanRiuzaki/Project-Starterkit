@@ -1,6 +1,6 @@
 import { apiError, badRequest, json, withPermission } from "@/lib/server/api";
 import { recordActivity } from "@/lib/server/audit";
-import { toUserDto } from "@/lib/server/mock/db";
+import { toMeDto } from "@/lib/server/mock/db";
 import { ConnectionProvider } from "@/lib/shared/contracts/me";
 
 type Ctx = { params: Promise<{ provider: string }> };
@@ -13,7 +13,7 @@ export async function POST(req: Request, { params }: Ctx): Promise<Response> {
     const u = ctx.user;
     if (!u.connected.includes(provider.data)) u.connected = [...u.connected, provider.data];
     recordActivity(ctx, { action: "me.connect", target: { type: "user", id: u.id, label: u.name }, after: { provider: provider.data } });
-    return json(toUserDto(u));
+    return json(toMeDto(u));
   });
 }
 
@@ -25,10 +25,10 @@ export async function DELETE(req: Request, { params }: Ctx): Promise<Response> {
     const u = ctx.user;
     const rest = u.connected.filter((x) => x !== provider.data);
     if (!u.passwordHash && !u.isLdap && rest.length === 0) {
-      return apiError(409, "self_action", "This is your only way to sign in. Set a password or connect another account first.");
+      return apiError(409, "only_sign_in_method", "This is your only way to sign in. Set a password or connect another account first.");
     }
     u.connected = rest;
     recordActivity(ctx, { action: "me.disconnect", target: { type: "user", id: u.id, label: u.name }, before: { provider: provider.data } });
-    return json(toUserDto(u));
+    return json(toMeDto(u));
   });
 }

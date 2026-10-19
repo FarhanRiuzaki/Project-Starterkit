@@ -109,6 +109,14 @@ export const loginLimits = (g.__skLoginLimits ??= {
 });
 
 /**
+ * Forgot-password requests: per client IP (10 per minute) and per email (3 per 15 minutes). A throttled request still
+ * answers 200 and simply sends nothing, so the limit doesn't reveal which emails exist.
+ */
+export type ForgotLimits = { ip: RateLimiter; email: RateLimiter };
+const fg = globalThis as unknown as { __skForgotLimits?: ForgotLimits };
+export const forgotLimits = (fg.__skForgotLimits ??= { ip: new RateLimiter(10, 60_000), email: new RateLimiter(3, 15 * 60_000) });
+
+/**
  * Failed current-password checks of the signed-in user (change password, turn off 2FA share one budget): 5 free
  * failures, then soft backoff. Only failures count; a success clears it.
  */

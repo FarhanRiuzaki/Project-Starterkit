@@ -1,4 +1,4 @@
-import { apiError, blocked, json, withPermission } from "@/lib/server/api";
+import { apiError, currentSession, json, withPermission } from "@/lib/server/api";
 import { recordActivity } from "@/lib/server/audit";
 import { db } from "@/lib/server/mock/db";
 import { rankDenied } from "@/lib/server/users";
@@ -12,7 +12,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     if (!s || !u || s.userId !== id) return apiError(404, "not_found", "This session doesn't exist or has already ended.");
     const outranked = rankDenied(ctx, u);
     if (outranked) return outranked;
-    if (sid === ctx.sid) return blocked("self_action");
+    if (sid === ctx.sid) return currentSession();
     db().sessions.delete(sid);
     recordActivity(ctx, { action: "user.session_end", target: { type: "user", id, label: u.name }, after: { session: s.device } });
     return json({ ok: true });

@@ -3,7 +3,14 @@
 import { appDate, shiftDate } from "@starterkit/ui/lib/format";
 import type { AuthLogDto } from "./contracts/audit";
 
-export const AUTH_EVENTS = ["login_success", "login_failed", "logout", "2fa_success", "2fa_failed"] as const;
+/**
+ * Sign-in log events. A full sign-in is `login_success` (no second factor) or `2fa_success`; `password_ok` = the
+ * password step of a 2FA account passed and the code is still due; `password_reset` = a new password set by a reset or
+ * invitation link (every session of the user ends).
+ */
+export const AUTH_EVENTS = ["login_success", "password_ok", "login_failed", "logout", "2fa_success", "2fa_failed", "password_reset"] as const;
+/** Events that complete a sign-in (dashboard "sign-ins per day"). */
+export const FULL_SIGN_INS: readonly (typeof AUTH_EVENTS)[number][] = ["login_success", "2fa_success"];
 export const AUTH_METHODS = ["password", "ldap", "google", "apple"] as const;
 /** Sort keys each log's endpoint accepts (`sortParam`). */
 export const ACTIVITY_SORTS = ["at", "actor", "action"] as const;
@@ -36,7 +43,8 @@ export function presetRange(range: AuditRange, now: number): { from: string; to:
   return { from: shiftDate(to, -(RANGE_DAYS[range] - 1)), to };
 }
 
-const ACTION_LABEL: Record<string, string> = {
+/** The activity action vocabulary (docs/api/README.md generates its action table from these keys). */
+export const ACTION_LABEL: Record<string, string> = {
   "user.create": "User created", "user.update": "User updated", "user.activate": "User activated", "user.deactivate": "User deactivated",
   "user.delete": "User deleted", "user.assign_role": "Role assigned", "user.reset_password": "Password reset by admin",
   "user.session_end": "User session ended",
@@ -51,7 +59,8 @@ export const actionLabel = (action: string) => ACTION_LABEL[action] ?? action;
 export const ACTION_OPTIONS = Object.entries(ACTION_LABEL).map(([value, label]) => ({ value, label })).sort((a, b) => a.label.localeCompare(b.label));
 
 export const EVENT_LABEL: Record<AuthLogDto["event"], string> = {
-  login_success: "Signed in", login_failed: "Sign-in failed", logout: "Signed out", "2fa_success": "One-time code accepted", "2fa_failed": "One-time code rejected",
+  login_success: "Signed in", password_ok: "Password accepted, waiting for 2FA", login_failed: "Sign-in failed", logout: "Signed out",
+  "2fa_success": "One-time code accepted", "2fa_failed": "One-time code rejected", password_reset: "Password reset by link",
 };
 export const METHOD_LABEL: Record<AuthLogDto["method"], string> = { password: "Password", ldap: "Directory (LDAP)", google: "Google", apple: "Apple" };
 

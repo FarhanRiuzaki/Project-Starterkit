@@ -1,28 +1,25 @@
-import { apiError, badRequest, json, tooManyAttempts, withPermission } from "@/lib/server/api";
+import { badRequest, blocked, json, withPermission } from "@/lib/server/api";
 import { recordActivity } from "@/lib/server/audit";
 import { db } from "@/lib/server/mock/db";
-import { hashPassword, verifyPassword } from "@/lib/server/mock/password";
+import { hashPassword } from "@/lib/server/mock/password";
 import { checkPasswordOp } from "@/lib/server/mock/rules";
-import { passwordFails, passwordKey, retryText } from "@/lib/server/ratelimit";
+import { reauth } from "@/lib/server/sign-in";
+import { dropTokens } from "@/lib/server/users";
 import { ChangePasswordBody } from "@/lib/shared/contracts/me";
 
-/** Change own password, then end this user's other sessions (the current one stays). */
+/** Change own password, then end this user's other sessions (the current one stays) and spend their reset links. */
 export async function POST(req: Request): Promise<Response> {
   const body = ChangePasswordBody.safeParse(await req.json().catch(() => null));
   return withPermission(req, null, async (ctx) => {
     if (!body.success) return badRequest();
     const u = ctx.user;
-    if (checkPasswordOp(u)) return apiError(409, "ldap_password", "This account signs in with the directory password. Change it in your directory.");
-    const wait = Math.ceil(passwordFails.retryAfterMs(passwordKey(u.id)) / 1000);
-    if (wait > 0) return tooManyAttempts(wait, retryText(wait)); // before verifying anything
-    if (!u.passwordHash || !verifyPassword(body.data.current, u.passwordHash)) {
-      passwordFails.fail(passwordKey(u.id));
-      // 400, not 401: a 401 would make the browser think the session ended
-      return apiError(400, "invalid_credentials", "The current password is wrong. Check it and try again.");
-    }
-    passwordFails.succeed(passwordKey(u.id));
+    const c = checkPasswordOp(u);
+    if (c) return blocked(c);
+    const denied = reauth(u, { password: body.data.current });
+    if (denied) return denied;
     u.passwordHash = hashPassword(body.data.next);
     for (const s of db().sessions.values()) if (s.userId === u.id && s.id !== ctx.sid) db().sessions.delete(s.id);
+    dropTokens(u.id);
     recordActivity(ctx, { action: "me.password", target: { type: "user", id: u.id, label: u.name } });
     return json({ ok: true });
   });

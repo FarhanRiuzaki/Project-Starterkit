@@ -97,7 +97,7 @@ export function seed(now: number = Date.now()): Db {
   }
 
   const authLog = new Map<string, AuthLogDto>();
-  const events = ["login_success", "login_success", "login_success", "login_failed", "logout", "2fa_success", "2fa_failed"] as const;
+  const events = ["login_success", "login_success", "login_success", "login_failed", "logout", "password_ok", "2fa_success", "2fa_failed", "password_reset"] as const;
   for (let i = 0; i < 300; i++) {
     const u = pick(all);
     const event = pick(events);

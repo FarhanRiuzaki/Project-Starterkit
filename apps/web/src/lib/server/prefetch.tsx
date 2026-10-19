@@ -15,7 +15,7 @@ import {
 import { readTable, tableRequest } from "@/lib/shared/table-state";
 import { activityPage, authLogPage } from "./audit-log";
 import { dashboard } from "./dashboard";
-import { db, toUserDto } from "./mock/db";
+import { db, toMeDto } from "./mock/db";
 import { permissionPage, roleById, rolePage } from "./rbac";
 import { type AuthCtx, authOf, getSession } from "./session";
 import { roleOptionPage, sessionPage, userDetail, userPage } from "./users";
@@ -54,7 +54,7 @@ export function table<F extends Record<string, string>, Q>(
 /** What each screen reads first (app/(main)/** page.tsx lists its own), each mirroring its GET route. */
 export const reads = {
   dashboard: (): Read => ({ key: DASHBOARD_KEY, perm: null, data: dashboard }),
-  me: (): Read => ({ key: ME_KEY, perm: null, data: (ctx) => toUserDto(ctx.user) }),
+  me: (): Read => ({ key: ME_KEY, perm: null, data: (ctx) => toMeDto(ctx.user) }),
   mySessions: (sp: URLSearchParams) => table(MY_SESSIONS, sp, null, SessionListQuery, (q, ctx) => sessionPage(ctx.user.id, q, ctx.sid)),
   users: (sp: URLSearchParams) => table(USERS, sp, "user.view", UserListQuery, userPage),
   roleOptions: (): Read => {
@@ -89,10 +89,9 @@ export function prefetchState(ctx: AuthCtx, list: readonly Read[]): DehydratedSt
 /**
  * Server half of the no-flicker standard: a page wraps its screen in `<Prefetch reads={[…]}>`, so its first data is
  * read on the server with the /api route's own functions and handed to React Query; the page renders filled on the
- * first paint and the browser doesn't fetch it again. Like withPermission, it stamps the session's lastSeenAt.
+ * first paint and the browser doesn't fetch it again. Like withPermission, it marks the session seen (authOf).
  */
 export async function Prefetch({ reads: list, children }: { reads: readonly Read[]; children: ReactNode }) {
   const ctx = authOf(await getSession());
-  if (ctx) db().sessions.get(ctx.sid)!.lastSeenAt = new Date().toISOString();
   return <Hydrate state={ctx ? prefetchState(ctx, list) : undefined}>{children}</Hydrate>;
 }

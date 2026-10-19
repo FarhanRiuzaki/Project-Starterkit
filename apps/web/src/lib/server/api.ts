@@ -4,7 +4,6 @@ import { type ErrorCode, ERROR_STATUS } from "@/lib/shared/contracts/common";
 import type { PermissionName } from "@/lib/shared/permissions";
 import { CSRF_HEADER, csrfOk } from "./csrf";
 import { log } from "./logger";
-import { db } from "./mock/db";
 import { type AuthCtx, authOf, getSession } from "./session";
 
 export type { AuthCtx };
@@ -26,12 +25,15 @@ export const notFound = (noun: string) => apiError(404, "not_found", `This ${nou
 const PROTECTED: Partial<Record<ErrorCode, string>> = {
   self_action: "You can't do this to your own account. Ask another administrator.",
   last_superadmin: "This is the last active Superadmin. Make another user Superadmin first.",
-  ldap_password: "This user signs in with a directory password. Change it in your directory.",
+  ldap_password: "This account signs in with a directory password. Change it in your directory.",
   superadmin_locked: "The Superadmin role holds every permission and can't be changed or deleted.",
   role_in_use: "Users still have this role. Remove it from them first, then delete the role.",
 };
 /** The error response for a protection-rule code from rules.ts. */
 export const blocked = (code: ErrorCode) => apiError(ERROR_STATUS[code], code, PROTECTED[code] ?? "This change isn't allowed.");
+
+/** 409 for ending the session that makes the request (the user signs out instead); both end-session routes send it. */
+export const currentSession = () => apiError(409, "self_action", "This is the session you're using. Sign out instead.");
 
 /** Validation error → 400; anything else → a fixed 500 message, detail to the log only. */
 export function handleError(e: unknown): Response {
@@ -43,7 +45,7 @@ export function handleError(e: unknown): Response {
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
 /**
- * The API route guard. In order: a live session (else 401, cookie cleared; else its lastSeenAt is stamped) → on a mutation, the session's CSRF token
+ * The API route guard. In order: a live session (authOf: else 401, cookie cleared) → on a mutation, the session's CSRF token
  * in `x-csrf-token` (else 403 csrf) → `perm` among the user's current permissions (else 403 forbidden; the handler
  * never runs, so nothing is read) → handler; errors map through handleError. `perm: null` = signed in is enough.
  */
@@ -56,7 +58,6 @@ export async function withPermission(
     if (s.sid) s.destroy(); // a stale sid; a cookie waiting for its second factor is left alone
     return apiError(401, "unauthenticated", "Sign in to continue.");
   }
-  db().sessions.get(ctx.sid)!.lastSeenAt = new Date().toISOString(); // authOf found it, so it exists
   if (!SAFE_METHODS.has(req.method) && !csrfOk(req.headers.get(CSRF_HEADER), s.csrf)) {
     return apiError(403, "csrf", "The security token is missing or expired. Reload the page and try again.");
   }
@@ -84,11 +85,17 @@ export function clientIp(req: Request, trustedProxy = process.env.TRUSTED_PROXY 
 /**
  * The request comes from this app's own pages: `Sec-Fetch-Site` is same-origin / none (typed URL), or the `Origin`
  * header equals the request's origin. Guards the cookie-setting /api/auth POSTs against cross-site forms (login CSRF).
+ * Behind a proxy that rewrites Host (TRUSTED_PROXY=true), the public origin is `X-Forwarded-Proto`://`X-Forwarded-Host`
+ * (first entry each); without TRUSTED_PROXY those headers are client-controlled and ignored.
  */
-export function sameOrigin(req: Request): boolean {
+export function sameOrigin(req: Request, trustedProxy = process.env.TRUSTED_PROXY === "true"): boolean {
   const site = req.headers.get("sec-fetch-site");
   if (site === "same-origin" || site === "none") return true;
-  return req.headers.get("origin") === new URL(req.url).origin;
+  const url = new URL(req.url);
+  const first = (h: string) => req.headers.get(h)?.split(",")[0]?.trim() || null;
+  const host = trustedProxy ? first("x-forwarded-host") : null;
+  const origin = host ? `${first("x-forwarded-proto") ?? url.protocol.slice(0, -1)}://${host}` : url.origin;
+  return req.headers.get("origin") === origin;
 }
 
 export const crossSite = () => apiError(403, "forbidden", "The request didn't come from this app. Reload the page and try again.");

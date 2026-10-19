@@ -11,8 +11,7 @@ import { KeyIcon, SecureIcon, SpinnerIcon } from "@starterkit/ui/ui/icons";
 import { Input } from "@starterkit/ui/ui/input";
 import { Skeleton } from "@starterkit/ui/ui/skeleton";
 import { api, errorText } from "@/lib/client/api";
-import type { TwoFactorSetupDto } from "@/lib/shared/contracts/me";
-import type { UserDto } from "@/lib/shared/contracts/users";
+import type { MeDto, TwoFactorSetupDto } from "@/lib/shared/contracts/me";
 import { ConnectionsCard } from "./connections-card";
 import { ME_KEY, useMe } from "./use-me";
 
@@ -40,7 +39,7 @@ function Loading({ title, shown }: { title: string; shown: boolean }) {
   return <div className={shown ? undefined : "invisible"}><Panel title={title}><div className="grid gap-3" aria-busy={shown || undefined}><Skeleton className="h-8 w-full" /><Skeleton className="h-8 w-2/3" /></div></Panel></div>;
 }
 
-function PasswordCard({ user }: { user: UserDto }) {
+function PasswordCard({ user }: { user: MeDto }) {
   const qc = useQueryClient();
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
@@ -101,7 +100,7 @@ const TWO_FACTOR_LEGEND = [
   { health: "stopped" as const, label: "Off", description: "Signing in asks for the password only." },
 ];
 
-function TwoFactorCard({ user }: { user: UserDto }) {
+function TwoFactorCard({ user }: { user: MeDto }) {
   const qc = useQueryClient();
   const [starting, setStarting] = useState(false);
   const [setup, setSetup] = useState<TwoFactorSetupDto | null>(null);

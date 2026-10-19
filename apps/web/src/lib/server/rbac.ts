@@ -1,5 +1,5 @@
 import type { Page } from "@/lib/shared/contracts/common";
-import type { PermissionDto, PermissionListQuery, RoleDto, RoleListQuery } from "@/lib/shared/contracts/rbac";
+import { PERMISSION_ROLES_SHOWN, type PermissionDto, type PermissionListQuery, type RoleDto, type RoleListQuery } from "@/lib/shared/contracts/rbac";
 import { PERMISSIONS, type PermissionName } from "@/lib/shared/permissions";
 import { db, type RoleRecord } from "./mock/db";
 import { paginate, type Sorters } from "./paginate";
@@ -16,10 +16,13 @@ export const listRoles = (): RoleDto[] => [...db().roles.values()].map(toRoleDto
 
 export const ROLE_SORTERS: Sorters<RoleDto> = { name: (r) => r.name, permissions: (r) => r.permissions.length, users: (r) => r.userCount };
 
-/** The catalog, in catalog order, with the roles holding each permission. */
+/** The catalog, in catalog order, with how many roles hold each permission and the first PERMISSION_ROLES_SHOWN of them by name. */
 export function listPermissions(): PermissionDto[] {
-  const roles = [...db().roles.values()];
-  return [...db().permissionCatalog].map((name) => ({ id: name, name, roles: roles.filter((r) => (r.permissions as string[]).includes(name)).map((r) => r.name) }));
+  const roles = [...db().roles.values()].sort((a, b) => a.name.localeCompare(b.name));
+  return [...db().permissionCatalog].map((name) => {
+    const holders = roles.filter((r) => (r.permissions as string[]).includes(name)).map((r) => r.name);
+    return { id: name, name, roles: holders.slice(0, PERMISSION_ROLES_SHOWN), roleCount: holders.length };
+  });
 }
 
 /** Sorters for `rows` as listPermissions returns them: `module` keeps that catalog order. */

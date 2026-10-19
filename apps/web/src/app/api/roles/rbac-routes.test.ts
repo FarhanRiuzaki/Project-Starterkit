@@ -179,7 +179,7 @@ describe("PATCH /api/roles/[id]", () => {
     const dto = (await r.json()) as RoleDto;
     expect(dto.userCount).toBe(before);
     expect((await perms()).find((p) => p.name === "user.create")!.roles).toContain("Viewer");
-    expect((await perms()).find((p) => p.name === "user.view")!.roles).toEqual(["Superadmin", "Admin", "Viewer"]);
+    expect((await perms()).find((p) => p.name === "user.view")!.roles).toEqual(["Admin", "Superadmin", "Viewer"]);
     const entry = acts().find((a) => a.action === "role.update")!;
     expect(entry).toMatchObject({ target: { type: "role", id: "role-viewer", label: "Viewer" }, before: { name: "Viewer" }, after: { name: "Viewer", added: ["user.create"], removed: [] } });
   });
@@ -199,7 +199,7 @@ describe("PATCH /api/roles/[id]", () => {
   it("removing a permission takes effect on the holder's next request", async () => {
     giveOnlyRole("admin", ["role.view", "role.edit"]);
     await signIn("superadmin");
-    expect((await patch("role-custom", { remove: ["role.view"] })).status).toBe(200);
+    expect((await patch("role-custom", { remove: ["role.view", "role.edit"] })).status).toBe(200);
     await signIn("admin");
     expect((await listGet(req("GET"))).status).toBe(403);
   });
@@ -276,7 +276,7 @@ describe("/api/permissions", () => {
     expect(list.map((p) => p.name)).toEqual([...PERMISSIONS]); // default sort: catalog (module) order
     expect(list.every((p) => p.id === p.name)).toBe(true);
     expect(list.find((p) => p.name === "role.edit")!.roles).toEqual(["Superadmin"]);
-    expect(list.find((p) => p.name === "audit.view")!.roles).toEqual(["Superadmin", "Admin", "Viewer"]);
+    expect(list.find((p) => p.name === "audit.view")!.roles).toEqual(["Admin", "Superadmin", "Viewer"]);
   });
 
   it("filters by module, searches the name, sorts by name and action", async () => {
@@ -313,9 +313,45 @@ describe("/api/permissions", () => {
     await signIn("superadmin");
     const r = await addPerms({ names: ["audit.export", "user.view", "audit.export"] });
     expect(await r.json()).toEqual({ created: ["audit.export"], skipped: ["user.view"] });
-    expect((await perms()).find((p) => p.name === "audit.export")).toEqual({ id: "audit.export", name: "audit.export", roles: [] });
+    expect((await perms()).find((p) => p.name === "audit.export")).toEqual({ id: "audit.export", name: "audit.export", roles: [], roleCount: 0 });
     const entries = acts().filter((a) => a.action === "permission.create");
     expect(entries).toHaveLength(1);
     expect(entries[0]!.after).toEqual({ created: ["audit.export"] });
+  });
+});
+
+describe("a module's view comes with its other actions", () => {
+  it("create and PATCH add the module's view when any other action of it is on; removing view alone keeps it", async () => {
+    await signIn("superadmin");
+    const c = await createPost(req("POST", { name: "Editors", permissions: ["user.edit", "permission.create"] }));
+    expect(((await c.json()) as RoleDto).permissions).toEqual(["user.view", "user.edit", "permission.view", "permission.create"]);
+    const id = [...db().roles.values()].find((r) => r.name === "Editors")!.id;
+    const p = await patch(id, { add: ["role.delete"], remove: ["user.view"] });
+    expect(((await p.json()) as RoleDto).permissions).toEqual(["user.view", "user.edit", "role.view", "role.delete", "permission.view", "permission.create"]);
+    expect(acts().filter((a) => a.action === "role.update").at(-1)!.after).toEqual({ name: "Editors", added: ["role.view", "role.delete"], removed: [] });
+  });
+
+  it("the implied view counts for the escalation check", async () => {
+    giveOnlyRole("admin", ["role.view", "role.create", "audit.view", "user.edit"]);
+    await signIn("admin");
+    expect(await code(await createPost(req("POST", { name: "Editors", permissions: ["user.edit"] })))).toBe("forbidden"); // would carry user.view
+  });
+});
+
+describe("PermissionDto: role names are capped", () => {
+  it("roles lists at most 10 names; roleCount is the real number", async () => {
+    await signIn("superadmin");
+    for (let i = 0; i < 12; i++) db().roles.set(`role-r${i}`, { id: `role-r${i}`, name: `Readers ${String(i).padStart(2, "0")}`, locked: false, permissions: ["audit.view"] });
+    const p = (await perms()).find((x) => x.name === "audit.view")!;
+    expect(p.roleCount).toBe(15);
+    expect(p.roles).toHaveLength(10);
+  });
+});
+
+describe("role names in lookups are case-insensitive", () => {
+  it("a rename that only changes letter case is allowed and moves the holders", async () => {
+    await signIn("superadmin");
+    expect((await patch("role-viewer", { name: "VIEWER" })).status).toBe(200);
+    expect(db().users.get("u-003")!.roles).toEqual(["VIEWER"]);
   });
 });

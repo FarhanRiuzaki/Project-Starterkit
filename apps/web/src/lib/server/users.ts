@@ -1,11 +1,12 @@
 import { randomBytes, randomInt } from "node:crypto";
 import { apiError } from "./api";
+import { recordActivity } from "./audit";
 import { log } from "./logger";
 import { db, type SessionRecord, toUserDto, type UserRecord } from "./mock/db";
 import { hashToken } from "./mock/password";
-import { checkRoleGrant, checkTargetRank, effectivePermissions } from "./mock/rules";
+import { checkRoleGrant, checkTargetRank, checkUserChange, effectivePermissions } from "./mock/rules";
 import { paginate, type Sorters } from "./paginate";
-import type { AuthCtx } from "./session";
+import { type AuthCtx, pruneSessions } from "./session";
 import type { ErrorCode, Page } from "@/lib/shared/contracts/common";
 import type { SessionDto, SessionListQuery } from "@/lib/shared/contracts/me";
 import type { RoleOption, RoleOptionQuery } from "@/lib/shared/contracts/rbac";
@@ -38,11 +39,28 @@ export function rankDenied(ctx: AuthCtx, target: UserRecord): Response | null {
 }
 export const RANK_TEXT = "This user has permissions your role doesn't hold. Ask an administrator who has all of them.";
 
-/** Every name in `roles` is an existing role. */
-export const rolesExist = (roles: readonly string[]): boolean => {
-  const names = new Set([...db().roles.values()].map((r) => r.name));
-  return roles.every((r) => names.has(r));
-};
+/**
+ * Roles are referenced by name in the API, matched case-insensitively: `names` as the roles' own (canonical) names,
+ * deduplicated, or null when one isn't a role (unknown, or a name from before a rename).
+ */
+export function canonicalRoles(names: readonly string[]): string[] | null {
+  const byLower = new Map([...db().roles.values()].map((r) => [r.name.toLowerCase(), r.name]));
+  const out = names.map((n) => byLower.get(n.toLowerCase()));
+  return out.every((n) => n !== undefined) ? [...new Set(out as string[])] : null;
+}
+export const unknownRole = () => apiError(400, "bad_request", "One of the roles doesn't exist. Pick roles from the list.");
+
+/** The rule for setting a user active or inactive (deactivating: not yourself, not the last active Superadmin); PATCH isActive, /status and bulk share it. */
+export const statusRule = (ctx: AuthCtx, u: UserRecord, active: boolean): ErrorCode | null =>
+  active ? null : checkUserChange(ctx.user, u, { kind: "deactivate" }, db());
+
+/** Sets it: deactivating ends the user's sessions; one activity entry, user.activate / user.deactivate with { isActive }. Unchanged = nothing. */
+export function applyStatus(ctx: AuthCtx, u: UserRecord, active: boolean): void {
+  if (u.isActive === active) return;
+  u.isActive = active;
+  if (!active) endSessions(u.id);
+  recordActivity(ctx, { action: active ? "user.activate" : "user.deactivate", target: { type: "user", id: u.id, label: u.name }, before: { isActive: !active }, after: { isActive: active } });
+}
 
 // Read functions: one per resource, called by its GET route and by the page's server prefetch (lib/server/prefetch.tsx)
 // after the same permission check, so both answer the same data.
@@ -56,9 +74,10 @@ const USER_SORTERS: Sorters<UserRecord> = {
 export function userPage(query: UserListQuery): Page<UserRowDto> {
   const { q, role, status } = query;
   const needle = q?.trim().toLowerCase();
+  const roleKey = role?.toLowerCase();
   const rows = [...db().users.values()].filter((u) =>
     (!needle || [u.name, u.username, u.email].some((s) => s.toLowerCase().includes(needle)))
-    && (!role || u.roles.includes(role))
+    && (!roleKey || u.roles.some((r) => r.toLowerCase() === roleKey))
     && (!status || u.isActive === (status === "active")));
   const page = paginate(rows, query, USER_SORTERS, "name");
   return { ...page, items: page.items.map(toUserRow) };
@@ -97,7 +116,10 @@ export function sessionPage(userId: string, q: SessionListQuery, currentSid: str
 }
 
 /** Store sessions of one user (unsorted); GET /api/me/sessions and GET /api/users/[id]/sessions page them. */
-export const sessionsOf = (userId: string): SessionRecord[] => [...db().sessions.values()].filter((s) => s.userId === userId);
+export const sessionsOf = (userId: string): SessionRecord[] => {
+  pruneSessions();
+  return [...db().sessions.values()].filter((s) => s.userId === userId);
+};
 export const SESSION_SORTERS: Sorters<SessionRecord> = { lastSeenAt: (s) => Date.parse(s.lastSeenAt), device: (s) => s.device };
 /** `current` = the session making this request. */
 export const toSessionDto = (s: SessionRecord, currentSid: string): SessionDto => ({ id: s.id, device: s.device, ip: s.ip, lastSeenAt: s.lastSeenAt, current: s.id === currentSid });

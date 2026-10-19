@@ -24,6 +24,8 @@
             "self_action",
             "role_in_use",
             "ldap_password",
+            "already_enabled",
+            "only_sign_in_method",
             "internal"
           ]
         },

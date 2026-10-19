@@ -50,8 +50,9 @@ Server environment only; there is no `NEXT_PUBLIC_*` setting.
 |---|---|---|
 | `SESSION_SECRET` | random per process (development) | Seals the session cookie; at least 32 characters; required in production. |
 | `SESSION_TTL_HOURS` | `12` | Session lifetime, 1 to 24 hours. |
+| `SESSION_IDLE_MINUTES` | `120` | A session with no request for this long ends, 5 to 1440 minutes. |
 | `COOKIE_SECURE` | `false` | `true` behind HTTPS: `Secure` cookie and `Strict-Transport-Security`. |
-| `TRUSTED_PROXY` | `false` | `true` only behind a proxy that appends `X-Forwarded-For`; otherwise the header is ignored. |
+| `TRUSTED_PROXY` | `false` | `true` only behind a proxy that appends `X-Forwarded-For` and sets `X-Forwarded-Host`/`-Proto`; otherwise those headers are ignored. |
 | `LOG_LEVEL` | `info` | pino log level. |
 
 ## Repository

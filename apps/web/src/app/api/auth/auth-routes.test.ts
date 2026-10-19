@@ -15,7 +15,7 @@ import { json, withPermission } from "@/lib/server/api";
 import { log } from "@/lib/server/logger";
 import { db, resetDb } from "@/lib/server/mock/db";
 import { LDAP_PASSWORD, SEED_PASSWORD, TOTP_SECRET } from "@/lib/server/mock/seed";
-import { Backoff, loginLimits, RateLimiter, retryText } from "@/lib/server/ratelimit";
+import { Backoff, forgotLimits, loginLimits, RateLimiter, retryText } from "@/lib/server/ratelimit";
 import { type AppSession, SESSION_COOKIE } from "@/lib/server/session";
 import { totpCode } from "@/lib/server/totp";
 import { POST as twoFactor } from "./2fa/route";
@@ -40,9 +40,10 @@ const cookie = async (): Promise<AppSession> =>
 const lastAuth = () => [...db().authLog.values()].at(-1)!;
 const ok = vi.fn(async () => json({ ok: true }));
 const usersGet = () => withPermission(new Request("http://c/api/users"), "user.view", ok);
-const freshLimits = () => Object.assign(loginLimits, {
-  ip: new RateLimiter(10, 60_000), breaker: new RateLimiter(300, 60_000), userCap: new RateLimiter(5, 60_000), user: new Backoff(),
-});
+const freshLimits = () => {
+  Object.assign(loginLimits, { ip: new RateLimiter(10, 60_000), breaker: new RateLimiter(300, 60_000), userCap: new RateLimiter(5, 60_000), user: new Backoff() });
+  Object.assign(forgotLimits, { ip: new RateLimiter(10, 60_000), email: new RateLimiter(3, 15 * 60_000) });
+};
 
 beforeEach(() => {
   resetDb();
@@ -273,7 +274,7 @@ describe("rate limit and sign-in log", () => {
       [() => signInWith("nobody@example.com", "Whatever-123"), "login_failed", "password"],
       [() => signInWith("inactive@example.com"), "login_failed", "password"],
       [() => post(login, { method: "ldap", login: "ldap@example.com", password: LDAP_PASSWORD }), "login_success", "ldap"],
-      [() => signInWith("twofa@example.com"), "login_success", "password"],
+      [() => signInWith("twofa@example.com"), "password_ok", "password"],
       [() => post(twoFactor, { code: "zzzz-0000" }), "2fa_failed", "password"],
       [() => post(twoFactor, { code: totpCode(TOTP_SECRET) }), "2fa_success", "password"],
       [() => viaOauth("google"), "login_success", "google"],
@@ -347,5 +348,68 @@ describe("fix round 1", () => {
     expect(r.status).toBe(401);
     expect((await r.json()).error.code).toBe("unauthenticated");
     expect(jar.has(SESSION_COOKIE)).toBe(false);
+  });
+});
+
+describe("sign-in log events and login field", () => {
+  it("the password step of a 2FA account logs password_ok (not a sign-in yet); the code step logs 2fa_success", async () => {
+    await signInWith("twofa"); // typed as the username
+    expect(lastAuth()).toMatchObject({ event: "password_ok", method: "password", login: "twofa@example.com", userId: "u-004" });
+    expect([...db().authLog.values()].filter((e) => e.userId === "u-004" && e.event === "login_success" && Date.parse(e.at) > Date.now() - 60_000)).toEqual([]);
+    await post(twoFactor, { code: totpCode(TOTP_SECRET) });
+    expect(lastAuth()).toMatchObject({ event: "2fa_success", login: "twofa@example.com" });
+  });
+
+  it("login is the account email when the user is known, else what was typed", async () => {
+    await signInWith("ADMIN", "Wrong-password-1");
+    expect(lastAuth()).toMatchObject({ event: "login_failed", login: "admin@example.com", userId: "u-002" });
+    await signInWith("admin");
+    expect(lastAuth()).toMatchObject({ event: "login_success", login: "admin@example.com" });
+    await signInWith("Nobody-Here", "Whatever-123");
+    expect(lastAuth()).toMatchObject({ event: "login_failed", login: "Nobody-Here", userId: null });
+  });
+
+  it("a reset by link logs password_reset with the account email and user id", async () => {
+    const spy = vi.spyOn(log, "info");
+    await post(forgot, { email: "VIEWER@example.com" });
+    const link = spy.mock.calls.map((c) => (c[0] as { link?: string }).link).find(Boolean)!;
+    const token = new URL(link, "http://c").searchParams.get("token")!;
+    const n = db().authLog.size;
+    expect((await post(reset, { token, password: "New-password-2026" })).status).toBe(200);
+    expect(db().authLog.size).toBe(n + 1);
+    expect(lastAuth()).toMatchObject({ event: "password_reset", method: "password", login: "viewer@example.com", userId: "u-003" });
+  });
+});
+
+describe("forgot-password throttle", () => {
+  const links = (spy: { mock: { calls: unknown[][] } }) => spy.mock.calls.filter((c) => (c[0] as { link?: string }).link).length;
+
+  it("per email: after 3 requests in 15 minutes the answer stays 200 but no link is sent", async () => {
+    vi.useFakeTimers({ toFake: ["Date"], now: Date.now() });
+    const spy = vi.spyOn(log, "info");
+    const bodies: string[] = [];
+    for (let i = 0; i < 4; i++) {
+      const r = await post(forgot, { email: i % 2 ? "ADMIN@example.com" : "admin@example.com" }, { "x-forwarded-for": `10.0.0.${i}` });
+      expect(r.status).toBe(200);
+      bodies.push(await r.text());
+    }
+    expect(new Set(bodies).size).toBe(1);
+    expect(links(spy)).toBe(3);
+    vi.setSystemTime(Date.now() + 15 * 60_000 + 1);
+    await post(forgot, { email: "admin@example.com" });
+    expect(links(spy)).toBe(4);
+  });
+
+  it("per client IP: the 11th request in a minute sends nothing, still 200", async () => {
+    vi.useFakeTimers({ toFake: ["Date"], now: Date.now() });
+    const spy = vi.spyOn(log, "info");
+    for (const u of ["admin", "viewer", "twofa", "google", "apple", "admin", "viewer", "twofa", "google", "apple"]) {
+      expect((await post(forgot, { email: `${u}@example.com` })).status).toBe(200);
+    }
+    const sent = links(spy);
+    expect(sent).toBe(10);
+    const r = await post(forgot, { email: "superadmin@example.com" });
+    expect(r.status).toBe(200);
+    expect(links(spy)).toBe(sent);
   });
 });

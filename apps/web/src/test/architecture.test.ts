@@ -101,9 +101,13 @@ const handlers = (src: string) => {
   return hits.map((m, i) => ({ method: m[1]!, body: src.slice(m.index, hits[i + 1]?.index ?? src.length) }));
 };
 
+/** Calls that write an activity entry: recordActivity itself, and lib/server helpers that always end in it. */
+const LOGS = /\b(?:recordActivity|applyStatus)\(/;
+
 /**
  * Every route handler outside app/api/auth/** runs inside withPermission(, and every non-GET one calls
- * recordActivity(. Handlers must be function declarations (an `export const POST =` would escape the check).
+ * recordActivity( (or a helper in LOGS). Handlers must be function declarations (an `export const POST =` would
+ * escape the check). Order inside a handler: the body/query check (400) comes before the existence check (404).
  */
 function routeViolations(fs: F[]): string[] {
   return fs.filter(({ r }) => new RegExp(`^${WEB}app/api/(.+/)?route\\.tsx?$`).test(r) && !r.startsWith(`${WEB}app/api/auth/`))
@@ -116,9 +120,16 @@ function routeViolations(fs: F[]): string[] {
       if (hs.length === 0) return [`${r}: no exported handler found`];
       return hs.flatMap((h) => [
         ...(/\bwithPermission\(/.test(h.body) ? [] : [`${r} ${h.method}: no withPermission(`]),
-        ...(h.method === "GET" || /\brecordActivity\(/.test(h.body) ? [] : [`${r} ${h.method}: no recordActivity(`]),
+        ...(h.method === "GET" || LOGS.test(h.body) ? [] : [`${r} ${h.method}: no recordActivity(`]),
+        ...(existenceBeforeParse(h.body) ? [`${r} ${h.method}: checks existence (404) before the request body (400)`] : []),
       ]);
     });
+}
+
+/** A 404 answer appears before the `!x.success` body check in one handler. */
+function existenceBeforeParse(body: string): boolean {
+  const parse = body.search(/!\s*\w+\.success\b/), exists = body.search(/\bnotFound\(|apiError\(\s*404\b/);
+  return parse >= 0 && exists >= 0 && exists < parse;
 }
 
 const ROUTE = new RegExp(`^${WEB}app/api/(.+/)?route\\.tsx?$`);
@@ -375,6 +386,14 @@ describe("architecture checkers (fixtures)", () => {
     expect(routeViolations([route(`export const POST = async () => json(1);`)]))
       .toEqual([`${WEB}app/api/users/route.ts: export each handler as a function declaration`]);
     expect(routeViolations([route(`export const dynamic = "force-dynamic";`)])).toEqual([`${WEB}app/api/users/route.ts: no exported handler found`]);
+  });
+
+  it("order: a 404 before the body check is reported; body first, or no body, passes", () => {
+    const h = (inner: string) => route(`export async function PATCH(req: Request) { const body = B.safeParse(1); return withPermission(req, "user.edit", async (ctx) => { ${inner} recordActivity(ctx, e); return json(1); }); }`);
+    expect(routeViolations([h(`const u = get(id); if (!u) return notFound("user"); if (!body.success) return badRequest();`)]))
+      .toEqual([`${WEB}app/api/users/route.ts PATCH: checks existence (404) before the request body (400)`]);
+    expect(routeViolations([h(`if (!body.success) return badRequest(); if (!u) return notFound("user");`)])).toEqual([]);
+    expect(routeViolations([h(`if (!s) return apiError(404, "not_found", "x");`)])).toEqual([]);
   });
 
   it("a guarded GET next to an unguarded POST in one file: exactly the POST is reported", () => {
