@@ -1,4 +1,5 @@
 import { hashKey, type QueryKey, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
 import { ApiError, api } from "@/lib/client/api";
 import type { RoleDto } from "@/lib/shared/contracts/rbac";
 
@@ -19,14 +20,15 @@ export const useRole = (id: string, enabled = true) => useQuery({
 
 /**
  * After a role or catalog change: refetch every query (but `except`, e.g. a role just deleted), since role names and
- * user permissions show up across features.
- * The sidebar comes from the layout and follows on the next page load; the API enforces the new permissions at once.
+ * user permissions show up across features, and refresh the server layout, which holds the viewer's own permission
+ * set (sidebar, `useAuth().can`): editing a role you hold changes what you may do.
  */
-// ponytail: no router.refresh() here, it currently drops the toast that reports the change (Toaster in components/providers.tsx); revisit with that fix.
 export function useAfterRbacChange(): (except?: QueryKey) => Promise<void> {
   const qc = useQueryClient();
+  const router = useRouter();
   return async (except) => {
     const skip = except && hashKey(except);
     await qc.invalidateQueries({ predicate: (q) => q.queryHash !== skip });
+    router.refresh();
   };
 }

@@ -53,6 +53,8 @@ export function UserForm({ user }: { user?: UserDto }) {
       }
       await qc.invalidateQueries({ queryKey: USERS_KEY });
       router.push(`/users/${id}`);
+      // Your own name and email also show in the account menu, which the server layout renders.
+      if (self) router.refresh();
     } catch (err) {
       setError(errorText(err));
       setBusy(false);
