@@ -565,7 +565,7 @@ tokens from `packages/ui/src/motion/tokens.ts` (`DUR.*`, `STAGGER`, `EASE`), nev
 | Toast | CSS | `DUR.enter` | None: sonner keeps its own reduced rule (no transform override, so stacked toasts keep their transform) |
 | Badge pop | CSS | `DUR.pop`; only when a count or tone changed (count badges in tables and tiles pop on change only) | Fade only, `DUR.instant` |
 | Chip change | CSS | `DUR.fast`; `background-color` | Instant swap |
-| New row | CSS | `DUR.flash`; `background-color`; rows arriving after first load, never on load, filter or query change, and not on appended pages in infinite lists | None |
+| New row | CSS | `DUR.flash`; `background-color`; rows arriving after first load, never on load, paging, filter or query change | None |
 | Number tween | Motion | `tweenDuration(...)` to `DUR.tween`; duration-based; `SPRING_SOFT` is exported for new uses only | Instant swap |
 | Indicator | Motion | `DUR.slow` (`SPRING_INDICATOR`); segmented thumb, tab underline | Jumps, fades only |
 | Sidebar width | CSS | `DUR.slow`, `EASE` standard; see R3 | Instant |
@@ -589,8 +589,8 @@ Rulings recorded here:
 - **R9, native disclosures.** Only native `<details>` animate, via `interpolate-size: allow-keywords` and
   `::details-content` (block-size + opacity, `DUR.enter`); browsers without support stay instant. Disclosures built
   from buttons stay instant. This is the one height animation.
-- **Per-card status guide.** The status legend is a `StatusLegend variant="icon"` at a card's top-right
-  (Panel actions); inline legends were removed (see §5.8 status chips, which carry the tooltip text from
+- **Per-card status legend.** The status legend is the `Panel` `legend` prop: an info button ("Status legend") at
+  the end of the card header; page-level and inline legends were removed (see §5.8 status chips, which carry the tooltip text from
   `packages/ui/src/lib/status.ts`).
 
 ---

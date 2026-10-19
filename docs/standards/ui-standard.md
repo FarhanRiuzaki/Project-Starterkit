@@ -35,8 +35,8 @@ through `next/font`.
 
 1. **PageHeader** — breadcrumb (detail pages only: `Users / <name>`), title (noun), aggregate `StatusChip` if the
    page has a health concept, `actions` slot right-aligned in this order: `TimeRangePicker` (if the page is
-   time-scoped) → `StatusLegend` (if any status is shown) →
-   one primary action or `ActionMenu`. Description = one sentence: scope + freshness.
+   time-scoped) → one primary action or `ActionMenu`. Description = one sentence: scope + freshness. No status
+   legend here: legends belong to the card that shows the statuses (item 5).
 2. **Page-level banners** — stale/partial-source `Notice` (one per page, aggregated), never inside panels.
 3. **StatTiles** — one KPI tray of 4 (or 3) tiles, the page's headline numbers; same order and units everywhere the
    same metric appears (e.g. "Active users" is always first). **Label = the metric only** ("Users",
@@ -48,7 +48,11 @@ through `next/font`.
    export (right-most). One row; wraps only when the content column is too narrow (below 1280).
 5. **Panels** — `Panel` with title (noun phrase), optional description (sentence case), optional actions slot.
    Charts above tables. Below-the-fold charts in `LazyMount`. The **description is the scope** (period and
-   granularity, one shape everywhere: "Last 24 hours · per hour, WIB" or "Last 7 days"); the **footnote is provenance** (`StaleNote`, inline `StatusLegend`, source notes).
+   granularity, one shape everywhere: "Last 24 hours · per hour, WIB" or "Last 7 days"); the **footnote is provenance** (`StaleNote`, source notes).
+   A card that shows statuses passes them as `legend` (`Panel legend={[{ health, label, description }]}`): an info
+   button labelled "Status legend" at the end of the card header opens the legend popover (keyboard: Tab to it,
+   Enter opens, Escape closes and returns focus). Never a page-level, toolbar or inline legend; `StatusLegend` is
+   rendered only by `Panel` (`apps/web/src/test/architecture.test.ts`).
    Chart legends sit in the Panel `actions` (`<ChartLegend items={legendItems(series)} />`, chart `hideLegend`).
    A ranking (HBarChart) in a stretched panel ends with a `Facts` summary ("Top 5 total", "Share of all …")
    pinned to the bottom (`bodyClassName="flex flex-col"`), never an empty band.
@@ -81,7 +85,21 @@ Detail pages add `Tabs` (line variant) directly under the header; the tab value 
 
 ## 4. Data display
 
-- Tables: `DataTable`; ≤ 25 rows plain, > 25 `paged`, server-paged lists `infinite`. Numeric columns right-aligned,
+- Tables (spec "Standar tabel & skalabilitas"): every list a user pages through is server-driven, for any number of
+  rows. One pattern, no table builds its own paging:
+  - Server: the GET route parses `ListQuery` (extended with its `sortParam(KEYS)` and filters) before the guard
+    and answers `paginate(rows, q, SORTERS, defaultSort)` → `Page<T>`; `page` 1–1000 (deeper is 400: narrow the
+    filters), `pageSize` 15 | 25 | 50 | 100 (default 15), `totalCapped` when the backend stops counting
+    (shown "100,000+"). The architecture test fails a list GET without `paginate(`; the non-list allowlist is exact.
+  - Client: `useTableQuery({ key, path, spec })` (spec = sort whitelist, default sort, filter parsers, `search`
+    keys) → `DataTable` with `paging={t.paging}`, `sort`/`onSortChange` and `sortable` columns (header buttons with
+    `aria-sort`); footer "Showing 1–15 of 312" + rows-per-page select + first / previous / numbers / next / last.
+  - URL state: `page`, `pageSize`, `sort`, `q` and filters live in the query string (defaults omitted). Any change
+    but the page goes back to page 1; committed changes push a history entry (Back undoes them), search keystrokes
+    (debounced) replace it. While the next page or sort loads, the previous rows stay with a busy dim, never a
+    skeleton. A page past the end moves to the last page.
+  - Short fixed lists inside a record (a user's last 20 actions, the dashboard's 5 newest) stay plain `DataTable`
+    rows from the record's own endpoint. Numeric columns right-aligned,
   tabular figures. First column = identity (28 px `Avatar` + name + secondary id), with a `min-w-*` on the column so
   auto layout never squeezes it. `Avatar seed={id}`: the tint follows the stable id, the initials the display name, so one user looks
   the same on every page. Status column uses `StatusChip`. Timestamps use
@@ -94,15 +112,15 @@ Detail pages add `Tabs` (line variant) directly under the header; the tab value 
   95%" in detail tiles and prose, "95% of 20 GB" on cards (percent first where space is short); latency
   "600 ms" in rows, "4.2 s" for p95; shares whole percent.
 - Status: always `StatusChip`/`StatusIcon` (shape + label + description tooltip) from the status glossary.
-  Never colored text alone. Every page that shows status offers `StatusLegend`.
+  Never colored text alone. Every card that shows status passes its `legend` (§1 item 5).
 - Charts: from `@/components/charts` only; fixed categorical order per entity (never by rank); legend for ≥ 2
   series; tooltips on hover and focus; one y-axis; time axes on round ticks in WIB.
 - Numbers: through `lib/shared/format.ts` only.
 
 ## 5. Interaction
 
-- State that a user would share or bookmark (filters, tab, range, view, page) lives in the URL via
-  `useSearchState` + a `urlSchema` (one parser per key, each with its own fallback; `apps/web/src/lib/shared/url-schema.ts`).
+- State that a user would share or bookmark (filters, tab, range, view, page) lives in the URL; tables through
+  `useTableQuery` + `TableSpec` (one parser per key, each with its own fallback; `apps/web/src/lib/shared/table-state.ts`).
   zod schemas live in `apps/web/src/lib/shared/contracts/*` and are imported by route handlers; client code never imports zod
   into a route's first load (≤ 250 kB gz, `bun run budget`).
 - Disabled actions always explain why (tooltip / menu label).
@@ -137,7 +155,7 @@ Detail pages add `Tabs` (line variant) directly under the header; the tab value 
 2. Same metric → same label, unit, format, icon and position as on other pages (§1 item 3, §4 metric formats)?
    Period in the tile caption and the panel description, never in a label?
 3. All five states implemented per data region (§3)?
-4. Status chips from the glossary + legend available?
+4. Status chips from the glossary + the card's `legend`?
 5. Lazy-load rule (§1 item 5, §5a bundle) followed?
 6. URL state for filters/tab/range/page?
 7. Copy passes the copy guide checklist?

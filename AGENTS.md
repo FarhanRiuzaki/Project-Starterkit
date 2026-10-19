@@ -29,6 +29,7 @@ Package manager is Bun 1.4.3; runtime for Next is Node 24.
 - `bun run dev` serves `apps/web`.
 - `bun run check` = typecheck + lint (`--max-warnings 0`) + unit tests. Must pass before every commit.
 - `bun run --filter @starterkit/web test -- <name>` runs one test file.
+- `bun run test:changed` runs, in each workspace, the tests touched by files changed since the last commit (`vitest --changed`); `bunx vitest related <files>` inside a package runs the tests that import those files.
 - `bun run build` builds `apps/web`; `bun run e2e` and `bun run budget` arrive in Task 13.
 - Commit messages end with the `Co-Authored-By` line required by the plan.
 
@@ -88,7 +89,12 @@ A change that touches routes, guards, redirects or exports needs a test for each
 - Follow `docs/standards/ui-standard.md`: page anatomy (§1), grid (§2), the five states per data region (§3), data display (§4), interaction (§5).
 - Desktop-first: 1440 px reference, 1280 px minimum, no horizontal scroll at 768–1279; targets 28 px minimum, 32 px default.
 - Same metric, same label, unit, format and icon on every page; numbers only through `format.ts`.
-- Status uses `StatusChip` plus `StatusLegend`, never color alone. Shareable state (filters, tab, range, page) lives in the URL.
+- Status uses `StatusChip` plus the card's legend, never color alone. Shareable state (filters, tab, range, page) lives in the URL.
+- Every list is server-side: the GET route calls `paginate()` with whitelisted sorters (`sortParam`), the screen uses `useTableQuery` + `DataTable` server mode (sortable headers, page-size select, numbered pagination); page size 15 | 25 | 50 | 100 (default 15), page ≤ 1000 (deeper is 400), `totalCapped` shows "N+"; page, size, sort, search and filters live in the URL (any change but the page goes to page 1, Back undoes it). (`apps/web/src/lib/shared/contracts/common.ts`, `apps/web/src/lib/server/paginate.test.ts`, `apps/web/src/lib/shared/table-state.test.ts`, `architecture.test.ts` "every GET route that answers a list")
+- Status legends live in the card that shows the statuses: `Panel legend={…}` renders the "Status legend" info button in the card header; never a page-level, toolbar or inline legend. (`architecture.test.ts` "StatusLegend is rendered only by Panel", `packages/ui/src/ds/status-legend.test.ts`)
+- Every data region has five states (loading in the content's shape, empty saying when data appears, error with retry, stale notice over kept data, data); every async action shows pending on its trigger, announces its result (toast or `role=status`), keeps a recoverable error and returns focus sensibly. (`docs/standards/ui-standard.md` §3)
+- Destructive actions confirm through `ConfirmActionDialog` with their impact; an action blocked by a rule is a `BlockedButton` with the reason; everything works by keyboard with a visible focus ring; 404 and forbidden always offer a way back. (`docs/standards/ui-standard.md` §5, `docs/standards/copy-guide.md`)
+- One pattern per need in every module (`PageHeader`, server `DataTable`, `Field`, `ConfirmActionDialog`, `BlockedButton`, result toast, one data hook per feature); route handlers run parse → guard → rule → mutate → activity; UI words only from the copy-guide glossary; a new module copies an existing one. (spec "Konsisten", `architecture.test.ts` route checks)
 - Extend the standard and the `/ds` gallery before inventing a one-off component.
 
 ## 8. Motion
@@ -98,7 +104,9 @@ A change that touches routes, guards, redirects or exports needs a test for each
 - Animate `transform` and `opacity` only; `will-change` never in static CSS. Exceptions are listed in `design-system.md` §7.8 (R3, R9).
 - Honor `prefers-reduced-motion`: opacity only, no translate, scale, spring, stroke-draw, number tween or shimmer sweep. (`packages/ui/src/motion/reduced-motion.ts`, `globals-css.test.ts`)
 - Do not use `motion-safe:animate-pop` or `motion-safe:animate-swap`; the utility already has its reduced fade. (`architecture.test.ts`)
-- Features, `ds` and shell never write literal `duration-*`, `delay-*` or `0.2s`-style timings. (`architecture.test.ts`)
+- No literal duration, delay, easing or spring anywhere in `apps/web/src` or `packages/ui/src` (Tailwind `duration-150`, `{ duration: 0.2 }`, `ease: [`, `cubic-bezier(`, `stiffness:`, `200ms` in CSS) outside `packages/ui/src/motion/tokens.ts` and CSS custom-property definitions; use `duration-(--dur-*)`, `DUR`, `EASE`, `SPRING_*`, `barDelay`, `var(--stagger)`. (`architecture.test.ts` "motion timings come from tokens")
+- App motion is wired once: `(main)/layout.tsx` wraps the page slot in `MotionLayer` + `PageTransitionRoot`, `(main)/template.tsx` renders `PageTransition`; card grids and KPI trays stagger on first data reveal (`Stagger`/`StaggerItem`, `stagger-children`); numbers tween (`NumberTween`, `StatTile tween`); indicators use the shared indicator. The `/ds` Motion section is the inventory. (`apps/web/src/features/ds/motion-section.test.ts`)
+- No flicker: paging, sorting and filtering keep the previous rows on screen with a busy dim (`placeholderData`, `paging.busy`), never a skeleton; a refetch never replays an enter animation (only the new-row flash). (`apps/web/src/lib/client/use-table-query.ts`)
 - Exits are faster than enters. The Framer layer loads after idle, outside first-load JS. (`design-system.md` §7.8 R1)
 
 ## 9. Performance
@@ -118,7 +126,9 @@ A change that touches routes, guards, redirects or exports needs a test for each
 
 ## 11. Tests and definition of done
 
-- Write the failing test first for logic, guards and contracts; keep the test next to the module (`*.test.ts`).
+- Write the failing test first for logic, guards and contracts; keep the test next to the module (`*.test.ts`). A guard ships with fixtures that prove it fails on a violation.
+- While working, run only the related tests (`bunx vitest related <files>` or `bun run test:changed`); run the full `bun run check` when shared code changed and before the task's final commit, and always in final verification.
+- Playwright and other browser artifacts (screenshots, traces, logs) go under `.superpowers/scratch/` (gitignored), never outside the repo.
 - Done = `bun run check` passes + the related e2e passes + no banned word (§1) in `apps/**` and `packages/**`.
 - A new route, guard or redirect adds its §4 cases.
 - A new color, motion value or icon goes through tokens/`icons.ts` first, then the `/ds` gallery.
@@ -130,8 +140,8 @@ The API contract is the zod schemas in `apps/web/src/lib/shared/contracts/*`. A 
 - Error body: `{ "error": { "code": string, "message": string } }`.
 - Error codes (fixed): `unauthenticated` 401, `forbidden` 403, `csrf` 403, `not_found` 404, `bad_request` 400, `duplicate` 409, `rate_limited` 429, `invalid_credentials` 401, `account_inactive` 403, `invalid_code` 400, `superadmin_locked` 409, `last_superadmin` 409, `self_action` 409, `role_in_use` 409, `ldap_password` 409, `internal` 500.
 - Rate-limited responses (429) send `Retry-After` in seconds.
-- Paging query: `page` (≥ 1), `pageSize` (10, 25, 50 or 100; default 25), `q`, `sort` (`field` or `-field`).
-- Paging answer: `{ items: T[]; total: number; page: number; pageSize: number }`.
+- Paging query: `page` (1–1000; deeper is 400), `pageSize` (15, 25, 50 or 100; default 15), `q`, `sort` (`field` or `-field`, whitelisted per endpoint). Every list endpoint pages; none answers an unbounded array.
+- Paging answer: `{ items: T[]; total: number; page: number; pageSize: number; totalCapped?: boolean }` (`totalCapped` = the count stopped at `total`).
 - Bulk answer: `{ done: string[]; skipped: { id: string; code: string }[] }`; skipped rows carry a code, only `done` rows reach the activity log.
 - Every POST/PATCH/PUT/DELETE requires header `x-csrf-token`; the token lives in the session and the server hands it to the layout.
 - Permissions: `user.{view,create,edit,delete}`, `role.{view,create,edit,delete}`, `permission.{view,create}`, `audit.view`; catalog in `apps/web/src/lib/shared/permissions.ts`.

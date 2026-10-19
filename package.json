@@ -8,6 +8,7 @@
     "typecheck": "bun run --filter '*' typecheck",
     "lint": "eslint --max-warnings 0 .",
     "test": "bun run --filter '*' test",
+    "test:changed": "bun run --filter '*' test:changed",
     "check": "bun run typecheck && bun run lint && bun run test"
   },
   "devDependencies": {
