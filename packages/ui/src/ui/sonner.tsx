@@ -1,7 +1,7 @@
 "use client";
 
 import { useTheme } from "next-themes";
-import { Toaster as Sonner, type ToasterProps } from "sonner";
+import { Toaster as Sonner, toast, type ToasterProps } from "sonner";
 import { Icon } from "./icon";
 import { ErrorIcon, InfoIcon, SpinnerIcon, SuccessIcon, WarningIcon } from "./icons";
 
@@ -25,4 +25,4 @@ const Toaster = (props: ToasterProps) => {
   );
 };
 
-export { Toaster };
+export { Toaster, toast };

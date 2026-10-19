@@ -1,0 +1,55 @@
+import { randomBytes } from "node:crypto";
+import { type ErrorCode, ERROR_STATUS } from "@/lib/shared/contracts/common";
+import { apiError } from "./api";
+import { log } from "./logger";
+import { db, type UserRecord } from "./mock/db";
+import { hashToken } from "./mock/password";
+
+const INVITE_TTL_MS = 72 * 3600_000;
+
+/** Another user (not `exceptId`) that already has this username or email, compared case-insensitively. */
+export function duplicateOf(username: string | undefined, email: string | undefined, exceptId?: string): UserRecord | undefined {
+  const u = username?.toLowerCase();
+  const e = email?.toLowerCase();
+  return [...db().users.values()].find((o) => o.id !== exceptId && ((u && o.username.toLowerCase() === u) || (e && o.email.toLowerCase() === e)));
+}
+
+/** Every name in `roles` is an existing role. */
+export const rolesExist = (roles: readonly string[]): boolean => {
+  const names = new Set([...db().roles.values()].map((r) => r.name));
+  return roles.every((r) => names.has(r));
+};
+
+/** Sign the user out everywhere (deactivate, delete, password reset). */
+export function endSessions(userId: string): void {
+  for (const [id, s] of db().sessions) if (s.userId === userId) db().sessions.delete(id);
+}
+
+/** Set-password link for a new user: same store and hashing as forgot-password, valid 72 hours; the link goes to the log (mock email). */
+export function sendInvite(user: UserRecord): void {
+  const tokens = db().resetTokens;
+  const now = Date.now();
+  for (const [k, t] of tokens) if (t.expiresAt <= now || t.userId === user.id) tokens.delete(k);
+  const token = randomBytes(32).toString("base64url");
+  tokens.set(hashToken(token), { userId: user.id, expiresAt: now + INVITE_TTL_MS });
+  log.info({ userId: user.id, link: `/reset-password?token=${token}` }, "mock email: invitation link");
+}
+
+/** 18 random chars from an alphabet without look-alikes, plus one of each class so any password rule passes. */
+export function temporaryPassword(): string {
+  const pick = (set: string) => set[randomBytes(1)[0]! % set.length]!;
+  const all = "abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const chars = [pick("abcdefghijkmnpqrstuvwxyz"), pick("ABCDEFGHJKLMNPQRSTUVWXYZ"), pick("23456789"), pick("-_!#"), ...Array.from({ length: 14 }, () => pick(all))];
+  for (let i = chars.length - 1; i > 0; i--) { const j = randomBytes(1)[0]! % (i + 1); [chars[i], chars[j]] = [chars[j]!, chars[i]!]; }
+  return chars.join("");
+}
+
+export const notFound = () => apiError(404, "not_found", "This user doesn't exist or was deleted.");
+
+const PROTECTED: Partial<Record<ErrorCode, string>> = {
+  self_action: "You can't do this to your own account. Ask another administrator.",
+  last_superadmin: "This is the last active Superadmin. Make another user Superadmin first.",
+  ldap_password: "This user signs in with a directory password. Change it in your directory.",
+};
+/** The error response for a protection-rule code from rules.ts. */
+export const blocked = (code: ErrorCode) => apiError(ERROR_STATUS[code], code, PROTECTED[code] ?? "This change isn't allowed.");

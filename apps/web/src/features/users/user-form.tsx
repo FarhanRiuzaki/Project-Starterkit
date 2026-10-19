@@ -1,0 +1,131 @@
+"use client";
+
+import { useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
+import { type FormEvent, useState } from "react";
+import { Failure, Panel } from "@starterkit/ui/ds";
+import { Button } from "@starterkit/ui/ui/button";
+import { Icon } from "@starterkit/ui/ui/icon";
+import { SpinnerIcon, UsersIcon } from "@starterkit/ui/ui/icons";
+import { Input } from "@starterkit/ui/ui/input";
+import { Skeleton } from "@starterkit/ui/ui/skeleton";
+import { toast } from "@starterkit/ui/ui/sonner";
+import { api } from "@/lib/client/api";
+import { useAuth } from "@/lib/client/auth-context";
+import type { UserDto } from "@/lib/shared/contracts/users";
+import { USERS_KEY, errText, useRoleNames, useUserDetail } from "./use-users";
+
+const CHECK = "size-4 cursor-pointer accent-primary";
+
+function Field({ id, label, note, children }: { id: string; label: string; note?: string; children: React.ReactNode }) {
+  return (
+    <div className="grid gap-1.5">
+      <label htmlFor={id} className="text-label text-fg">{label}</label>
+      {children}
+      {note && <span className="text-caption text-fg-3">{note}</span>}
+    </div>
+  );
+}
+
+/** Create (no `user`) or edit one user. LDAP users have no password or invite; the LDAP choice is fixed after creation. */
+export function UserForm({ user }: { user?: UserDto }) {
+  const router = useRouter();
+  const qc = useQueryClient();
+  const { user: me } = useAuth();
+  const roleNames = useRoleNames();
+  const [name, setName] = useState(user?.name ?? "");
+  const [username, setUsername] = useState(user?.username ?? "");
+  const [email, setEmail] = useState(user?.email ?? "");
+  const [roles, setRoles] = useState<string[]>(user?.roles ?? ["Viewer"]);
+  const [isActive, setActive] = useState(user?.isActive ?? true);
+  const [isLdap, setLdap] = useState(user?.isLdap ?? false);
+  const [how, setHow] = useState<"password" | "invite">("password");
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const self = !!user && user.id === me.id;
+  const toggleRole = (r: string) => setRoles((cur) => (cur.includes(r) ? cur.filter((x) => x !== r) : [...cur, r]));
+
+  async function save(e: FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      let id = user?.id;
+      if (user) {
+        await api(`/api/users/${user.id}`, { method: "PATCH", body: JSON.stringify({ name: name.trim(), username: username.trim(), email: email.trim(), ...(self ? {} : { roles, isActive }) }) });
+        toast(`Saved ${name.trim()}.`);
+      } else {
+        const body = { name: name.trim(), username: username.trim(), email: email.trim(), roles, isActive, isLdap, ...(isLdap ? {} : how === "invite" ? { invite: true } : { password }) };
+        const created = await api<UserDto>("/api/users", { method: "POST", body: JSON.stringify(body) });
+        toast(`Created ${created.name}.`, { description: !isLdap && how === "invite" ? "The set-password link was written to the server log (mock email)." : undefined });
+        id = created.id;
+      }
+      await qc.invalidateQueries({ queryKey: USERS_KEY });
+      router.push(`/users/${id}`);
+    } catch (err) {
+      setError(errText(err));
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Panel icon={UsersIcon} title={user ? "Edit user" : "New user"} description={user ? "Name, sign-in names, roles and status" : "They sign in with the method you choose below"}>
+      <form onSubmit={save} className="grid max-w-md gap-4">
+        <Field id="u-name" label="Name"><Input id="u-name" value={name} maxLength={100} required onChange={(e) => setName(e.target.value)} autoComplete="off" /></Field>
+        <Field id="u-username" label="Username" note="3–32 characters: letters, numbers, dot, dash or underscore.">
+          <Input id="u-username" value={username} minLength={3} maxLength={32} pattern="[a-zA-Z0-9._\-]+" required onChange={(e) => setUsername(e.target.value)} autoComplete="off" className="font-mono" />
+        </Field>
+        <Field id="u-email" label="Email"><Input id="u-email" type="email" value={email} maxLength={254} required onChange={(e) => setEmail(e.target.value)} autoComplete="off" /></Field>
+        <fieldset className="grid gap-2">
+          <legend className="mb-1.5 text-label text-fg">Roles</legend>
+          {roleNames.isPending ? <Skeleton className="h-5 w-40" /> : roleNames.error ? <Failure title="Couldn't load roles" error={roleNames.error} source="Starterkit" onRetry={() => void roleNames.refetch()} /> : (
+            roleNames.data.map((r) => (
+              <label key={r} className="flex items-center gap-2 text-body text-fg">
+                <input type="checkbox" className={CHECK} checked={roles.includes(r)} disabled={self} onChange={() => toggleRole(r)} />{r}
+              </label>
+            ))
+          )}
+          {self && <span className="text-caption text-fg-3">You can&apos;t change your own roles. Ask another administrator.</span>}
+        </fieldset>
+        <label className="flex items-center gap-2 text-body text-fg">
+          <input type="checkbox" className={CHECK} checked={isActive} disabled={self} onChange={(e) => setActive(e.target.checked)} />Active
+          {self && <span className="text-caption text-fg-3">You can&apos;t deactivate your own account.</span>}
+        </label>
+        {!user && (
+          <>
+            <label className="flex items-start gap-2 text-body text-fg">
+              <input type="checkbox" className={`${CHECK} mt-0.5`} checked={isLdap} onChange={(e) => setLdap(e.target.checked)} aria-describedby="u-ldap-note" />
+              <span className="grid"><span>Directory user</span><span id="u-ldap-note" className="text-caption text-fg-3">Signs in with the directory password. No password or invitation is set here.</span></span>
+            </label>
+            {!isLdap && (
+              <fieldset className="grid gap-2">
+                <legend className="mb-1.5 text-label text-fg">First sign-in</legend>
+                <label className="flex items-center gap-2 text-body text-fg"><input type="radio" name="how" className={CHECK} checked={how === "password"} onChange={() => setHow("password")} />Set a password now</label>
+                <label className="flex items-center gap-2 text-body text-fg"><input type="radio" name="how" className={CHECK} checked={how === "invite"} onChange={() => setHow("invite")} />Send an invitation link (valid 72 hours)</label>
+                {how === "password" && (
+                  <Field id="u-password" label="Password" note="At least 12 characters.">
+                    <Input id="u-password" type="password" value={password} minLength={12} maxLength={128} required onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" />
+                  </Field>
+                )}
+              </fieldset>
+            )}
+          </>
+        )}
+        {error && <p role="alert" className="text-body-sm text-down-ink">{error}</p>}
+        <div className="flex items-center gap-3">
+          <Button type="submit" disabled={busy}>{busy && <Icon icon={SpinnerIcon} className="motion-safe:animate-spin" />}{user ? "Save user" : "Create user"}</Button>
+          <Button type="button" variant="ghost" onClick={() => router.back()} disabled={busy}>Cancel</Button>
+        </div>
+      </form>
+    </Panel>
+  );
+}
+
+/** Edit screen: loads the user, then shows the form (keyed so it starts from the loaded values). */
+export function EditUser({ id }: { id: string }) {
+  const q = useUserDetail(id);
+  if (q.error && !q.data) return <Panel><Failure title="Couldn't load this user" error={q.error} source="Starterkit" onRetry={() => void q.refetch()} /></Panel>;
+  if (!q.data) return <Panel><div className="grid max-w-md gap-4" aria-busy="true"><Skeleton className="h-8 w-full" /><Skeleton className="h-8 w-full" /><Skeleton className="h-8 w-full" /></div></Panel>;
+  return <UserForm key={q.data.id} user={q.data} />;
+}

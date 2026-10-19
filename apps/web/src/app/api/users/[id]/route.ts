@@ -1,0 +1,65 @@
+import { apiError, json, withPermission } from "@/lib/server/api";
+import { recordActivity } from "@/lib/server/audit";
+import { db, toUserDto } from "@/lib/server/mock/db";
+import { checkUserChange, effectivePermissions } from "@/lib/server/mock/rules";
+import { blocked, duplicateOf, endSessions, notFound, rolesExist } from "@/lib/server/users";
+import { UpdateUserBody, type UserDetailDto } from "@/lib/shared/contracts/users";
+
+type Ctx = { params: Promise<{ id: string }> };
+export async function GET(req: Request, { params }: Ctx): Promise<Response> {
+  const { id } = await params;
+  return withPermission(req, "user.view", async (ctx) => {
+    const u = db().users.get(id);
+    if (!u) return notFound();
+    const sessions = [...db().sessions.values()].filter((s) => s.userId === id)
+      .map((s) => ({ id: s.id, device: s.device, ip: s.ip, lastSeenAt: s.lastSeenAt, current: s.id === ctx.sid }));
+    const recentActivity = [...db().activity.values()].filter((a) => a.target.id === id)
+      .sort((a, b) => b.at.localeCompare(a.at)).slice(0, 20);
+    return json({ ...toUserDto(u), permissions: [...effectivePermissions(u, db().roles)], sessions, recentActivity } satisfies UserDetailDto);
+  });
+}
+
+export async function PATCH(req: Request, { params }: Ctx): Promise<Response> {
+  const { id } = await params;
+  const body = UpdateUserBody.safeParse(await req.json().catch(() => null));
+  return withPermission(req, "user.edit", async (ctx) => {
+    const u = db().users.get(id);
+    if (!u) return notFound();
+    if (!body.success) return apiError(400, "bad_request", "A request parameter has an unsupported value.");
+    const b = body.data;
+    if (b.roles && !rolesExist(b.roles)) return apiError(400, "bad_request", "One of the roles doesn't exist. Pick roles from the list.");
+    if (duplicateOf(b.username, b.email, id)) return apiError(409, "duplicate", "Another user already has this username or email. Use different ones.");
+    const roles = b.roles && [...new Set(b.roles)];
+    const rolesChange = roles && (roles.length !== u.roles.length || roles.some((r) => !u.roles.includes(r)));
+    const deactivate = b.isActive === false && u.isActive;
+    if (rolesChange) { const c = checkUserChange(ctx.user, u, { kind: "setRoles", roles }, db()); if (c) return blocked(c); }
+    if (deactivate) { const c = checkUserChange(ctx.user, u, { kind: "deactivate" }, db()); if (c) return blocked(c); }
+    const before = toUserDto(u);
+    if (b.name !== undefined) u.name = b.name;
+    if (b.username !== undefined) u.username = b.username;
+    if (b.email !== undefined) u.email = b.email;
+    if (b.isActive !== undefined) u.isActive = b.isActive;
+    if (roles) u.roles = roles;
+    if (deactivate) endSessions(id);
+    const after = toUserDto(u);
+    recordActivity(ctx, { action: "user.update", target: { type: "user", id, label: u.name }, before, after });
+    return json(after);
+  });
+}
+
+export async function DELETE(req: Request, { params }: Ctx): Promise<Response> {
+  const { id } = await params;
+  return withPermission(req, "user.delete", async (ctx) => {
+    const u = db().users.get(id);
+    if (!u) return notFound();
+    const c = checkUserChange(ctx.user, u, { kind: "delete" }, db());
+    if (c) return blocked(c);
+    const before = toUserDto(u);
+    db().users.delete(id);
+    db().ldapDirectory.delete(id);
+    endSessions(id);
+    for (const [k, t] of db().resetTokens) if (t.userId === id) db().resetTokens.delete(k);
+    recordActivity(ctx, { action: "user.delete", target: { type: "user", id, label: before.name }, before });
+    return json({ ok: true });
+  });
+}
