@@ -14,6 +14,7 @@ vi.mock("next/headers", () => ({
 import { db, resetDb } from "@/lib/server/mock/db";
 import { hashRecoveryCode } from "@/lib/server/mock/password";
 import { LDAP_PASSWORD, SEED_PASSWORD } from "@/lib/server/mock/seed";
+import { passwordFails, passwordKey } from "@/lib/server/ratelimit";
 import { SESSION_COOKIE } from "@/lib/server/session";
 import { totpCode } from "@/lib/server/totp";
 import { POST as loginPost } from "../auth/login/route";
@@ -51,6 +52,7 @@ const login = (pw: string) =>
 
 beforeEach(() => {
   resetDb();
+  for (const id of db().users.keys()) passwordFails.succeed(passwordKey(id));
   jar.clear();
 });
 
@@ -248,5 +250,36 @@ describe("/api/me/sessions", () => {
     expect((await del(other)).status).toBe(200);
     expect(db().sessions.has(other)).toBe(false);
     expect(acts().length).toBe(n + 1);
+  });
+});
+
+describe("password guess throttle", () => {
+  const wrong = () => call(password, "POST", { current: "Wrong-password-1", next: NEW_PW });
+
+  it("after 5 wrong current passwords the next attempt is 429, even with the right one, and 2FA-disable shares the budget", async () => {
+    const { user } = await signIn("twofa");
+    const rec = db().users.get(user.id)!;
+    for (let i = 0; i < 5; i++) expect((await wrong()).status).toBe(400);
+    const r = await call(password, "POST", { current: SEED_PASSWORD, next: NEW_PW });
+    expect(r.status).toBe(429);
+    expect(r.headers.get("retry-after")).toBeTruthy();
+    expect(await code(r)).toBe("rate_limited");
+    const d = await call(tfaDelete, "DELETE", { password: SEED_PASSWORD });
+    expect(d.status).toBe(429);
+    expect(rec.twoFactorEnabled).toBe(true);
+  });
+
+  it("wrong 2FA-disable passwords count toward the same budget", async () => {
+    await signIn("twofa");
+    for (let i = 0; i < 5; i++) expect((await call(tfaDelete, "DELETE", { password: "nope" })).status).toBe(400);
+    expect((await wrong()).status).toBe(429);
+  });
+
+  it("a successful change clears the failures", async () => {
+    await signIn("admin");
+    for (let i = 0; i < 4; i++) expect((await wrong()).status).toBe(400);
+    expect((await call(password, "POST", { current: SEED_PASSWORD, next: NEW_PW })).status).toBe(200);
+    for (let i = 0; i < 5; i++) expect((await call(password, "POST", { current: NEW_PW + "x", next: NEW_PW })).status).toBe(400);
+    expect((await wrong()).status).toBe(429);
   });
 });

@@ -108,6 +108,14 @@ export const loginLimits = (g.__skLoginLimits ??= {
   user: new Backoff(),
 });
 
+/**
+ * Failed current-password checks of the signed-in user (change password, turn off 2FA share one budget): 5 free
+ * failures, then soft backoff. Only failures count; a success clears it.
+ */
+const pw = globalThis as unknown as { __skPasswordFails?: Backoff };
+export const passwordFails = (pw.__skPasswordFails ??= new Backoff(5));
+export const passwordKey = (userId: string) => `me-pw:${userId}`;
+
 /** "Try again in 1 minute." / "in 8 seconds." */
 export function retryText(sec: number): string {
   if (sec >= 60) return `Too many attempts. Try again in ${Math.ceil(sec / 60)} ${Math.ceil(sec / 60) === 1 ? "minute" : "minutes"}.`;

@@ -1,9 +1,10 @@
 import { randomBytes } from "node:crypto";
-import { apiError, json, withPermission } from "@/lib/server/api";
+import { apiError, json, tooManyAttempts, withPermission } from "@/lib/server/api";
 import { recordActivity } from "@/lib/server/audit";
 import { secureEquals } from "@/lib/server/csrf";
 import { db, type UserRecord } from "@/lib/server/mock/db";
 import { hashRecoveryCode, verifyPassword } from "@/lib/server/mock/password";
+import { passwordFails, passwordKey, retryText } from "@/lib/server/ratelimit";
 import { matchTotpStep, newTotpSecret, otpauthUrl } from "@/lib/server/totp";
 import { BRAND } from "@/lib/shared/brand";
 import { DisableTwoFactorBody, TwoFactorEnableBody } from "@/lib/shared/contracts/me";
@@ -51,9 +52,15 @@ export async function DELETE(req: Request): Promise<Response> {
     if (!body.success) return bad();
     const u = ctx.user;
     if (!u.twoFactorEnabled) return apiError(400, "bad_request", "Two-factor authentication is already off.");
+    const wait = Math.ceil(passwordFails.retryAfterMs(passwordKey(u.id)) / 1000);
+    if (wait > 0) return tooManyAttempts(wait, retryText(wait)); // before verifying anything
     const dir = u.isLdap ? db().ldapDirectory.get(u.id) : undefined;
     const ok = u.isLdap ? dir !== undefined && secureEquals(body.data.password, dir) : !!u.passwordHash && verifyPassword(body.data.password, u.passwordHash);
-    if (!ok) return apiError(400, "invalid_credentials", "The password is wrong. Check it and try again.");
+    if (!ok) {
+      passwordFails.fail(passwordKey(u.id));
+      return apiError(400, "invalid_credentials", "The password is wrong. Check it and try again.");
+    }
+    passwordFails.succeed(passwordKey(u.id));
     Object.assign(u, { twoFactorEnabled: false, totpSecret: null, recoveryCodes: [] });
     delete u.pendingTotpSecret;
     recordActivity(ctx, { action: "me.2fa_disable", target: target(u) });
