@@ -55,7 +55,7 @@ export function RouteSkeleton({ sections }: { sections: readonly Section[] }) {
   const shown = useDelayedFlag(true);
   const hold = useHoldShape();
   const shownAt = useRef(0);
-  useEffect(() => { if (shown) shownAt.current = Date.now(); }, [shown]);
+  useEffect(() => { if (shown) shownAt.current = performance.now(); }, [shown]);
   // As the page replaces it (layout cleanup: before the browser paints the page), stay up for the rest of the minimum.
   useLayoutEffect(() => () => {
     if (shownAt.current) hold(<Shape sections={sections} shown />, shownAt.current + LOADING.minVisible * 1000);

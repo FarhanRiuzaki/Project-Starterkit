@@ -30,10 +30,10 @@ export function PageTransition({ children, className }: { children: ReactNode; c
   const swapping = useContext(Swapping);
   const [held, setHeld] = useState<{ shape: ReactNode; until: number } | null>(null);
   const [wasHeld, setWasHeld] = useState(false);
-  const hold = useCallback<Hold>((shape, until) => { if (until > Date.now()) { setHeld({ shape, until }); setWasHeld(true); } }, []);
+  const hold = useCallback<Hold>((shape, until) => { if (until > performance.now()) { setHeld({ shape, until }); setWasHeld(true); } }, []);
   useEffect(() => {
     if (!held) return;
-    const t = setTimeout(() => setHeld(null), held.until - Date.now());
+    const t = setTimeout(() => setHeld(null), held.until - performance.now());
     return () => clearTimeout(t);
   }, [held]);
   return (
