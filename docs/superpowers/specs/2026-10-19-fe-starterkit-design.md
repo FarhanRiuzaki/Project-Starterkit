@@ -135,8 +135,13 @@ Semua layar desktop-first mengikuti Bilik.
   Kredensial ditulis di README.
 - Aksi yang mengubah data menulis entri activity log; login/logout menulis auth log — supaya layar audit berisi jejak
   dari aksi yang baru dilakukan.
-- Saat backend ada: route handler mock diganti proxy ke `API_BASE_URL` (atau dihapus dan rewrite di `next.config`).
-  Mekanisme pastinya diputuskan di fase backend.
+- **Browser tidak pernah memanggil backend langsung** (keputusan pemilik 2026-10-19). Semua request dari browser
+  hanya ke `/api/*` di origin yang sama dan selalu lewat server Next (route handler/proxy). URL backend
+  (`API_BASE_URL`) hanya ada di env server — tidak boleh `NEXT_PUBLIC_*`, tidak boleh muncul di kode klien. CSP
+  `connect-src 'self'` sudah memblokir panggilan ke origin lain; tes arsitektur menolak `fetch` ke URL absolut dan env
+  `NEXT_PUBLIC_*` berisi URL API di kode klien.
+- Saat backend ada: route handler mock diganti route handler yang meneruskan request ke `API_BASE_URL` dari sisi
+  server (session/CSRF/permission tetap dicek di Next). Mekanisme pastinya diputuskan di fase backend.
 
 ## Aturan data (mengikuti RECON)
 
