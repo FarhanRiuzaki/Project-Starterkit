@@ -1,8 +1,8 @@
-import { apiError, json, withPermission } from "@/lib/server/api";
+import { badRequest, blocked, json, notFound, withPermission } from "@/lib/server/api";
 import { recordActivity } from "@/lib/server/audit";
 import { db, toUserDto } from "@/lib/server/mock/db";
 import { checkUserChange } from "@/lib/server/mock/rules";
-import { blocked, endSessions, notFound } from "@/lib/server/users";
+import { endSessions } from "@/lib/server/users";
 import { SetUserStatusBody } from "@/lib/shared/contracts/users";
 
 /** Activate or deactivate. Deactivating ends the user's sessions. */
@@ -11,8 +11,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const body = SetUserStatusBody.safeParse(await req.json().catch(() => null));
   return withPermission(req, "user.edit", async (ctx) => {
     const u = db().users.get(id);
-    if (!u) return notFound();
-    if (!body.success) return apiError(400, "bad_request", "A request parameter has an unsupported value.");
+    if (!u) return notFound("user");
+    if (!body.success) return badRequest();
     const { active } = body.data;
     if (!active) { const c = checkUserChange(ctx.user, u, { kind: "deactivate" }, db()); if (c) return blocked(c); }
     u.isActive = active;

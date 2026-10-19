@@ -1,8 +1,8 @@
-import { apiError, json, withPermission } from "@/lib/server/api";
+import { apiError, badRequest, blocked, json, notFound, withPermission } from "@/lib/server/api";
 import { recordActivity } from "@/lib/server/audit";
 import { db, toUserDto } from "@/lib/server/mock/db";
 import { checkUserChange, effectivePermissions } from "@/lib/server/mock/rules";
-import { blocked, dropTokens, duplicateOf, endSessions, notFound, roleGrantDenied, rolesExist } from "@/lib/server/users";
+import { dropTokens, duplicateOf, endSessions, roleGrantDenied, rolesExist } from "@/lib/server/users";
 import { UpdateUserBody, type UserDetailDto } from "@/lib/shared/contracts/users";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -10,7 +10,7 @@ export async function GET(req: Request, { params }: Ctx): Promise<Response> {
   const { id } = await params;
   return withPermission(req, "user.view", async (ctx) => {
     const u = db().users.get(id);
-    if (!u) return notFound();
+    if (!u) return notFound("user");
     const sessions = [...db().sessions.values()].filter((s) => s.userId === id)
       .map((s) => ({ id: s.id, device: s.device, ip: s.ip, lastSeenAt: s.lastSeenAt, current: s.id === ctx.sid }));
     // Audit history needs audit.view; the entries carry no before/after snapshots.
@@ -28,8 +28,8 @@ export async function PATCH(req: Request, { params }: Ctx): Promise<Response> {
   const body = UpdateUserBody.safeParse(await req.json().catch(() => null));
   return withPermission(req, "user.edit", async (ctx) => {
     const u = db().users.get(id);
-    if (!u) return notFound();
-    if (!body.success) return apiError(400, "bad_request", "A request parameter has an unsupported value.");
+    if (!u) return notFound("user");
+    if (!body.success) return badRequest();
     const b = body.data;
     if (b.roles && !rolesExist(b.roles)) return apiError(400, "bad_request", "One of the roles doesn't exist. Pick roles from the list.");
     if (duplicateOf(b.username, b.email, id)) return apiError(409, "duplicate", "Another user already has this username or email. Use different ones.");
@@ -59,7 +59,7 @@ export async function DELETE(req: Request, { params }: Ctx): Promise<Response> {
   const { id } = await params;
   return withPermission(req, "user.delete", async (ctx) => {
     const u = db().users.get(id);
-    if (!u) return notFound();
+    if (!u) return notFound("user");
     const c = checkUserChange(ctx.user, u, { kind: "delete" }, db());
     if (c) return blocked(c);
     const before = toUserDto(u);

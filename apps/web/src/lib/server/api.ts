@@ -17,9 +17,23 @@ export function apiError(status: number, code: ErrorCode, message: string): Resp
   return json({ error: { code, message } }, status);
 }
 
+/** 400 for a request value outside the contract (the zod schemas in lib/shared/contracts). */
+export const badRequest = () => apiError(400, "bad_request", "A request parameter has an unsupported value.");
+
+/** 404 for a record that doesn't exist; `noun` names it in the message ("user", "role"). */
+export const notFound = (noun: string) => apiError(404, "not_found", `This ${noun} doesn't exist or was deleted.`);
+
+const PROTECTED: Partial<Record<ErrorCode, string>> = {
+  self_action: "You can't do this to your own account. Ask another administrator.",
+  last_superadmin: "This is the last active Superadmin. Make another user Superadmin first.",
+  ldap_password: "This user signs in with a directory password. Change it in your directory.",
+};
+/** The error response for a protection-rule code from rules.ts. */
+export const blocked = (code: ErrorCode) => apiError(ERROR_STATUS[code], code, PROTECTED[code] ?? "This change isn't allowed.");
+
 /** Validation error → 400; anything else → a fixed 500 message, detail to the log only. */
 export function handleError(e: unknown): Response {
-  if (e instanceof $ZodError) return apiError(400, "bad_request", "A request parameter has an unsupported value.");
+  if (e instanceof $ZodError) return badRequest();
   log.error({ err: e instanceof Error ? { name: e.name, message: e.message } : String(e) }, "api error");
   return apiError(ERROR_STATUS.internal, "internal", "The server hit an unexpected error. Try again; if it continues, contact your administrator.");
 }

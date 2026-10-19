@@ -13,6 +13,9 @@ export type PermissionName =
   | "permission.view" | "permission.create"
   | "audit.view";
 
+/** UI label of a module key or an action: "user" → "User", "view" → "View". */
+export const permissionLabel = (part: string): string => part.charAt(0).toUpperCase() + part.slice(1);
+
 export const PERMISSIONS: readonly PermissionName[] = MODULES.flatMap((m) =>
   m.actions.map((a) => `${m.key}.${a}` as PermissionName),
 );

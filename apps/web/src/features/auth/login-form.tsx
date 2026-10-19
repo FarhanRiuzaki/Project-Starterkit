@@ -8,9 +8,9 @@ import { Button, buttonVariants } from "@starterkit/ui/ui/button";
 import { Icon } from "@starterkit/ui/ui/icon";
 import { SecureIcon, SpinnerIcon } from "@starterkit/ui/ui/icons";
 import { Input } from "@starterkit/ui/ui/input";
-import { api } from "@/lib/client/api";
+import { api, errorText } from "@/lib/client/api";
 import type { LoginResult } from "@/lib/shared/contracts/auth";
-import { AuthCard, errorText, FormError } from "./auth-card";
+import { AuthCard, FormError } from "./auth-card";
 
 type Method = "password" | "ldap";
 const METHODS = [{ value: "password", label: "Password" }, { value: "ldap", label: "LDAP" }] as const;

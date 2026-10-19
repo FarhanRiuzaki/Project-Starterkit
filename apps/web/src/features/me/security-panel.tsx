@@ -8,15 +8,13 @@ import { Icon } from "@starterkit/ui/ui/icon";
 import { KeyIcon, SecureIcon, SpinnerIcon } from "@starterkit/ui/ui/icons";
 import { Input } from "@starterkit/ui/ui/input";
 import { Skeleton } from "@starterkit/ui/ui/skeleton";
-import { ApiError, api } from "@/lib/client/api";
+import { api, errorText } from "@/lib/client/api";
 import type { TwoFactorSetupDto } from "@/lib/shared/contracts/me";
 import type { UserDto } from "@/lib/shared/contracts/users";
 import { ConnectionsCard } from "./connections-card";
 import { TwoFactorSetup } from "./two-factor-setup";
 import { ME_KEY, useMe } from "./use-me";
 
-const NETWORK = "The server can't be reached. Check your connection, then try again.";
-const errText = (e: unknown) => (e instanceof ApiError ? e.message : NETWORK);
 
 /** Password, two-factor authentication and connected accounts of the signed-in user. */
 export function SecurityPanel() {
@@ -55,7 +53,7 @@ function PasswordCard({ user }: { user: UserDto }) {
       setCurrent(""); setNext(""); setAgain("");
       setMsg({ ok: true, text: "Password changed. Your other sessions were signed out." });
     } catch (err) {
-      setMsg({ ok: false, text: errText(err) });
+      setMsg({ ok: false, text: errorText(err) });
     } finally {
       setBusy(false);
     }
@@ -105,7 +103,7 @@ function TwoFactorCard({ user }: { user: UserDto }) {
     setStarting(true);
     setError(null);
     try { setSetup(await api<TwoFactorSetupDto>("/api/me/2fa", { method: "POST" })); }
-    catch (e) { setError(errText(e)); }
+    catch (e) { setError(errorText(e)); }
     finally { setStarting(false); }
   }
 

@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Icon } from "@starterkit/ui/ui/icon";
 import { SpinnerIcon } from "@starterkit/ui/ui/icons";
 import { Input } from "@starterkit/ui/ui/input";
-import { ApiError, api } from "@/lib/client/api";
+import { ApiError, api, errorText } from "@/lib/client/api";
 import type { RecoveryCodesDto, TwoFactorSetupDto } from "@/lib/shared/contracts/me";
 
 /** Step 2 of turning on two-factor authentication: scan the QR code, enter the first code. The secret lives in state only. */
@@ -27,7 +27,7 @@ export function TwoFactorSetup({ setup, onCancel, onDone }: {
       onDone(r.recoveryCodes);
     } catch (err) {
       if (err instanceof ApiError && err.code === "invalid_code") setCode("");
-      setError(err instanceof ApiError ? err.message : "The server can't be reached. Check your connection, then try again.");
+      setError(errorText(err));
       setBusy(false);
     }
   }

@@ -1,7 +1,6 @@
-import { apiError, json, withPermission } from "@/lib/server/api";
+import { apiError, blocked, json, withPermission } from "@/lib/server/api";
 import { recordActivity } from "@/lib/server/audit";
 import { db } from "@/lib/server/mock/db";
-import { blocked } from "@/lib/server/users";
 
 /** End one session of another user. A session that isn't theirs answers like an unknown one. */
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string; sid: string }> }): Promise<Response> {

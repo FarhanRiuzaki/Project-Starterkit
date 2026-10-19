@@ -7,8 +7,8 @@ import { Button } from "@starterkit/ui/ui/button";
 import { Icon } from "@starterkit/ui/ui/icon";
 import { SpinnerIcon } from "@starterkit/ui/ui/icons";
 import { Input } from "@starterkit/ui/ui/input";
-import { api } from "@/lib/client/api";
-import { AuthCard, errorText, FormError } from "./auth-card";
+import { api, errorText } from "@/lib/client/api";
+import { AuthCard, FormError } from "./auth-card";
 
 const MIN = 12; // contracts/auth.ts Password (zod stays out of client code)
 

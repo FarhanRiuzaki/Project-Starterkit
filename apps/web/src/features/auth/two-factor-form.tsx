@@ -6,8 +6,8 @@ import { Button } from "@starterkit/ui/ui/button";
 import { Icon } from "@starterkit/ui/ui/icon";
 import { SpinnerIcon } from "@starterkit/ui/ui/icons";
 import { Input } from "@starterkit/ui/ui/input";
-import { ApiError, api } from "@/lib/client/api";
-import { AuthCard, errorText, FormError } from "./auth-card";
+import { ApiError, api, errorText } from "@/lib/client/api";
+import { AuthCard, FormError } from "./auth-card";
 
 type Mode = "totp" | "recovery";
 

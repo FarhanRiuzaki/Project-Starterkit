@@ -1,5 +1,5 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { ApiError, api } from "@/lib/client/api";
+import { api } from "@/lib/client/api";
 import type { Page } from "@/lib/shared/contracts/common";
 import type { UserDetailDto, UserDto } from "@/lib/shared/contracts/users";
 
@@ -39,8 +39,6 @@ export const SKIP_REASON: Record<string, string> = {
   not_found: "no longer exists",
   ldap_password: "directory user",
 };
-
-export const errText = (e: unknown): string => (e instanceof ApiError ? e.message : "The server can't be reached. Check your connection, then try again.");
 
 /** Reason a user can't be deactivated or deleted, or null. `lastSuperId` from useLastSuperadminId. */
 export function protection(u: UserDto, meId: string, lastSuperId: string | null): string | null {

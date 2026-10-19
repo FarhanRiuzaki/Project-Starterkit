@@ -3,29 +3,19 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useState } from "react";
-import { Failure, Panel } from "@starterkit/ui/ds";
+import { Failure, Field, Panel } from "@starterkit/ui/ds";
 import { Button } from "@starterkit/ui/ui/button";
 import { Icon } from "@starterkit/ui/ui/icon";
 import { SpinnerIcon, UsersIcon } from "@starterkit/ui/ui/icons";
 import { Input } from "@starterkit/ui/ui/input";
 import { Skeleton } from "@starterkit/ui/ui/skeleton";
 import { toast } from "@starterkit/ui/ui/sonner";
-import { api } from "@/lib/client/api";
+import { api, errorText } from "@/lib/client/api";
 import { useAuth } from "@/lib/client/auth-context";
 import type { UserDto } from "@/lib/shared/contracts/users";
-import { USERS_KEY, errText, useRoleNames, useUserDetail } from "./use-users";
+import { USERS_KEY, useRoleNames, useUserDetail } from "./use-users";
 
 const CHECK = "size-4 cursor-pointer accent-primary";
-
-function Field({ id, label, note, children }: { id: string; label: string; note?: string; children: React.ReactNode }) {
-  return (
-    <div className="grid gap-1.5">
-      <label htmlFor={id} className="text-label text-fg">{label}</label>
-      {children}
-      {note && <span className="text-caption text-fg-3">{note}</span>}
-    </div>
-  );
-}
 
 /** Create (no `user`) or edit one user. LDAP users have no password or invite; the LDAP choice is fixed after creation. */
 export function UserForm({ user }: { user?: UserDto }) {
@@ -64,7 +54,7 @@ export function UserForm({ user }: { user?: UserDto }) {
       await qc.invalidateQueries({ queryKey: USERS_KEY });
       router.push(`/users/${id}`);
     } catch (err) {
-      setError(errText(err));
+      setError(errorText(err));
       setBusy(false);
     }
   }

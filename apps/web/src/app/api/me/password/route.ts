@@ -1,4 +1,4 @@
-import { apiError, json, tooManyAttempts, withPermission } from "@/lib/server/api";
+import { apiError, badRequest, json, tooManyAttempts, withPermission } from "@/lib/server/api";
 import { recordActivity } from "@/lib/server/audit";
 import { db } from "@/lib/server/mock/db";
 import { hashPassword, verifyPassword } from "@/lib/server/mock/password";
@@ -10,7 +10,7 @@ import { ChangePasswordBody } from "@/lib/shared/contracts/me";
 export async function POST(req: Request): Promise<Response> {
   const body = ChangePasswordBody.safeParse(await req.json().catch(() => null));
   return withPermission(req, null, async (ctx) => {
-    if (!body.success) return apiError(400, "bad_request", "A request parameter has an unsupported value.");
+    if (!body.success) return badRequest();
     const u = ctx.user;
     if (checkPasswordOp(u)) return apiError(409, "ldap_password", "This account signs in with the directory password. Change it in your directory.");
     const wait = Math.ceil(passwordFails.retryAfterMs(passwordKey(u.id)) / 1000);

@@ -1,10 +1,10 @@
 "use client";
 
 import { type ComponentProps, useId } from "react";
-import { Button } from "@starterkit/ui/ui/button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@starterkit/ui/ui/tooltip";
+import { Button } from "../ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 
-/** A button that is off because a protection rule blocks it: it stays focusable (aria-disabled), does nothing, and the reason is its description and tooltip. */
+/** A button that is off because a rule or a missing permission blocks it: it stays focusable (aria-disabled), does nothing, and the reason is its description and tooltip. */
 export function BlockedButton({ reason, children, onClick, ...props }: ComponentProps<typeof Button> & { reason: string | null }) {
   const id = useId();
   if (!reason) return <Button onClick={onClick} {...props}>{children}</Button>;

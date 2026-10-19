@@ -2,7 +2,7 @@
 
 import { BarChart, CHART_HEIGHT, HBarChart, Heatmap } from "@starterkit/ui/charts";
 import {
-  ActionMenu, Avatar, AvatarStack, CategoryChip, ConfirmActionDialog, CountBadge, DataTable, EmptyState, ErrorState, FilterChip, FilterMenu,
+  ActionMenu, Avatar, AvatarStack, BlockedButton, CategoryChip, ConfirmActionDialog, CountBadge, DataTable, EmptyState, ErrorState, Field, FilterChip, FilterMenu,
   Kbd, LazyMount, Meter, Panel, QueryInput, SecretOnceDialog, Segmented, Spec, StatusChip, StatusLegend, TickMeter, Toolbar, Truncate,
   type Column,
 } from "@starterkit/ui/ds";
@@ -100,7 +100,7 @@ export function GallerySections() {
               <Button size="sm" variant="secondary">Compact 28</Button><Button size="icon" variant="secondary" aria-label="Refresh now"><Icon icon={RefreshIcon} /></Button>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
-              <div className="grid gap-1.5"><label htmlFor="ds-email" className="text-label text-fg-2">Email</label><Input id="ds-email" defaultValue="alex@example.com" className="font-mono" /><span className="text-body-sm text-fg-3">Used to sign in and to reset the password.</span></div>
+              <Field id="ds-email" label="Email" note="Used to sign in and to reset the password."><Input id="ds-email" defaultValue="alex@example.com" className="font-mono" aria-describedby="ds-email-note" /></Field>
               <div className="grid gap-1.5"><label htmlFor="ds-otp" className="text-label text-fg-2">One-time code</label><Input id="ds-otp" defaultValue="12a4" aria-invalid="true" aria-describedby="ds-otp-e" /><span id="ds-otp-e" className="text-body-sm text-down-ink">Enter the 6-digit code from your authenticator app.</span></div>
             </div>
           </div>
@@ -151,6 +151,7 @@ export function GallerySections() {
                 <TooltipContent>Inverse tooltip: radius 8, 13 px text, at most 280 px wide.</TooltipContent>
               </Tooltip>
               <Button variant="secondary" onClick={() => setDialog(true)}>Delete user</Button>
+              <BlockedButton variant="secondary" reason="This is the last active Superadmin. Make another user Superadmin first.">Deactivate user</BlockedButton>
               <Button variant="secondary" onClick={() => setSecret(true)}>Show one-time secret</Button>
               <span className="inline-flex items-center gap-1.5 text-body-sm text-fg-3">Open the palette <Kbd keys={["⌘K"]} /></span>
             </div>

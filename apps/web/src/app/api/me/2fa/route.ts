@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { apiError, json, tooManyAttempts, withPermission } from "@/lib/server/api";
+import { apiError, badRequest, json, tooManyAttempts, withPermission } from "@/lib/server/api";
 import { recordActivity } from "@/lib/server/audit";
 import { secureEquals } from "@/lib/server/csrf";
 import { db, type UserRecord } from "@/lib/server/mock/db";
@@ -9,7 +9,6 @@ import { matchTotpStep, newTotpSecret, otpauthUrl } from "@/lib/server/totp";
 import { BRAND } from "@/lib/shared/brand";
 import { DisableTwoFactorBody, TwoFactorEnableBody } from "@/lib/shared/contracts/me";
 
-const bad = () => apiError(400, "bad_request", "A request parameter has an unsupported value.");
 const target = (u: UserRecord) => ({ type: "user", id: u.id, label: u.name });
 
 /** `xxxx-xxxx`, 8 hex characters from the CSPRNG (the format the sign-in step accepts). */
@@ -30,7 +29,7 @@ export async function POST(req: Request): Promise<Response> {
 export async function PUT(req: Request): Promise<Response> {
   const body = TwoFactorEnableBody.safeParse(await req.json().catch(() => null));
   return withPermission(req, null, async (ctx) => {
-    if (!body.success) return bad();
+    if (!body.success) return badRequest();
     const u = ctx.user;
     if (!u.pendingTotpSecret) return apiError(400, "bad_request", "Start the setup first, then enter a code from your authenticator app.");
     const step = matchTotpStep(u.pendingTotpSecret, body.data.code);
@@ -49,7 +48,7 @@ export async function PUT(req: Request): Promise<Response> {
 export async function DELETE(req: Request): Promise<Response> {
   const body = DisableTwoFactorBody.safeParse(await req.json().catch(() => null));
   return withPermission(req, null, async (ctx) => {
-    if (!body.success) return bad();
+    if (!body.success) return badRequest();
     const u = ctx.user;
     if (!u.twoFactorEnabled) return apiError(400, "bad_request", "Two-factor authentication is already off.");
     const wait = Math.ceil(passwordFails.retryAfterMs(passwordKey(u.id)) / 1000);

@@ -7,8 +7,8 @@ import { Button } from "@starterkit/ui/ui/button";
 import { Icon } from "@starterkit/ui/ui/icon";
 import { SpinnerIcon } from "@starterkit/ui/ui/icons";
 import { Input } from "@starterkit/ui/ui/input";
-import { api } from "@/lib/client/api";
-import { AuthCard, errorText, FormError } from "./auth-card";
+import { api, errorText } from "@/lib/client/api";
+import { AuthCard, FormError } from "./auth-card";
 
 /** Request a reset link. The answer is the same for every email, so the page never says whether an account exists. */
 export function ForgotForm() {

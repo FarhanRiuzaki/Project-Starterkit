@@ -4,19 +4,18 @@ import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
-import { ActionMenu, ConfirmActionDialog, type DataTablePaging, DataTable, FilterMenu, Notice, Panel, QueryInput, StatusLegend, Toolbar } from "@starterkit/ui/ds";
+import { ActionMenu, BlockedButton, ConfirmActionDialog, type DataTablePaging, DataTable, FilterMenu, Notice, Panel, QueryInput, StatusLegend, Toolbar } from "@starterkit/ui/ds";
 import { HEALTH } from "@starterkit/ui/lib/status";
 import { Button } from "@starterkit/ui/ui/button";
 import { UsersIcon } from "@starterkit/ui/ui/icons";
 import { toast } from "@starterkit/ui/ui/sonner";
 import { PageHeader } from "@/components/shell/page-header";
-import { api } from "@/lib/client/api";
+import { api, errorText } from "@/lib/client/api";
 import { useAuth } from "@/lib/client/auth-context";
 import type { BulkResult } from "@/lib/shared/contracts/common";
 import type { UserDto } from "@/lib/shared/contracts/users";
-import { BlockedButton } from "./blocked-button";
 import { userColumns } from "./user-columns";
-import { SKIP_REASON, USERS_KEY, type UserFilters, errText, protection, useLastSuperadminId, useRoleNames, useUserList } from "./use-users";
+import { SKIP_REASON, USERS_KEY, type UserFilters, protection, useLastSuperadminId, useRoleNames, useUserList } from "./use-users";
 
 const SORTS = [
   { value: "name", label: "Name A–Z" }, { value: "-name", label: "Name Z–A" }, { value: "email", label: "Email A–Z" },
@@ -102,7 +101,7 @@ export function UsersPage() {
       await api(`/api/users/${u.id}/status`, { method: "POST", body: JSON.stringify({ active: true }) });
       toast(`Activated ${u.name}.`);
       await refresh();
-    } catch (e) { toast.error(errText(e)); }
+    } catch (e) { toast.error(errorText(e)); }
   }
 
   const paging: DataTablePaging = { mode: "infinite", hasMore: !!list.hasNextPage, loadingMore: list.isFetchingNextPage, onLoadMore: () => void list.fetchNextPage(), total, error: list.isFetchNextPageError };
@@ -148,7 +147,7 @@ export function UsersPage() {
         )}
         <DataTable label="Users" rowHeight="identity" columns={columns} rows={rows} rowKey={(u) => u.id} loading={list.isPending}
           isSelected={(u) => selected.has(u.id)} paging={paging}
-          error={list.error && !list.data ? { title: "Couldn't load users", cause: errText(list.error), onRetry: () => void list.refetch() } : null}
+          error={list.error && !list.data ? { title: "Couldn't load users", cause: errorText(list.error), onRetry: () => void list.refetch() } : null}
           empty={filtered
             ? { icon: UsersIcon, title: "No users match", description: "Change the search or filters, or clear them to see every user." }
             : { icon: UsersIcon, title: "No users yet", description: "Users appear here after you create them." }}

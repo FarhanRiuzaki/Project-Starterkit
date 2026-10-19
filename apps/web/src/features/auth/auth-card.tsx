@@ -2,7 +2,6 @@ import type { ReactNode } from "react";
 import { Brand, Panel } from "@starterkit/ui/ds";
 import { Icon } from "@starterkit/ui/ui/icon";
 import { FailedIcon } from "@starterkit/ui/ui/icons";
-import { ApiError } from "@/lib/client/api";
 
 /** The sign-in card (design system §5.4 flat variant): brand, title, one-line description, then the step. */
 export function AuthCard({ title, description, children }: { title: string; description?: ReactNode; children: ReactNode }) {
@@ -28,9 +27,4 @@ export function FormError({ id, message }: { id: string; message: string }) {
       <p className="min-w-0 break-words">{message}</p>
     </div>
   );
-}
-
-/** The server's message for an API error (it is written as UI copy, 429 included); a fixed line when unreachable. */
-export function errorText(e: unknown): string {
-  return e instanceof ApiError ? e.message : "The server can't be reached. Check your connection, then try again.";
 }

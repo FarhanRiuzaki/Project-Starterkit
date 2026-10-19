@@ -1,16 +1,15 @@
-import { apiError, json, withPermission } from "@/lib/server/api";
+import { apiError, badRequest, json, withPermission } from "@/lib/server/api";
 import { recordActivity } from "@/lib/server/audit";
 import { toUserDto } from "@/lib/server/mock/db";
 import { ConnectionProvider } from "@/lib/shared/contracts/me";
 
 type Ctx = { params: Promise<{ provider: string }> };
-const bad = () => apiError(400, "bad_request", "A request parameter has an unsupported value.");
 
 /** Mock: no provider round trip, the link is just recorded on the user. */
 export async function POST(req: Request, { params }: Ctx): Promise<Response> {
   const provider = ConnectionProvider.safeParse((await params).provider);
   return withPermission(req, null, async (ctx) => {
-    if (!provider.success) return bad();
+    if (!provider.success) return badRequest();
     const u = ctx.user;
     if (!u.connected.includes(provider.data)) u.connected = [...u.connected, provider.data];
     recordActivity(ctx, { action: "me.connect", target: { type: "user", id: u.id, label: u.name }, after: { provider: provider.data } });
@@ -22,7 +21,7 @@ export async function POST(req: Request, { params }: Ctx): Promise<Response> {
 export async function DELETE(req: Request, { params }: Ctx): Promise<Response> {
   const provider = ConnectionProvider.safeParse((await params).provider);
   return withPermission(req, null, async (ctx) => {
-    if (!provider.success) return bad();
+    if (!provider.success) return badRequest();
     const u = ctx.user;
     const rest = u.connected.filter((x) => x !== provider.data);
     if (!u.passwordHash && !u.isLdap && rest.length === 0) {

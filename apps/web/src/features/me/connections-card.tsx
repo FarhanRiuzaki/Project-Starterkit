@@ -5,7 +5,7 @@ import { useState } from "react";
 import { ConfirmActionDialog, Panel } from "@starterkit/ui/ds";
 import { Button } from "@starterkit/ui/ui/button";
 import { InternetIcon } from "@starterkit/ui/ui/icons";
-import { ApiError, api } from "@/lib/client/api";
+import { api, errorText } from "@/lib/client/api";
 import type { ConnectionProvider } from "@/lib/shared/contracts/me";
 import type { UserDto } from "@/lib/shared/contracts/users";
 import { ME_KEY } from "./use-me";
@@ -27,7 +27,7 @@ export function ConnectionsCard({ user }: { user: UserDto }) {
     setBusy(p);
     setError(null);
     try { await run(p, "POST"); }
-    catch (e) { setError(e instanceof ApiError ? e.message : "The server can't be reached. Check your connection, then try again."); }
+    catch (e) { setError(errorText(e)); }
     finally { setBusy(null); }
   }
   const label = PROVIDERS.find((p) => p.id === leaving)?.label ?? "";

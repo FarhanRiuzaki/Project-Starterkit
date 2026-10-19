@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { apiError, handleError, json, withPermission } from "@/lib/server/api";
+import { apiError, badRequest, handleError, json, withPermission } from "@/lib/server/api";
 import { recordActivity } from "@/lib/server/audit";
 import { type UserRecord, db, toUserDto } from "@/lib/server/mock/db";
 import { hashPassword } from "@/lib/server/mock/password";
@@ -35,7 +35,7 @@ export async function GET(req: Request): Promise<Response> {
 export async function POST(req: Request): Promise<Response> {
   const body = CreateUserBody.safeParse(await req.json().catch(() => null));
   return withPermission(req, "user.create", async (ctx) => {
-    if (!body.success) return apiError(400, "bad_request", "A request parameter has an unsupported value.");
+    if (!body.success) return badRequest();
     const b = body.data;
     if (!rolesExist(b.roles)) return apiError(400, "bad_request", "One of the roles doesn't exist. Pick roles from the list.");
     const denied = roleGrantDenied(ctx.perms, b.roles);

@@ -4,22 +4,21 @@ import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { ConfirmActionDialog, type Column, DataTable, Failure, Facts, Notice, Panel, RelativeTime, SecretOnceDialog } from "@starterkit/ui/ds";
+import { BlockedButton, ConfirmActionDialog, type Column, DataTable, Failure, Facts, Notice, Panel, RelativeTime, SecretOnceDialog } from "@starterkit/ui/ds";
 import { Button } from "@starterkit/ui/ui/button";
 import { ActivityIcon, KeyIcon, LogIcon, SecureIcon, SessionsIcon, UsersIcon } from "@starterkit/ui/ui/icons";
 import { Skeleton } from "@starterkit/ui/ui/skeleton";
 import { toast } from "@starterkit/ui/ui/sonner";
+import { RoleChips } from "@/components/role-chips";
 import { PageHeader } from "@/components/shell/page-header";
-import { api } from "@/lib/client/api";
+import { api, errorText } from "@/lib/client/api";
 import { useAuth } from "@/lib/client/auth-context";
 import type { SessionDto } from "@/lib/shared/contracts/me";
 import type { ActivityBrief } from "@/lib/shared/contracts/users";
-import { MODULES } from "@/lib/shared/permissions";
-import { BlockedButton } from "./blocked-button";
-import { RoleChips, UserStatusChip } from "./user-columns";
-import { USERS_KEY, errText, protection, useLastSuperadminId, useUserDetail } from "./use-users";
+import { MODULES, permissionLabel } from "@/lib/shared/permissions";
+import { UserStatusChip } from "./user-columns";
+import { USERS_KEY, protection, useLastSuperadminId, useUserDetail } from "./use-users";
 
-const cap = (s: string) => s[0]!.toUpperCase() + s.slice(1);
 const PROVIDER = { google: "Google", apple: "Apple" } as const;
 
 const SESSION_COLUMNS: Column<SessionDto>[] = [
@@ -67,7 +66,7 @@ export function UserDetail({ id }: { id: string }) {
           {can("user.edit") && <BlockedButton variant="secondary" reason={resetBlock} onClick={() => setDialog("reset")}>Reset password</BlockedButton>}
           {can("user.edit") && (u.isActive
             ? <BlockedButton variant="secondary" reason={block} onClick={() => setDialog("deactivate")}>Deactivate user</BlockedButton>
-            : <Button variant="secondary" onClick={() => void setActive(true).catch((e) => toast.error(errText(e)))}>Activate user</Button>)}
+            : <Button variant="secondary" onClick={() => void setActive(true).catch((e) => toast.error(errorText(e)))}>Activate user</Button>)}
           {can("user.delete") && <BlockedButton variant="destructive" reason={block} onClick={() => setDialog("delete")}>Delete user</BlockedButton>}
         </>} />
       {q.error && <Notice tone="warn" live>Couldn&apos;t refresh this user; showing the last loaded details.</Notice>}
@@ -92,8 +91,8 @@ export function UserDetail({ id }: { id: string }) {
               const have = m.actions.filter((a) => granted.has(`${m.key}.${a}`));
               return (
                 <div key={m.key} className="flex items-baseline gap-3 border-b border-line pb-2 last:border-b-0 last:pb-0">
-                  <dt className="w-28 shrink-0 text-label text-fg">{cap(m.key)}</dt>
-                  <dd className="text-body-sm text-fg-2">{have.length ? have.map(cap).join(", ") : "No access"}</dd>
+                  <dt className="w-28 shrink-0 text-label text-fg">{permissionLabel(m.key)}</dt>
+                  <dd className="text-body-sm text-fg-2">{have.length ? have.map(permissionLabel).join(", ") : "No access"}</dd>
                 </div>
               );
             })}

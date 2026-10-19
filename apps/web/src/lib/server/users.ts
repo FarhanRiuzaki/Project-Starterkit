@@ -1,5 +1,4 @@
 import { randomBytes, randomInt } from "node:crypto";
-import { type ErrorCode, ERROR_STATUS } from "@/lib/shared/contracts/common";
 import { apiError } from "./api";
 import { log } from "./logger";
 import { db, type UserRecord } from "./mock/db";
@@ -58,13 +57,3 @@ export function temporaryPassword(): string {
 export function dropTokens(userId: string): void {
   for (const [k, t] of db().resetTokens) if (t.userId === userId) db().resetTokens.delete(k);
 }
-
-export const notFound = () => apiError(404, "not_found", "This user doesn't exist or was deleted.");
-
-const PROTECTED: Partial<Record<ErrorCode, string>> = {
-  self_action: "You can't do this to your own account. Ask another administrator.",
-  last_superadmin: "This is the last active Superadmin. Make another user Superadmin first.",
-  ldap_password: "This user signs in with a directory password. Change it in your directory.",
-};
-/** The error response for a protection-rule code from rules.ts. */
-export const blocked = (code: ErrorCode) => apiError(ERROR_STATUS[code], code, PROTECTED[code] ?? "This change isn't allowed.");

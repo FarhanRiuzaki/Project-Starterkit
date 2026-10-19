@@ -8,6 +8,11 @@ export class ApiError extends Error {
   }
 }
 
+/** The server's message for an API error (it is written as UI copy, 429 included); a fixed line when unreachable. */
+export function errorText(e: unknown): string {
+  return e instanceof ApiError ? e.message : "The server can't be reached. Check your connection, then try again.";
+}
+
 let csrfToken: string | null = null;
 
 /** The signed-in layout hands the session's CSRF token here; every mutation then sends it as `x-csrf-token`. */
