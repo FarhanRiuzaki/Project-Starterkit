@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { sealData } from "iron-session";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
@@ -15,20 +14,14 @@ vi.mock("next/headers", () => ({
 }));
 
 import { db, resetDb } from "./mock/db";
+import { signInAs, TEST_CSRF } from "@/test/session";
 import { apiError, clientIp, handleError, json, tooManyAttempts, withPermission } from "./api";
 import { SESSION_COOKIE, sessionOptions } from "./session";
 
-const CSRF = "c".repeat(43);
+const CSRF = TEST_CSRF;
 
 /** A signed-in browser: a store session for `username` plus the sealed cookie that points at it. */
-async function signIn(username: string, cookie: Record<string, unknown> = {}) {
-  const user = [...db().users.values()].find((u) => u.username === username)!;
-  const sid = randomUUID();
-  const now = new Date().toISOString();
-  db().sessions.set(sid, { id: sid, userId: user.id, method: "password", device: "test", ip: "test", createdAt: now, lastSeenAt: now });
-  jar.set(SESSION_COOKIE, await sealData({ sid, csrf: CSRF, ...cookie }, { password: SECRET, ttl: 3600 }));
-  return { user, sid };
-}
+const signIn = (username: string, cookie?: Record<string, unknown>) => signInAs(jar, username, cookie);
 
 const req = (method = "GET", headers: Record<string, string> = {}) => new Request("http://c/api/x", { method, headers });
 const ok = vi.fn(async () => json({ ok: true }));

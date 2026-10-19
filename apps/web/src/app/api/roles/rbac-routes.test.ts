@@ -1,8 +1,6 @@
-import { randomUUID } from "node:crypto";
-import { sealData } from "iron-session";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const SECRET = vi.hoisted(() => (process.env.SESSION_SECRET = "s".repeat(40)));
+vi.hoisted(() => (process.env.SESSION_SECRET = "s".repeat(40)));
 const jar = vi.hoisted(() => new Map<string, string>());
 vi.mock("next/headers", () => ({
   cookies: async () => ({
@@ -12,7 +10,7 @@ vi.mock("next/headers", () => ({
 }));
 
 import { db, resetDb } from "@/lib/server/mock/db";
-import { SESSION_COOKIE } from "@/lib/server/session";
+import { signInAs, TEST_CSRF } from "@/test/session";
 import type { PermissionDto, RoleDto } from "@/lib/shared/contracts/rbac";
 import { PERMISSIONS, type PermissionName } from "@/lib/shared/permissions";
 import { GET as meGet } from "../me/route";
@@ -21,16 +19,9 @@ import { GET as userRolesGet } from "../users/roles/route";
 import { DELETE as roleDelete, GET as roleGet, PATCH as rolePatch } from "./[id]/route";
 import { GET as listGet, POST as createPost } from "./route";
 
-const CSRF = "c".repeat(43);
+const CSRF = TEST_CSRF;
 
-async function signIn(username: string) {
-  const user = [...db().users.values()].find((u) => u.username === username)!;
-  const sid = randomUUID();
-  const now = new Date().toISOString();
-  db().sessions.set(sid, { id: sid, userId: user.id, method: "password", device: "test", ip: "test", createdAt: now, lastSeenAt: now });
-  jar.set(SESSION_COOKIE, await sealData({ sid, csrf: CSRF }, { password: SECRET, ttl: 3600 }));
-  return user;
-}
+const signIn = (username: string) => signInAs(jar, username);
 /** A role with exactly `perms`, given to `username` as their only role. */
 function giveOnlyRole(username: string, perms: PermissionName[]) {
   db().roles.set("role-custom", { id: "role-custom", name: "Custom", locked: false, permissions: perms });

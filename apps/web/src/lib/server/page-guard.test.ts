@@ -1,8 +1,6 @@
-import { randomUUID } from "node:crypto";
-import { sealData } from "iron-session";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const SECRET = vi.hoisted(() => (process.env.SESSION_SECRET = "s".repeat(40)));
+vi.hoisted(() => (process.env.SESSION_SECRET = "s".repeat(40)));
 const jar = vi.hoisted(() => new Map<string, string>());
 const path = vi.hoisted(() => ({ value: null as string | null }));
 vi.mock("next/headers", () => ({
@@ -15,16 +13,10 @@ vi.mock("next/navigation", () => ({
 }));
 
 import { db, resetDb } from "./mock/db";
+import { signInAs, TEST_CSRF } from "@/test/session";
 import { requirePagePermission } from "./page-guard";
-import { SESSION_COOKIE } from "./session";
 
-async function signIn(username: string) {
-  const user = [...db().users.values()].find((u) => u.username === username)!;
-  const sid = randomUUID();
-  db().sessions.set(sid, { id: sid, userId: user.id, method: "password", device: "t", ip: "t", createdAt: "", lastSeenAt: "" });
-  jar.set(SESSION_COOKIE, await sealData({ sid, csrf: "tok" }, { password: SECRET, ttl: 3600 }));
-  return { user, sid };
-}
+const signIn = (username: string) => signInAs(jar, username);
 
 beforeEach(() => {
   resetDb();
@@ -68,6 +60,6 @@ describe("requirePagePermission", () => {
     expect(r.user).not.toHaveProperty("recoveryCodes");
     expect(r.perms).toContain("user.view");
     expect(r.perms).not.toContain("user.edit");
-    expect(r.csrf).toBe("tok");
+    expect(r.csrf).toBe(TEST_CSRF);
   });
 });

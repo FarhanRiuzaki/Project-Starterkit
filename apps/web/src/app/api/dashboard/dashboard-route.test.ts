@@ -92,7 +92,7 @@ describe("GET /api/dashboard", () => {
     const users = [...db().users.values()];
     users[10]!.createdAt = new Date(NOW - 2 * 24 * HOUR).toISOString();
     users[11]!.createdAt = new Date(NOW - 8 * 24 * HOUR).toISOString();
-    const viewer = await signInAs(jar, "viewer");
+    const { user: viewer } = await signInAs(jar, "viewer");
     const inactive = users.find((u) => !u.isActive)!;
     db().sessions.set("dead", { ...db().sessions.values().next().value!, id: "dead", userId: inactive.id });
     const b = await body();

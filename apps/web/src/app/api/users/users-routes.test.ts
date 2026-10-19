@@ -1,8 +1,6 @@
-import { randomUUID } from "node:crypto";
-import { sealData } from "iron-session";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const SECRET = vi.hoisted(() => (process.env.SESSION_SECRET = "s".repeat(40)));
+vi.hoisted(() => (process.env.SESSION_SECRET = "s".repeat(40)));
 const jar = vi.hoisted(() => new Map<string, string>());
 vi.mock("next/headers", () => ({
   cookies: async () => ({
@@ -12,6 +10,7 @@ vi.mock("next/headers", () => ({
 }));
 
 import { db, resetDb } from "@/lib/server/mock/db";
+import { addSession, signInAs, TEST_CSRF } from "@/test/session";
 import { hashToken, verifyPassword } from "@/lib/server/mock/password";
 import { SEED_PASSWORD } from "@/lib/server/mock/seed";
 import { SESSION_COOKIE } from "@/lib/server/session";
@@ -24,23 +23,10 @@ import { POST as bulkPost } from "./bulk/route";
 import { GET as rolesGet } from "./roles/route";
 import { GET as listGet, POST as createPost } from "./route";
 
-const CSRF = "c".repeat(43);
+const CSRF = TEST_CSRF;
 
-async function signIn(username: string) {
-  const user = [...db().users.values()].find((u) => u.username === username)!;
-  const sid = randomUUID();
-  const now = new Date().toISOString();
-  db().sessions.set(sid, { id: sid, userId: user.id, method: "password", device: "test", ip: "test", createdAt: now, lastSeenAt: now });
-  jar.set(SESSION_COOKIE, await sealData({ sid, csrf: CSRF }, { password: SECRET, ttl: 3600 }));
-  return { user, sid };
-}
+const signIn = (username: string) => signInAs(jar, username);
 const idOf = (username: string) => [...db().users.values()].find((u) => u.username === username)!.id;
-const addSession = (userId: string) => {
-  const id = randomUUID();
-  const now = new Date().toISOString();
-  db().sessions.set(id, { id, userId, method: "password", device: "other", ip: "1.1.1.1", createdAt: now, lastSeenAt: now });
-  return id;
-};
 
 const req = (method: string, body?: unknown, url = "http://c/api/users", csrf = CSRF) =>
   new Request(url, { method, headers: { "content-type": "application/json", "x-csrf-token": csrf, origin: "http://c" }, body: body === undefined ? undefined : JSON.stringify(body) });

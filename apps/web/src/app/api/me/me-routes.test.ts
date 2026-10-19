@@ -1,8 +1,7 @@
 import { randomUUID } from "node:crypto";
-import { sealData } from "iron-session";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const SECRET = vi.hoisted(() => (process.env.SESSION_SECRET = "s".repeat(40)));
+vi.hoisted(() => (process.env.SESSION_SECRET = "s".repeat(40)));
 const jar = vi.hoisted(() => new Map<string, string>());
 vi.mock("next/headers", () => ({
   cookies: async () => ({
@@ -12,10 +11,10 @@ vi.mock("next/headers", () => ({
 }));
 
 import { db, resetDb } from "@/lib/server/mock/db";
+import { addSession, signInAs, TEST_CSRF } from "@/test/session";
 import { hashRecoveryCode } from "@/lib/server/mock/password";
 import { LDAP_PASSWORD, SEED_PASSWORD } from "@/lib/server/mock/seed";
 import { passwordFails, passwordKey } from "@/lib/server/ratelimit";
-import { SESSION_COOKIE } from "@/lib/server/session";
 import { totpCode } from "@/lib/server/totp";
 import { POST as loginPost } from "../auth/login/route";
 import { DELETE as tfaDelete, POST as tfaStart, PUT as tfaConfirm } from "./2fa/route";
@@ -25,22 +24,13 @@ import { GET as getMe, PATCH as patchMe } from "./route";
 import { DELETE as sessionDelete } from "./sessions/[id]/route";
 import { GET as sessionsGet } from "./sessions/route";
 
-const CSRF = "c".repeat(43);
+const CSRF = TEST_CSRF;
 const NEW_PW = "Another-Pass-456!";
 
 /** A signed-in browser for `username`, plus a second store session of the same user (another browser). */
 async function signIn(username: string) {
-  const user = [...db().users.values()].find((u) => u.username === username)!;
-  const mk = () => {
-    const id = randomUUID();
-    const now = new Date().toISOString();
-    db().sessions.set(id, { id, userId: user.id, method: "password", device: "test", ip: "test", createdAt: now, lastSeenAt: now });
-    return id;
-  };
-  const sid = mk();
-  const other = mk();
-  jar.set(SESSION_COOKIE, await sealData({ sid, csrf: CSRF }, { password: SECRET, ttl: 3600 }));
-  return { user, sid, other };
+  const s = await signInAs(jar, username);
+  return { ...s, other: addSession(s.user.id) };
 }
 
 const call = (h: (r: Request) => Promise<Response>, method: string, body?: unknown, csrf = CSRF) =>
