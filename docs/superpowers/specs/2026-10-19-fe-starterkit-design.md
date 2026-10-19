@@ -198,6 +198,10 @@ Berlaku untuk setiap layar dan modul, sekarang dan nanti. Sumber detail: `docs/s
   skeleton singkat); ganti halaman/sort/filter mempertahankan data sebelumnya (`placeholderData`) dengan indikator
   sibuk halus, bukan kembali ke skeleton; refetch tidak memicu animasi ulang; setiap route punya `loading.tsx` dengan
   bentuk halaman. Ditegakkan oleh E2E yang gagal bila skeleton terlihat 1–300 ms atau layout bergeser (CLS).
+- **Legend status per card (keputusan pemilik 2026-10-20):** legend status tidak pernah ditaruh di level halaman
+  (toolbar/header halaman). Setiap card (`Panel`) yang menampilkan status membawa legend-nya sendiri di header card
+  sebagai tombol info (ikon info → popover berisi `StatusLegend`), lewat prop `legend` pada `Panel`. Legend seri chart
+  tetap di header card chart-nya. Ditegakkan oleh tes arsitektur: `StatusLegend` hanya boleh dirender oleh `Panel`.
 - **Konsisten:** satu pola untuk satu kebutuhan di semua modul — `PageHeader`, `DataTable` server-driven,
   `Field`, `ConfirmActionDialog`, `BlockedButton`, toast hasil aksi, lima state, hook data per fitur dengan bentuk yang
   sama, route handler dengan urutan yang sama (parse → guard → rule → mutate → activity). Istilah UI hanya dari

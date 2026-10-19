@@ -609,6 +609,10 @@ migrasi `features/{users,rbac,audit}`, `AGENTS.md` §7/§9/§12, `docs/standards
 - [ ] Tes dulu: `paginate` (batas, sort whitelist, page > last → halaman kosong dengan total benar), skema `ListQuery`
   (default 15, `pageSize=10` → 400, `page=1001` → 400), `useTableQuery` (ganti filter → page 1), arsitektur (GET list
   tanpa `paginate(` gagal; fixture).
+- [ ] `Panel` mendapat prop `legend?: { health: Health; label: string; description?: string }[]` → tombol info di
+  header card (popover `StatusLegend`, bisa keyboard, berlabel "Status legend"); hapus semua legend level halaman
+  (`/users` toolbar, header audit) dan pindahkan ke card tabelnya; tes arsitektur: `StatusLegend` hanya dipakai di
+  `packages/ui/src/ds/panel.tsx` (dan galeri `/ds`).
 - [ ] Implementasi; migrasi `/users` (ganti Load more), `/roles`, `/permissions`, audit; semua tabel memakai DataTable
   server-driven + pemilih ukuran halaman + pagination bernomor + header sortable.
 - [ ] `bun run check`, build, cek browser (ganti halaman/ukuran/sort/search, back/forward, URL dibagikan).
