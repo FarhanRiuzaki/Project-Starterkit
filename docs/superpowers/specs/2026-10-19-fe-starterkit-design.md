@@ -178,6 +178,23 @@ Berlaku untuk SETIAP tabel/list di starterkit, sekarang dan nanti; data bisa jut
 - Ditegakkan oleh tes: kontrak (`PAGE_SIZES`, default 15, `page ≤ 1000`), dan tes arsitektur yang menolak GET list
   tanpa `paginate(`.
 
+## Standar UI, UX, dan motion (keputusan pemilik 2026-10-20, wajib)
+
+Berlaku untuk setiap layar dan modul, sekarang dan nanti. Sumber detail: `docs/standards/{ui-standard,design-system,copy-guide}.md`.
+- **UI:** hanya token + komponen DS (`packages/ui`); anatomi halaman sesuai ui-standard; terang dan gelap sama-sama
+  dicek; dua density; skeleton berbentuk sama dengan konten (tanpa layout shift).
+- **UX presisi:** setiap region data punya lima state (loading, empty, error dengan retry, stale, data); setiap aksi
+  async punya state pending di pemicunya, hasil yang diumumkan (toast/`role=status`), error yang bisa dipulihkan, dan
+  fokus yang kembali ke tempat yang masuk akal; aksi destruktif dikonfirmasi dengan teks akibatnya; tombol yang
+  diblokir aturan tampil disabled + alasan; semua aksi bisa lewat keyboard dengan focus ring terlihat; tidak ada jalan
+  buntu (404/forbidden selalu punya jalan kembali); copy mengikuti copy-guide.
+- **Motion:** memakai token motion (`DUR`, `EASE`, `SPRING_*`, `STAGGER`) — tidak ada durasi/easing literal;
+  `MotionLayer` + transisi halaman + stagger saat data pertama muncul + number tween + shared indicator + enter/exit
+  dialog/menu/toast; hanya `transform`/`opacity`; patuh budget performa design-system §7.7; `prefers-reduced-motion`
+  mematikan gerak non-esensial; refresh data tidak memicu animasi ulang selain flash baris baru.
+- Ditegakkan oleh: tes motion (token tidak boleh literal, reduced-motion), E2E motion, axe a11y, baseline screenshot
+  `/ds` terang/gelap, dan cek manual setiap layar per role di Task 13.
+
 ## Kriteria selesai
 
 - `bun install && bun run dev` di root menjalankan `apps/web`; semua layar di atas bisa dicoba dengan akun seed.
