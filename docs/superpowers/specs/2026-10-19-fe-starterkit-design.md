@@ -158,6 +158,26 @@ Semua layar desktop-first mengikuti Bilik.
   - Aksi massal melewati baris yang terlindungi dan melaporkan "N berhasil, M dilewati (alasan)", bukan menolak
     seluruh batch.
 
+## Standar tabel & skalabilitas (keputusan pemilik 2026-10-20, wajib)
+
+Berlaku untuk SETIAP tabel/list di starterkit, sekarang dan nanti; data bisa jutaan baris.
+- **Server-side penuh:** paging, sort, search, dan filter dikerjakan server. Klien tidak pernah mengambil seluruh baris.
+  Endpoint list tidak pernah mengembalikan array tanpa batas — selalu `Page<T>`.
+- **Ukuran halaman:** pilihan `15 | 25 | 50 | 100`, default **15**. Pemilih ukuran halaman ada di setiap tabel.
+- **Pagination bernomor:** first / prev / nomor halaman / next / last + "Showing 1–15 of 12,345". Halaman maksimal
+  1000 (nilai Bilik); lebih dalam dari itu → 400, pengguna mempersempit filter (pola max result window).
+- **Sort:** hanya kolom yang di-whitelist per endpoint; header kolom bisa diklik dengan `aria-sort`.
+- **State di URL:** `page`, `pageSize`, `sort`, `q`, dan filter tersimpan di query string (bisa dibagikan, back/forward
+  benar). Ganti filter/search/pageSize → kembali ke halaman 1. Search di-debounce.
+- **Total besar:** `Page<T>` boleh membawa `totalCapped: true` bila backend membatasi hitungan pasti (tampil "100,000+").
+- **Export:** CSV mengikuti filter yang sama, dibatasi 10.000 baris, tidak pernah lewat klien yang mengambil semua data.
+- **Komponen tunggal:** satu `DataTable` server-driven di `packages/ui` + satu hook `useTableQuery` (URL state) + satu
+  helper server `paginate()` / skema `ListQuery`; tidak ada tabel yang membuat paging sendiri.
+- **Backend nanti (Bun/Rust):** index pada kolom sort/filter, keyset internal bila memungkinkan, hitungan dibatasi
+  (`totalCapped`), batas `pageSize` dan `page` yang sama ditegakkan di server.
+- Ditegakkan oleh tes: kontrak (`PAGE_SIZES`, default 15, `page ≤ 1000`), dan tes arsitektur yang menolak GET list
+  tanpa `paginate(`.
+
 ## Kriteria selesai
 
 - `bun install && bun run dev` di root menjalankan `apps/web`; semua layar di atas bisa dicoba dengan akun seed.

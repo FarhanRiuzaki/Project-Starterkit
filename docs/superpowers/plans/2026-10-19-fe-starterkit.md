@@ -46,8 +46,9 @@ Nama-nama ini dipakai di lintas task; jangan diganti nama.
   `unauthenticated`(401) `forbidden`(403) `csrf`(403) `not_found`(404) `bad_request`(400) `duplicate`(409)
   `rate_limited`(429) `invalid_credentials`(401) `account_inactive`(403) `invalid_code`(400) `superadmin_locked`(409)
   `last_superadmin`(409) `self_action`(409) `role_in_use`(409) `ldap_password`(409) `internal`(500).
-- Paging: query `page` (≥1), `pageSize` (10|25|50|100, default 25), `q`, `sort` (`field` atau `-field`); jawaban
-  `Page<T> = { items: T[]; total: number; page: number; pageSize: number }`.
+- Paging (standar wajib, lihat spec "Standar tabel & skalabilitas"): query `page` (1–1000), `pageSize` (15|25|50|100,
+  default 15), `q`, `sort` (`field` atau `-field`, whitelist per endpoint); jawaban
+  `Page<T> = { items: T[]; total: number; page: number; pageSize: number; totalCapped?: boolean }`. Server-side penuh.
 - Aksi massal: jawaban `{ done: string[]; skipped: { id: string; code: string }[] }`.
 - Mutasi (POST/PATCH/PUT/DELETE) wajib header `x-csrf-token`; token ada di session dan dikirim server ke layout.
 
@@ -591,6 +592,27 @@ it("q matches name, username, email case-insensitively", ...);
   selalu 14 entri berurutan termasuk hari tanpa data (0).
 - [ ] **Step 2:** FAIL → implement → PASS → layar.
 - [ ] **Step 3:** `bun run check`. Commit `feat(web): dashboard`.
+
+---
+
+### Task 12b: Standar DataTable server-side (ditambahkan pemilik 2026-10-20)
+
+**Files:** `packages/ui/src/ds/data-table.tsx` (mode server-driven), `packages/ui/src/ds/pagination.tsx`,
+`apps/web/src/lib/client/use-table-query.ts`, `apps/web/src/lib/server/paginate.ts`, `contracts/common.ts`,
+migrasi `features/{users,rbac,audit}`, `AGENTS.md` §7/§9/§12, `docs/standards/ui-standard.md`,
+`apps/web/src/test/architecture.test.ts`.
+
+**Interfaces:** `paginate<T>(items: T[], q: ListQuery, sorters: Record<string, (a: T, b: T) => number>): Page<T>`;
+`useTableQuery(defaults)` → `{ query, setPage, setPageSize, setSort, setSearch, setFilter }` (URL-backed);
+`DataTable` server props `{ rows, total, page, pageSize, sort, onPageChange, onPageSizeChange, onSortChange, loading }`.
+
+- [ ] Tes dulu: `paginate` (batas, sort whitelist, page > last → halaman kosong dengan total benar), skema `ListQuery`
+  (default 15, `pageSize=10` → 400, `page=1001` → 400), `useTableQuery` (ganti filter → page 1), arsitektur (GET list
+  tanpa `paginate(` gagal; fixture).
+- [ ] Implementasi; migrasi `/users` (ganti Load more), `/roles`, `/permissions`, audit; semua tabel memakai DataTable
+  server-driven + pemilih ukuran halaman + pagination bernomor + header sortable.
+- [ ] `bun run check`, build, cek browser (ganti halaman/ukuran/sort/search, back/forward, URL dibagikan).
+- [ ] Commit `feat: server-side DataTable standard (15 per page, numbered pagination)`.
 
 ---
 
