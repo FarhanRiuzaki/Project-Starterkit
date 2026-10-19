@@ -30,6 +30,12 @@ type BulkAction = "activate" | "deactivate" | "delete" | "assignRole";
 type Pending = { kind: "bulk"; action: BulkAction; ids: string[] } | { kind: "one"; action: "deactivate" | "delete"; user: UserDto };
 
 const VERB: Record<BulkAction, string> = { activate: "Activate", deactivate: "Deactivate", delete: "Delete", assignRole: "Assign role to" };
+const BULK_NOTE: Record<BulkAction, string> = {
+  activate: "Users who are already active stay as they are.",
+  deactivate: "Your own account and the last active Superadmin are skipped.",
+  delete: "Your own account and the last active Superadmin are skipped.",
+  assignRole: "Your own account is skipped, and so is any user when your role doesn't hold every permission of the chosen role.",
+};
 const LABEL: Record<BulkAction, string> = { activate: "Activate users", deactivate: "Deactivate users", delete: "Delete users", assignRole: "Assign role" };
 
 /** Filters live in the URL (q, role, status, sort); Load more extends the list. */
@@ -102,7 +108,7 @@ export function UsersPage() {
   const paging: DataTablePaging = { mode: "infinite", hasMore: !!list.hasNextPage, loadingMore: list.isFetchingNextPage, onLoadMore: () => void list.fetchNextPage(), total, error: list.isFetchNextPageError };
   const ids = [...selected];
   const dialog = pending && (pending.kind === "bulk"
-    ? { title: `${VERB[pending.action]} ${pending.ids.length} ${pending.ids.length === 1 ? "user" : "users"}`, description: "Your own account and the last active Superadmin are skipped.", label: LABEL[pending.action] }
+    ? { title: `${VERB[pending.action]} ${pending.ids.length} ${pending.ids.length === 1 ? "user" : "users"}`, description: BULK_NOTE[pending.action], label: LABEL[pending.action] }
     : { title: `${pending.action === "delete" ? "Delete" : "Deactivate"} ${pending.user.name}`, description: pending.user.email, label: pending.action === "delete" ? "Delete user" : "Deactivate user" });
   const destructive = pending?.action === "delete";
   const impact = !pending ? [] : pending.action === "delete" ? ["The account is removed and its sessions end.", "This can't be undone."]

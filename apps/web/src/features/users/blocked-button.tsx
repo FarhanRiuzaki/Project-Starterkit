@@ -1,16 +1,18 @@
-import type { ComponentProps } from "react";
+"use client";
+
+import { type ComponentProps, useId } from "react";
 import { Button } from "@starterkit/ui/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@starterkit/ui/ui/tooltip";
 
-/** A button that is off because a protection rule blocks it: it stays visible and the tooltip says why. */
-export function BlockedButton({ reason, children, ...props }: ComponentProps<typeof Button> & { reason: string | null }) {
-  if (!reason) return <Button {...props}>{children}</Button>;
+/** A button that is off because a protection rule blocks it: it stays focusable (aria-disabled), does nothing, and the reason is its description and tooltip. */
+export function BlockedButton({ reason, children, onClick, ...props }: ComponentProps<typeof Button> & { reason: string | null }) {
+  const id = useId();
+  if (!reason) return <Button onClick={onClick} {...props}>{children}</Button>;
   return (
     <Tooltip>
+      <span id={id} className="sr-only">{reason}</span>
       <TooltipTrigger asChild>
-        <span tabIndex={0} className="inline-flex rounded-md outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary" aria-label={`${typeof children === "string" ? children : "Action"} is unavailable. ${reason}`}>
-          <Button {...props} disabled aria-hidden="true" tabIndex={-1}>{children}</Button>
-        </span>
+        <Button {...props} aria-disabled="true" aria-describedby={id} onClick={(e) => e.preventDefault()} className="aria-disabled:cursor-default aria-disabled:opacity-50">{children}</Button>
       </TooltipTrigger>
       <TooltipContent>{reason}</TooltipContent>
     </Tooltip>

@@ -29,6 +29,11 @@ export function checkRoleChange(role: RoleRecord, change: "edit" | "delete", db:
   return null;
 }
 
+/** An actor may add or remove a role only when they hold every permission it carries (no privilege escalation). */
+export function checkRoleGrant(actorPerms: ReadonlySet<PermissionName>, role: RoleRecord): ErrorCode | null {
+  return role.permissions.every((p) => actorPerms.has(p)) ? null : "forbidden";
+}
+
 export function checkPasswordOp(target: UserRecord): ErrorCode | null {
   return target.isLdap ? "ldap_password" : null;
 }

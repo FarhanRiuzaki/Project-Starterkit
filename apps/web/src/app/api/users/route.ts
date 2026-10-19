@@ -3,7 +3,7 @@ import { apiError, handleError, json, withPermission } from "@/lib/server/api";
 import { recordActivity } from "@/lib/server/audit";
 import { type UserRecord, db, toUserDto } from "@/lib/server/mock/db";
 import { hashPassword } from "@/lib/server/mock/password";
-import { duplicateOf, rolesExist, sendInvite } from "@/lib/server/users";
+import { duplicateOf, roleGrantDenied, rolesExist, sendInvite } from "@/lib/server/users";
 import type { Page } from "@/lib/shared/contracts/common";
 import { CreateUserBody, UserListQuery, type UserDto } from "@/lib/shared/contracts/users";
 
@@ -38,6 +38,8 @@ export async function POST(req: Request): Promise<Response> {
     if (!body.success) return apiError(400, "bad_request", "A request parameter has an unsupported value.");
     const b = body.data;
     if (!rolesExist(b.roles)) return apiError(400, "bad_request", "One of the roles doesn't exist. Pick roles from the list.");
+    const denied = roleGrantDenied(ctx.perms, b.roles);
+    if (denied) return denied;
     if (duplicateOf(b.username, b.email)) return apiError(409, "duplicate", "Another user already has this username or email. Use different ones.");
     const id = `u-${randomUUID()}`;
     const rec: UserRecord = {

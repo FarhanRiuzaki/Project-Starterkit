@@ -2,7 +2,7 @@ import { apiError, json, withPermission } from "@/lib/server/api";
 import { recordActivity } from "@/lib/server/audit";
 import { db, toUserDto } from "@/lib/server/mock/db";
 import { checkUserChange, effectivePermissions } from "@/lib/server/mock/rules";
-import { blocked, duplicateOf, endSessions, notFound, rolesExist } from "@/lib/server/users";
+import { blocked, dropTokens, duplicateOf, endSessions, notFound, roleGrantDenied, rolesExist } from "@/lib/server/users";
 import { UpdateUserBody, type UserDetailDto } from "@/lib/shared/contracts/users";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -13,8 +13,12 @@ export async function GET(req: Request, { params }: Ctx): Promise<Response> {
     if (!u) return notFound();
     const sessions = [...db().sessions.values()].filter((s) => s.userId === id)
       .map((s) => ({ id: s.id, device: s.device, ip: s.ip, lastSeenAt: s.lastSeenAt, current: s.id === ctx.sid }));
-    const recentActivity = [...db().activity.values()].filter((a) => a.target.id === id)
-      .sort((a, b) => b.at.localeCompare(a.at)).slice(0, 20);
+    // Audit history needs audit.view; the entries carry no before/after snapshots.
+    const recentActivity = ctx.perms.has("audit.view")
+      ? [...db().activity.values()].filter((a) => a.target.id === id)
+        .sort((a, b) => b.at.localeCompare(a.at)).slice(0, 20)
+        .map((a) => ({ id: a.id, at: a.at, actor: { name: a.actor.name }, action: a.action }))
+      : null;
     return json({ ...toUserDto(u), permissions: [...effectivePermissions(u, db().roles)], sessions, recentActivity } satisfies UserDetailDto);
   });
 }
@@ -31,6 +35,10 @@ export async function PATCH(req: Request, { params }: Ctx): Promise<Response> {
     if (duplicateOf(b.username, b.email, id)) return apiError(409, "duplicate", "Another user already has this username or email. Use different ones.");
     const roles = b.roles && [...new Set(b.roles)];
     const rolesChange = roles && (roles.length !== u.roles.length || roles.some((r) => !u.roles.includes(r)));
+    if (roles && rolesChange) {
+      const denied = roleGrantDenied(ctx.perms, [...roles.filter((r) => !u.roles.includes(r)), ...u.roles.filter((r) => !roles.includes(r))]);
+      if (denied) return denied;
+    }
     const deactivate = b.isActive === false && u.isActive;
     if (rolesChange) { const c = checkUserChange(ctx.user, u, { kind: "setRoles", roles }, db()); if (c) return blocked(c); }
     if (deactivate) { const c = checkUserChange(ctx.user, u, { kind: "deactivate" }, db()); if (c) return blocked(c); }
@@ -58,7 +66,7 @@ export async function DELETE(req: Request, { params }: Ctx): Promise<Response> {
     db().users.delete(id);
     db().ldapDirectory.delete(id);
     endSessions(id);
-    for (const [k, t] of db().resetTokens) if (t.userId === id) db().resetTokens.delete(k);
+    dropTokens(id);
     recordActivity(ctx, { action: "user.delete", target: { type: "user", id, label: before.name }, before });
     return json({ ok: true });
   });

@@ -1,8 +1,8 @@
 import { apiError, handleError, json, withPermission } from "@/lib/server/api";
 import { recordActivity } from "@/lib/server/audit";
 import { db, type UserRecord } from "@/lib/server/mock/db";
-import { bulk, checkUserChange } from "@/lib/server/mock/rules";
-import { endSessions, rolesExist } from "@/lib/server/users";
+import { bulk, checkRoleGrant, checkUserChange } from "@/lib/server/mock/rules";
+import { dropTokens, endSessions, rolesExist } from "@/lib/server/users";
 import { BulkUserBody } from "@/lib/shared/contracts/users";
 
 /**
@@ -17,11 +17,14 @@ export async function POST(req: Request): Promise<Response> {
     const ids = [...new Set(body.data.ids)];
     if (action === "assignRole" && !rolesExist([role!])) return apiError(400, "bad_request", "This role doesn't exist. Pick a role from the list.");
     const users = db().users;
+    const target = [...db().roles.values()].find((r) => r.name === role);
+    const grant = target ? checkRoleGrant(ctx.perms, target) : null;
     const withUser = (id: string, f: (u: UserRecord) => ReturnType<typeof checkUserChange>) => { const u = users.get(id); return u ? f(u) : "not_found" as const; };
     const result = bulk(ids,
       (id) => withUser(id, (u) =>
         action === "deactivate" ? checkUserChange(ctx.user, u, { kind: "deactivate" }, db())
           : action === "delete" ? checkUserChange(ctx.user, u, { kind: "delete" }, db())
+          : action === "assignRole" ? checkUserChange(ctx.user, u, { kind: "setRoles", roles: [...u.roles, role!] }, db()) ?? grant
           : null),
       (id) => {
         const u = users.get(id)!;
@@ -29,7 +32,7 @@ export async function POST(req: Request): Promise<Response> {
         if (action === "activate") u.isActive = true;
         else if (action === "deactivate") { u.isActive = false; endSessions(id); }
         else if (action === "assignRole") { if (!u.roles.includes(role!)) u.roles = [...u.roles, role!]; }
-        else { users.delete(id); db().ldapDirectory.delete(id); endSessions(id); for (const [k, t] of db().resetTokens) if (t.userId === id) db().resetTokens.delete(k); }
+        else { users.delete(id); db().ldapDirectory.delete(id); endSessions(id); dropTokens(id); }
         recordActivity(ctx, {
           action: action === "assignRole" ? "user.assign_role" : `user.${action}`, target: { type: "user", id, label: u.name }, before,
           after: action === "delete" ? null : { isActive: u.isActive, roles: u.roles },

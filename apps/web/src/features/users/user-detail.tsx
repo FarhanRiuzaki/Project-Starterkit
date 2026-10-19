@@ -12,8 +12,8 @@ import { toast } from "@starterkit/ui/ui/sonner";
 import { PageHeader } from "@/components/shell/page-header";
 import { api } from "@/lib/client/api";
 import { useAuth } from "@/lib/client/auth-context";
-import type { ActivityDto } from "@/lib/shared/contracts/audit";
 import type { SessionDto } from "@/lib/shared/contracts/me";
+import type { ActivityBrief } from "@/lib/shared/contracts/users";
 import { MODULES } from "@/lib/shared/permissions";
 import { BlockedButton } from "./blocked-button";
 import { RoleChips, UserStatusChip } from "./user-columns";
@@ -27,7 +27,7 @@ const SESSION_COLUMNS: Column<SessionDto>[] = [
   { key: "ip", header: "IP address", cell: (s) => <span className="font-mono text-mono">{s.ip}</span> },
   { key: "last", header: "Last active", cell: (s) => <RelativeTime at={Date.parse(s.lastSeenAt)} /> },
 ];
-const ACTIVITY_COLUMNS: Column<ActivityDto>[] = [
+const ACTIVITY_COLUMNS: Column<ActivityBrief>[] = [
   { key: "at", header: "When", cell: (a) => <RelativeTime at={Date.parse(a.at)} /> },
   { key: "actor", header: "By", cell: (a) => a.actor.name },
   { key: "action", header: "Action", cell: (a) => <span className="font-mono text-mono">{a.action}</span> },
@@ -105,10 +105,12 @@ export function UserDetail({ id }: { id: string }) {
           rowActions={can("user.edit") ? (s) => (s.current ? <span className="text-caption text-fg-3">Your session</span> : <Button size="sm" variant="ghost" onClick={() => setDialog({ end: s })}>End session</Button>) : undefined}
           empty={{ icon: SessionsIcon, title: "No active sessions", description: "Sessions appear here when this user signs in." }} />
       </Panel>
+      {u.recentActivity && (
       <Panel flush icon={LogIcon} title="Recent activity" description="The last 20 actions on this user" count={u.recentActivity.length}>
         <DataTable label="Recent activity" columns={ACTIVITY_COLUMNS} rows={u.recentActivity} rowKey={(a) => a.id}
           empty={{ icon: ActivityIcon, title: "No activity yet", description: "Changes to this user appear here." }} />
       </Panel>
+      )}
 
       {dialog === "deactivate" && (
         <ConfirmActionDialog open onOpenChange={(o) => { if (!o) setDialog(null); }} auditFields={false} reasons={[]} title={`Deactivate ${u.name}`} description={u.email}

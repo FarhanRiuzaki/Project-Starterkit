@@ -54,6 +54,9 @@ const bulk = (body: unknown) => bulkPost(req("POST", body, "http://c/api/users/b
 beforeEach(() => {
   resetDb();
   jar.clear();
+  // Seed Admin lacks role.view, which Viewer carries, so by the grant rule it could not hand out Viewer. Give it role.view
+  // here so the tests exercise the rule itself; the seed-as-is case has its own test below.
+  db().roles.get("role-admin")!.permissions.push("role.view");
 });
 
 describe("GET /api/users", () => {
@@ -99,10 +102,12 @@ describe("GET /api/users", () => {
 });
 
 describe("GET /api/users/roles", () => {
-  it("lists role names for a signed-in user and needs a session", async () => {
+  it("lists role names with user.view and needs a session", async () => {
     expect((await rolesGet(req("GET"))).status).toBe(401);
     await signIn("viewer");
     expect(await (await rolesGet(req("GET"))).json()).toEqual(["Superadmin", "Admin", "Viewer"]);
+    db().roles.get("role-viewer")!.permissions = [];
+    expect((await rolesGet(req("GET"))).status).toBe(403);
   });
 });
 
@@ -190,16 +195,24 @@ describe("GET/PATCH /api/users/[id]", () => {
     const mk = (n: number) => db().activity.set(`a${n}`, { id: `a${n}`, at: new Date(Date.UTC(2030, 0, 1, 0, n)).toISOString(), actor: { id: "x", name: "X" }, action: "user.update", target: { type: "user", id: target, label: "Viewer User" }, before: null, after: null });
     for (let n = 0; n < 25; n++) mk(n);
     const r = await userGet(req("GET"), params(target));
-    const body = (await r.json()) as { id: string; sessions: { device: string }[]; recentActivity: { id: string; target: { id: string } }[] };
+    const body = (await r.json()) as { id: string; sessions: { device: string }[]; recentActivity: { id: string; action: string }[] | null };
     expect(body.id).toBe(target);
     expect(body.sessions).toHaveLength(1);
     expect(body.recentActivity).toHaveLength(20);
-    expect(body.recentActivity.every((a) => a.target.id === target)).toBe(true);
-    expect(body.recentActivity[0]!.id).toBe("a24");
+    expect(body.recentActivity![0]).toEqual({ id: "a24", at: expect.any(String), actor: { name: "X" }, action: "user.update" }); // no target, before, after
+    expect(body.recentActivity!.every((a) => Object.keys(a).sort().join() === "action,actor,at,id")).toBe(true);
     expect((body as unknown as { permissions: string[] }).permissions).toEqual(expect.arrayContaining(["user.view"]));
     expect((body as unknown as { permissions: string[] }).permissions).not.toContain("user.edit");
     expect(JSON.stringify(body)).not.toMatch(/passwordHash|totpSecret|recoveryCodes/);
     expect((await userGet(req("GET"), params("nope"))).status).toBe(404);
+  });
+
+  it("GET omits recentActivity (null) without audit.view", async () => {
+    db().roles.get("role-viewer")!.permissions = ["user.view"];
+    await signIn("viewer");
+    const body = (await (await userGet(req("GET"), params(idOf("admin")))).json()) as { recentActivity: unknown; id: string };
+    expect(body.id).toBe(idOf("admin"));
+    expect(body.recentActivity).toBeNull();
   });
 
   it("PATCH roles of another user changes their permissions on their next request", async () => {
@@ -227,6 +240,7 @@ describe("GET/PATCH /api/users/[id]", () => {
   });
 
   it("PATCH removing Superadmin from the last one is 409 last_superadmin; deactivating ends sessions", async () => {
+    db().roles.get("role-admin")!.permissions = ["user.view", "user.edit", "role.view", "role.create", "role.edit", "role.delete", "permission.view", "permission.create", "audit.view", "user.create", "user.delete"]; // all, so the grant rule passes
     await signIn("admin");
     const r = await userPatch(req("PATCH", { roles: ["Admin"] }), params(idOf("superadmin")));
     expect(await code(r)).toBe("last_superadmin");
@@ -332,6 +346,7 @@ describe("reset password and sessions", () => {
     await signIn("admin");
     const v = idOf("viewer");
     const sess = addSession(v);
+    db().resetTokens.set(hashToken("old-link"), { userId: v, expiresAt: Date.now() + 3600_000 });
     const r = await resetPassword(req("POST"), params(v));
     expect(r.status).toBe(200);
     const { temporaryPassword } = (await r.json()) as { temporaryPassword: string };
@@ -340,6 +355,7 @@ describe("reset password and sessions", () => {
     expect(verifyPassword(SEED_PASSWORD, db().users.get(v)!.passwordHash!)).toBe(false);
     expect(db().sessions.has(sess)).toBe(false);
     expect(JSON.stringify(acts().at(-1))).not.toContain(temporaryPassword);
+    expect([...db().resetTokens.values()].some((t) => t.userId === v)).toBe(false);
     expect(acts().at(-1)).toMatchObject({ action: "user.reset_password", target: { id: v } });
   });
 
@@ -371,5 +387,54 @@ describe("reset password and sessions", () => {
     expect(await code(r)).toBe("self_action");
     const w = await sessionDelete(req("DELETE", undefined, "http://c/x", "wrong"), { params: Promise.resolve({ id: user.id, sid }) });
     expect(w.status).toBe(403);
+  });
+});
+
+describe("role grants (no privilege escalation)", () => {
+  it("Admin cannot grant or remove Superadmin on create, PATCH or bulk; can grant Viewer", async () => {
+    await signIn("admin");
+    expect((await createPost(req("POST", { ...NEW, roles: ["Superadmin"] }))).status).toBe(403);
+    expect(db().users.size).toBe(50);
+    const v = idOf("viewer");
+    const p = await userPatch(req("PATCH", { roles: ["Viewer", "Superadmin"] }), params(v));
+    expect(p.status).toBe(403);
+    expect(await code(p)).toBe("forbidden");
+    expect(db().users.get(v)!.roles).toEqual(["Viewer"]);
+    // removing Superadmin from someone is also refused
+    db().users.get(v)!.roles = ["Superadmin", "Viewer"];
+    expect((await userPatch(req("PATCH", { roles: ["Viewer"] }), params(v))).status).toBe(403);
+    db().users.get(v)!.roles = ["Viewer"];
+    const before = acts().length;
+    const r = await bulk({ action: "assignRole", ids: [v], role: "Superadmin" });
+    expect(await r.json()).toEqual({ done: [], skipped: [{ id: v, code: "forbidden" }] });
+    expect(acts().length).toBe(before);
+    expect((await userPatch(req("PATCH", { roles: ["Viewer", "Viewer"] }), params(v))).status).toBe(200); // unchanged set, no grant
+    const ok = await createPost(req("POST", { ...NEW, roles: ["Viewer"] }));
+    expect(ok.status).toBe(201);
+    expect((await bulk({ action: "assignRole", ids: [idOf("apple")], role: "Viewer" })).status).toBe(200);
+  });
+
+  it("Superadmin can grant Superadmin", async () => {
+    await signIn("superadmin");
+    const v = idOf("viewer");
+    expect((await userPatch(req("PATCH", { roles: ["Viewer", "Superadmin"] }), params(v))).status).toBe(200);
+    expect(db().users.get(v)!.roles).toContain("Superadmin");
+    expect((await createPost(req("POST", { ...NEW, roles: ["Superadmin"] }))).status).toBe(201);
+  });
+
+  it("bulk assignRole with self in ids skips self with self_action", async () => {
+    const { user } = await signIn("superadmin");
+    const v = idOf("viewer");
+    const r = await bulk({ action: "assignRole", ids: [user.id, v], role: "Admin" });
+    expect(await r.json()).toEqual({ done: [v], skipped: [{ id: user.id, code: "self_action" }] });
+    expect(db().users.get(user.id)!.roles).toEqual(["Superadmin"]);
+  });
+});
+
+describe("seed as shipped", () => {
+  it("Admin without role.view cannot grant Viewer (Viewer carries role.view): 403 forbidden", async () => {
+    db().roles.get("role-admin")!.permissions = db().roles.get("role-admin")!.permissions.filter((p) => p !== "role.view");
+    await signIn("admin");
+    expect((await createPost(req("POST", NEW))).status).toBe(403);
   });
 });
