@@ -5,11 +5,10 @@ import { Elysia } from "elysia";
 import { AuthContextDto, ForgotPasswordBody, LoginBody, ResetPasswordBody, TwoFactorBody } from "@starterkit/shared/contracts/auth";
 import { PERMISSIONS } from "@starterkit/shared/permissions";
 import { body } from "../../kernel/parse";
-import { providerEnabled } from "../oauth";
 import { bearer, guard } from "./guard";
 import { forgot, login, logout, reset, secondFactor } from "./service";
 
-/** The routes of /v1/auth (the Google/Apple round trip is the oauth module's). */
+/** The routes of /v1/auth (the Google/Apple round trip and `/v1/auth/providers` are the oauth module's). */
 export const authController = () =>
   new Elysia()
     .use(guard)
@@ -32,6 +31,4 @@ export const authController = () =>
       return { ok: true };
     })
     /** The signed-in user and their permissions in catalog order (API-internal: the web's page guards). */
-    .get("/v1/auth/context", ({ ctx }) => AuthContextDto.parse({ user: ctx.user, permissions: PERMISSIONS.filter((p) => ctx.perms.has(p)) }), { guard: null })
-    /** Which providers can sign in (API-internal: the web hides or blocks the other buttons). */
-    .get("/v1/auth/providers", () => ({ google: providerEnabled("google"), apple: providerEnabled("apple") }));
+    .get("/v1/auth/context", ({ ctx }) => AuthContextDto.parse({ user: ctx.user, permissions: PERMISSIONS.filter((p) => ctx.perms.has(p)) }), { guard: null });

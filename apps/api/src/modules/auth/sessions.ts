@@ -7,7 +7,6 @@ import { config } from "../../kernel/config";
 import { hashToken, randomToken } from "../../kernel/crypto";
 import { db, type Tx } from "../../kernel/db";
 import { one, pageQuery, sortSql } from "../../kernel/pagination";
-import { userIdentities } from "../oauth";
 import { rolePermissions, roles, userRoles } from "../rbac";
 import { users } from "../users";
 import { sessions } from "./schema";
@@ -38,8 +37,11 @@ export const rolesOf = (userId: string | SQLWrapper) =>
   sql<string[]>`array(${db.select({ name: roles.name }).from(userRoles).innerJoin(roles, eq(roles.id, userRoles.roleId)).where(eq(userRoles.userId, userId)).orderBy(roles.name)})`;
 
 /** SQL: the providers linked to user `userId`, A–Z. */
-export const providersOf = (userId: string | SQLWrapper) =>
-  sql<UserRow["connected"]>`array(${db.select({ p: userIdentities.provider }).from(userIdentities).where(eq(userIdentities.userId, userId)).orderBy(userIdentities.provider)})`;
+export async function providersOf(userId: string | SQLWrapper): Promise<SQL<UserRow["connected"]>> {
+  // Loaded on first use, not imported: oauth (the owner of user_identities) imports this module's index.
+  const { userIdentities } = await import("../oauth");
+  return sql`array(${db.select({ p: userIdentities.provider }).from(userIdentities).where(eq(userIdentities.userId, userId)).orderBy(userIdentities.provider)})`;
+}
 
 /** SQL: the union of the permissions of a user's roles; one expression for sessions and user lists. */
 export const permsOf = (userId: string | SQLWrapper) =>
@@ -94,7 +96,7 @@ export async function resolveSession(token: string): Promise<AuthUser | null> {
     live: sql<boolean>`${sessionLive()}`,
     stale: sql<boolean>`${sessions.lastSeenAt} < ${MINUTE_AGO}`,
     roles: rolesOf(users.id),
-    connected: providersOf(users.id),
+    connected: await providersOf(users.id),
     perms: permsOf(users.id),
   }).from(sessions).innerJoin(users, eq(users.id, sessions.userId)).where(eq(sessions.tokenHash, hashToken(token)));
   if (!r) return null;

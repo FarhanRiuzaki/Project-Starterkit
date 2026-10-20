@@ -9,8 +9,8 @@ export type AppDeps = { db?: Pingable };
 
 /**
  * The module registry: every module's controller, mounted in this order. A new module = its folder + one line here.
- * users, rbac, audit and dashboard are still the Hono routers mounted by app.ts (Tasks 17–18). Controllers are built
- * here, not when their module loads: auth and oauth import each other's index.
+ * users, rbac, audit and dashboard are still the Hono routers mounted by app.ts (Tasks 17–18). Each app gets its own
+ * controller instances.
  */
 export const modules = (deps: AppDeps = {}) =>
   new Elysia()

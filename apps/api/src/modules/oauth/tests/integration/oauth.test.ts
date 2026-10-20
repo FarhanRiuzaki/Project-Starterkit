@@ -4,9 +4,10 @@
 import { afterEach, beforeEach, describe, expect, it, spyOn } from "bun:test";
 import { asc, desc, eq, sql } from "drizzle-orm";
 import type { SelectedFields } from "drizzle-orm/pg-core";
-import { createLocalJWKSet, exportJWK, exportPKCS8, generateKeyPair, type JWTPayload, SignJWT } from "jose";
+import { exportPKCS8, generateKeyPair } from "jose";
 import { call, resetData, signIn } from "../../../../../test/helpers/app";
 import { rows, sqlColumns } from "../../../../../test/helpers/db";
+import { AUD, idToken, trustedKeys } from "../../../../../test/helpers/id-token";
 import * as conf from "../../../../kernel/config";
 import { hashToken } from "../../../../kernel/crypto";
 import { db } from "../../../../kernel/db";
@@ -217,23 +218,11 @@ describe("linking (mode link)", () => {
 
 // ------------------------------------------------------------------ real providers (stubbed token endpoint, local keys)
 
-const KID = "test-key";
-const keys = await generateKeyPair("RS256");
 const appleKey = await generateKeyPair("ES256", { extractable: true });
 const REAL = {
   OAUTH_MOCK: false,
-  GOOGLE_CLIENT_ID: "google-client-id", GOOGLE_CLIENT_SECRET: "google-client-secret",
-  APPLE_CLIENT_ID: "com.example.app", APPLE_TEAM_ID: "TEAM123456", APPLE_KEY_ID: "KEY1234567", APPLE_PRIVATE_KEY: await exportPKCS8(appleKey.privateKey),
-};
-const ISS = { google: "https://accounts.google.com", apple: "https://appleid.apple.com" } as const;
-const AUD = { google: REAL.GOOGLE_CLIENT_ID, apple: REAL.APPLE_CLIENT_ID } as const;
-
-/** An id_token as the provider would sign it; `claims` override the defaults, `key` signs instead of the trusted key. */
-const idToken = (p: "google" | "apple", claims: JWTPayload, o: { key?: CryptoKey; exp?: number | string; kid?: string; noIat?: boolean } = {}) => {
-  const jwt = new SignJWT({ email: `${claims.sub}@example.org`, ...claims })
-    .setProtectedHeader({ alg: "RS256", kid: o.kid ?? KID })
-    .setIssuer(claims.iss ?? ISS[p]).setAudience(claims.aud ?? AUD[p]).setExpirationTime(o.exp ?? "5m");
-  return (o.noIat ? jwt : jwt.setIssuedAt()).sign(o.key ?? keys.privateKey);
+  GOOGLE_CLIENT_ID: AUD.google, GOOGLE_CLIENT_SECRET: "google-client-secret",
+  APPLE_CLIENT_ID: AUD.apple, APPLE_TEAM_ID: "TEAM123456", APPLE_KEY_ID: "KEY1234567", APPLE_PRIVATE_KEY: await exportPKCS8(appleKey.privateKey),
 };
 
 let restore: (() => void)[] = [];
@@ -243,7 +232,7 @@ afterEach(() => {
 });
 /** Real providers configured (no mock), the local JWKS trusted, and the token endpoint answering `answer`; returns the token requests seen. */
 async function realProviders(answer: (body: URLSearchParams, url: string) => Promise<Response> | Response): Promise<{ url: string; body: URLSearchParams }[]> {
-  const jwks = createLocalJWKSet({ keys: [{ ...(await exportJWK(keys.publicKey)), kid: KID, alg: "RS256" }] });
+  const jwks = await trustedKeys();
   const saved = { ...providerKeys };
   providerKeys.google = jwks;
   providerKeys.apple = jwks;

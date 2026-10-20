@@ -388,7 +388,7 @@ describe("password guess throttle under concurrency", () => {
 });
 
 describe("product name", () => {
-  it("me/routes.ts reads BRAND and has no product-name literal", async () => {
+  it("modules/me/service.ts reads BRAND and has no product-name literal", async () => {
     const src = await Bun.file(new URL("../../service.ts", import.meta.url)).text();
     expect(src).toMatch(/import \{ BRAND \} from "@starterkit\/shared\/brand"/);
     expect(src).not.toMatch(/\bStarterkit\b/);

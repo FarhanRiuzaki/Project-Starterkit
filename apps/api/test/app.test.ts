@@ -65,6 +65,11 @@ describe("app", () => {
     expect(res.status).toBe(404);
     expect(res.headers.get("Cache-Control")).toBe("no-store");
     expect(await res.json()).toEqual({ error: { code: "not_found", message: "This page doesn't exist or was deleted." } });
+    // A trailing slash is another path (strictPath), as on the Hono routers: not /v1/me (401 unsigned) nor /healthz (200).
+    for (const p of ["/v1/me/", "/healthz/"]) {
+      const other = await request(createApp(), p, { headers: auth });
+      expect([p, other.status, await code(other)]).toEqual([p, 404, "not_found"]);
+    }
   });
 
   it("a thrown Error answers 500 internal with the fixed message and never its text", async () => {

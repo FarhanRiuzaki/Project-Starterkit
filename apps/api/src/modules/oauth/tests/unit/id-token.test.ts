@@ -1,25 +1,13 @@
 // id_token verification against a local key set (no network): signature, issuer, audience, iat, expiry and nonce.
 import { describe, expect, it } from "bun:test";
-import { createLocalJWKSet, exportJWK, exportSPKI, generateKeyPair, type JWTPayload, SignJWT } from "jose";
+import { exportSPKI, generateKeyPair, SignJWT } from "jose";
+import { AUD, ISS, idToken, KID, keys, trustedKeys } from "../../../../../test/helpers/id-token";
 import { verifyIdToken } from "../../providers";
 
-const KID = "test-key";
-const keys = await generateKeyPair("RS256");
 const otherKeys = await generateKeyPair("RS256");
-const ISS = { google: "https://accounts.google.com", apple: "https://appleid.apple.com" } as const;
-const AUD = { google: "google-client-id", apple: "com.example.app" } as const;
-
-/** An id_token as the provider would sign it; `claims` override the defaults, `key` signs instead of the trusted key. */
-const idToken = (p: "google" | "apple", claims: JWTPayload, o: { key?: CryptoKey; exp?: number | string; kid?: string; noIat?: boolean } = {}) => {
-  const jwt = new SignJWT({ email: `${claims.sub}@example.org`, ...claims })
-    .setProtectedHeader({ alg: "RS256", kid: o.kid ?? KID })
-    .setIssuer(claims.iss ?? ISS[p]).setAudience(claims.aud ?? AUD[p]).setExpirationTime(o.exp ?? "5m");
-  return (o.noIat ? jwt : jwt.setIssuedAt()).sign(o.key ?? keys.privateKey);
-};
 
 describe("verifyIdToken", () => {
-  const jwks = async () => createLocalJWKSet({ keys: [{ ...(await exportJWK(keys.publicKey)), kid: KID, alg: "RS256" }] });
-  const verify = async (p: "google" | "apple", token: string, nonce = "n1") => verifyIdToken(p, token, { clientId: AUD[p], nonce, keys: await jwks() });
+  const verify = async (p: "google" | "apple", token: string, nonce = "n1") => verifyIdToken(p, token, { clientId: AUD[p], nonce, keys: await trustedKeys() });
   const fails = (p: Promise<unknown>) => p.then(() => "accepted", () => "rejected");
 
   it("accepts the provider's token: subject and email", async () => {

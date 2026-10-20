@@ -27,7 +27,7 @@ const BAD_CODE = "That code didn't match. Enter the current code from your authe
 const BAD_LINK = "This reset link expired or was already used. Request a new link.";
 
 async function selectUser(where: SQL | undefined): Promise<UserRow | null> {
-  const [r] = await db.select({ ...getTableColumns(users), roles: rolesOf(users.id), connected: providersOf(users.id) }).from(users).where(where);
+  const [r] = await db.select({ ...getTableColumns(users), roles: rolesOf(users.id), connected: await providersOf(users.id) }).from(users).where(where);
   return r ? toUserRow(r) : null;
 }
 

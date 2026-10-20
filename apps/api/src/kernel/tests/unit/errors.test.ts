@@ -5,7 +5,11 @@ import { log } from "../../log";
 
 describe("unexpected", () => {
   it("a failed Drizzle query is logged as the driver's error, never its SQL or parameters", async () => {
-    const cause = Object.assign(new Error('duplicate key value violates unique constraint "users_email_key"'), { name: "PostgresError" });
+    // Shaped as Bun SQL's PostgresError: `errno` is the SQLSTATE, `detail` and `hint` quote the row's values.
+    const cause = Object.assign(new Error('duplicate key value violates unique constraint "users_email_key"'), {
+      name: "PostgresError", errno: "23505", code: "ERR_POSTGRES_SERVER_ERROR", constraint: "users_email_key", table: "users",
+      detail: "Key (lower(email))=(leaked@example.com) already exists.", hint: "leaked-hint",
+    });
     const err = new DrizzleQueryError('… "password_hash" = $1 where "users"."id" = $2', ["$argon2id$v=19$secret-hash", "a@b.c"], cause);
     const spy = spyOn(log, "error");
     try {
@@ -16,6 +20,8 @@ describe("unexpected", () => {
       expect(logged).toContain("users_email_key");
       expect(logged).not.toContain("argon2id");
       expect(logged).not.toContain("password_hash");
+      expect((spy.mock.calls[0]![0] as unknown as { err: unknown }).err).toMatchObject({ code: "23505", constraint: "users_email_key", table: "users" });
+      expect(logged).not.toContain("leaked");
     } finally {
       spy.mockRestore();
     }

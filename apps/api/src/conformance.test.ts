@@ -66,7 +66,7 @@ describe("endpoint table (docs/api/README.md)", () => {
 // ---------------------------------------------------------------- (b) handlers
 
 /**
- * GET routes that answer one record, a summary or the caller, not a list; every other GET outside auth/ pages with
+ * GET routes that answer one record, a summary or the caller, not a list; every other GET outside the sign-in routes pages with
  * pageQuery( (or a function that does). Keys are "GET <path under /v1>".
  */
 const NON_LIST_GETS: Record<string, string> = {
@@ -221,12 +221,18 @@ function exportsOf(files: { file: string; src: string }[]): { pagers: string[]; 
 
 /** Files that register routes: the Hono routers and the Elysia module controllers. */
 const ROUTE_FILE = /(^|\/)(routes|controller)\.ts$/;
+/**
+ * The sign-in routes (/v1/auth/*, by file: a new route elsewhere, even under /v1/auth, follows every rule): they answer
+ * before a session exists. `auth/routes.ts` is the former Hono router, kept for its fixture.
+ */
+const AUTH_ROUTE_FILES = ["auth/routes.ts", "modules/auth/controller.ts", "modules/oauth/controller.ts"];
 
 const first = (h: Handler, name: string) => h.calls.find((c) => c.name === name)?.pos ?? -1;
 const NOT_FOUND = ["idParam", "notFound"];
 
 /**
- * Rules for every handler of a routes file or module controller outside auth/ and /v1/auth (they answer before a session exists):
+ * Rules for every handler of a routes file or module controller but the sign-in ones (AUTH_ROUTE_FILES: they answer
+ * before a session exists):
  * guard( first (before any data call); non-GET records activity; a list GET pages with pageQuery( (the JSON branch of a
  * `format=csv` route counts: its CSV branch must call a `…Csv` function that LIMITs to CSV_MAX_ROWS); query( before
  * guard( (400 before 401); body( before idParam( / a 404 (400 before 404).
@@ -238,9 +244,8 @@ function routeViolations(files: { file: string; src: string }[], nonList: Record
     const service = files.find((f) => f.file === controller.replace(/controller\.ts$/, "service.ts"));
     return service ? recordersOf(service.file, service.src) : new Set<string>();
   };
-  const hs = files.filter((f) => ROUTE_FILE.test(f.file) && !/(^|\/)auth\//.test(f.file))
-    .flatMap((f) => handlersOf(f.file, f.src, mods, f.file.endsWith("controller.ts") ? recordersOfService(f.file) : undefined))
-    .filter((h) => !h.path.startsWith("/auth/")); // /v1/auth/* answers before a session exists, wherever its module lives
+  const hs = files.filter((f) => ROUTE_FILE.test(f.file) && !AUTH_ROUTE_FILES.includes(f.file))
+    .flatMap((f) => handlersOf(f.file, f.src, mods, f.file.endsWith("controller.ts") ? recordersOfService(f.file) : undefined));
   const paging = new Set(["pageQuery", ...pagers]);
   const csvFns = new Set(Object.keys(csv));
   const gets = new Set<string>();
@@ -346,7 +351,7 @@ r.patch("/a/:id", async (c) => { const ctx = await guard(c, "x.edit"); const b =
     expect(run(post(`const id = idParam(c, "id", "a");`))).toEqual([]);
     expect(run(post(`const b = await body(c, B); const id = idParam(c, "id", "a");`))).toEqual([]);
   });
-  it("fixture: an Elysia controller's query and guard options run before its handler, its service's recorders count, /v1/auth is exempt", () => {
+  it("fixture: an Elysia controller's query and guard options run before its handler, its service's recorders count", () => {
     const service = { file: "modules/x/service.ts", src: `import { recordActivity } from "../audit"; import { db } from "../../kernel/db";
 export async function save(ctx, b) { await db.transaction(async (tx) => { await recordActivity(tx, ctx, e); }); }
 export async function quiet(ctx) { await db.delete(t); }
@@ -357,13 +362,21 @@ export const xController = () => new Elysia().use(guard)${code};` });
     const check = (code: string) => routeViolations([controller(code), service], {});
     expect(check(`.get("/v1/x", ({ query }) => thingPage(query), { query: Q, guard: "x.view" })
   .patch("/v1/x/:id", async (c) => save(c.ctx, await body(c, B)), { guard: "x.edit" })
-  .post("/v1/auth/x", async (c) => quiet(c))
   .get("/healthz", () => ({ ok: true }))`)).toEqual([]);
     expect(check(`.get("/v1/x", ({ query }) => thingPage(query), { query: Q })`)).toEqual(["modules/x/controller.ts GET /x: no guard("]);
     expect(check(`.delete("/v1/x/:id", ({ ctx }) => quiet(ctx), { guard: "x.delete" })`)).toEqual(["modules/x/controller.ts DELETE /x/:id: no recordActivity("]);
     expect(check(`.get("/v1/x", () => thing(), { guard: null })`)).toEqual(["modules/x/controller.ts GET /x: GET answers a list without pageQuery("]);
     expect(handlersOf("modules/x/controller.ts", controller(`.get("/v1/x", () => 1, { guard: null, query: Q })`).src, new Set()).map((h) => h.calls.map((c) => c.name)))
       .toEqual([["query", "guard"]]);
+  });
+  it("fixture: only the sign-in controllers are exempt; another module's route under /v1/auth follows every rule", () => {
+    const src = `import { Elysia } from "elysia"; import { quiet } from "./service";
+export const c = () => new Elysia().post("/v1/auth/x", async (c) => quiet(c));`;
+    const service = (dir: string) => ({ file: `${dir}/service.ts`, src: "export async function quiet(c) {}" });
+    expect(routeViolations([{ file: "modules/oauth/controller.ts", src }, service("modules/oauth")], {})).toEqual([]);
+    expect(routeViolations([{ file: "modules/auth/controller.ts", src }, service("modules/auth")], {})).toEqual([]);
+    expect(routeViolations([{ file: "modules/x/controller.ts", src }, service("modules/x")], {}))
+      .toEqual(["modules/x/controller.ts POST /auth/x: no guard(", "modules/x/controller.ts POST /auth/x: no recordActivity("]);
   });
   it("fixture: auth/ routes are exempt, a non-handler call named like a route method is ignored", () => {
     expect(routeViolations([{ file: "auth/routes.ts", src: `r.post("/login", async (c) => { await sql\`select 1\`; return c.json(1); });` }], {})).toEqual([]);

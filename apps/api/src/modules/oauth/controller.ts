@@ -1,17 +1,19 @@
-// /v1/auth/oauth/{provider}/{start,callback}: the API's half of the Google/Apple flow (the web keeps the browser
-// binding cookie and the redirects). Both answer before a session exists, so neither is guarded: the body is read
-// first, then (start, link mode) the bearer's session, then the provider.
+// /v1/auth/oauth/{provider}/{start,callback} and /v1/auth/providers: the API's half of the Google/Apple flow (the web
+// keeps the browser binding cookie and the redirects). They answer before a session exists, so none is guarded: start
+// and callback read the body first, then (start, link mode) the bearer's session, then the provider.
 import { Elysia } from "elysia";
 import { body } from "../../kernel/parse";
 import { context } from "../../kernel/plugins/context";
 import { authenticate, bearer, resolveSession } from "../auth";
-import { OAuthCallbackBody, OAuthStartBody } from "./providers";
+import { OAuthCallbackBody, OAuthStartBody, providerEnabled } from "./providers";
 import { callback, oauthProvider, start } from "./service";
 
-/** The routes of the provider round trip. */
+/** The routes of the provider round trip, and which providers can sign in. */
 export const oauthController = () =>
   new Elysia()
     .use(context)
+    /** Which providers can sign in (API-internal: the web hides or blocks the other buttons). */
+    .get("/v1/auth/providers", () => ({ google: providerEnabled("google"), apple: providerEnabled("apple") }))
     /** Link mode needs a signed-in user (401); login mode stores the browser's session when it has one. */
     .post("/v1/auth/oauth/:provider/start", async (c) => {
       const b = await body(c, OAuthStartBody);
