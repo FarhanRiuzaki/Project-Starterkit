@@ -16,3 +16,18 @@ describe("Field", () => {
     expect(html(undefined)).not.toContain("f-note");
   });
 });
+
+describe("Field error", () => {
+  const withError = (error: string | undefined, note?: string) =>
+    renderToStaticMarkup(h(Field, { id: "f", label: "Email", note, error, children: h("input", { id: "f" }) }));
+  it("marks the control invalid and describes it by the message first, then the note", () => {
+    const out = withError("Enter an email address like name@example.com.", "Used to sign in.");
+    expect(out).toContain('aria-invalid="true"');
+    expect(out).toContain('aria-describedby="f-error f-note"');
+    expect(out).toMatch(/<p id="f-error" class="[^"]*text-down-ink[^"]*"><svg[^>]*aria-hidden="true"[^>]*>.*?<\/svg>Enter an email address like name@example.com.<\/p>/);
+  });
+  it("without an error nothing is marked", () => {
+    expect(withError(undefined)).not.toContain("aria-invalid");
+    expect(withError(undefined)).not.toContain("f-error");
+  });
+});

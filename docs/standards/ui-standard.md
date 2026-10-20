@@ -196,6 +196,7 @@ same kind extends this list (and its check) first.
 | A dashboard answers first, explains second, details last: KPI tray → charts → tables. | Airform "decide what goes at the top" | §1 page anatomy |
 | Records show words, not codes: activity actions through `actionLabel`, glossary terms only (copy guide). | NN/g heuristic 2 (match the real world) | `packages/shared/src/audit.ts` |
 | Siblings in a row share height; label/value rows look the same on one page. | Laws of UX: Common Region, Similarity | §2; `user-detail.tsx` |
+| A form validates through `useForm` (`lib/validate.ts` rules): errors after leaving a field or on submit, cleared when fixed; a failed submit shows `ErrorSummary` and focuses the first field; messages are instructions. A multi-step form is `FormWizard` (+ `ReviewList`); a choice among many is `Combobox`, among 2–6 `RadioGroup`; a file is `FileUpload` with the page's `upload`; task progress is `Progress`; a sequence of steps over time is `Timeline`. | W3C WAI, NN/g, GOV.UK, WAI-ARIA APG, Apple HIG (design-system §5.15) | `packages/ui/src/ds/{use-form,error-summary,form-wizard,combobox,radio-group,file-upload,progress,timeline,disclosure}.tsx` (+ tests); /ds "Forms and flows" |
 | Design with real data: long names, zero, a brand-new account, a bad day. Every data region keeps its five states (§3). | Airform "design with real data" | §3; `docs/standards/copy-guide.md` (empty states) |
 
 ## 6. Consistency checklist (run per page before merge)

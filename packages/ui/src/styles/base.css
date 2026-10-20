@@ -147,6 +147,7 @@
   [data-motion-preview="reduced"] .stagger-children > * { animation: fade-in var(--dur-instant) linear both !important; }
   [data-motion-preview="reduced"] :is(.animate-row-new, .motion-safe\:animate-row-new) { animation: none !important; }
   [data-motion-preview="reduced"] .transition-sidebar { transition: none !important; }
+  [data-motion-preview="reduced"] .animate-progress { animation: none !important; }
   [data-motion-preview="reduced"] .indicator-move { transition: opacity var(--dur-instant) linear !important; }
   [data-motion-preview="reduced"] .skeleton-shimmer::after { display: none !important; }
   [data-motion-preview="reduced"] .card-lift:hover, [data-motion-preview="reduced"] .card-lift:active { transform: none !important; }
@@ -177,6 +178,12 @@ details[open]::details-content { block-size: auto; opacity: 1; }
 /* Page enter (spec §7.2) — components/motion/page-transition.tsx. Reduced motion: fade only, 100 ms. */
 @keyframes page-enter { from { opacity: 0; transform: translateY(var(--shift-enter)); } }
 @keyframes fade-in { from { opacity: 0; } }
+/* Indeterminate progress (ds/progress.tsx): a third-width fill crossing the track. Reduced motion: it stands still. */
+@keyframes progress-slide { from { transform: translateX(-100%); } to { transform: translateX(300%); } }
+@utility animate-progress {
+  animation: progress-slide var(--dur-flash) var(--ease-standard) infinite;
+  @media (prefers-reduced-motion: reduce) { animation: none; }
+}
 @utility animate-page-enter {
   animation: page-enter var(--dur-page) var(--ease-out) both;
   @media (prefers-reduced-motion: reduce) { animation: fade-in var(--dur-instant) linear both; }

@@ -13,6 +13,7 @@ import { Button } from "@starterkit/ui/ui/button";
 import { Icon } from "@starterkit/ui/ui/icon";
 import { HeatmapIcon, InfoIcon, RefreshIcon, SessionsIcon, SurfacesIcon, UsersIcon } from "@starterkit/ui/ui/icons";
 import { Input } from "@starterkit/ui/ui/input";
+import { FormsSection } from "./forms-section";
 import { PasswordInput } from "@starterkit/ui/ui/password-input";
 import { Skeleton } from "@starterkit/ui/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@starterkit/ui/ui/tabs";
@@ -185,6 +186,9 @@ export function GallerySections() {
           </div>
         </Panel>
       </div>
+
+      <SectionTitle>Forms and flows</SectionTitle>
+      <FormsSection />
 
       <SectionTitle>Tokens</SectionTitle>
       <Tokens />

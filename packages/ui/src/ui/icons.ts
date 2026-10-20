@@ -75,6 +75,10 @@ export {
   LinkSquare02Icon as ExternalLinkIcon,
   Copy01Icon as CopyIcon,
   Tick02Icon as CheckIcon,
+  CloudUploadIcon as UploadIcon, // File upload drop zone
+  File01Icon as FileIcon, // An uploaded file without a preview
+  Image01Icon as ImageIcon, // An image file before its preview loads
+  Delete02Icon as RemoveIcon, // Remove a file from an upload list
   Cancel01Icon as CloseIcon,
   MoreHorizontalIcon as MoreIcon,
   CommandLineIcon as CommandsIcon,

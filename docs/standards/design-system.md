@@ -479,6 +479,10 @@ text, × 14 px).
   colour, empty = `--line`; threshold tick taller (20 px) in fg-2. Use for quotas and budgets.
 - **Ring**: 40 px, 4 px stroke, round cap, track `--line`; value text outside the ring (never inside at this size).
 - **Threshold meter** (`Meter`): bar with a 2 × 14 px thumb at the warning threshold.
+- **Task progress** (`Progress`, `ds/progress.tsx`): how far a task is, not how full something is. 6 px (4 px `sm`),
+  fill primary striped (Down mark when it failed), label left and "64%" or a count ("3 of 5 files") right. Without a
+  value it is indeterminate: a third of the bar crosses the track (`animate-progress`, still under reduced motion), and
+  no value is read. Prefer a count when the steps are countable; show it only while work runs (Apple HIG, NN/g).
 
 ### 5.11 Avatars
 28 px tables, 24 px chips, 32 px account. Initials only (no photos): `label` 600 on a tint derived
@@ -487,7 +491,10 @@ from the name hash over the 6 categorical softs; 1 px `--line` ring. Stacks over
 ### 5.12 Inputs
 32 px (login 40 px), radius 8, 1 px `--line-strong`, `--card` bg, padding 0 10, leading icon 16 fg-3, placeholder
 fg-3 (format only). Focus: 1 px primary border + 3 px `--primary-soft` ring. Error: Down mark border + message
-under the field in Down ink `body-sm`.
+under the field in Down ink `body-sm` with the 14 px alert icon (`Field error`), never colour alone. `Textarea`: the
+same look, 3 lines at least; `limit` adds the count ("120 of 500 characters", "12 characters too many" past it; typing
+is never blocked). `Switch`: 36 × 20 pill, primary when on, for a setting that applies at once; in a form that saves
+later, a Checkbox.
 
 ### 5.13 Empty, error, loading, stale (the five states)
 - **Loading**: shimmer skeletons in the final shape (§7.2): text bars 10 px radius 4, chart = gridlines + 3 ghost
@@ -503,6 +510,37 @@ Menu: `--raised`, radius 12, padding 4, items 32 px radius 8, `--shadow-overlay`
 (dark: `#f2f2f3` text `#151517`), radius 8, `body-sm`, padding 6 10, max 280 px. Dialog: 480 / 640 px, radius 16,
 padding 24, title `title-1`, footer buttons right; confirm copy per copy guide. Below 768 px the dialog is a bottom
 sheet (§0): full width, top corners 16, at most 90 dvh, content scrolls, footer sticky at the bottom.
+
+### 5.15 Forms and flows (`packages/ui/src/ds`, gallery: /ds "Forms and flows")
+Sources: WAI-ARIA APG (combobox, disclosure), GOV.UK Design System (error summary, error message, character count,
+file upload, question pages, check answers), NN/g (wizards, form errors, progress indicators, toggle switches,
+checkboxes vs radios), Apple HIG (toggles, progress indicators, text fields, combo boxes, disclosure controls).
+- **Validation** (`lib/validate.ts` rules + `useForm` + `ErrorSummary` + `Field error`): a field's error shows once
+  the user has left it or tried to submit, and clears as soon as it is fixed (W3C WAI, NN/g; GOV.UK validates on
+  submit only: our choice is the blur). A failed submit lists every error in "There is a problem" (links to the
+  fields, role=alert) and focuses the first field. Messages are instructions ("Enter an email address like
+  name@example.com."), never "invalid" or "required". zod stays server-side.
+- **RadioGroup**: 2–6 choices, native radios in a fieldset with a legend (arrow keys, "1 of 3"); `cards` for options
+  that need a sentence each (selected: primary border on `--primary-soft`). More choices: Combobox.
+- **Combobox** (the select2): APG combobox with a listbox popup. Single (clear button) or `multiple` (chips with a
+  named × each; Backspace on an empty field removes the last); local `options` or `loadOptions` (250 ms debounce, the
+  previous request aborted, Searching… / Couldn't load + Try again / No matches); `onCreate` adds "Create “text”".
+  ↓ opens and moves, Enter picks, Esc closes then clears. The result count is announced.
+- **FormWizard** + **ReviewList**: every step in the StepIndicator plus "Step 2 of 4"; Continue validates the step's
+  fields and focuses the next step's heading; Back keeps the answers; the last button names the action ("Send
+  invitation"); the review lists every answer ("Not provided" when empty) with a Change button that reopens its step.
+  Each step mounts fresh (keyed), so a control is never reused for the next step's field.
+- **FileUpload**: dashed drop zone (`--tray`, primary on drag) with a "choose files" button opening the native picker;
+  paste while it has focus. Limits said up front ("An image or a PDF, up to 5 MB, 4 files at most"). Each file is
+  checked before sending (GOV.UK wording: "The file must be smaller than 5 MB."), then sent through the page's
+  `upload(file, { onProgress, signal })` with its own Progress, Cancel, Try again, Remove and a thumbnail for images;
+  results are announced. Past `maxFiles` the rest are not added and that is said.
+- **Timeline**: an ordered list; markers in the StepMarker family (done Healthy check, current primary dot with a soft
+  ring, rejected Down cross, upcoming ring, skipped dashed ring), the rail solid up to the last finished step and
+  dashed after; each step says its status in words, the current one has aria-current="step"; actor, time and a note
+  box. For approvals, tracking and a record's history.
+- **Disclosure**: native `<details>` (no script, find-in-page reaches it), 44 px summary with a turning chevron,
+  the shared block-size transition. Stack them for an accordion.
 
 ---
 
