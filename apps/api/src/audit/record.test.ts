@@ -45,6 +45,13 @@ describe("recordActivity masks credentials at store time", () => {
     expect(JSON.stringify(e)).not.toMatch(/Old-Secret|New-Secret|s3cr3t-value|aaaa-1111/);
   });
 
+  it("no before/after (or null) is SQL NULL, not jsonb null", async () => {
+    const ctx = await ctxOf("admin");
+    await sql.begin((tx) => recordActivity(tx, ctx, { action: "user.delete", target: { type: "user", id: ctx.user.id, label: ctx.user.name }, after: null }));
+    const [r] = await sql`select before is null as b, after is null as a from activity order by at desc, id desc limit 1`;
+    expect(r).toEqual({ b: true, a: true });
+  });
+
   it("a non-object value is stored as JSON, not as text", async () => {
     const ctx = await ctxOf("admin");
     await sql.begin((tx) => recordActivity(tx, ctx, { action: "me.update", target: { type: "user", id: ctx.user.id, label: ctx.user.name }, before: "plain", after: ["a"] }));

@@ -129,7 +129,7 @@ export async function seedDemo(db: SQL, env: Record<string, string | undefined> 
     for (const a of activity) {
       await tx`insert into activity (id, at, actor_id, actor_name, action, target_type, target_id, target_label, before, after)
         values (${a.id}, ${a.at}, ${a.actor_id}, ${a.actor_name}, ${a.action}, ${a.target_type}, ${a.target_id}, ${a.target_label},
-                ${JSON.stringify(a.before)}::text::jsonb, ${JSON.stringify(a.after)}::text::jsonb)`;
+                ${a.before && JSON.stringify(a.before)}::text::jsonb, ${a.after && JSON.stringify(a.after)}::text::jsonb)`;
     }
     await tx`insert into auth_log ${tx(authLog)}`;
   });

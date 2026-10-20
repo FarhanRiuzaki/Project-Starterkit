@@ -33,6 +33,7 @@ describe("pageQuery", () => {
 
   it("sortSql refuses a key outside the whitelist; likeEscape escapes \\ % _", async () => {
     expect(() => sortSql("password_hash", COLUMNS, "name")).toThrow();
+    for (const inherited of ["constructor", "-toString", "__proto__", "hasOwnProperty"]) expect(() => sortSql(inherited, COLUMNS, "name")).toThrow();
     expect(likeEscape("50%_a\\b")).toBe("50\\%\\_a\\\\b");
     const [r] = await sql`select ${"a50%_x"} like ${`%${likeEscape("50%_")}%`} as hit, ${"a50xyx"} like ${`%${likeEscape("50%_")}%`} as miss`;
     expect(r).toEqual({ hit: true, miss: false });

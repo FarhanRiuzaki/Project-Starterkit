@@ -45,6 +45,13 @@ describe("seedSystem", () => {
     expect(u).toEqual({ username: "someone", password_hash: "kept", roles: 0 });
   });
 
+  it("an unknown email whose username is taken fails naming the key", async () => {
+    await sql`insert into users (id, name, username, email) values (${Bun.randomUUIDv7()}, 'Someone', 'OWNER', 'someone@example.test')`;
+    const err = await seedSystem(sql, OWNER).catch((e: unknown) => e);
+    expect(String(err)).toContain("SEED_SUPERADMIN_USERNAME");
+    expect(await sql`select 1 from users`).toHaveLength(1);
+  });
+
   it("password policy: production refuses a short password, elsewhere it is one warning", async () => {
     const short = { ...OWNER, SEED_SUPERADMIN_PASSWORD: "Sh0rt-pw!" };
     const err = await seedSystem(sql, { ...short, NODE_ENV: "production" }).catch((e: unknown) => e);
@@ -88,6 +95,8 @@ describe("seedDemo", () => {
     ]);
     const [n] = await sql`select (select count(*)::int from users) as users, (select count(*)::int from activity) as activity, (select count(*)::int from auth_log) as auth`;
     expect(n).toEqual({ users: 50, activity: 200, auth: 300 });
+    const [nulls] = await sql`select count(*)::int as n from activity where (before is null) <> (action <> 'user.update') or jsonb_typeof(before) = 'null'`;
+    expect(nulls.n).toBe(0); // only user.update entries have a before; the others are SQL NULL
   });
 
   it("the generator is deterministic", async () => {

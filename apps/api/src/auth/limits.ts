@@ -73,11 +73,13 @@ export class Backoff {
     return Math.max(1, await this.retryAfterMs(key));
   }
 
-  /** Undo one reserved failure (the attempt got no verdict). */
+  /**
+   * Undo one reserved failure (the attempt got no verdict). One UPDATE on the row's latest version, so a concurrent
+   * reservation is never erased; a count of 0 is a row that blocks nothing (the janitor removes it).
+   */
   async release(key: string): Promise<void> {
-    await sql`delete from login_backoff where key = ${this.key(key)} and failures <= 1`;
-    await sql`update login_backoff b set failures = b.failures - 1, blocked_until = ${this.until(sql`b.failures - 1`, sql`b.last_failure_at`)}
-      where key = ${this.key(key)}`;
+    await sql`update login_backoff b set failures = greatest(b.failures - 1, 0),
+      blocked_until = ${this.until(sql`(b.failures - 1)`, sql`b.last_failure_at`)} where key = ${this.key(key)}`;
   }
 
   async succeed(key: string): Promise<void> {

@@ -7,12 +7,12 @@ import type { Ctx } from "../http/guard";
 const HIDDEN = new Set(["passwordHash", "totpSecret", "pendingTotpSecret", "recoveryCodes"]);
 
 /**
- * Plain-data copy of `before`/`after` as JSON text: the row's own credential fields are dropped, and any other
+ * Plain-data copy of `before`/`after` as JSON text, or null (SQL NULL) when there is none: the row's own credential fields are dropped, and any other
  * credential-named field (SECRET_KEY, at any depth) keeps only `MASK` when it had a value. So the API, the CSV, the
  * dashboard and the diff never see a credential, whatever a caller passes.
  */
-const snapshot = (v: unknown): string =>
-  v === undefined ? "null" : JSON.stringify(v, (k, x: unknown) => (HIDDEN.has(k) ? undefined : k && SECRET_KEY.test(k) && x != null ? MASK : x));
+const snapshot = (v: unknown): string | null =>
+  v == null ? null : JSON.stringify(v, (k, x: unknown) => (HIDDEN.has(k) ? undefined : k && SECRET_KEY.test(k) && x != null ? MASK : x));
 
 /** One activity entry by the request's user, inside the change's transaction. */
 export async function recordActivity(

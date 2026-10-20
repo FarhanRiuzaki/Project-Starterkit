@@ -115,6 +115,19 @@ describe("loginGate", () => {
     expect(await b.retryAfterMs("x")).toBe(0);
   });
 
+  it("release takes back one failure of several; the earlier ones still count", async () => {
+    const b = new Backoff(fresh(), 1, 60_000);
+    await b.fail("x");
+    await b.fail("x"); // 2 failures: 2 s
+    expect(await b.retryAfterMs("x")).toBeWithin(1900, 2001);
+    await b.release("x"); // back to 1 failure: 1 s after the last failure
+    expect(await b.retryAfterMs("x")).toBeWithin(900, 1001);
+    await b.release("x");
+    expect(await b.retryAfterMs("x")).toBe(0);
+    expect(await b.reserve("x")).toBe(0); // counting starts at 1 again
+    expect(await b.retryAfterMs("x")).toBeWithin(900, 1001);
+  });
+
   it("username backoff returns seconds to wait (case-insensitive)", async () => {
     const l = limits();
     await l.user.fail("rina");

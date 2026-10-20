@@ -28,7 +28,8 @@ function ownerOf(env: Record<string, string | undefined>) {
 /**
  * The data every install needs, idempotent: the permission catalog in order, the roles Superadmin (locked, every
  * permission), Admin and Viewer (their permissions only when the role is created, so later edits stay), then the
- * superadmin from SEED_SUPERADMIN_* when set. A user with that email already there is left as it is.
+ * superadmin from SEED_SUPERADMIN_* when set. A user with that email already there is left as it is; another user
+ * holding that username is an error.
  */
 export async function seedSystem(db: SQL, env: Record<string, string | undefined>): Promise<void> {
   const owner = ownerOf(env);
@@ -42,6 +43,9 @@ export async function seedSystem(db: SQL, env: Record<string, string | undefined
     await tx`insert into role_permissions (role_id, permission)
       select r.id, p.name from roles r cross join permissions p where r.name = 'Superadmin' on conflict do nothing`;
     if (!owner || (await tx`select 1 from users where lower(email) = lower(${owner.email})`).length) return;
+    if ((await tx`select 1 from users where lower(username) = lower(${owner.username})`).length) {
+      throw new Error("SEED_SUPERADMIN_USERNAME is already the username of another user (with another email). Choose another username.");
+    }
     const id = Bun.randomUUIDv7();
     await tx`insert into users (id, name, username, email, password_hash)
       values (${id}, ${owner.name}, ${owner.username}, ${owner.email}, ${await hashPassword(owner.password)})`;

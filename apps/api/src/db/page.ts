@@ -31,7 +31,8 @@ export async function pageQuery<R, T>(o: {
 export function sortSql(sort: string | undefined, columns: Record<string, string>, fallback: string): Fragment {
   const s = sort ?? fallback;
   const desc = s.startsWith("-");
-  const expr = columns[desc ? s.slice(1) : s];
+  const key = desc ? s.slice(1) : s;
+  const expr = Object.hasOwn(columns, key) ? columns[key] : undefined; // own keys only: never "constructor", "toString"…
   if (!expr) throw new Error(`sortSql: "${s}" is not a sort key of this list`);
   const dir = desc ? "desc" : "asc";
   return sql.unsafe(`${expr} ${dir}, id ${dir}`);
