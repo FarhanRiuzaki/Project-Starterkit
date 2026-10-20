@@ -24,11 +24,13 @@
     "elysia": "1.4.30",
     "jose": "6.2.12",
     "ldapts": "9.2.0",
+    "nodemailer": "10.1.7",
     "pino": "10.3.1",
     "zod": "4.6.5"
   },
   "devDependencies": {
     "@types/bun": "1.4.3",
+    "@types/nodemailer": "8.0.2",
     "drizzle-kit": "0.31.11",
     "typescript": "6.0.3"
   }
