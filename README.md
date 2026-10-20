@@ -76,7 +76,9 @@ docs/api/                 API contract for the backend: endpoint table and JSON 
 
 | Command | What it does |
 |---|---|
-| `bun run dev` | Development server for `apps/web`. |
+| `bun run dev` | Development servers for `apps/web` (:3000) and `apps/api` (:4000) together. |
+| `bun run setup` | Env files, database, migrations and seeds for the API (see Backend setup). |
+| `bun run db:migrate` | Applies pending `apps/api/migrations/*.sql`. |
 | `bun run check` | Typecheck, lint (no warnings allowed) and unit tests. Must pass before every commit. |
 | `bun run test:changed` | Unit tests touched by the files changed since the last commit. |
 | `bun run build` | Production build of `apps/web`. |
@@ -94,6 +96,23 @@ Make them on that platform (for CI: in the same Linux image the runner uses) wit
 - [`AGENTS.md`](AGENTS.md): the working rules for people and AI agents, each with the test or file that enforces it.
 - [`docs/standards/`](docs/standards): UI standard, design system, copy guide.
 - [`docs/superpowers/specs/2026-10-19-fe-starterkit-design.md`](docs/superpowers/specs/2026-10-19-fe-starterkit-design.md): the design spec.
+
+## Backend setup
+
+The API (`apps/api`, Bun + Hono + PostgreSQL) is being built in this phase; the web still uses the mock store.
+With a local PostgreSQL server:
+
+```sh
+DATABASE_URL='postgresql://user:password@localhost:5432/starterkit' bun run setup
+bun run --filter @starterkit/api dev    # http://127.0.0.1:4000/healthz
+cd apps/api && bun test                 # uses <database>_test, created and migrated on first run
+```
+
+`setup` writes `apps/api/.env` (random `INTERNAL_API_TOKEN` and `DATA_ENCRYPTION_KEY`) and `apps/web/.env.local`
+(`API_BASE_URL`, the same `INTERNAL_API_TOKEN`, `SESSION_SECRET`) only when they are missing, creates the database,
+and migrates. `--database-url <url>` works too, but `bun run` echoes the command line, password included.
+`SEED_SUPERADMIN_NAME/EMAIL/USERNAME/PASSWORD` set in the environment go into `apps/api/.env`. Every API setting:
+`apps/api/.env.example`. Both env files are gitignored.
 
 ## Backend phase
 

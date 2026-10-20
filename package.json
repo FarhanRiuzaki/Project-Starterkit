@@ -3,7 +3,12 @@
   "private": true,
   "workspaces": ["apps/*", "packages/*"],
   "scripts": {
-    "dev": "bun run --filter @starterkit/web dev",
+    "dev": "bun run --filter '@starterkit/web' --filter '@starterkit/api' dev",
+    "setup": "bun scripts/setup.ts",
+    "db:migrate": "bun run --filter @starterkit/api db:migrate",
+    "db:seed": "bun run --filter @starterkit/api db:seed",
+    "db:seed:demo": "bun run --filter @starterkit/api db:seed:demo",
+    "db:reset": "bun run --filter @starterkit/api db:reset",
     "build": "bun run --filter @starterkit/web build",
     "typecheck": "bun run --filter '*' typecheck",
     "lint": "eslint --max-warnings 0 .",

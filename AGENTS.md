@@ -25,7 +25,7 @@ code, tests and docs of the app this starterkit was extracted from; do not add a
 Package manager is Bun 1.4.3; runtime for Next is Node 24.
 
 - `bun install` installs.
-- `bun run dev` serves `apps/web`.
+- `bun run dev` serves `apps/web` (:3000) and `apps/api` (:4000); `bun run setup` prepares the API's env files and database.
 - `bun run check` = typecheck + lint (`--max-warnings 0`) + unit tests. Must pass before every commit.
 - `bun run --filter @starterkit/web test -- <name>` runs one test file.
 - `bun run test:changed` runs, in each workspace, the tests touched by files changed since the last commit (`vitest --changed`); `bunx vitest related <files>` inside a package runs the tests that import those files.
