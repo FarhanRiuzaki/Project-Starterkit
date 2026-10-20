@@ -3,7 +3,7 @@
 // First load = rootMainFiles (build-manifest) ∪ every entry chunk of the route's segment tree
 // (page_client-reference-manifest entryJSFiles: root layout, (main) layout, not-found, error, page).
 // Size = gzip of each unique chunk. Lazy chunks (next/dynamic, import()) are not counted: they load on demand.
-// Usage: node scripts/bundle-budget.mjs [--budget 250] [--json]
+// Usage: [NEXT_DIST_DIR=.next-e2e] node scripts/bundle-budget.mjs [--budget 250] [--json]
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { gzipSync } from "node:zlib";
@@ -23,7 +23,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) main();
 
 function main() {
 const ROOT = path.resolve(import.meta.dirname, "..");
-const NEXT = path.join(ROOT, ".next");
+const NEXT = path.join(ROOT, process.env.NEXT_DIST_DIR || ".next"); // the build next.config.ts wrote (NEXT_DIST_DIR)
 const args = process.argv.slice(2);
 const budgetKb = budgetFrom(args, process.env);
 const asJson = args.includes("--json");

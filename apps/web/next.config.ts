@@ -2,6 +2,8 @@ import type { NextConfig } from "next";
 
 const config: NextConfig = {
   output: "standalone",
+  // NEXT_DIST_DIR=.next-e2e for E2E and verification builds, so they never overwrite a running dev server's .next.
+  distDir: process.env.NEXT_DIST_DIR || ".next",
   poweredByHeader: false,
   reactStrictMode: true,
   transpilePackages: ["@starterkit/shared", "@starterkit/ui"],

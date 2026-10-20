@@ -1,9 +1,10 @@
 import { createHmac } from "node:crypto";
 import AxeBuilder from "@axe-core/playwright";
-import { expect, type Page } from "@playwright/test";
+import { expect, type Page, request } from "@playwright/test";
+import { AUTH_STATE } from "./global-setup";
 
 /**
- * Seed accounts (lib/server/mock/seed.ts; README "Seed accounts"). Written out here on purpose: the E2E checks the
+ * Seed accounts (apps/api/src/seed/demo.ts; README "Seed accounts"). Written out here on purpose: the E2E checks the
  * documented values, not whatever the seed module happens to export.
  */
 export const SEED = { password: "Password123!", ldapPassword: "LdapPass123!", totpSecret: "JBSWY3DPEHPK3PXP" } as const;
@@ -15,7 +16,7 @@ function base32(s: string): Buffer {
   return Buffer.from((bits.match(/.{8}/g) ?? []).map((b) => parseInt(b, 2)));
 }
 
-/** RFC 6238 TOTP (SHA-1, 6 digits, 30 s), written independently of the app's lib/server/totp.ts. */
+/** RFC 6238 TOTP (SHA-1, 6 digits, 30 s), written independently of the API's auth/totp.ts. */
 export function totp(secret: string, t = Date.now()): string {
   const counter = Buffer.alloc(8);
   counter.writeBigUInt64BE(BigInt(Math.floor(t / 30_000)));
@@ -77,3 +78,33 @@ export function collectErrors(page: Page): string[] {
 }
 
 export const heading = (page: Page, name: string | RegExp) => expect(page.getByRole("heading", { level: 1, name })).toBeVisible();
+
+/** Ids of demo records; the API's seed makes them (UUIDv7), so tests look them up instead of writing them out. */
+export type DemoIds = { admin: string; superadmin: string; superadminRole: string; adminRole: string; viewerRole: string };
+let ids: Promise<DemoIds> | null = null;
+
+/** The demo ids, read once per worker through /api as the global-setup Superadmin (any role may call it). */
+export function demoIds(baseURL: string | undefined): Promise<DemoIds> {
+  return (ids ??= (async () => {
+    const api = await request.newContext({ baseURL, storageState: AUTH_STATE });
+    const get = async <T>(path: string) => {
+      const r = await api.get(path);
+      expect(r.status(), path).toBe(200);
+      return (await r.json()) as T;
+    };
+    const user = async (email: string) =>
+      (await get<{ items: { id: string; email: string }[] }>(`/api/users?q=${encodeURIComponent(email)}`)).items.find((u) => u.email === email)!.id;
+    const roles = (await get<{ items: { id: string; name: string }[] }>("/api/roles?pageSize=100")).items;
+    const role = (name: string) => roles.find((r) => r.name === name)!.id;
+    const out = { admin: await user("admin@example.com"), superadmin: await user("superadmin@example.com"),
+      superadminRole: role("Superadmin"), adminRole: role("Admin"), viewerRole: role("Viewer") };
+    await api.dispose();
+    return out;
+  })());
+}
+
+/** `path` with each `{name}` replaced by that demo id ("/users/{admin}" → "/users/0199…"). */
+export async function withIds(path: string, baseURL: string | undefined): Promise<string> {
+  const d = await demoIds(baseURL);
+  return path.replace(/\{(\w+)\}/g, (_, k: keyof DemoIds) => d[k]);
+}

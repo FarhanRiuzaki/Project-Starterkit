@@ -2,6 +2,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { expect, type Page, test } from "@playwright/test";
 import { AUTH_STATE, SCRATCH } from "./global-setup";
+import { demoIds, withIds } from "./helpers";
 
 /**
  * No flicker (spec "Tanpa flicker", AGENTS.md §8). A probe installed before any page script records every interval in
@@ -23,12 +24,12 @@ const CLS_MAX = 0.01;
 const OUT = SCRATCH;
 const STATE = AUTH_STATE;
 
-/** Each page and a string only its loaded data renders into the server HTML. */
+/** Each page and a string only its loaded data renders into the server HTML (`{name}` = a demo id, helpers.ts demoIds). */
 const PAGES = [
   { path: "/", filled: 'data-slot="stat-tile"' },
-  { path: "/users", filled: 'href="/users/u-002"' },
-  { path: "/users/u-002", filled: "Effective permissions" },
-  { path: "/roles", filled: 'href="/roles/role-viewer"' },
+  { path: "/users", filled: 'href="/users/{admin}"' },
+  { path: "/users/{admin}", filled: "Effective permissions" },
+  { path: "/roles", filled: 'href="/roles/{viewerRole}"' },
   { path: "/audit/activity", filled: "View entry" },
   { path: "/me", filled: 'id="me-username"' },
 ] as const;
@@ -150,15 +151,16 @@ for (const mode of [{ name: "light", colorScheme: "light", reducedMotion: "no-pr
     test.use({ storageState: STATE, colorScheme: mode.colorScheme, reducedMotion: mode.reducedMotion });
 
     for (const p of PAGES) {
-      test(`${p.path} renders filled on first paint: no flash, no shift, no /api read`, async ({ page }) => {
+      test(`${p.path} renders filled on first paint: no flash, no shift, no /api read`, async ({ page, baseURL }) => {
+        const filled = await withIds(p.filled, baseURL);
         await page.addInitScript(installProbe);
         const api: string[] = [];
         page.on("request", (r) => { if (new URL(r.url()).pathname.startsWith("/api/")) api.push(`${r.method()} ${r.url()}`); });
-        const res = await page.goto(p.path);
+        const res = await page.goto(await withIds(p.path, baseURL));
         const html = await res!.text();
         const m = await settle(page);
-        save(`load ${mode.name} ${p.path}`, { cls: cls(m.shifts), intervals: m.intervals, gaps: m.gaps, api, filledInHtml: html.includes(p.filled) });
-        expect(html, "the server HTML carries the page's data").toContain(p.filled);
+        save(`load ${mode.name} ${p.path}`, { cls: cls(m.shifts), intervals: m.intervals, gaps: m.gaps, api, filledInHtml: html.includes(filled) });
+        expect(html, "the server HTML carries the page's data").toContain(filled);
         expect(flashes(m.intervals), "loading states shown for 1–300 ms").toEqual([]);
         expect(blank(m.gaps), "blank page region longer than a frame, not under a fade").toEqual([]);
         expect(m.doubled, "frames with the old page doubled (frozen copy over a leaving page)").toBe(0);
@@ -173,7 +175,8 @@ for (const mode of [{ name: "light", colorScheme: "light", reducedMotion: "no-pr
 test.describe("client navigation and table changes", () => {
   test.use({ storageState: STATE });
 
-  test("fast client-side navigation between pages: no flash, no shift, no /api read", async ({ page }) => {
+  test("fast client-side navigation between pages: no flash, no shift, no /api read", async ({ page, baseURL }) => {
+    const { admin } = await demoIds(baseURL);
     await page.addInitScript(installProbe);
     await page.goto("/");
     await settle(page);
@@ -187,7 +190,7 @@ test.describe("client navigation and table changes", () => {
       await expect(page.getByRole("heading", { level: 1, name: title })).toBeVisible();
     };
     await go(() => menu.getByRole("link", { name: "Users" }).click(), "Users");
-    await go(() => page.locator('a[href="/users/u-002"]').first().click(), "Admin User");
+    await go(() => page.locator(`a[href="/users/${admin}"]`).first().click(), "Admin User");
     await go(() => menu.getByRole("link", { name: "Roles" }).click(), "Roles");
     await go(() => menu.getByRole("link", { name: "Activity log" }).click(), "Activity log");
     await go(() => menu.getByRole("link", { name: "Profile" }).click(), "Profile");
@@ -280,7 +283,8 @@ test.describe("client navigation and table changes", () => {
 
   for (const reducedMotion of ["no-preference", "reduce"] as const) {
     for (const delay of [0, 250]) {
-      test(`same-segment navigation (${reducedMotion === "reduce" ? "reduced motion" : "motion"}, page payload +${delay} ms): no flash, no blank gap`, async ({ page }) => {
+      test(`same-segment navigation (${reducedMotion === "reduce" ? "reduced motion" : "motion"}, page payload +${delay} ms): no flash, no blank gap`, async ({ page, baseURL }) => {
+        const { admin } = await demoIds(baseURL);
         await page.emulateMedia({ reducedMotion });
         await page.addInitScript(installProbe);
         await page.route("**/*", async (route) => {
@@ -293,7 +297,7 @@ test.describe("client navigation and table changes", () => {
         await page.evaluate(() => { window.__flicker.intervals = []; window.__flicker.gaps = []; });
         const menu = page.getByRole("navigation", { name: "Menu" });
         const steps: [() => Promise<void>, string][] = [
-          [() => page.locator('a[href="/users/u-002"]').first().click(), "Admin User"], // users → users/[id]
+          [() => page.locator(`a[href="/users/${admin}"]`).first().click(), "Admin User"], // users → users/[id]
           [() => menu.getByRole("link", { name: "Profile" }).click(), "Profile"],
           [() => page.locator('a[href="/me/security"]').first().click(), "Security"], // me → me/security
           [() => menu.getByRole("link", { name: "Activity log" }).click(), "Activity log"],

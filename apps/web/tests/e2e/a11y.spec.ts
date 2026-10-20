@@ -1,14 +1,15 @@
 import path from "node:path";
 import { type Browser, expect, type Page, test } from "@playwright/test";
 import { AUTH_STATE, SCRATCH } from "./global-setup";
-import { axeSerious, signIn } from "./helpers";
+import { axeSerious, signIn, withIds } from "./helpers";
 
 /**
  * axe (WCAG 2.0–2.2 A/AA): no serious or critical violation on the sign-in steps and the main screens, light and
  * dark. Signed-in pages use the superadmin session from global-setup; /login/2fa needs a sign-in waiting for its
  * second factor, made once per worker.
  */
-const SIGNED_IN = ["/", "/users", "/users/u-002", "/roles/role-superadmin", "/permissions", "/audit/activity", "/audit/auth", "/me/security"];
+/** `{name}` = a demo id (helpers.ts demoIds). */
+const SIGNED_IN = ["/", "/users", "/users/{admin}", "/roles/{superadminRole}", "/permissions", "/audit/activity", "/audit/auth", "/me/security"];
 
 const PENDING_2FA = path.join(SCRATCH, "pending-2fa-state.json");
 let pending: Promise<string> | null = null;
@@ -52,8 +53,8 @@ for (const colorScheme of ["light", "dark"] as const) {
     test.describe("signed in", () => {
       test.use({ storageState: AUTH_STATE });
       for (const p of SIGNED_IN) {
-        test(p, async ({ page }) => {
-          await page.goto(p);
+        test(p, async ({ page, baseURL }) => {
+          await page.goto(await withIds(p, baseURL));
           await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
           await page.waitForLoadState("networkidle");
           await check(page, dark);
