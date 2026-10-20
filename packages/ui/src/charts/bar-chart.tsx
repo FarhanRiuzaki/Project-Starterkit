@@ -114,7 +114,7 @@ export function BarChart({ label, categories, series, stacked, format, height = 
         <ResponsiveContainer width="100%" height="100%">
           <RBarChart data={rows} margin={{ ...MARGIN, top: MARGIN.top + 16 }} barCategoryGap="28%" barGap={2} accessibilityLayer>
             <CartesianGrid vertical={false} stroke={GRID} strokeWidth={1} strokeDasharray={DASH} />
-            <XAxis dataKey="c" height={X_AXIS_HEIGHT} tick={AXIS_TICK} tickLine={false} axisLine={false} interval="preserveStartEnd" tickFormatter={(v: string) => ellipsize(String(v), 16)} />
+            <XAxis dataKey="c" height={X_AXIS_HEIGHT} tick={AXIS_TICK} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={16} tickFormatter={(v: string) => ellipsize(String(v), 16)} />
             <YAxis ticks={ticks} domain={[0, top]} tickFormatter={tickLabel} tick={AXIS_TICK} tickLine={false} axisLine={false} tickSize={0} tickMargin={TICK_GAP} width={yWidth} />
             <ReferenceLine y={0} stroke={BASELINE} strokeWidth={1} />
             <ActiveBand host={host} />

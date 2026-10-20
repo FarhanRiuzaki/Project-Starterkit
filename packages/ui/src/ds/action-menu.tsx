@@ -5,7 +5,8 @@ import { MoreIcon } from "../ui/icons";
 import { Button } from "../ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "../ui/dropdown-menu";
 
-type Action = { id: string; label: string; destructive?: boolean; disabled?: boolean; hint?: string; onSelect?: () => void };
+/** `className` on the item, e.g. an item shown only on a phone or a touch screen, where it stands in for a row button. */
+type Action = { id: string; label: string; destructive?: boolean; disabled?: boolean; hint?: string; onSelect?: () => void; className?: string };
 
 /** Admin action menu. `unavailableReason` (obs-agent down, or still checking) disables every item and says why at the
  *  top; an item's `hint` explains why that item alone is disabled. */
@@ -19,7 +20,7 @@ export function ActionMenu({ label, actions, unavailableReason }: { label: strin
         {unavailableReason && <><DropdownMenuLabel className="text-label font-normal text-fg-3">{unavailableReason}</DropdownMenuLabel><DropdownMenuSeparator /></>}
         {actions.map((a) => (
           <DropdownMenuItem key={a.id} disabled={!!unavailableReason || a.disabled || !a.onSelect} onSelect={a.onSelect}
-            variant={a.destructive ? "destructive" : "default"}>
+            variant={a.destructive ? "destructive" : "default"} className={a.className}>
             <span className="grid min-w-0"><span>{a.label}</span>{a.hint && !unavailableReason && <span className="text-caption text-fg-3">{a.hint}</span>}</span>
           </DropdownMenuItem>
         ))}

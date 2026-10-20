@@ -1,6 +1,7 @@
 "use client";
 
 import { type ComponentProps, useId } from "react";
+import { cn } from "../lib/cn";
 import { Button } from "../ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 
@@ -10,15 +11,19 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
  * reason is a visible caption below the button (CSS only; with a fine pointer the wrapper is `display: contents`, so
  * the layout is the same as a bare button). `caption={false}` for dense rows (table row actions) that show the same
  * reason elsewhere on touch; the reason then stays screen-reader only there.
+ * `className` stays on the button, blocked or not. Under a coarse pointer the button and its caption are one box:
+ * `wrapClassName` places that box where the button alone would sit (`w-full` beside a full-width button, `ml-auto
+ * items-end` for a button pushed right); with a fine pointer the wrapper has no box, so it changes nothing there.
  */
-export function BlockedButton({ reason, caption = true, children, onClick, ...props }: ComponentProps<typeof Button> & { reason: string | null; caption?: boolean }) {
+export function BlockedButton({ reason, caption = true, children, onClick, className, wrapClassName, ...props }: ComponentProps<typeof Button> & { reason: string | null; caption?: boolean; wrapClassName?: string }) {
   const id = useId();
-  if (!reason) return <Button onClick={onClick} {...props}>{children}</Button>;
+  if (!reason) return <Button onClick={onClick} className={className} {...props}>{children}</Button>;
   return (
-    <span className="contents pointer-coarse:inline-flex pointer-coarse:flex-col pointer-coarse:items-start pointer-coarse:gap-1">
+    // Only `display` changes with the pointer; the flex classes act once the wrapper is a box (coarse).
+    <span className={cn("contents flex-col items-start gap-1 pointer-coarse:inline-flex", wrapClassName)}>
       <Tooltip>
         <TooltipTrigger asChild>
-          <Button {...props} aria-disabled="true" aria-describedby={id} onClick={(e) => e.preventDefault()} className="aria-disabled:cursor-default aria-disabled:opacity-50">{children}</Button>
+          <Button {...props} aria-disabled="true" aria-describedby={id} onClick={(e) => e.preventDefault()} className={cn("aria-disabled:cursor-default aria-disabled:opacity-50", className)}>{children}</Button>
         </TooltipTrigger>
         <TooltipContent>{reason}</TooltipContent>
       </Tooltip>

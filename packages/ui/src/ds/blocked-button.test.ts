@@ -22,7 +22,7 @@ describe("BlockedButton reason on touch", () => {
 
   it("the wrapper adds no box with a fine pointer (desktop layout unchanged) and stacks button (its own width) and caption under a coarse one", () => {
     const wrap = classesOf(html(), /^<span class="([^"]*)"><button/);
-    expect(wrap).toEqual(expect.arrayContaining(["contents", "pointer-coarse:inline-flex", "pointer-coarse:flex-col", "pointer-coarse:items-start"]));
+    expect(wrap).toEqual(expect.arrayContaining(["contents", "pointer-coarse:inline-flex", "flex-col", "items-start"]));
   });
 
   it("caption={false} (dense rows with the reason elsewhere) keeps the description screen-reader only", () => {
@@ -33,5 +33,19 @@ describe("BlockedButton reason on touch", () => {
 
   it("no reason: a plain button, no wrapper", () => {
     expect(html({ reason: null })).toMatch(/^<button/);
+  });
+});
+
+/** A blocked button keeps the caller's classes (it used to drop them), and the touch wrapper takes the pair's layout. */
+describe("BlockedButton layout classes", () => {
+  it("the caller's className stays on the blocked button, after the blocked look", () => {
+    const btn = classesOf(html({ className: "h-10 w-full" }), /<button[^>]*class="([^"]*)"/);
+    expect(btn).toEqual(expect.arrayContaining(["h-10", "w-full", "aria-disabled:opacity-50"]));
+  });
+
+  it("wrapClassName lays out the button + caption pair under a coarse pointer (with a fine one the wrapper has no box)", () => {
+    const wrap = classesOf(html({ wrapClassName: "ml-auto items-end" }), /^<span class="([^"]*)"><button/);
+    expect(wrap).toEqual(expect.arrayContaining(["contents", "pointer-coarse:inline-flex", "ml-auto", "items-end"]));
+    expect(wrap).not.toContain("items-start");
   });
 });

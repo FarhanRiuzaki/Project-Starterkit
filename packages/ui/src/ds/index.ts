@@ -3,7 +3,7 @@ export type { LegendItem } from "./status-legend";
 export { Meter, MeterFill, meterTrack, TickMeter } from "./meter";
 export { CategoryChip, CountBadge, FilterChip, type CategorySlot } from "./badges";
 export { Avatar, AvatarStack } from "./avatar";
-export { FilterMenu, Toolbar } from "./toolbar";
+export { FilterMenu, Toolbar, ToolbarFilters } from "./toolbar";
 export { StatTile, StatTiles, StatTileSkeletons } from "./stat-tile";
 export { Panel } from "./panel";
 export { Facts } from "./facts";

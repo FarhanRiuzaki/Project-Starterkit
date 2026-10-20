@@ -101,3 +101,92 @@ describe("DataTable loading shape (no layout shift)", () => {
     expect(skeletons(renderToStaticMarkup(h(DataTable<S>, { ...base, skeletonRows: 5 })))).toBe(5);
   });
 });
+
+/**
+ * Stacked rows below 768 px (responsive spec "DataTable"): one DOM for every width. Each cell carries its column's
+ * phone role (`data-mobile`); CSS turns the row into a card (title, meta label–value pairs, the leading checkbox and
+ * the row actions) and hides `hidden` cells. The table keeps its semantics (explicit roles survive the display change).
+ */
+describe("DataTable stacked rows (phone)", () => {
+  type S = { id: string; name: string; city: string; note: string };
+  const cols = (over: Partial<Record<"pick" | "name" | "city" | "note", "title" | "meta" | "hidden" | "lead" | undefined>> = {}) => [
+    { key: "pick", header: "Select", mobile: over.pick ?? ("lead" as const), cell: (r: S) => h("input", { type: "checkbox", "aria-label": `Select ${r.name}` }) },
+    { key: "name", header: "Name", mobile: over.name ?? ("title" as const), cell: (r: S) => r.name },
+    { key: "city", header: "City", mobile: over.city ?? ("meta" as const), cell: (r: S) => r.city },
+    { key: "note", header: "Note", mobile: over.note ?? ("hidden" as const), cell: (r: S) => r.note },
+  ];
+  const render = (columns = cols(), extra: Record<string, unknown> = {}) => renderToStaticMarkup(h(DataTable<S>, {
+    label: "People", rows: [{ id: "a", name: "Alex", city: "Oslo", note: "n1" }], rowKey: (r) => r.id, columns,
+    empty: { icon: SessionsIcon, title: "No people", description: "None yet." },
+    rowActions: (r) => h("button", { type: "button" }, `Actions for ${r.name}`), ...extra,
+  }));
+  const cell = (out: string, text: string) => new RegExp(`<td([^>]*)>(?:(?!</td>).)*${text}`).exec(out)?.[1] ?? "";
+
+  it("each cell carries its phone role; the row is a card grid below md, the header row is hidden there", () => {
+    const out = render();
+    expect(cell(out, "Select Alex")).toContain('data-mobile="lead"');
+    expect(cell(out, "Alex<")).toContain('data-mobile="title"');
+    expect(cell(out, "Oslo")).toContain('data-mobile="meta"');
+    expect(cell(out, "n1")).toContain('data-mobile="hidden"');
+    expect(cell(out, "n1")).toMatch(/max-md:hidden/);
+    expect(cell(out, "Actions for Alex")).toContain('data-mobile="actions"');
+    expect(out).toMatch(/<tr(?=[^>]*role="row")[^>]*class="[^"]*max-md:grid/);
+    expect(out).toMatch(/<thead(?=[^>]*role="rowgroup")[^>]*class="[^"]*max-md:hidden/);
+    expect(out).toMatch(/<table(?=[^>]*role="table")[^>]*class="[^"]*max-md:block/);
+  });
+
+  it("a meta cell shows its column header as the label on a phone only", () => {
+    const out = render();
+    expect(out).toMatch(/<td[^>]*data-mobile="meta"[^>]*><span class="[^"]*md:hidden[^"]*">City<\/span>Oslo<\/td>/);
+    expect(out).not.toMatch(/<td[^>]*data-mobile="title"[^>]*><span class="[^"]*md:hidden[^"]*">Name</);
+  });
+
+  it("without a declared title the first column without a role is the title", () => {
+    const out = render(cols({ name: undefined, city: undefined }));
+    expect(cell(out, "Alex<")).toContain('data-mobile="title"');
+    expect(cell(out, "Oslo")).toContain('data-mobile="meta"');
+  });
+
+  it("dev check: exactly one title (two, or none, throws)", () => {
+    expect(() => render(cols({ city: "title" }))).toThrow(/exactly one column/);
+    expect(() => render(cols({ name: "meta" }))).toThrow(/exactly one column/);
+  });
+
+  it("row actions are always visible on a phone card; the selected mark moves to the card", () => {
+    const out = render(undefined, { isSelected: () => true });
+    expect(/<div class="([^"]*)"><button type="button">Actions for Alex/.exec(out)?.[1]?.split(" ")).toContain("max-md:opacity-100");
+    expect(out).toMatch(/<tr(?=[^>]*role="row")[^>]*class="[^"]*max-md:data-\[state=selected\]:row-mark/);
+  });
+
+  it("the loading shape is the same card: skeleton cells carry the column roles", () => {
+    const out = renderToStaticMarkup(h(DataTable<S>, { label: "People", rows: [], rowKey: (r) => r.id, columns: cols(), loading: true, skeletonRows: 2,
+      empty: { icon: SessionsIcon, title: "No people", description: "None yet." } }));
+    expect((out.match(/<td[^>]*data-mobile="title"/g) ?? []).length).toBe(2);
+    expect((out.match(/<td(?=[^>]*data-mobile="hidden")[^>]*class="[^"]*max-md:hidden/g) ?? []).length).toBe(2);
+  });
+});
+
+describe("DataTable sort by select (phone)", () => {
+  type S = { id: string };
+  const columns = [
+    { key: "name", header: "Name", sortable: true, cell: (r: S) => r.id },
+    { key: "city", header: "City", cell: (r: S) => r.id },
+    { key: "at", header: "Created", sortable: true, cell: (r: S) => r.id },
+  ];
+  const base = { label: "People", rows: [{ id: "a" }], rowKey: (r: S) => r.id, columns, empty: { icon: SessionsIcon, title: "No people", description: "None yet." } };
+
+  it("lists the sortable columns in both directions, shows the current sort, and is hidden from md", () => {
+    const out = renderToStaticMarkup(h(DataTable<S>, { ...base, sort: { key: "at", dir: "desc" }, onSortChange: () => {} }));
+    const bar = /<div class="([^"]*)"><label for="[^"]+"[^>]*>Sort by<\/label>/.exec(out)?.[1] ?? "";
+    expect(bar.split(" ")).toContain("md:hidden");
+    const options = [...out.matchAll(/<option value="([^"]+)"( selected="")?>([^<]+)<\/option>/g)].map((m) => [m[1], m[3], !!m[2]]);
+    expect(options).toEqual([
+      ["name:asc", "Name, ascending", false], ["name:desc", "Name, descending", false],
+      ["at:asc", "Created, ascending", false], ["at:desc", "Created, descending", true],
+    ]);
+  });
+
+  it("no select without sortable columns or without onSortChange", () => {
+    expect(renderToStaticMarkup(h(DataTable<S>, { ...base, sort: { key: "at", dir: "desc" } }))).not.toContain("Sort by");
+  });
+});

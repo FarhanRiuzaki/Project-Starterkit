@@ -21,7 +21,7 @@ describe("Panel (tray + card)", () => {
   });
   it("flush: the card has no padding (a table is the card); footnote sits under the card", () => {
     const out = html(h(Panel, { title: "Table", flush: true, footnote: "Data from 14:02 WIB · Metrics", children: h("table") }));
-    expect(out).toMatch(/bg-card shadow-card overflow-hidden"><table><\/table><\/div><div class="[^"]*text-caption text-fg-3">Data from 14:02 WIB · Metrics<\/div>/);
+    expect(out).toMatch(/bg-card shadow-card overflow-clip"><table><\/table><\/div><div class="[^"]*text-caption text-fg-3">Data from 14:02 WIB · Metrics<\/div>/);
   });
   it("flat: card only, no tray; cards: no inner card wrapper", () => {
     expect(html(h(Panel, { variant: "flat", children: "x" }))).not.toContain("bg-tray");

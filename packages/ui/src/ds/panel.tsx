@@ -45,7 +45,7 @@ export function Panel({ title, description, actions, children, flush, className,
     <section className={cn("flex min-w-0 flex-col rounded-xl border border-line bg-tray p-tray", className)}>
       {header}
       {cards ? <div className={cn("min-w-0 flex-1", bodyClassName)}>{children}</div> : (
-        <div className={cn("min-w-0 flex-1 rounded-lg border border-line bg-card shadow-card", flush ? "overflow-hidden" : "p-4", bodyClassName)}>{children}</div>
+        <div className={cn("min-w-0 flex-1 rounded-lg border border-line bg-card shadow-card", flush ? "overflow-clip" /* clip, not hidden: a sticky bar inside (bulk actions) sticks to the page */ : "p-4", bodyClassName)}>{children}</div>
       )}
       {foot}
     </section>
