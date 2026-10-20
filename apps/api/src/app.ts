@@ -4,6 +4,7 @@ import { authRoutes } from "./auth/routes";
 import { sql } from "./db/client";
 import { ApiError, onError } from "./http/errors";
 import { type AppEnv, bodyLimit, internalAuth, requestContext } from "./http/middleware";
+import { meRoutes } from "./me/routes";
 import { rbacRoutes } from "./rbac/routes";
 import { usersRoutes } from "./users/routes";
 
@@ -29,6 +30,7 @@ export function createApp(deps: { db?: SQL } = {}) {
   app.route("/v1", authRoutes);
   app.route("/v1", rbacRoutes); // owns /users/roles: keep it before the users router, whose /users/:id would capture it
   app.route("/v1", usersRoutes);
+  app.route("/v1", meRoutes);
   app.notFound(() => {
     throw new ApiError("not_found");
   });
