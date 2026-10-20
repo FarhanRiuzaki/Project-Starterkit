@@ -19,7 +19,7 @@ test("deactivating one user needs no confirmation; the toast's Undo makes them a
   await expect(toast).toBeVisible();
   await expect(row).toContainText("Inactive");
   await toast.getByRole("button", { name: "Undo" }).click();
-  await expect(page.getByText("Activated Citra Utama.")).toBeVisible();
+  await expect(page.getByText("Activated Citra Utama.", { exact: true })).toBeVisible(); // not the "Deactivated …" toast still on screen
   await expect(row).toContainText("Active");
   await expect(row).not.toContainText("Inactive");
 });
