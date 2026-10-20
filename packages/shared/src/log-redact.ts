@@ -48,3 +48,30 @@ export const REDACT = { paths: [...SECRET_FIELDS, ...SECRET_FIELDS.map((f) => `*
 
 /** pino `formatters.log`: masks every string in the merged object. */
 export const formatLog = (o: Record<string, unknown>) => maskDeep(o) as Record<string, unknown>;
+
+/**
+ * pino's serialized `err`, masked. An identifier-like `code` ("wrong_code", "ECONNREFUSED") is kept as `errCode`,
+ * because the `*.code` redact path (there for OTP codes) would hide it; a digit-only code stays `code` and is redacted.
+ */
+export function maskErr(serialized: Record<string, unknown>): unknown {
+  const out = { ...serialized };
+  if (typeof out.code === "string" && /^[A-Za-z_][\w.-]*$/.test(out.code)) {
+    out.errCode = out.code;
+    delete out.code;
+  }
+  return maskDeep(out);
+}
+
+/**
+ * pino `hooks.logMethod` arguments, masked: what reaches the line outside formatters.log — the message, printf
+ * arguments, and the message pino takes from an Error's `.message` when none is given (`log.error(err)`,
+ * `log.error({ err })`).
+ */
+export function maskArgs(args: unknown[]): unknown[] {
+  const [first, second] = args;
+  const out = args.map((a) => (a instanceof Error ? a : maskDeep(a))); // an Error stays an Error for pino's err path
+  const merge = first !== null && typeof first === "object" ? (first as { err?: unknown; msg?: unknown }) : undefined;
+  const err = first instanceof Error ? first : merge?.err instanceof Error && merge.msg === undefined ? merge.err : undefined;
+  if (err && typeof second !== "string") out.splice(1, 0, maskText(err.message));
+  return out;
+}
