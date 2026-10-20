@@ -167,6 +167,26 @@ Detail pages add `Tabs` (line variant) directly under the header; the tab value 
 - Bundle: only the base layer is in a route's first load; each route stays ≤ 250 kB gz (`bun run budget`).
   Below-the-fold tables load lazily (`next/dynamic`) when a route would otherwise cross the budget.
 
+## 5b. Interaction standards (from Laws of UX, NN/g, WCAG 2.2, Airform)
+
+Each rule names its source and what enforces it. A new screen follows them without being asked; a new pattern of the
+same kind extends this list (and its check) first.
+
+| Rule | Source | Where / enforced by |
+|---|---|---|
+| A reversible action on one record (deactivate, and the like) runs at once and answers with `toast.undo(message, onUndo, { description })` (Undo for 8 s). Irreversible actions (delete) and bulk actions keep `ConfirmActionDialog` with their impact. | NN/g confirmation dialogs; Laws of UX: Peak-End | `packages/ui/src/ui/toast.ts`, `toast.test.ts`; `features/users/users-page.tsx`, `user-detail.tsx`; `tests/e2e/ux-patterns.spec.ts` |
+| Every password field is `PasswordInput`: masked by default, a "Show password" toggle, a Caps Lock note, masked again on submit; paste and password managers work. No raw `type="password"`. | NN/g password creation; web.dev sign-in forms; WCAG 3.3.8 | `packages/ui/src/ui/password-input.tsx` (+ test); `architecture.test.ts` "password fields are PasswordInput" |
+| A new-password field lists its requirements before the first keystroke and ticks them off while typing: `<PasswordChecks checks={passwordChecks(pw, again?)} />`, its id in the field's `aria-describedby`. Rules come from the contract (`lib/shared/password.ts` checks they agree). | NN/g password creation; Laws of UX: Goal-Gradient | `packages/ui/src/ds/password-checks.tsx`; `apps/web/src/lib/shared/password.ts` (+ test); `architecture.test.ts` |
+| A value the user can't change is an `Input readOnly` (inset fill, fg-2), never an input that looks editable; say why in the field note. | Laws of UX: Mental Model | `packages/ui/src/ui/input.tsx` |
+| A form with typed, unsaved changes asks before a link click drops them (`useLeaveGuard` + a "Leave without saving" `ConfirmActionDialog`). | NN/g heuristic 5 (error prevention) | `apps/web/src/lib/client/use-leave-guard.ts`; `user-form.tsx`, `profile-form.tsx`, `role-detail.tsx` |
+| A list page reopens as it was left: its last filters, sort and rows per page (not the page or the search) live in the prefs cookie, and the sidebar, phone menu, breadcrumb, palette and `G` shortcuts open that view. A new list page joins `VIEW_PAGES`. | Airform "design for the tenth visit"; Laws of UX: Working Memory | `apps/web/src/lib/shared/prefs.ts` (+ test); `use-table-query.ts`; `tests/e2e/ux-patterns.spec.ts` |
+| On a sub-page (`/users/<id>`) the breadcrumb's list is a link back to it. | Laws of UX: Jakob's Law | `components/shell/top-bar.tsx`; `ux-patterns.spec.ts` |
+| A headline number has context: a count over a period shows its change against the period before (`StatTile delta`, `formatSignedNumber`), with `good` set by meaning (more failed sign-ins is bad, never green). | Airform "numbers need context" | `features/dashboard/dashboard-page.tsx`; `GET /v1/dashboard` |
+| A dashboard answers first, explains second, details last: KPI tray → charts → tables. | Airform "decide what goes at the top" | §1 page anatomy |
+| Records show words, not codes: activity actions through `actionLabel`, glossary terms only (copy guide). | NN/g heuristic 2 (match the real world) | `packages/shared/src/audit.ts` |
+| Siblings in a row share height; label/value rows look the same on one page. | Laws of UX: Common Region, Similarity | §2; `user-detail.tsx` |
+| Design with real data: long names, zero, a brand-new account, a bad day. Every data region keeps its five states (§3). | Airform "design with real data" | §3; `docs/standards/copy-guide.md` (empty states) |
+
 ## 6. Consistency checklist (run per page before merge)
 
 1. Header anatomy and actions order as §1?
@@ -181,3 +201,5 @@ Detail pages add `Tabs` (line variant) directly under the header; the tab value 
    axe 0 serious or critical, touch targets ≥ 44 px on the phone? (`bun run e2e`: `responsive.spec.ts` on the
    desktop, tablet and mobile projects; `a11y.spec.ts` on the same three.)
 9. Surfaces follow §0a (sheet → tray → card), siblings symmetric (§2), motion per §5a?
+10. Interaction standards of §5b (undo over confirm for one reversible action, PasswordInput and PasswordChecks,
+    read-only look, leave guard, remembered list view, numbers with context)?

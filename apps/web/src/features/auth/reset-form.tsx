@@ -2,15 +2,14 @@
 
 import Link from "next/link";
 import { type FormEvent, useState } from "react";
-import { Notice } from "@starterkit/ui/ds";
+import { Notice, PasswordChecks } from "@starterkit/ui/ds";
 import { Button } from "@starterkit/ui/ui/button";
 import { Icon } from "@starterkit/ui/ui/icon";
 import { SpinnerIcon } from "@starterkit/ui/ui/icons";
 import { PasswordInput } from "@starterkit/ui/ui/password-input";
 import { api, errorText } from "@/lib/client/api";
+import { PASSWORD_MIN as MIN, passwordChecks } from "@/lib/shared/password";
 import { AuthCard, FormError } from "./auth-card";
-
-const MIN = 12; // contracts/auth.ts Password (zod stays out of client code)
 
 /** Set a new password from a reset link (`token` from the URL). */
 export function ResetForm({ token }: { token: string | null }) {
@@ -62,20 +61,21 @@ export function ResetForm({ token }: { token: string | null }) {
   const fieldError = (id: "password" | "confirm") =>
     field?.id === id ? <span id={`${id}-error`} role="alert" className="text-caption text-down-ink">{field.message}</span> : null;
   return (
-    <AuthCard title="Set a new password" description={`Use at least ${MIN} characters. The reset link works once.`}>
+    <AuthCard title="Set a new password" description="The reset link works once.">
       <form onSubmit={submit} noValidate className="grid gap-4">
         <div className="grid gap-1.5">
           <label htmlFor="password" className="text-label text-fg">New password</label>
           <PasswordInput id="password" className="h-10" autoComplete="new-password" autoFocus required value={password}
             onChange={(e) => setPassword(e.target.value)} aria-invalid={field?.id === "password" ? true : undefined}
-            aria-describedby={field?.id === "password" ? "password-error" : undefined} />
+            aria-describedby={field?.id === "password" ? "password-error reset-checks" : "reset-checks"} />
           {fieldError("password")}
+          <PasswordChecks id="reset-checks" checks={passwordChecks(password, confirm)} />
         </div>
         <div className="grid gap-1.5">
           <label htmlFor="confirm" className="text-label text-fg">Confirm new password</label>
           <PasswordInput id="confirm" className="h-10" autoComplete="new-password" required value={confirm}
             onChange={(e) => setConfirm(e.target.value)} aria-invalid={field?.id === "confirm" ? true : undefined}
-            aria-describedby={field?.id === "confirm" ? "confirm-error" : undefined} />
+            aria-describedby={field?.id === "confirm" ? "confirm-error reset-checks" : "reset-checks"} />
           {fieldError("confirm")}
         </div>
         {error && <FormError id="reset-error" message={error} />}

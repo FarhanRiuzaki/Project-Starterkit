@@ -58,7 +58,7 @@ export function UsersPage() {
   if (selectedOn !== shown) { setSelectedOn(shown); setSelected(new Set()); }
   const [pending, setPending] = useState<Pending | null>(null);
   const [role, setRole] = useState("");
-  const [activating, setActivating] = useState<string | null>(null);
+  const [changing, setChanging] = useState<string | null>(null);
 
   const rows = t.rows;
   const canAct = can("user.edit") || can("user.delete");
@@ -74,9 +74,8 @@ export function UsersPage() {
   async function confirm() {
     const p = pending!;
     if (p.kind === "one") {
-      if (p.action === "delete") await api(`/api/users/${p.user.id}`, { method: "DELETE" });
-      else await api(`/api/users/${p.user.id}/status`, { method: "POST", body: JSON.stringify({ active: false }) });
-      toast(p.action === "delete" ? `Deleted ${p.user.name}.` : `Deactivated ${p.user.name}. Their sessions ended.`);
+      await api(`/api/users/${p.user.id}`, { method: "DELETE" });
+      toast(`Deleted ${p.user.name}.`);
     } else {
       if (p.action === "assignRole" && !role) throw new Error("Pick a role: type its name and choose it from the list.");
       const r = await api<BulkResult>("/api/users/bulk", { method: "POST", body: JSON.stringify({ action: p.action, ids: p.ids, ...(p.action === "assignRole" ? { role } : {}) }) });
@@ -89,14 +88,16 @@ export function UsersPage() {
     await refresh();
   }
 
-  async function activate(u: UserRowDto) {
-    setActivating(u.id);
+  // One user: no confirmation, the result toast offers Undo (it can be reversed); a bulk deactivate still confirms.
+  async function setStatus(u: UserRowDto, active: boolean) {
+    setChanging(u.id);
     try {
-      await api(`/api/users/${u.id}/status`, { method: "POST", body: JSON.stringify({ active: true }) });
-      toast(`Activated ${u.name}.`);
+      await api(`/api/users/${u.id}/status`, { method: "POST", body: JSON.stringify({ active }) });
+      if (active) toast(`Activated ${u.name}.`);
+      else toast.undo(`Deactivated ${u.name}.`, () => void setStatus(u, true), { description: "Their sessions ended. Undo lets them sign in again." });
       await refresh();
     } catch (e) { toast.error(errorText(e)); }
-    finally { setActivating(null); }
+    finally { setChanging(null); }
   }
 
   const ids = [...selected];
@@ -149,18 +150,19 @@ export function UsersPage() {
             // No touch caption in the row (it would stretch the row). Below 1280 px the Deactivate / Activate button
             // moves into the Actions menu, and on any touch screen the menu has it too: there each item shows its reason
             // under the label (Deactivate: `block`, Activate and Edit user: `rank`, Delete user: `block`).
-            const busy = activating === u.id;
+            const busy = changing === u.id;
             return <>
               {can("user.edit") && (u.isActive
-                ? <BlockedButton reason={block} caption={false} size="sm" variant="ghost" className={ROW_ONLY} wrapClassName={ROW_ONLY} onClick={() => setPending({ kind: "one", action: "deactivate", user: u })}>Deactivate</BlockedButton>
+                ? <BlockedButton reason={block} caption={false} size="sm" variant="ghost" className={cn(!busy && ROW_ONLY)} wrapClassName={ROW_ONLY} disabled={busy} aria-busy={busy || undefined} onClick={() => void setStatus(u, false)}>
+                  {busy && <Icon icon={SpinnerIcon} className="motion-safe:animate-spin" />}Deactivate</BlockedButton>
                 // While it runs the button stays on the card too: its spinner and aria-busy are the pending state.
-                : <BlockedButton reason={rank} caption={false} size="sm" variant="ghost" className={cn(!busy && ROW_ONLY)} wrapClassName={ROW_ONLY} disabled={busy} aria-busy={busy || undefined} onClick={() => void activate(u)}>
+                : <BlockedButton reason={rank} caption={false} size="sm" variant="ghost" className={cn(!busy && ROW_ONLY)} wrapClassName={ROW_ONLY} disabled={busy} aria-busy={busy || undefined} onClick={() => void setStatus(u, true)}>
                   {busy && <Icon icon={SpinnerIcon} className="motion-safe:animate-spin" />}Activate</BlockedButton>)}
               <ActionMenu label={`Actions for ${u.name}`} actions={[
                 { id: "open", label: "View user", onSelect: () => router.push(`/users/${u.id}`) },
                 ...(can("user.edit") ? [u.isActive
-                  ? { id: "status", label: "Deactivate user", className: MENU_ON_TOUCH, disabled: !!block, hint: block ?? undefined, onSelect: () => setPending({ kind: "one", action: "deactivate", user: u }) }
-                  : { id: "status", label: busy ? "Activating…" : "Activate user", className: MENU_ON_TOUCH, disabled: !!rank || busy, hint: rank ?? undefined, onSelect: () => void activate(u) }] : []),
+                  ? { id: "status", label: busy ? "Deactivating…" : "Deactivate user", className: MENU_ON_TOUCH, disabled: !!block || busy, hint: block ?? undefined, onSelect: () => void setStatus(u, false) }
+                  : { id: "status", label: busy ? "Activating…" : "Activate user", className: MENU_ON_TOUCH, disabled: !!rank || busy, hint: rank ?? undefined, onSelect: () => void setStatus(u, true) }] : []),
                 ...(can("user.edit") ? [{ id: "edit", label: "Edit user", disabled: !!rank, hint: rank ?? undefined, onSelect: () => router.push(`/users/${u.id}/edit`) }] : []),
                 ...(can("user.delete") ? [{ id: "delete", label: "Delete user", destructive: true, disabled: !!block, hint: block ?? undefined, onSelect: () => setPending({ kind: "one", action: "delete", user: u }) }] : []),
               ]} />

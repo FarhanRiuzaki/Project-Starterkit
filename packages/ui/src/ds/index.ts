@@ -7,6 +7,7 @@ export { FilterMenu, Toolbar, ToolbarFilters } from "./toolbar";
 export { type Delta, StatTile, StatTiles, StatTileSkeletons } from "./stat-tile";
 export { Panel } from "./panel";
 export { Facts } from "./facts";
+export { PasswordChecks } from "./password-checks";
 export { Spec } from "./spec";
 export { Kbd } from "./kbd";
 export { EmptyState, ErrorState, StaleNote } from "./states";

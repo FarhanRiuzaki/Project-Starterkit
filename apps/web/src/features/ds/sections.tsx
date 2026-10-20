@@ -2,7 +2,7 @@
 
 import { BarChart, CHART_HEIGHT, HBarChart, Heatmap } from "@starterkit/ui/charts";
 import {
-  ActionMenu, Avatar, AvatarStack, BlockedButton, Brand, CategoryChip, Checkbox, ConfirmActionDialog, CountBadge, DataTable, EmptyState, ErrorState, Field, FilterChip, FilterMenu,
+  ActionMenu, Avatar, AvatarStack, BlockedButton, Brand, CategoryChip, Checkbox, ConfirmActionDialog, CountBadge, DataTable, EmptyState, ErrorState, Field, FilterChip, FilterMenu, PasswordChecks,
   Kbd, LazyMount, Meter, Panel, QueryInput, SecretOnceDialog, Segmented, Spec, StatusChip, TickMeter, Toolbar, ToolbarFilters, Truncate,
   type Column, type SortDir,
 } from "@starterkit/ui/ds";
@@ -121,7 +121,10 @@ export function GallerySections() {
               <div className="grid gap-1.5"><label htmlFor="ds-email" className="text-label text-fg-2">Email</label><Input id="ds-email" defaultValue="alex@example.com" className="font-mono" /><span className="text-body-sm text-fg-3">Used to sign in and to reset the password.</span></div>
               <div className="grid gap-1.5"><label htmlFor="ds-otp" className="text-label text-fg-2">One-time code</label><Input id="ds-otp" defaultValue="12a4" aria-invalid="true" aria-describedby="ds-otp-e" /><span id="ds-otp-e" className="text-body-sm text-down-ink">Enter the 6-digit code from your authenticator app.</span></div>
               <Field id="ds-role" label="Role name" note="Field wires this note to the input for screen readers."><Input id="ds-role" defaultValue="Auditor" /></Field>
-              <Field id="ds-password" label="Password" note="Show password toggles the mask; a Caps Lock note appears while it is on."><PasswordInput id="ds-password" defaultValue="correct horse" autoComplete="off" /></Field>
+              <div className="grid gap-2">
+                <Field id="ds-password" label="New password" note="Show password toggles the mask; a Caps Lock note appears while it is on."><PasswordInput id="ds-password" defaultValue="correct horse" autoComplete="off" aria-describedby="ds-password-checks" /></Field>
+                <PasswordChecks id="ds-password-checks" checks={[{ label: "At least 12 characters", met: true }, { label: "The two passwords match", met: false }]} />
+              </div>
               <Field id="ds-username" label="Username" note="Read-only: inset fill, still focusable and copyable."><Input id="ds-username" defaultValue="alex.rivers" readOnly className="font-mono" /></Field>
             </div>
           </div>

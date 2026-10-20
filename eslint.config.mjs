@@ -14,7 +14,7 @@ const config = [
     },
   },
   { settings: { next: { rootDir: ["apps/web/"] } } },
-  { ignores: [".next/**", "node_modules/**", "test-results/**", "next-env.d.ts", "**/.next/**", "**/.next-e2e/**"] },
+  { ignores: [".next/**", "node_modules/**", "test-results/**", "next-env.d.ts", "**/.next/**", "**/.next-e2e/**", ".superpowers/**"] },
 ];
 
 export default config;

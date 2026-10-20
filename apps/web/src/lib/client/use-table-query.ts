@@ -5,8 +5,10 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo } from "react";
 import type { DataTablePaging } from "@starterkit/ui/ds";
 import { api } from "@/lib/client/api";
+import { usePrefs } from "@/lib/client/prefs-context";
 import type { Page } from "@starterkit/shared/contracts/common";
 import { MAX_PAGE, PAGE_SIZES, type PageSize } from "@starterkit/shared/paging";
+import { savedView, VIEW_PAGES, type ViewPage } from "@/lib/shared/prefs";
 import { historyMode, readTable, type SortState, sortState, tableRequest, tableView, type TableSpec, type TableState, toSortParam, writeTable } from "@/lib/shared/table-state";
 
 /**
@@ -25,6 +27,8 @@ import { historyMode, readTable, type SortState, sortState, tableRequest, tableV
  *   (never a "no match" flash).
  * - `filterQuery` = the same filters without paging, for an export (`${path}?${filterQuery}&format=csv`).
  * - `count` = the Panel count ("12,345", "100,000+"); rows, loading and errors come from `tableView` (table-state.ts).
+ * - On a list page (`VIEW_PAGES`) the view (filters, sort, rows per page; not the page or the search) is remembered in
+ *   the prefs cookie, and the navigation links reopen it (`viewHref`).
  */
 export function useTableQuery<T, F extends Record<string, string>>({ key, path, spec, params }: {
   key: string; path: `/api/${string}`; spec: TableSpec<F>; params?: (filters: F) => Record<string, string>;
@@ -32,6 +36,12 @@ export function useTableQuery<T, F extends Record<string, string>>({ key, path, 
   const sp = useSearchParams();
   const pathname = usePathname();
   const state: TableState<F> = useMemo(() => readTable(sp, spec), [sp, spec]);
+  const { prefs, update } = usePrefs();
+  const view = (VIEW_PAGES as readonly string[]).includes(pathname) ? savedView(new URLSearchParams(sp.toString()), spec.search) : null;
+  useEffect(() => {
+    if (view === null || view === (prefs.views[pathname as ViewPage] ?? "")) return;
+    update({ views: { ...prefs.views, [pathname]: view } });
+  }, [view, pathname, prefs.views, update]);
 
   const set = useCallback((patch: Partial<TableState<F>>) => {
     const next = writeTable(state, patch, spec);
@@ -47,8 +57,8 @@ export function useTableQuery<T, F extends Record<string, string>>({ key, path, 
   const { filterQuery, url } = tableRequest(path, state, spec, params);
   const q = useQuery({ queryKey: [key, url], queryFn: () => api<Page<T>>(url), enabled, placeholderData: keepPreviousData });
 
-  const view = tableView(q, state.page);
-  const lastPage = view.pastEnd && view.total ? Math.min(Math.ceil(view.total / state.pageSize), MAX_PAGE) : 0;
+  const tv = tableView(q, state.page);
+  const lastPage = tv.pastEnd && tv.total ? Math.min(Math.ceil(tv.total / state.pageSize), MAX_PAGE) : 0;
   useEffect(() => {
     // replace, not push: Back should not return to the empty page.
     if (!lastPage) return;
@@ -57,17 +67,17 @@ export function useTableQuery<T, F extends Record<string, string>>({ key, path, 
   }, [lastPage, state, spec, pathname]);
 
   const paging = {
-    mode: "server", page: state.page, pageSize: state.pageSize, total: view.total ?? 0, totalCapped: view.totalCapped,
-    maxPage: MAX_PAGE, pageSizes: PAGE_SIZES, busy: view.busy,
+    mode: "server", page: state.page, pageSize: state.pageSize, total: tv.total ?? 0, totalCapped: tv.totalCapped,
+    maxPage: MAX_PAGE, pageSizes: PAGE_SIZES, busy: tv.busy,
     onPageChange: (page: number) => set({ page } as Partial<TableState<F>>),
     onPageSizeChange: (size: number) => set({ pageSize: size as PageSize } as Partial<TableState<F>>),
   } satisfies DataTablePaging;
 
   return {
     state, set, query: q, filterQuery, paging,
-    rows: view.rows, total: view.total, totalCapped: view.totalCapped, count: view.count,
+    rows: tv.rows, total: tv.total, totalCapped: tv.totalCapped, count: tv.count,
     sort: sortState(state.sort),
     onSortChange: (s: SortState) => set({ sort: toSortParam(s) } as Partial<TableState<F>>),
-    loading: view.loading, loadError: view.loadError, staleError: view.staleError,
+    loading: tv.loading, loadError: tv.loadError, staleError: tv.staleError,
   };
 }

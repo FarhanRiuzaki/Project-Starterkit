@@ -8,7 +8,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { useAuth } from "@/lib/client/auth-context";
+import { usePrefs } from "@/lib/client/prefs-context";
 import { crumbs } from "@/lib/shared/nav";
+import { viewHref } from "@/lib/shared/prefs";
 import { AccountMenu } from "./account-menu";
 import { OPEN_PALETTE } from "./command-palette";
 import { MobileNav } from "./mobile-nav";
@@ -28,6 +30,7 @@ const openPalette = () => window.dispatchEvent(new CustomEvent(OPEN_PALETTE));
 export function TopBar({ mark, wordmark }: { mark: ReactNode; wordmark: ReactNode }) {
   const path = usePathname();
   const { perms } = useAuth();
+  const { prefs } = usePrefs();
   const list = crumbs(path, perms);
   const { resolvedTheme, setTheme } = useTheme();
   return (
@@ -38,14 +41,15 @@ export function TopBar({ mark, wordmark }: { mark: ReactNode; wordmark: ReactNod
       {list.length === 0 ? <div className="flex-1" /> : <nav aria-label="Breadcrumb" className="min-w-0 flex-1">
         <ol className="flex min-w-0 items-center gap-2 text-body text-fg-2">
           {list.map((c, i) => {
-            const last = i === list.length - 1;
+            // The page itself is plain text; on a sub-page (/users/<id>) its list is a link back.
+            const last = i === list.length - 1 && ((path.split(/[?#]/)[0] ?? "").replace(/\/+$/, "") || "/") === c.href;
             return (
               <li key={`${c.label}-${i}`} className="inline-flex min-w-0 items-center gap-2">
                 {i > 0 && <span aria-hidden="true" className="text-fg-4">/</span>}
                 {c.icon && <NavGlyph icon={c.icon} className="size-4 shrink-0 text-fg-3" />}
                 {last
                   ? <span aria-current="page" className="truncate font-medium text-fg">{c.label}</span>
-                  : c.href ? <Link href={c.href} className="truncate rounded-xs hover:text-fg">{c.label}</Link> : <span className="truncate">{c.label}</span>}
+                  : c.href ? <Link href={viewHref(c.href, prefs)} className="truncate rounded-xs hover:text-fg">{c.label}</Link> : <span className="truncate">{c.label}</span>}
               </li>
             );
           })}

@@ -11,6 +11,7 @@ import { type ReactNode, useEffect, useRef } from "react";
 import { useAuth } from "@/lib/client/auth-context";
 import { usePrefs } from "@/lib/client/prefs-context";
 import { isActive, navFor } from "@/lib/shared/nav";
+import { viewHref } from "@/lib/shared/prefs";
 import { AccountMenu } from "./account-menu";
 import { NavGlyph } from "./nav-icon";
 
@@ -61,7 +62,7 @@ export function Sidebar({ mark, wordmark }: { mark: ReactNode; wordmark: ReactNo
                 <Tooltip key={n.href}>
                   <TooltipTrigger asChild>
                     {/* aria-label: the text label is hidden in the rail; the link keeps its name. */}
-                    <Link href={n.href} aria-label={n.label} aria-current={active ? "page" : undefined}
+                    <Link href={viewHref(n.href, prefs)} aria-label={n.label} aria-current={active ? "page" : undefined}
                       className={cn("relative flex h-9 items-center justify-center gap-2.5 rounded-md border px-2.5 text-body text-fg-2 transition-colors duration-(--dur-fast)",
                         !collapsed && "xl:justify-start",
                         active ? "border-line bg-raised text-fg shadow-sm" : "border-transparent hover:bg-tray hover:text-fg")}>

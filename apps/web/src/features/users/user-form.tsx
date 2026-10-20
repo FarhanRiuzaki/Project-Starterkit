@@ -3,7 +3,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useState } from "react";
-import { BlockedButton, ConfirmActionDialog, Failure, Field, Notice, Panel } from "@starterkit/ui/ds";
+import { BlockedButton, ConfirmActionDialog, Failure, Field, Notice, Panel, PasswordChecks } from "@starterkit/ui/ds";
 import { Button } from "@starterkit/ui/ui/button";
 import { Icon } from "@starterkit/ui/ui/icon";
 import { SpinnerIcon, UsersIcon } from "@starterkit/ui/ui/icons";
@@ -22,6 +22,7 @@ import { BRAND } from "@starterkit/shared/brand";
 import { rankBlock, USERS_KEY, useRoleNames, useUserDetail } from "./use-users";
 import { useDebounced } from "@/lib/client/use-debounced";
 import { useLeaveGuard } from "@/lib/client/use-leave-guard";
+import { passwordChecks } from "@/lib/shared/password";
 import { EDIT_USER_SHAPE } from "./shapes";
 
 const CHECK = "size-4 cursor-pointer accent-primary";
@@ -140,9 +141,12 @@ function UserForm({ user }: { user?: UserDetailDto }) {
                 </label>
                 {!isActive && <span id="u-invite-note" className="text-caption text-fg-3">An inactive user can&apos;t use an invitation. Set the user active to send one.</span>}
                 {how === "password" && (
-                  <Field id="u-password" label="Password" note="At least 12 characters.">
-                    <PasswordInput id="u-password" value={password} minLength={12} maxLength={128} required onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" />
-                  </Field>
+                  <div className="grid gap-2">
+                    <Field id="u-password" label="Password">
+                      <PasswordInput id="u-password" value={password} minLength={12} maxLength={128} required onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" aria-describedby="u-password-checks" />
+                    </Field>
+                    <PasswordChecks id="u-password-checks" checks={passwordChecks(password)} />
+                  </div>
                 )}
               </fieldset>
             )}

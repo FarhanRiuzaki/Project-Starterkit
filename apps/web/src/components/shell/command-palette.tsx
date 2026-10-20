@@ -4,7 +4,9 @@ import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/lib/client/auth-context";
+import { usePrefs } from "@/lib/client/prefs-context";
 import { navFor } from "@/lib/shared/nav";
+import { viewHref } from "@/lib/shared/prefs";
 import { matchSequence } from "@/lib/shared/shortcuts";
 
 export const OPEN_PALETTE = "sk:open-palette";
@@ -15,6 +17,7 @@ const PaletteDialog = dynamic(() => import("./palette-dialog").then((m) => m.Pal
 /** ⌘K / Ctrl+K opens the page palette; "G <letter>" shortcuts go to a page outside inputs. */
 export function CommandPalette() {
   const { perms } = useAuth();
+  const { prefs } = usePrefs();
   const [open, setOpen] = useState(false);
   const [used, setUsed] = useState(false);
   const router = useRouter();
@@ -29,12 +32,12 @@ export function CommandPalette() {
       const seq = matchSequence(prev.current, e.key, Date.now());
       prev.current = { key: e.key, at: Date.now() };
       const hit = seq && items.find((n) => n.shortcut === seq);
-      if (hit) { e.preventDefault(); router.push(hit.href); }
+      if (hit) { e.preventDefault(); router.push(viewHref(hit.href, prefs)); }
     };
     window.addEventListener(OPEN_PALETTE, onOpen);
     window.addEventListener("keydown", onKey);
     return () => { window.removeEventListener(OPEN_PALETTE, onOpen); window.removeEventListener("keydown", onKey); };
-  }, [router, perms]);
+  }, [router, perms, prefs]);
 
   return used ? <PaletteDialog open={open} onOpenChange={setOpen} /> : null;
 }

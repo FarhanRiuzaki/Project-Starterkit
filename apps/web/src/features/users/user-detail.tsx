@@ -53,7 +53,7 @@ function Rows({ items }: { items: { label: string; value: ReactNode }[] }) {
   );
 }
 
-type Dialog = "deactivate" | "delete" | "reset" | { end: SessionDto } | null;
+type Dialog = "delete" | "reset" | { end: SessionDto } | null;
 
 
 export function UserDetail({ id }: { id: string }) {
@@ -83,14 +83,16 @@ export function UserDetail({ id }: { id: string }) {
   const resetBlock = u.id === me.id ? "Use Security in your account to change your own password." : rank ?? (u.isLdap ? "This user signs in with a directory password. Change it in your directory." : null);
   const granted = new Set<string>(u.permissions);
 
+  // No confirmation: the result toast offers Undo (deactivating can be reversed; delete still confirms).
   async function setActive(active: boolean) {
-    await api(`/api/users/${id}/status`, { method: "POST", body: JSON.stringify({ active }) });
-    toast(active ? `Activated ${u!.name}.` : `Deactivated ${u!.name}. Their sessions ended.`);
-    await refresh();
-  }
-  async function activate() {
     setActivating(true);
-    try { await setActive(true); } catch (e) { toast.error(errorText(e)); } finally { setActivating(false); }
+    try {
+      await api(`/api/users/${id}/status`, { method: "POST", body: JSON.stringify({ active }) });
+      if (active) toast(`Activated ${u!.name}.`);
+      else toast.undo(`Deactivated ${u!.name}.`, () => void setActive(true), { description: "Their sessions ended. Undo lets them sign in again." });
+      await refresh();
+    } catch (e) { toast.error(errorText(e)); }
+    finally { setActivating(false); }
   }
   async function remove(name: string) {
     await api(`/api/users/${id}`, { method: "DELETE" });
@@ -111,8 +113,8 @@ export function UserDetail({ id }: { id: string }) {
           ...(can("user.edit") ? [
             { label: "Reset password", reason: resetBlock, onSelect: () => setDialog("reset") },
             u.isActive
-              ? { label: "Deactivate user", reason: block, onSelect: () => setDialog("deactivate") }
-              : { label: "Activate user", reason: rank, busy: activating, onSelect: () => void activate() },
+              ? { label: "Deactivate user", reason: block, busy: activating, onSelect: () => void setActive(false) }
+              : { label: "Activate user", reason: rank, busy: activating, onSelect: () => void setActive(true) },
           ] : []),
           ...(can("user.delete") ? [{ label: "Delete user", reason: block, destructive: true, onSelect: () => setDialog("delete") }] : []),
         ]} />
@@ -151,10 +153,6 @@ export function UserDetail({ id }: { id: string }) {
       </Panel>
       )}
 
-      {dialog === "deactivate" && (
-        <ConfirmActionDialog open onOpenChange={(o) => { if (!o) setDialog(null); }} auditFields={false} reasons={[]} title={`Deactivate ${u.name}`} description={u.email}
-          impact={["They are signed out and can't sign in until reactivated."]} actionLabel="Deactivate user" onConfirm={() => setActive(false)} />
-      )}
       {dialog === "delete" && (
         <ConfirmActionDialog open onOpenChange={(o) => { if (!o) setDialog(null); }} auditFields={false} reasons={[]} destructive title={`Delete ${u.name}`} description={u.email}
           impact={["The account is removed and its sessions end.", "This can't be undone."]} actionLabel="Delete user"

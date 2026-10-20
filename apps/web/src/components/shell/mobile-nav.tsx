@@ -8,7 +8,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { useAuth } from "@/lib/client/auth-context";
+import { usePrefs } from "@/lib/client/prefs-context";
 import { isActive, navFor } from "@/lib/shared/nav";
+import { viewHref } from "@/lib/shared/prefs";
 import { NavGlyph } from "./nav-icon";
 
 const ICON_BUTTON = "inline-grid size-8 shrink-0 cursor-pointer place-items-center rounded-md text-fg-2 hover:bg-tray hover:text-fg";
@@ -22,6 +24,7 @@ const ICON_BUTTON = "inline-grid size-8 shrink-0 cursor-pointer place-items-cent
 export function MobileNav({ wordmark }: { wordmark: ReactNode }) {
   const path = usePathname();
   const { perms } = useAuth();
+  const { prefs } = usePrefs();
   return (
     <Drawer closeOn={path}>
       <DrawerTrigger asChild>
@@ -44,7 +47,7 @@ export function MobileNav({ wordmark }: { wordmark: ReactNode }) {
                 const active = isActive(path, n.href);
                 return (
                   <DrawerClose key={n.href} asChild>
-                    <Link href={n.href} aria-current={active ? "page" : undefined}
+                    <Link href={viewHref(n.href, prefs)} aria-current={active ? "page" : undefined}
                       className={cn("flex h-11 items-center gap-3 rounded-md border px-2.5 text-body text-fg-2",
                         active ? "border-line bg-raised text-fg shadow-sm" : "border-transparent hover:bg-tray hover:text-fg")}>
                       <NavGlyph icon={n.icon} className="size-4 shrink-0" />
