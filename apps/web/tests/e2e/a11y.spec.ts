@@ -8,7 +8,7 @@ import { axeSerious, pending2faState, withIds } from "./helpers";
  * global-setup; /login/2fa needs a sign-in waiting for its second factor (helpers.ts pending2faState).
  */
 /** `{name}` = a demo id (helpers.ts demoIds). */
-const SIGNED_IN = ["/", "/users", "/users/{admin}", "/roles/{superadminRole}", "/permissions", "/audit/activity", "/audit/auth", "/me/security"];
+const SIGNED_IN = ["/", "/users", "/users/{admin}", "/roles", "/roles/{superadminRole}", "/roles/{adminRole}", "/permissions", "/audit/activity", "/audit/auth", "/me", "/me/security", "/me/sessions"];
 
 
 /** The theme follows the emulated color scheme (next-themes "system"), then axe runs on the settled page. */
@@ -29,8 +29,11 @@ for (const colorScheme of ["light", "dark"] as const) {
     });
 
     test("/login/2fa", async ({ browser }) => {
-      const ctx = await browser.newContext({ colorScheme, storageState: await pending2faState(browser) });
+      // Its own context (the pending second factor), at the project's size and touch.
+      const { viewport, isMobile, hasTouch, deviceScaleFactor } = test.info().project.use;
+      const ctx = await browser.newContext({ viewport, isMobile, hasTouch, deviceScaleFactor, colorScheme, storageState: await pending2faState(browser) });
       const page = await ctx.newPage();
+      expect(page.viewportSize()?.width).toBe(viewport?.width);
       await page.goto("/login/2fa");
       await expect(page.getByRole("heading", { level: 1, name: "Two-factor authentication" })).toBeVisible();
       await check(page, dark);

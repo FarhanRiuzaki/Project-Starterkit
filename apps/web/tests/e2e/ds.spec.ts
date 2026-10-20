@@ -33,7 +33,8 @@ for (const colorScheme of ["light", "dark"] as const) {
       await mountAll(page);
       await page.mouse.move(1, 1);
       // The gallery itself, not the shell around it (the account row differs per signed-in user).
-      await expect(page.locator("#content > div").first()).toHaveScreenshot(`ds-${colorScheme}.png`, { animations: "disabled", maxDiffPixelRatio: 0.002 });
+      // CSS pixels (`scale: "css"`): the phone baseline (3× screen) stays the size of the page, as the desktop one.
+      await expect(page.locator("#content > div").first()).toHaveScreenshot(`ds-${colorScheme}.png`, { animations: "disabled", maxDiffPixelRatio: 0.002, scale: "css" });
     });
 
     test("gallery: no serious axe violations", async ({ page }) => {
@@ -44,7 +45,8 @@ for (const colorScheme of ["light", "dark"] as const) {
   });
 }
 
-test("no horizontal scroll at the 1280 px desktop minimum", async ({ page }) => {
+test("no horizontal scroll at the 1280 px desktop minimum", async ({ page, isMobile }) => {
+  test.skip(isMobile, "desktop width");
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto("/ds");
   await mountAll(page);

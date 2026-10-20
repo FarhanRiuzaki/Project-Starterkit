@@ -402,6 +402,11 @@ test.describe("client navigation and table changes", () => {
     await expect(page.locator("svg.recharts-surface").first()).toBeVisible();
   });
 
+  /** Sort users by last sign-in: the column header, or on a phone (no header row) the Sort by select. */
+  const sortByLastSignIn = (page: Page) => (test.info().project.use.isMobile
+    ? page.getByLabel("Sort by").selectOption("lastLoginAt:asc")
+    : page.getByRole("button", { name: "Last sign-in" }).click());
+
   test("sort and page change keep the previous rows on screen, no flash", async ({ page }) => {
     await page.addInitScript(installProbe);
     await page.goto("/users");
@@ -416,7 +421,7 @@ test.describe("client navigation and table changes", () => {
     const first = () => rows.first().locator('a[href^="/users/"]').first().getAttribute("href");
 
     const page1 = await first();
-    await page.getByRole("button", { name: "Last sign-in" }).click();
+    await sortByLastSignIn(page);
     await expect(page).toHaveURL(/sort=lastLoginAt/);
     expect(await first(), "the previous rows stay while the sorted page loads").toBe(page1);
     expect(await rows.count()).toBe(before);
@@ -451,7 +456,7 @@ test.describe("client navigation and table changes", () => {
     });
     await page.evaluate(() => { window.__flicker.intervals = []; window.__flicker.gaps = []; });
     const table = page.getByRole("table", { name: "Users" });
-    await page.getByRole("button", { name: "Last sign-in" }).click();
+    await sortByLastSignIn(page);
     await expect(table, "busy feedback within the 150 ms delay plus a frame").toHaveAttribute("aria-busy", "true", { timeout: 450 });
     expect(await table.locator("tbody tr").count(), "the previous rows stay").toBe(15);
     expect(await page.locator('[data-slot="skeleton"]:visible').count(), "no skeleton").toBe(0);

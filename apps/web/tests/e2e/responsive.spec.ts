@@ -49,9 +49,12 @@ test.describe("no horizontal page scroll", () => {
     });
   }
   test("/login/2fa", async ({ browser, isMobile }) => {
-    const ctx = await browser.newContext({ storageState: await pending2faState(browser) });
+    // Its own context (the pending second factor), at the project's size and touch.
+    const { viewport, hasTouch, deviceScaleFactor } = test.info().project.use;
+    const ctx = await browser.newContext({ viewport, isMobile, hasTouch, deviceScaleFactor, storageState: await pending2faState(browser) });
     const page = await ctx.newPage();
     await open(page, "/login/2fa");
+    expect(page.viewportSize()?.width).toBe(viewport?.width);
     await checkWidths(page, isMobile);
     await ctx.close();
   });
