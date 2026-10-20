@@ -312,3 +312,8 @@ Use the spec section "Modular monolith": `kernel/` (was `common/`), `modules/ind
 registry, the table-ownership split of the Drizzle schema (each `schema.ts` in its module) and an API architecture test
 (no deep imports into another module, kernel never imports modules, every table owned once). Tasks 16–18 move modules
 into this shape. Task 13 documents "how to add a module" in AGENTS.md and README.
+
+### Test placement (supersedes "Tests layout for 15–18")
+Module tests live in `modules/<m>/tests/{unit,integration}/`, kernel tests in `kernel/tests/unit/`, shared harness in
+`apps/api/test/helpers/`, cross-module tests (boundaries, conformance, no-raw-SQL) in `apps/api/test/architecture/`.
+The architecture test forbids a `*.test.ts` beside a source file. The production image (Task 11) excludes tests.

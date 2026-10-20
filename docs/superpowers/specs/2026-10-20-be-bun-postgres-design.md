@@ -277,3 +277,17 @@ Aturan batas (dijaga tes arsitektur API):
   `audit` (activity, auth_log), `me` dan `dashboard` (tanpa tabel), `health`.
 - Tes: `test/unit/<modul>/`, `test/integration/<modul>/`, `test/helpers/`.
 - FE sudah sejalan (`apps/web/src/features/<modul>`), jadi satu modul = satu folder di API + satu folder di web.
+
+### Posisi tes dalam modulith (keputusan 2026-10-20, menggantikan "Tes di folder terpisah" di atas)
+
+Tes milik modul ikut di dalam folder modulnya, tetapi di subfolder `tests/` yang terpisah dari kode, sehingga modul tetap
+utuh (memindah/menghapus/mengekstrak modul membawa tesnya) dan kode tetap bersih:
+```
+apps/api/src/modules/<modul>/tests/{unit,integration}/…test.ts
+apps/api/src/kernel/tests/unit/…test.ts
+apps/api/test/
+  helpers/          # harness bersama: preload, app, reset DB, sign-in, fixture
+  architecture/     # tes lintas modul: batas modul, konformitas kontrak, aturan query
+```
+Aturan: tidak ada `*.test.ts` di samping berkas sumber; tes hanya di `modules/*/tests/`, `kernel/tests/` atau
+`apps/api/test/`. `bun run test:unit` / `test:integration` menyaring per subfolder. Image produksi tidak membawa tes.
