@@ -30,7 +30,7 @@ the code, tests and docs of this repository; do not add a rule here that no code
 
 ## 2. Commands
 
-Package manager and API runtime: Bun 1.4.3; Next runs on Node 24. PostgreSQL 18 locally (any recent version works for dev).
+Package manager and API runtime: Bun 1.4.3; Next runs on Node 24; PostgreSQL 18 in compose and CI.
 
 - `bun install` installs (`--frozen-lockfile` in CI and Docker; `bunfig.toml` pins exact versions).
 - `bun run setup` (`scripts/setup.ts`) writes `apps/api/.env` and `apps/web/.env.local` when missing (random `INTERNAL_API_TOKEN`, `DATA_ENCRYPTION_KEY`, `SESSION_SECRET`; `DATABASE_URL` from `--database-url` or the environment), creates the database, migrates and runs both seeds.
@@ -258,7 +258,7 @@ update the table; `apps/web/src/test/api-contract.test.ts` fails on schema drift
 
 ## 13. How to add a module
 
-A new module (say `projects`) copies the shape of an existing one end to end; `rbac` is the smallest complete example.
+A new module (say `projects`) copies the shape of an existing one end to end; `rbac` has every file of that shape.
 
 API (`apps/api`):
 
