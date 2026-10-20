@@ -1,12 +1,19 @@
 "use client";
 
-import { type FocusEvent, type KeyboardEvent, useLayoutEffect, useRef, useState } from "react";
+import { type FocusEvent, type KeyboardEvent, type MouseEvent, useLayoutEffect, useRef, useState } from "react";
 import { Checkbox } from "@starterkit/ui/ds";
 import { MODULES, PERMISSIONS, type PermissionName, permissionLabel } from "@starterkit/shared/permissions";
-import { ACTIONS, cellState, columnCells, type Edit, rowCells, toggleAll, toggleCell, toggleColumn, toggleRow, viewLocked } from "./matrix";
+import { ACTIONS, cellState, columnCells, type Edit, rowCells, toggleAll, toggleCell, toggleColumn, toggleRow, viewLocked } from "@/lib/shared/matrix";
 
-const TH = "h-10 border-b border-line px-2 text-left align-middle text-label font-medium whitespace-nowrap text-fg-2";
-const TD = "h-10 border-b border-line px-2 align-middle";
+/**
+ * Header row and module column stay in view while the matrix scrolls inside its card (sticky on their own fill,
+ * the same colours as before, so nothing changes where it fits; on a phone a rule marks the column edge). 44 px rows
+ * under a coarse pointer.
+ */
+const TH = "sticky top-0 z-10 h-10 border-b border-line bg-tray px-2 text-left align-middle text-label font-medium whitespace-nowrap text-fg-2 pointer-coarse:h-11";
+const CORNER = "left-0 z-20 max-md:border-r";
+const ROW_HEAD = "sticky left-0 z-1 bg-card max-md:border-r";
+const TD = "h-10 border-b border-line px-2 align-middle pointer-coarse:h-11";
 const VIEW_KEPT = "This role has another action in this module that your role doesn't hold, so View stays on. Ask an administrator who holds it.";
 const NOT_HELD = "Your role doesn't hold this permission, so you can't grant or remove it.";
 
@@ -72,19 +79,27 @@ export function PermissionMatrix({ label, value, onChange, allowed }: {
 }) {
   const set = (edit: Edit) => onChange?.(edit);
   const { ref: gridRef, onKeyDown, onFocus } = useGridKeys();
+  // Touch path for a read-only cell's reason (its tooltip needs hover): a press shows it under the matrix.
+  const [note, setNote] = useState("");
+  const onClick = (e: MouseEvent<HTMLTableElement>) => {
+    const box = (e.target as HTMLElement).closest<HTMLElement>(`${BOX}[aria-describedby]`);
+    const reason = box && document.getElementById(box.getAttribute("aria-describedby")!)?.textContent;
+    if (box && reason) setNote(`${box.getAttribute("aria-label")}: ${reason}`);
+  };
   /** A header is read-only when the matrix is, or when the actor may change none of its cells. */
   const fixed = (cells: readonly PermissionName[]) => !onChange || (!!allowed && !cells.some((c) => allowed.has(c)));
   const header = (cells: PermissionName[], text: string, toggle: Edit) => (
     <Checkbox label={text} checked={cellState(value, cells)} readOnly={fixed(cells)} onToggle={() => set(toggle)} />
   );
   return (
-    // Scrolls sideways inside its card when wider than the screen; `relative` keeps the sr-only reasons of read-only
-    // checkboxes (absolutely positioned) inside the scroll box instead of widening the page.
-    <div className="relative overflow-x-auto">
-      <table ref={gridRef} role="grid" aria-label={label} onKeyDown={onKeyDown} onFocus={onFocus} className="w-full border-separate border-spacing-0 text-body">
+    <>
+    {/* Scrolls inside its card when wider (or taller) than the screen; `relative` keeps the sr-only reasons of read-only
+        checkboxes (absolutely positioned) inside the scroll box instead of widening the page. */}
+    <div className="relative max-h-[70dvh] overflow-auto overscroll-x-contain">
+      <table ref={gridRef} role="grid" aria-label={label} onKeyDown={onKeyDown} onFocus={onFocus} onClick={onClick} className="w-full border-separate border-spacing-0 text-body">
         <thead className="bg-tray">
           <tr>
-            <th scope="col" className={TH}>
+            <th scope="col" className={`${TH} ${CORNER}`}>
               <span className="flex items-center gap-1">{header([...PERMISSIONS], "Every permission", (v) => toggleAll(v, allowed))}Module</span>
             </th>
             {ACTIONS.map((a) => (
@@ -97,7 +112,7 @@ export function PermissionMatrix({ label, value, onChange, allowed }: {
         <tbody>
           {MODULES.map((m) => (
             <tr key={m.key}>
-              <th scope="row" className={`${TD} text-left font-medium text-fg`}>
+              <th scope="row" className={`${TD} ${ROW_HEAD} text-left font-medium text-fg`}>
                 <span className="flex items-center gap-1">{header(rowCells(m.key), `Every action in ${permissionLabel(m.key)}`, (v) => toggleRow(v, m.key, allowed))}{permissionLabel(m.key)}</span>
               </th>
               {ACTIONS.map((a) => {
@@ -117,5 +132,7 @@ export function PermissionMatrix({ label, value, onChange, allowed }: {
         </tbody>
       </table>
     </div>
+    <p role="status" className={note ? "border-t border-line px-3 py-2 text-caption text-fg-2" : undefined}>{note}</p>
+    </>
   );
 }

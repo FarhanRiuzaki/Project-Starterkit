@@ -1,9 +1,10 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
-import { ActionMenu, type Column, ConfirmActionDialog, DataTable, Notice, Panel, QueryInput, Toolbar } from "@starterkit/ui/ds";
+import { ActionMenu, type Column, DataTable, Notice, Panel, QueryInput, Toolbar } from "@starterkit/ui/ds";
 import { formatNumber, plural } from "@starterkit/ui/lib/format";
 import { Button } from "@starterkit/ui/ui/button";
 import { KeyIcon } from "@starterkit/ui/ui/icons";
@@ -17,6 +18,14 @@ import { PERMISSIONS } from "@starterkit/shared/permissions";
 import { ROLES } from "@/lib/shared/queries";
 import { assertRoleName, deleteBlock, RoleNameField } from "./role-name";
 import { rolePage, roleUrl, useAfterRbacChange } from "./use-rbac";
+
+/**
+ * Opened on click only: the dialog loads then, outside the page's first load (route budget, AGENTS.md §9); the import
+ * starts on the first press or focus in the page (intent), so it is there by the time a dialog opens.
+ */
+const loadDialog = () => import("@starterkit/ui/ds");
+const ConfirmActionDialog = dynamic(() => loadDialog().then((m) => m.ConfirmActionDialog), { ssr: false });
+const preloadDialog = () => void loadDialog();
 
 const LINK = "font-medium text-fg hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary";
 
@@ -32,7 +41,7 @@ export function RolesPage() {
   const [deleting, setDeleting] = useState<RoleDto | null>(null);
 
   const columns: Column<RoleDto>[] = [
-    { key: "name", header: "Role", icon: KeyIcon, sortable: true, cell: (r) => (
+    { key: "name", header: "Role", icon: KeyIcon, sortable: true, mobile: "title", cell: (r) => (
       <span className="flex items-center gap-2"><Link href={rolePage(r.id)} className={LINK}>{r.name}</Link>{r.locked && <span className="text-caption text-fg-3">Locked</span>}</span>
     ) },
     { key: "permissions", header: "Permissions", sortable: true, cell: (r) => `${formatNumber(r.permissions.length)} of ${formatNumber(PERMISSIONS.length)}` },
@@ -56,12 +65,12 @@ export function RolesPage() {
   }
 
   return (
-    <div className="grid gap-section">
+    <div className="grid gap-section" onPointerDown={preloadDialog} onFocus={preloadDialog}>
       <PageHeader title="Roles" description="Each role is a set of permissions. A user gets the permissions of every role they have."
         actions={can("role.create") ? <Button onClick={() => { setName(""); setCreating(true); }}>Create role</Button> : undefined} />
       {t.staleError && <Notice tone="warn" live>Couldn&apos;t refresh the roles; showing the ones loaded before. {errorText(t.staleError)}</Notice>}
       <Toolbar>
-        <div className="w-full max-w-80"><QueryInput value={t.state.q} onChange={onSearch} keys={[]} label="Search roles" placeholder="Search role name" /></div>
+        <div className="w-full max-w-80 max-md:max-w-none"><QueryInput value={t.state.q} onChange={onSearch} keys={[]} label="Search roles" placeholder="Search role name" /></div>
       </Toolbar>
       <Panel flush icon={KeyIcon} title="Roles" count={t.count}>
         <DataTable label="Roles" columns={columns} rows={t.rows} rowKey={(r) => r.id} loading={t.loading}

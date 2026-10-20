@@ -61,11 +61,11 @@ export function DesignGallery() {
       </section>
 
       <div className="grid grid-cols-12 gap-gutter">
-        <Panel icon={LineChartIcon} title="Requests by service" description="Line · 24 hours" className="col-span-12 xl:col-span-8"
+        <Panel icon={LineChartIcon} title="Requests by service" description="Line · 24 hours" className="col-span-12 md:col-span-6 xl:col-span-8"
           footnote={<StaleNote at={Date.UTC(2026, 9, 16, 7, 2)} source="Metrics" />}>
           <TimeSeriesChart label="Requests by service" series={REQUESTS_BY_SERVICE} format={formatNumber} />
         </Panel>
-        <Panel icon={GaugeIcon} title="Quota" count={SERVICES.length} className="col-span-12 xl:col-span-4">
+        <Panel icon={GaugeIcon} title="Quota" count={SERVICES.length} className="col-span-12 md:col-span-6 xl:col-span-4">
           <div className="grid gap-5">
             <div className="flex flex-wrap gap-2">{SERVICES.map((m) => <CategoryChip key={m.label} label={m.label} slot={m.slot} />)}</div>
             <ul className="grid gap-2" aria-label="Requests per service">
@@ -79,10 +79,10 @@ export function DesignGallery() {
             <TickMeter label="Storage quota" ratio={0.94} value="94%" threshold={0.9} />
           </div>
         </Panel>
-        <Panel title="Bytes per hour" description="Area · single series" className="col-span-12 lg:col-span-6">
+        <Panel title="Bytes per hour" description="Area · single series" className="col-span-12 md:col-span-6">
           <LazyMount minHeight={CHART_HEIGHT.standard}><TimeSeriesChart label="Bytes per hour" kind="area" series={BYTES_PER_HOUR} format={formatCompact} /></LazyMount>
         </Panel>
-        <Panel title="Compact chart" description={`Height ${CHART_HEIGHT.compact} px`} className="col-span-12 lg:col-span-6">
+        <Panel title="Compact chart" description={`Height ${CHART_HEIGHT.compact} px`} className="col-span-12 md:col-span-6">
           <LazyMount minHeight={CHART_HEIGHT.compact}><TimeSeriesChart label="Requests (compact)" series={REQUESTS_BY_SERVICE.slice(0, 1)} format={formatNumber} height={CHART_HEIGHT.compact} /></LazyMount>
         </Panel>
       </div>

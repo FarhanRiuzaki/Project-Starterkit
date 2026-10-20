@@ -24,7 +24,7 @@ const RECENT: Column<ActivityDto>[] = [
   { key: "actor", header: "User", className: "min-w-48", cell: (r) => (
     <span className="flex min-w-0 max-w-56 items-center gap-2.5"><Avatar name={r.actor.name} seed={r.actor.id} /><Truncate title={r.actor.name}>{r.actor.name}</Truncate></span>
   ) },
-  { key: "action", header: "Action", cell: (r) => actionLabel(r.action) },
+  { key: "action", header: "Action", mobile: "title", cell: (r) => actionLabel(r.action) },
   { key: "target", header: "Target", cell: (r) => <span className="block max-w-64"><Truncate title={r.target.label}>{r.target.label}</Truncate></span> },
 ];
 

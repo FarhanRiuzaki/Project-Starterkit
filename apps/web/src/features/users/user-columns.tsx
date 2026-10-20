@@ -11,10 +11,14 @@ export function UserStatusChip({ user }: { user: UserDto }) {
   return <StatusChip health={s.health} label={s.label} />;
 }
 
-/** Table columns for the user list; keys of sortable columns are the server's sort keys. `select` (when the viewer can act on rows) is the leading checkbox column. */
+/**
+ * Table columns for the user list; keys of sortable columns are the server's sort keys. `select` (when the viewer can
+ * act on rows) is the leading checkbox column. On a phone card: the user is the title, roles, status and last sign-in
+ * are lines under it; sign-in type and created stay on the detail page.
+ */
 export function userColumns(select?: { has: (id: string) => boolean; toggle: (id: string) => void }): Column<UserRowDto>[] {
   const cols: Column<UserRowDto>[] = [
-    { key: "name", header: "User", icon: UsersIcon, sortable: true, cell: (u) => (
+    { key: "name", header: "User", icon: UsersIcon, sortable: true, mobile: "title", cell: (u) => (
       <span className="flex min-w-0 max-w-72 items-center gap-2.5">
         <Avatar name={u.name} />
         <span className="grid min-w-0">
@@ -25,12 +29,12 @@ export function userColumns(select?: { has: (id: string) => boolean; toggle: (id
     ) },
     { key: "roles", header: "Roles", cell: (u) => <RoleChips roles={u.roles} /> },
     { key: "status", header: "Status", cell: (u) => <UserStatusChip user={u} /> },
-    { key: "type", header: "Sign-in", cell: (u): ReactNode => (u.isLdap ? "Directory" : "Password") },
+    { key: "type", header: "Sign-in", mobile: "hidden", cell: (u): ReactNode => (u.isLdap ? "Directory" : "Password") },
     { key: "lastLoginAt", header: "Last sign-in", sortable: true, cell: (u) => <RelativeTime at={u.lastLoginAt ? Date.parse(u.lastLoginAt) : null} /> },
-    { key: "createdAt", header: "Created", sortable: true, cell: (u) => <RelativeTime at={Date.parse(u.createdAt)} /> },
+    { key: "createdAt", header: "Created", sortable: true, mobile: "hidden", cell: (u) => <RelativeTime at={Date.parse(u.createdAt)} /> },
   ];
   if (!select) return cols;
-  return [{ key: "select", header: "Select", className: "w-8", cell: (u) => (
+  return [{ key: "select", header: "Select", className: "w-8", mobile: "lead", cell: (u) => (
     // The label is the touch hit area (base.css): a native checkbox can't carry one.
     <label className="inline-grid size-7 cursor-pointer place-items-center"><input type="checkbox" aria-label={`Select ${u.name}`} checked={select.has(u.id)} onChange={() => select.toggle(u.id)} className="size-4 cursor-pointer accent-primary" /></label>
   ) }, ...cols];

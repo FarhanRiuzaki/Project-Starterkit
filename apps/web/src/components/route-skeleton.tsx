@@ -36,7 +36,7 @@ export type Section = Gate & (
   | { kind: "table"; chrome: number; rows: number | "page"; max?: number; rowHeight?: number }
 );
 
-const SPAN = { 6: "col-span-12 lg:col-span-6", 12: "col-span-12" } as const;
+const SPAN = { 6: "col-span-12 md:col-span-6", 12: "col-span-12" } as const;
 
 function PanelBlock({ className, h }: { className?: string; h: number }) {
   return (

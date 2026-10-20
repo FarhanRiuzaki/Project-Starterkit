@@ -35,7 +35,7 @@ const SecretOnceDialog = dynamic(() => import("@starterkit/ui/ds").then((m) => m
 const ACTIVITY_COLUMNS: Column<ActivityBrief>[] = [
   { key: "at", header: "When", cell: (a) => <RelativeTime at={Date.parse(a.at)} /> },
   { key: "actor", header: "By", cell: (a) => a.actor.name },
-  { key: "action", header: "Action", cell: (a) => <span className="font-mono text-mono">{a.action}</span> },
+  { key: "action", header: "Action", mobile: "title", cell: (a) => <span className="font-mono text-mono">{a.action}</span> },
 ];
 
 type Dialog = "deactivate" | "delete" | "reset" | { end: SessionDto } | null;
@@ -103,7 +103,7 @@ export function UserDetail({ id }: { id: string }) {
         ]} />
       {q.error && <Notice tone="warn" live>Couldn&apos;t refresh this user; showing the last loaded details.</Notice>}
       {/* First data reveal: the cards rise in one after another (a refetch keeps them, so nothing replays). */}
-      <Stagger className="grid items-start gap-gutter lg:grid-cols-2">
+      <Stagger className="grid items-start gap-gutter md:grid-cols-2">
         <StaggerItem index={0} className="grid"><Panel icon={UsersIcon} title="Details" description="Account facts">
           <Facts items={[
             { label: "Sign-in", value: u.isLdap ? "Directory" : "Password" },
@@ -118,7 +118,7 @@ export function UserDetail({ id }: { id: string }) {
             <p className="text-body-sm text-fg-2">Connected accounts: {u.connected.length ? u.connected.map((c) => PROVIDER[c]).join(", ") : "none"}</p>
           </div>
         </Panel></StaggerItem>
-        <StaggerItem index={2} className="grid lg:col-span-2"><Panel icon={KeyIcon} title="Effective permissions" description="Combined from all roles, by module">
+        <StaggerItem index={2} className="grid md:col-span-2"><Panel icon={KeyIcon} title="Effective permissions" description="Combined from all roles, by module">
           <dl className="grid gap-2">
             {MODULES.map((m) => {
               const have = m.actions.filter((a) => granted.has(`${m.key}.${a}`));

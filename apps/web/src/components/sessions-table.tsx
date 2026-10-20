@@ -23,7 +23,7 @@ export function SessionsTable({ table, title, description, current, emptyHint, a
 }) {
   const t = useTableQuery<SessionDto, NoFilters>(table, enabled);
   const columns: Column<SessionDto>[] = [
-    { key: "device", header: "Device", sortable: true, cell: (s) => <span className="font-medium text-fg">{s.device}{s.current && <span className="ml-2 text-caption font-normal text-primary-ink">{current}</span>}</span> },
+    { key: "device", header: "Device", sortable: true, mobile: "title", cell: (s) => <span className="font-medium text-fg">{s.device}{s.current && <span className="ml-2 text-caption font-normal text-primary-ink">{current}</span>}</span> },
     { key: "ip", header: "IP address", cell: (s) => <span className="font-mono text-mono">{s.ip}</span> },
     { key: "lastSeenAt", header: "Last active", sortable: true, cell: (s) => <RelativeTime at={Date.parse(s.lastSeenAt)} /> },
   ];

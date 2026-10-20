@@ -41,7 +41,7 @@ export function SecurityPage({ providers }: { providers: Record<ConnectionProvid
     <div className="grid gap-section">
       {header}
       {q.error && <Notice tone="warn" live>Couldn&apos;t refresh your settings; showing the last loaded values.</Notice>}
-      <div className="grid items-start gap-section lg:grid-cols-2">
+      <div className="grid items-start gap-section md:grid-cols-2">
         <PasswordCard user={u} />
         <TwoFactorCard user={u} />
         <ConnectionsCard user={u} providers={providers} />

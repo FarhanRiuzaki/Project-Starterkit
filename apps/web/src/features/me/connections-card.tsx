@@ -48,7 +48,7 @@ export function ConnectionsCard({ user, providers }: { user: MeDto; providers: R
               <span className="text-body font-medium text-fg">{p.label}</span>
               <span className="text-body-sm text-fg-3">{on ? "Connected" : "Not connected"}</span>
               {on || !providers[p.id]
-                ? <BlockedButton className="ml-auto" size="sm" variant="secondary"
+                ? <BlockedButton className="ml-auto" wrapClassName="ml-auto items-end" size="sm" variant="secondary"
                     reason={on ? (lastWay ? "This is your only way to sign in. Connect another account first." : null) : `${p.label} sign-in isn't set up on this server.`}
                     onClick={() => setLeaving(p.id)}>{on ? `Disconnect ${p.label}` : `Connect ${p.label}`}</BlockedButton>
                 : <a href={`/api/auth/oauth/${p.id}?mode=link`} className={buttonVariants({ variant: "secondary", size: "sm", className: "ml-auto" })}>Connect {p.label}</a>}

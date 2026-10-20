@@ -77,7 +77,7 @@ export function LoginForm({ next, providers, error: initialError = null }: { nex
           ? <a key={p.id} href={`/api/auth/oauth/${p.id}${back}`} className={buttonVariants({ variant: "secondary", size: "lg", className: "h-10 w-full" })}>
               Continue with {p.label}
             </a>
-          : <BlockedButton key={p.id} variant="secondary" size="lg" className="h-10 w-full" reason={`${p.label} sign-in isn't set up on this server. Sign in another way.`}>
+          : <BlockedButton key={p.id} variant="secondary" size="lg" className="h-10 w-full" wrapClassName="w-full" reason={`${p.label} sign-in isn't set up on this server. Sign in another way.`}>
               Continue with {p.label}
             </BlockedButton>))}
       </div>
