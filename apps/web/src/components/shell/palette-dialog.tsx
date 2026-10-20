@@ -16,7 +16,7 @@ export function PaletteDialog({ open, onOpenChange }: { open: boolean; onOpenCha
   const go = (href: string) => { onOpenChange(false); router.push(href); };
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent showCloseButton={false} className="top-24 translate-y-0 p-0 sm:max-w-xl">
+      <DialogContent showCloseButton={false} className="top-24 translate-y-0 p-0 md:max-w-xl">
         <DialogTitle className="sr-only">Search pages</DialogTitle>
         <Command label="Command palette">
           <CommandInput placeholder={PLACEHOLDER} aria-label={PLACEHOLDER} />

@@ -14,8 +14,11 @@ import { api } from "@/lib/client/api";
 import { useAuth } from "@/lib/client/auth-context";
 import { usePrefs } from "@/lib/client/prefs-context";
 
-/** Account row at the bottom of the sidebar: profile, security, sessions, theme, density, Sign out. */
-export function AccountMenu({ compact }: { compact?: boolean }) {
+/**
+ * Account row at the bottom of the sidebar: profile, security, sessions, theme, density, Sign out. `bar`: the phone top
+ * bar's copy (avatar only, opens downwards, aligned to the right edge).
+ */
+export function AccountMenu({ compact, bar }: { compact?: boolean; bar?: boolean }) {
   const { user } = useAuth();
   const { theme, setTheme } = useTheme();
   const { prefs, update } = usePrefs();
@@ -40,7 +43,7 @@ export function AccountMenu({ compact }: { compact?: boolean }) {
           <Icon icon={ChevronsUpDownIcon} className={cn("hidden size-4 shrink-0 text-fg-3", !compact && "xl:block")} />
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" side="top" className="w-64">
+      <DropdownMenuContent align={bar ? "end" : "start"} side={bar ? "bottom" : "top"} className="w-64">
         <DropdownMenuLabel className="grid gap-0.5 font-normal">
           <span className="text-body-sm font-medium text-fg">{user.name}</span>
           <span className="truncate font-mono text-caption text-fg-3">{user.email}</span>

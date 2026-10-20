@@ -31,6 +31,7 @@ export function userColumns(select?: { has: (id: string) => boolean; toggle: (id
   ];
   if (!select) return cols;
   return [{ key: "select", header: "Select", className: "w-8", cell: (u) => (
-    <input type="checkbox" aria-label={`Select ${u.name}`} checked={select.has(u.id)} onChange={() => select.toggle(u.id)} className="size-4 cursor-pointer accent-primary" />
+    // The label is the touch hit area (base.css): a native checkbox can't carry one.
+    <label className="inline-grid size-7 cursor-pointer place-items-center"><input type="checkbox" aria-label={`Select ${u.name}`} checked={select.has(u.id)} onChange={() => select.toggle(u.id)} className="size-4 cursor-pointer accent-primary" /></label>
   ) }, ...cols];
 }

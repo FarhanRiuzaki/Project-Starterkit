@@ -249,7 +249,7 @@ function Tokens() {
       <Panel title="Type scale" description="Inter Variable + Geist Mono" className="col-span-12">
         <dl className="grid">
           {TYPE.map((t) => (
-            <div key={t.name} className="flex items-baseline gap-4 border-b border-dashed border-line py-2 last:border-b-0">
+            <div key={t.name} className="flex min-w-0 items-baseline gap-4 border-b border-dashed border-line py-2 last:border-b-0">
               <dt className="w-32 shrink-0 font-mono text-caption text-fg-3">{t.name}</dt><dd className={`${t.cls} min-w-0 truncate text-fg`} title={t.sample}>{t.sample}</dd>
             </div>
           ))}

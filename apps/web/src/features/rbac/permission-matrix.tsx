@@ -78,7 +78,9 @@ export function PermissionMatrix({ label, value, onChange, allowed }: {
     <Checkbox label={text} checked={cellState(value, cells)} readOnly={fixed(cells)} onToggle={() => set(toggle)} />
   );
   return (
-    <div className="overflow-x-auto">
+    // Scrolls sideways inside its card when wider than the screen; `relative` keeps the sr-only reasons of read-only
+    // checkboxes (absolutely positioned) inside the scroll box instead of widening the page.
+    <div className="relative overflow-x-auto">
       <table ref={gridRef} role="grid" aria-label={label} onKeyDown={onKeyDown} onFocus={onFocus} className="w-full border-separate border-spacing-0 text-body">
         <thead className="bg-tray">
           <tr>

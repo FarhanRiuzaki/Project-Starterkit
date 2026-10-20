@@ -37,6 +37,8 @@ describe("MotionSection overlay rows print the tokens the components use", () =>
     expect(row("menu")).toBe("180 ms in · 100 ms out");
     expect(row("tooltip")).toBe("100 ms in · 100 ms out");
     expect(row("dialog")).toBe("280 ms in · 160 ms out; scrim 220 ms in · 160 ms out");
+    expect(row("drawer")).toBe(`${inOut(OVERLAY_MOTION.drawer)}; scrim ${inOut(OVERLAY_MOTION.scrim)}`);
+    expect(row("drawer")).toBe("280 ms in · 160 ms out; scrim 220 ms in · 160 ms out");
   });
 });
 

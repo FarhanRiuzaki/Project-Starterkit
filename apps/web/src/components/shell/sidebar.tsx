@@ -15,8 +15,9 @@ import { AccountMenu } from "./account-menu";
 import { NavGlyph } from "./nav-icon";
 
 /**
- * Sidebar, desktop only. 248 px from 1280 px (`xl`), collapsible to the 64 px icon rail (preference per viewer, kept
- * in a cookie); below 1280 px it is always the rail, so the page never scrolls sideways. Sections come from
+ * Sidebar. 248 px from 1280 px (`xl`), collapsible to the 64 px icon rail (preference per viewer, kept in a cookie);
+ * 768–1279 px it is always the rail, so the page never scrolls sideways; below 768 px it is not shown and the same
+ * sections open from the top bar's menu button (MobileNav, a drawer). Sections come from
  * `navFor(perms)`: a link the viewer cannot open is not shown. Account row pinned to the bottom. The logo nodes come
  * from the server (AppShell), so the wordmark's path data stays out of the client bundle.
  */
@@ -37,7 +38,7 @@ export function Sidebar({ mark, wordmark }: { mark: ReactNode; wordmark: ReactNo
   // Labels keep `hidden` in the rail (never animated out); on expand they fade in as the width opens.
   const label = (cls: string) => (collapsed ? "hidden" : cn(cls, "animate-reveal-in"));
   return (
-    <aside data-print="hide" aria-label="Main navigation" className={cn("animate-shell-side motion-safe:transition-sidebar sticky top-0 flex h-svh w-16 shrink-0 flex-col px-3 py-4", !collapsed && "xl:w-62")}>
+    <aside data-print="hide" aria-label="Main navigation" className={cn("animate-shell-side motion-safe:transition-sidebar sticky top-0 flex h-svh w-16 shrink-0 flex-col px-3 py-4 max-md:hidden", !collapsed && "xl:w-62")}>
       <div className={cn("flex h-9 items-center justify-center px-1.5", !collapsed && "xl:justify-start")}>
         {/* Below 1280 px the sidebar is always the rail, so the expanded slot keeps the mark until xl. */}
         <Brand collapsed={collapsed} mark={mark}

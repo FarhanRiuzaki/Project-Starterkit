@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { cookies, headers } from "next/headers";
 import { connection } from "next/server";
 import { Providers } from "@/components/providers";
@@ -15,6 +15,9 @@ import "./globals.css";
 export async function generateMetadata(): Promise<Metadata> {
   return { metadataBase: new URL(config().APP_URL), title: { template: `%s · ${BRAND.name}`, default: BRAND.name }, description: BRAND.name };
 }
+
+/** viewport-fit=cover: the page runs under a phone's notch and home indicator; the shell pads with the safe-area insets (base.css `*-safe`). */
+export const viewport: Viewport = { width: "device-width", initialScale: 1, viewportFit: "cover" };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   // Render per request: Next stamps the proxy's CSP nonce on its scripts only in dynamic rendering (a prerendered

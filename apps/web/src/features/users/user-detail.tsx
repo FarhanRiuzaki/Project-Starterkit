@@ -8,8 +8,7 @@ import { useEffect, useState } from "react";
 import { BlockedButton, type Column, DataTable, Failure, Facts, Notice, Panel, RelativeTime } from "@starterkit/ui/ds";
 import { Stagger, StaggerItem, useDelayedFlag } from "@starterkit/ui/motion";
 import { Button } from "@starterkit/ui/ui/button";
-import { Icon } from "@starterkit/ui/ui/icon";
-import { ActivityIcon, KeyIcon, LogIcon, SecureIcon, SpinnerIcon, UsersIcon } from "@starterkit/ui/ui/icons";
+import { ActivityIcon, KeyIcon, LogIcon, SecureIcon, UsersIcon } from "@starterkit/ui/ui/icons";
 import { toast } from "@starterkit/ui/ui/toast";
 import { DetailNotFound } from "@/components/detail-not-found";
 import { RoleChips } from "@/components/role-chips";
@@ -90,17 +89,18 @@ export function UserDetail({ id }: { id: string }) {
   return (
     <div className="grid gap-section">
       <PageHeader title={u.name} status={<UserStatusChip user={u} />} description={`${u.username} · ${u.email}`}
-        actions={<>
-          {can("user.edit") && (rank
-            ? <BlockedButton variant="secondary" reason={rank}>Edit user</BlockedButton>
-            : <Button asChild variant="secondary"><Link href={`/users/${id}/edit`}>Edit user</Link></Button>)}
-          {can("user.edit") && <BlockedButton variant="secondary" reason={resetBlock} onClick={() => setDialog("reset")}>Reset password</BlockedButton>}
-          {can("user.edit") && (u.isActive
-            ? <BlockedButton variant="secondary" reason={block} onClick={() => setDialog("deactivate")}>Deactivate user</BlockedButton>
-            : <BlockedButton variant="secondary" reason={rank} disabled={activating} aria-busy={activating || undefined} onClick={() => void activate()}>
-              {activating && <Icon icon={SpinnerIcon} className="motion-safe:animate-spin" />}Activate user</BlockedButton>)}
-          {can("user.delete") && <BlockedButton variant="destructive" reason={block} onClick={() => setDialog("delete")}>Delete user</BlockedButton>}
-        </>} />
+        actions={can("user.edit") && (rank
+          ? <BlockedButton variant="secondary" reason={rank}>Edit user</BlockedButton>
+          : <Button asChild variant="secondary"><Link href={`/users/${id}/edit`}>Edit user</Link></Button>)}
+        more={[
+          ...(can("user.edit") ? [
+            { label: "Reset password", reason: resetBlock, onSelect: () => setDialog("reset") },
+            u.isActive
+              ? { label: "Deactivate user", reason: block, onSelect: () => setDialog("deactivate") }
+              : { label: "Activate user", reason: rank, busy: activating, onSelect: () => void activate() },
+          ] : []),
+          ...(can("user.delete") ? [{ label: "Delete user", reason: block, destructive: true, onSelect: () => setDialog("delete") }] : []),
+        ]} />
       {q.error && <Notice tone="warn" live>Couldn&apos;t refresh this user; showing the last loaded details.</Notice>}
       {/* First data reveal: the cards rise in one after another (a refetch keeps them, so nothing replays). */}
       <Stagger className="grid items-start gap-gutter lg:grid-cols-2">

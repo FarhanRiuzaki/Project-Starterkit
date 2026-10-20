@@ -4,7 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { BlockedButton, ConfirmActionDialog, Failure, Notice, Panel } from "@starterkit/ui/ds";
+import { ConfirmActionDialog, Failure, Notice, Panel } from "@starterkit/ui/ds";
 import { useDelayedFlag } from "@starterkit/ui/motion";
 import { formatNumber, plural } from "@starterkit/ui/lib/format";
 import { Button } from "@starterkit/ui/ui/button";
@@ -90,11 +90,11 @@ export function RoleDetail({ id }: { id: string }) {
     <div className="grid gap-section">
       <PageHeader title={r.name}
         description={`${plural(r.userCount, "user", "users")} · ${formatNumber(r.permissions.length)} of ${formatNumber(PERMISSIONS.length)} permissions${r.locked ? " · Locked" : ""}`}
-        actions={<>
-          {can("user.view") && r.userCount > 0 && <Button asChild variant="secondary"><Link href={`/users?role=${encodeURIComponent(r.name)}`}>View users</Link></Button>}
-          {can("role.edit") && <BlockedButton variant="secondary" reason={editBlock} onClick={() => { setName(r.name); setDialog("rename"); }}>Rename role</BlockedButton>}
-          {can("role.delete") && <BlockedButton variant="destructive" reason={deleteBlock(r)} onClick={() => setDialog("delete")}>Delete role</BlockedButton>}
-        </>} />
+        actions={can("user.view") && r.userCount > 0 && <Button asChild variant="secondary"><Link href={`/users?role=${encodeURIComponent(r.name)}`}>View users</Link></Button>}
+        more={[
+          ...(can("role.edit") ? [{ label: "Rename role", reason: editBlock, onSelect: () => { setName(r.name); setDialog("rename"); } }] : []),
+          ...(can("role.delete") ? [{ label: "Delete role", reason: deleteBlock(r), destructive: true, onSelect: () => setDialog("delete") }] : []),
+        ]} />
       {q.error && <Notice tone="warn" live>Couldn&apos;t refresh this role; showing the last loaded permissions.</Notice>}
       <Panel flush icon={KeyIcon} title="Permissions" description="Header checkboxes switch a whole module, an action in every module, or everything"
         actions={!readOnly && (
