@@ -1,14 +1,15 @@
 // Port of apps/web/src/app/api/me/me-routes.test.ts against /v1/me*, test for test with the same names.
-// Skipped (move to Task 10 with the OAuth flow): "connects and disconnects, one activity entry each" (POST
-// /me/connections/{provider}), and the unknown-provider POST half of "refuses to disconnect the only way to sign in".
+// "connects and disconnects, one activity entry each" runs against the temporary mock connect (POST
+// /me/connections/{provider}, OAUTH_MOCK only, Task 9); Task 10 moves it to the OAuth link flow.
 // Not ported: wrong csrf token (the web checks CSRF, Task 9). Time moves by editing rows, the database clock decides.
 // Added: "PATCH /me with the same values writes no activity", "recovery codes are 8 distinct 19-char codes and each works once at /v1/auth/2fa".
-import { beforeEach, describe, expect, it } from "bun:test";
+import { beforeEach, describe, expect, it, spyOn } from "bun:test";
 import type { Page } from "@starterkit/shared/contracts/common";
 import { call, resetData } from "../../test/app";
 import { decryptSecret, hashToken } from "../auth/crypto";
 import { createSession } from "../auth/sessions";
 import { totpCode } from "../auth/totp";
+import * as conf from "../config";
 import { sql } from "../db/client";
 import { LDAP_PASSWORD, RECOVERY_CODES, SEED_PASSWORD } from "../seed/demo";
 
@@ -212,6 +213,39 @@ describe("/api/me/2fa", () => {
 });
 
 describe("/api/me/connections/[provider]", () => {
+  it("connects and disconnects, one activity entry each", async () => {
+    const token = await signIn("twofa");
+    const c = await me("POST", "/connections/apple", token);
+    expect(c.status).toBe(200);
+    expect(((await c.json()) as { connected: string[] }).connected).toEqual(["apple"]);
+    expect(await sql`select subject from user_identities where user_id = ${await idOf("twofa")}`).toEqual([{ subject: `mock-apple-${await idOf("twofa")}` }]);
+    expect((await me("DELETE", "/connections/apple", token)).status).toBe(200);
+    expect(await sql`select 1 from user_identities where user_id = ${await idOf("twofa")}`).toHaveLength(0);
+    expect((await acts()).slice(-2).map((x) => x.action)).toEqual(["me.connect", "me.disconnect"]);
+  });
+
+  it("connecting a provider already linked answers 200 and writes no activity; an unknown provider is 400; a guest is 401", async () => {
+    const token = await signIn("google");
+    const n = (await acts()).length;
+    const r = await me("POST", "/connections/google", token);
+    expect(r.status).toBe(200);
+    expect(((await r.json()) as { connected: string[] }).connected).toEqual(["google"]);
+    expect((await acts()).length).toBe(n);
+    expect((await me("POST", "/connections/github", token)).status).toBe(400);
+    expect((await call("POST", "/v1/me/connections/apple")).status).toBe(401);
+  });
+
+  it("connect is 404 without OAUTH_MOCK (temporary mock, Task 10)", async () => {
+    const token = await signIn("twofa");
+    const off = spyOn(conf, "config").mockReturnValue({ ...conf.config(), OAUTH_MOCK: false });
+    try {
+      expect((await me("POST", "/connections/apple", token)).status).toBe(404);
+    } finally {
+      off.mockRestore();
+    }
+    expect(await sql`select 1 from user_identities where user_id = ${await idOf("twofa")}`).toHaveLength(0);
+  });
+
   it("disconnects with one activity entry", async () => {
     const token = await signIn("google");
     const r = await me("DELETE", "/connections/google", token);

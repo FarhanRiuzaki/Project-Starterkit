@@ -4,6 +4,7 @@
 import { beforeEach, describe, expect, it, spyOn } from "bun:test";
 import { PERMISSIONS } from "@starterkit/shared/permissions";
 import { call, resetData, signIn } from "../../test/app";
+import * as conf from "../config";
 import { config } from "../config";
 import { log } from "../log";
 import { sql } from "../db/client";
@@ -330,7 +331,7 @@ describe("password reset", () => {
 });
 
 describe("redirects", () => {
-  // OAuth sign-in comes with Task 10; its half of the mock's "login and OAuth honour next" test moves there.
+  // The OAuth half of the mock's "login and OAuth honour next" runs against the temporary mock-login below.
   it("login honours next only for internal paths", async () => {
     const cases: [string, string][] = [
       ["//evil.com", "/"], ["/\\evil", "/"], ["https://x", "/"], ["%2F%2Fevil", "/"], ["/a/..//evil", "/"], ["/login", "/"],
@@ -340,6 +341,41 @@ describe("redirects", () => {
       await freshLimits();
       expect((await (await signInWith("admin@example.com", SEED_PASSWORD, { next })).json()).next).toBe(want);
     }
+  });
+});
+
+describe("mock OAuth sign-in (temporary, OAUTH_MOCK only; Task 10 replaces it)", () => {
+  const mockLogin = (provider: string, next?: string) =>
+    post(`oauth/${provider}/mock-login${next === undefined ? "" : `?${new URLSearchParams({ next })}`}`, undefined);
+
+  it("OAuth signs in as the seeded user connected to the provider; other providers are 404", async () => {
+    const r = await mockLogin("apple");
+    expect(r.status).toBe(200);
+    const { next, token } = await r.json();
+    expect(next).toBe("/");
+    expect(await sessionOf(token)).toMatchObject({ user_id: await idOf("apple"), method: "apple" });
+    expect(await lastAuth()).toMatchObject({ event: "login_success", method: "apple", login: "apple@example.com", userId: await idOf("apple") });
+    for (const p of ["github", "Google"]) expect((await mockLogin(p)).status, p).toBe(404);
+  });
+
+  it("OAuth honours next only for internal paths", async () => {
+    const cases: [string, string][] = [
+      ["//evil.com", "/"], ["/\\evil", "/"], ["https://x", "/"], ["%2F%2Fevil", "/"], ["/a/..//evil", "/"], ["/login", "/"],
+      ["/users?page=2", "/users?page=2"],
+    ];
+    for (const [next, want] of cases) expect((await (await mockLogin("google", next)).json()).next, next).toBe(want);
+  });
+
+  it("an inactive linked account is 404; without OAUTH_MOCK the route is 404", async () => {
+    await sql`update users set is_active = false where username = 'google'`;
+    expect((await mockLogin("google")).status).toBe(404);
+    const off = spyOn(conf, "config").mockReturnValue({ ...conf.config(), OAUTH_MOCK: false });
+    try {
+      expect((await mockLogin("apple")).status).toBe(404);
+    } finally {
+      off.mockRestore();
+    }
+    expect(await count("sessions")).toBe(0);
   });
 });
 

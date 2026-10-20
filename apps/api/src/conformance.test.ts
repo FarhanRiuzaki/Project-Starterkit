@@ -12,10 +12,10 @@ const README = readFileSync(path.join(SRC, "../../../docs/api/README.md"), "utf8
 
 // ---------------------------------------------------------------- (a) endpoint table
 
-/** Routes the API has that the README does not list (internal). */
-const API_ONLY = ["GET /v1/auth/context", "GET /healthz", "GET /readyz"];
+/** Routes the API has that the README does not list (internal; mock-login is the temporary OAuth mock, Task 10 removes it). */
+const API_ONLY = ["GET /v1/auth/context", "GET /healthz", "GET /readyz", "POST /v1/auth/oauth/{provider}/mock-login"];
 /** README rows with no API route yet. Task 10 (OAuth) removes them. */
-const WEB_ONLY = ["GET /api/auth/oauth/{provider}", "POST /api/me/connections/{provider}"];
+const WEB_ONLY = ["GET /api/auth/oauth/{provider}"];
 
 /** "METHOD /v1/path/{param}" of every registered route; middleware (ALL) is not a route. Hono answers HEAD/OPTIONS itself. */
 const registered = (app: { routes: { method: string; path: string }[] }): string[] =>

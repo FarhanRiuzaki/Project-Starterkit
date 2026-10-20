@@ -2,6 +2,7 @@
 // same-origin checks; here a full sign-in answers `token` and a pending second factor answers `challenge`.
 import { Hono } from "hono";
 import { AuthContextDto, ForgotPasswordBody, LoginBody, ResetPasswordBody, TwoFactorBody } from "@starterkit/shared/contracts/auth";
+import { ConnectionProvider } from "@starterkit/shared/contracts/me";
 import { PERMISSIONS } from "@starterkit/shared/permissions";
 import { afterSignIn } from "@starterkit/ui/lib/safe-path";
 import { config } from "../config";
@@ -202,4 +203,27 @@ authRoutes.post("/auth/reset", async (c) => {
 authRoutes.get("/auth/context", async (c) => {
   const { user, perms } = await guard(c, null);
   return c.json(AuthContextDto.parse({ user, permissions: PERMISSIONS.filter((p) => perms.has(p)) }));
+});
+
+/**
+ * Temporary mock OAuth sign-in (OAUTH_MOCK only, else 404; Task 10 replaces it with the provider flow): signs in the
+ * active demo account linked to `mock-<provider>-demo` and answers `{ next, token }` (`next` from the query, internal
+ * paths only). The provider counts as the second factor, as in the mock it replaces.
+ */
+authRoutes.post("/auth/oauth/:provider/mock-login", async (c) => {
+  if (!config().OAUTH_MOCK) throw new ApiError("not_found");
+  const provider = ConnectionProvider.safeParse(c.req.param("provider"));
+  if (!provider.success) throw new ApiError("not_found", "This sign-in provider isn't available.");
+  const p = provider.data;
+  const [row] = await sql`select u.id from user_identities i join users u on u.id = i.user_id
+    where i.provider = ${p} and i.subject = ${`mock-${p}-demo`} and u.is_active`;
+  const user = row ? await userById(row.id) : null;
+  if (!user) throw new ApiError("not_found", "No active user is connected to this provider.");
+  const client = c.var.client;
+  const token = await sql.begin(async (tx) => {
+    const t = await completeSignIn(tx, user, p, client);
+    await logAuth(tx, client, "login_success", p, user.email, user.id);
+    return t;
+  });
+  return c.json({ next: afterSignIn(c.req.query("next")), token });
 });
