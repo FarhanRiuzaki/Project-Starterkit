@@ -1,7 +1,7 @@
 // RBAC cases of the web mock's rules.test.ts (deleted in Task 9), on the shapes the API has (a role row, a holder count).
 import { describe, expect, it } from "bun:test";
 import { PERMISSIONS, type PermissionName } from "@starterkit/shared/permissions";
-import { checkPermissionGrant, checkRoleChange, checkRoleGrant, inCatalogOrder } from "../../rules";
+import { checkPermissionGrant, checkRoleChange, checkRoleGrant, inCatalogOrder, permissionDelta } from "../../rules";
 
 const role = (name: string, permissions: PermissionName[], locked = false) => ({ name, locked, permissions });
 const superRole = role("Superadmin", [...PERMISSIONS], true);
@@ -27,5 +27,14 @@ describe("rbac rules", () => {
   });
   it("inCatalogOrder dedupes and orders by the catalog", () => {
     expect(inCatalogOrder(["audit.view", "user.view", "audit.view", "role.view"])).toEqual(["user.view", "role.view", "audit.view"]);
+  });
+  it("permissionDelta: only the difference to the current set, in catalog order, with each module's view kept", () => {
+    const viewer: PermissionName[] = ["user.view", "audit.view"];
+    expect(permissionDelta(viewer, [], [])).toEqual({ toAdd: [], toRemove: [] });
+    expect(permissionDelta(viewer, ["user.view"], ["role.view"])).toEqual({ toAdd: [], toRemove: [] }); // held / not held: nothing
+    expect(permissionDelta(viewer, ["role.delete", "user.edit"], ["audit.view"])).toEqual({ toAdd: ["user.edit", "role.view", "role.delete"], toRemove: ["audit.view"] });
+    // a view stays while another action of its module is on, and goes with the last one
+    expect(permissionDelta(["user.view", "user.edit"], [], ["user.view"])).toEqual({ toAdd: [], toRemove: [] });
+    expect(permissionDelta(["user.view", "user.edit"], [], ["user.view", "user.edit"])).toEqual({ toAdd: [], toRemove: ["user.view", "user.edit"] });
   });
 });

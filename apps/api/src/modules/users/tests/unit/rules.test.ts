@@ -2,7 +2,7 @@
 // union is SQL now, auth/sessions.ts permsOf; covered by users.test.ts) and the role cases (rbac/rules.test.ts).
 import { describe, expect, it, mock } from "bun:test";
 import { PERMISSIONS, type PermissionName } from "@starterkit/shared/permissions";
-import { bulk, checkPasswordOp, checkTargetRank, checkUserChange } from "../../rules";
+import { bulk, canonical, checkPasswordOp, checkTargetRank, checkUserChange, temporaryPassword } from "../../rules";
 
 const user = (id: string, roles: string[], over: { isActive?: boolean; isLdap?: boolean } = {}) => ({ id, roles, isActive: true, isLdap: false, ...over });
 const me = user("me", ["Admin"]);
@@ -65,5 +65,24 @@ describe("rules", () => {
     expect(await checkUserChange(otherAdmin.id, onlySuper, { kind: "setRoles", roles: ["superadmin"] }, none)).toBe("last_superadmin");
     // setRoles without roles = no roles: the last Superadmin can't get it
     expect(await checkUserChange(otherAdmin.id, onlySuper, { kind: "setRoles" }, none)).toBe("last_superadmin");
+  });
+
+  it("canonical: role names in any letter case → the roles, deduplicated in order; null when one is unknown", () => {
+    const admin = { id: "r1", name: "Admin" }, viewer = { id: "r2", name: "Viewer" };
+    const known = new Map([["admin", admin], ["viewer", viewer]]);
+    expect(canonical(["VIEWER", "admin", "Viewer"], known)).toEqual([viewer, admin]);
+    expect(canonical([], known)).toEqual([]);
+    expect(canonical(["Admin", "Auditor"], known)).toBeNull();
+  });
+
+  it("temporaryPassword: 18 characters without look-alikes, one of each class, a new one each time", () => {
+    const seen = new Set<string>();
+    for (let i = 0; i < 200; i++) {
+      const p = temporaryPassword();
+      expect(p).toMatch(/^[a-kmnp-zA-HJ-NP-Z2-9\-_!#]{18}$/);
+      for (const cls of [/[a-z]/, /[A-Z]/, /[2-9]/, /[-_!#]/]) expect(p).toMatch(cls);
+      seen.add(p);
+    }
+    expect(seen.size).toBe(200);
   });
 });
