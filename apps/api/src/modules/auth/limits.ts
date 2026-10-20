@@ -1,7 +1,8 @@
 // PostgreSQL port of apps/web/src/lib/server/ratelimit.ts: same numbers and semantics, shared by every API process.
 // Every time comes from the database clock (now()). Old rows are removed by the janitor, not here.
-import { sql } from "../db/client";
-import type { Fragment } from "../db/page";
+import { eq, or, isNull, lte, type SQL, sql } from "drizzle-orm";
+import { db } from "../../kernel/db";
+import { loginBackoff as b, rateLimits as r } from "./schema";
 
 const ms = (n: number) => sql`(${n}::float8 * interval '1 millisecond')`;
 
@@ -11,13 +12,15 @@ const ms = (n: number) => sql`(${n}::float8 * interval '1 millisecond')`;
  */
 // ponytail: fixed window (up to 2× limit across a window edge), not the mock's sliding log; fine for abuse limits.
 export async function hit(key: string, limit: number, windowMs: number): Promise<number | null> {
-  const [r] = await sql`
-    insert into rate_limits as r (key, count, window_start) values (${key}, 1, now())
-    on conflict (key) do update set
-      count = case when r.window_start <= now() - ${ms(windowMs)} then 1 else least(r.count + 1, ${limit}::int + 1) end,
-      window_start = case when r.window_start <= now() - ${ms(windowMs)} then now() else r.window_start end
-    returning count, extract(epoch from window_start + ${ms(windowMs)} - now())::float8 as left`;
-  return r.count > limit ? Math.max(1, Math.ceil(r.left)) : null;
+  const over = sql`${r.windowStart} <= now() - ${ms(windowMs)}`;
+  const [row] = await db.insert(r).values({ key, count: 1, windowStart: sql`now()` }).onConflictDoUpdate({
+    target: r.key,
+    set: {
+      count: sql`case when ${over} then 1 else least(${r.count} + 1, ${limit}::int + 1) end`,
+      windowStart: sql`case when ${over} then now() else ${r.windowStart} end`,
+    },
+  }).returning({ count: r.count, left: sql<number>`extract(epoch from ${r.windowStart} + ${ms(windowMs)} - now())::float8` });
+  return row!.count > limit ? Math.max(1, Math.ceil(row!.left)) : null;
 }
 
 /** `hit` under a name of its own, so two limiters never share a key. */
@@ -37,27 +40,30 @@ export class Backoff {
   constructor(readonly name: string, private free = 3, private maxMs = 60_000, private decayMs = 15 * 60_000) {}
 
   private key = (k: string) => `${this.name}:${k}`;
-  private decayed = () => sql`b.last_failure_at < now() - ${ms(this.decayMs)}`;
+  private decayed = () => sql`${b.lastFailureAt} < now() - ${ms(this.decayMs)}`;
   /** End of the wait after `n` failures, the last at `at` (null while failures are free). */
-  private until = (n: Fragment, at: Fragment) => sql`case when ${n} >= ${this.free}::int
+  private until = (n: SQL, at: SQL) => sql`case when ${n} >= ${this.free}::int
     then ${at} + least(1000 * 2 ^ least(${n} - ${this.free}::int, 20), ${this.maxMs}::float8) * interval '1 millisecond' end`;
 
   /** One more failure, now (a decayed record starts over); with `onlyWhenAllowed`, none while a wait runs. */
   private upsert(key: string, onlyWhenAllowed: boolean) {
-    const next = sql`case when ${this.decayed()} then 1 else b.failures + 1 end`;
-    return sql`
-      insert into login_backoff as b (key, failures, blocked_until, last_failure_at)
-      values (${this.key(key)}, 1, ${this.until(sql`1`, sql`now()`)}, now())
-      on conflict (key) do update set failures = ${next}, blocked_until = ${this.until(next, sql`now()`)}, last_failure_at = now()
-      ${onlyWhenAllowed ? sql`where ${this.decayed()} or b.blocked_until is null or b.blocked_until <= now()` : sql``}
-      returning 1`;
+    const next = sql`case when ${this.decayed()} then 1 else ${b.failures} + 1 end`;
+    return db.insert(b).values({ key: this.key(key), failures: 1, blockedUntil: this.until(sql`1`, sql`now()`), lastFailureAt: sql`now()` })
+      .onConflictDoUpdate({
+        target: b.key,
+        set: { failures: next, blockedUntil: this.until(next, sql`now()`), lastFailureAt: sql`now()` },
+        setWhere: onlyWhenAllowed ? or(this.decayed(), isNull(b.blockedUntil), lte(b.blockedUntil, sql`now()`)) : undefined,
+      })
+      .returning({ one: sql`1` });
   }
 
   /** 0 = may try now; otherwise milliseconds to wait. */
   async retryAfterMs(key: string): Promise<number> {
-    const [r] = await sql`select ceil(extract(epoch from b.blocked_until - now()) * 1000)::float8 as wait, ${this.decayed()} as decayed
-      from login_backoff b where key = ${this.key(key)}`;
-    return !r || r.decayed || r.wait === null ? 0 : Math.max(0, r.wait);
+    const [row] = await db.select({
+      wait: sql<number | null>`ceil(extract(epoch from ${b.blockedUntil} - now()) * 1000)::float8`,
+      decayed: sql<boolean>`${this.decayed()}`,
+    }).from(b).where(eq(b.key, this.key(key)));
+    return !row || row.decayed || row.wait === null ? 0 : Math.max(0, row.wait);
   }
 
   async fail(key: string): Promise<void> {
@@ -78,12 +84,14 @@ export class Backoff {
    * reservation is never erased; a count of 0 is a row that blocks nothing (the janitor removes it).
    */
   async release(key: string): Promise<void> {
-    await sql`update login_backoff b set failures = greatest(b.failures - 1, 0),
-      blocked_until = ${this.until(sql`(b.failures - 1)`, sql`b.last_failure_at`)} where key = ${this.key(key)}`;
+    await db.update(b).set({
+      failures: sql`greatest(${b.failures} - 1, 0)`,
+      blockedUntil: this.until(sql`(${b.failures} - 1)`, sql`${b.lastFailureAt}`),
+    }).where(eq(b.key, this.key(key)));
   }
 
   async succeed(key: string): Promise<void> {
-    await sql`delete from login_backoff where key = ${this.key(key)}`;
+    await db.delete(b).where(eq(b.key, this.key(key)));
   }
 }
 

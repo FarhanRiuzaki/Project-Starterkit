@@ -6,6 +6,7 @@ import type { PermissionName } from "@starterkit/shared/permissions";
 import { permsOf, sessionLive, toUserRow } from "../auth/sessions";
 import { sql, type Tx } from "../db/client";
 import { type Fragment, likeEscape, pageQuery, sortSql } from "../db/page";
+import { LOCKS } from "../kernel/locks";
 import { inCatalogOrder } from "../rbac/rules";
 import { SUPERADMIN } from "./rules";
 
@@ -95,7 +96,7 @@ export const rolesOfUser = (tx: Tx, userId: string): Promise<RoleRef[]> =>
   lockedRoles(tx, sql`r.id in (select role_id from user_roles where user_id = ${userId})`);
 
 /** pg_advisory_xact_lock key for changes that can lower the number of active Superadmins. */
-export const SUPERADMIN_LOCK = 50_002;
+export const SUPERADMIN_LOCK = LOCKS.superadmin;
 
 /**
  * Active Superadmins other than `userId`, counted after taking SUPERADMIN_LOCK: two changes that could each remove

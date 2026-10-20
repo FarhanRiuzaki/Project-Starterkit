@@ -135,7 +135,7 @@ Each entry: `{ id, at, actor: { id, name }, action, target: { type, id, label },
 (later edits don't change history) and are `null` when the action has none. Masking: a record's own credential fields
 (`passwordHash`, `totpSecret`, `pendingTotpSecret`, `recoveryCodes`) are dropped, and any other field whose name
 matches `password|secret|token|recovery` (any letter case, at any depth) keeps only `"••••"` when it had a value
-(`HIDDEN` and `SECRET_KEY` in `apps/api/src/audit/record.ts` and `packages/shared/src/audit.ts`). The table below is
+(`HIDDEN` and `SECRET_KEY` in `apps/api/src/modules/audit/rules.ts` and `packages/shared/src/audit.ts`). The table below is
 generated from the action vocabulary (`ACTION_LABEL` in `packages/shared/src/audit.ts`) by `bun run api:schemas`;
 `api-contract.test.ts` fails when it drifts.
 
@@ -230,8 +230,8 @@ endpoint adds to the guard's 401/403 and the 400 for an invalid body or query.
 
 ## Seed data
 
-`bun run db:seed` (`apps/api/src/seed/system.ts`) writes the permission catalog, the roles Superadmin (every
+`bun run db:seed` (`apps/api/src/db/seed/system.ts`) writes the permission catalog, the roles Superadmin (every
 permission, locked), Admin (all but `role.*` and `permission.*`) and Viewer (`user.view`, `audit.view`), and the
-Superadmin named by `SEED_SUPERADMIN_*`. `bun run db:seed:demo` (`apps/api/src/seed/demo.ts`, refused in production)
+Superadmin named by `SEED_SUPERADMIN_*`. `bun run db:seed:demo` (`apps/api/src/db/seed/demo.ts`, refused in production)
 adds the demo users, activity and sign-in log entries; the sign-in accounts are listed in the root README.
 `bun run db:reset` drops the schema, migrates and runs both.

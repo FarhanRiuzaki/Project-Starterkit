@@ -1,5 +1,5 @@
 import { createHmac, randomBytes } from "node:crypto";
-import { safeEqual } from "./crypto";
+import { safeEqual } from "../../kernel/crypto";
 
 const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
 const STEP_S = 30;

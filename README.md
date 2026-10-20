@@ -42,7 +42,7 @@ in `apps/api/.env`):
   a provider's keys (`GOOGLE_*`, `APPLE_*` in `apps/api/.env.example`), its button says it isn't set up.
 - "Forgot password?" and "Send an invitation link" send no email: the API logs the mail.
 - An LDAP user created in the UI has no entry in the mock directory, so it can't sign in; only `ldap@example.com` can.
-- These credentials exist only in the demo seed (`apps/api/src/seed/demo.ts`). Never reuse them.
+- These credentials exist only in the demo seed (`apps/api/src/db/seed/demo.ts`). Never reuse them.
 
 ## Configuration
 
@@ -82,7 +82,7 @@ docs/api/                 API contract for the backend: endpoint table and JSON 
 |---|---|
 | `bun run dev` | Development servers for `apps/web` (:3000) and `apps/api` (:4000) together. |
 | `bun run setup` | Env files, database, migrations and seeds for the API (see Backend setup). |
-| `bun run db:migrate` | Applies pending `apps/api/migrations/*.sql`. |
+| `bun run db:migrate` | Applies pending `apps/api/drizzle/*.sql` (made by `bunx drizzle-kit generate` in `apps/api` from each module's `schema.ts`, plus custom SQL). |
 | `bun run check` | Typecheck, lint (no warnings allowed) and unit tests. Must pass before every commit. |
 | `bun run test:changed` | Unit tests touched by the files changed since the last commit. |
 | `bun run build` | Production build of `apps/web`. |

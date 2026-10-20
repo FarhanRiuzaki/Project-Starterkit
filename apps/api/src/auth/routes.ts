@@ -6,23 +6,24 @@ import { AuthContextDto, ForgotPasswordBody, LoginBody, ResetPasswordBody, TwoFa
 import { ConnectionProvider } from "@starterkit/shared/contracts/me";
 import { PERMISSIONS } from "@starterkit/shared/permissions";
 import { afterSignIn } from "@starterkit/ui/lib/safe-path";
-import { recordActivity } from "../audit/record";
-import { config } from "../config";
-import { sql } from "../db/client";
-import { ApiError, tooManyAttempts } from "../http/errors";
+import { orm, sql } from "../db/client";
 import { bearer, guard } from "../http/guard";
 import type { AppEnv } from "../http/middleware";
 import { body } from "../http/parse";
-import { log } from "../log";
-import { sendMail } from "../mail/mailer";
-import { decryptSecret, hashToken, randomToken, safeEqual } from "./crypto";
+import { config } from "../kernel/config";
+import { decryptSecret, hashToken, randomToken, safeEqual } from "../kernel/crypto";
+import { ApiError, tooManyAttempts } from "../kernel/errors";
+import { log } from "../kernel/log";
+import { sendMail } from "../kernel/mailer";
+import { recordActivity } from "../modules/audit";
+import {
+  endUserSessions, forgotLimits, hashPassword, loginGate, loginLimits, matchTotpStep, oauthStartLimits, resolveSession, retryText, type UserRow,
+  verifyPassword,
+} from "../modules/auth";
 import { directory } from "./ldap";
-import { forgotLimits, loginGate, loginLimits, oauthStartLimits, retryText } from "./limits";
 import { authorizeUrl, identityOf, OAuthCallbackBody, OAuthStartBody, providerEnabled } from "./oauth";
-import { hashPassword, verifyPassword } from "./password";
-import { endUserSessions, resolveSession, sessionLive, type UserRow } from "./sessions";
+import { sessionLive } from "./sessions";
 import { completeSignIn, findUser, logAuth, spendRecoveryCode, userById } from "./sign-in";
-import { matchTotpStep } from "./totp";
 
 const BAD_LOGIN = "The sign-in details don't match an account. Check them and the sign-in method, then try again.";
 const EXPIRED = "The sign-in expired. Start again with your email and password.";
@@ -195,7 +196,7 @@ authRoutes.post("/auth/reset", async (c) => {
   const hash = await hashPassword(password);
   await sql.begin(async (tx) => {
     await tx`update users set password_hash = ${hash} where id = ${t.id}`;
-    await endUserSessions(tx, t.id);
+    await endUserSessions(orm(tx), t.id);
     await logAuth(tx, c.var.client, "password_reset", "password", t.email, t.id);
   });
   log.info({ userId: t.id }, "password reset");
@@ -268,7 +269,7 @@ authRoutes.post("/auth/oauth/:provider/callback", async (c) => {
     await sql.begin(async (tx) => {
       const added = await tx`insert into user_identities (user_id, provider, subject, email) values (${user.id}, ${p}, ${id.subject}, ${id.email})
         on conflict do nothing returning 1`;
-      if (added.length) return recordActivity(tx, { user }, { action: "me.connect", target: { type: "user", id: user.id, label: user.name }, after: { provider: p } });
+      if (added.length) return recordActivity(orm(tx), { user }, { action: "me.connect", target: { type: "user", id: user.id, label: user.name }, after: { provider: p } });
       // Not added: this identity is someone else's (409), or the user already has this provider (nothing to do).
       const [owner] = await tx`select user_id from user_identities where provider = ${p} and subject = ${id.subject}`;
       if (owner && owner.user_id !== user.id) throw new ApiError("duplicate", "This account is already connected to another user.");

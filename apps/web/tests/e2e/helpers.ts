@@ -4,7 +4,7 @@ import { expect, type Page, request } from "@playwright/test";
 import { AUTH_STATE } from "./global-setup";
 
 /**
- * Seed accounts (apps/api/src/seed/demo.ts; README "Seed accounts"). Written out here on purpose: the E2E checks the
+ * Seed accounts (apps/api/src/db/seed/demo.ts; README "Seed accounts"). Written out here on purpose: the E2E checks the
  * documented values, not whatever the seed module happens to export.
  */
 export const SEED = { password: "Password123!", ldapPassword: "LdapPass123!", totpSecret: "JBSWY3DPEHPK3PXP" } as const;

@@ -2,21 +2,20 @@
 import { Hono } from "hono";
 import { CATALOG_MAX, CreatePermissionsBody, type CreatePermissionsResult, CreateRoleBody, PermissionListQuery, RoleListQuery, RoleOptionQuery, UpdateRoleBody } from "@starterkit/shared/contracts/rbac";
 import { type PermissionName, withViews } from "@starterkit/shared/permissions";
-import { recordActivity } from "../audit/record";
-import { sql } from "../db/client";
-import { ApiError, notFound } from "../http/errors";
-import { actorPermissions } from "../auth/sessions";
+import { orm, sql } from "../db/client";
 import { guard } from "../http/guard";
 import type { AppEnv } from "../http/middleware";
 import { body, idParam, query } from "../http/parse";
+import { ApiError, notFound } from "../kernel/errors";
+import { LOCKS } from "../kernel/locks";
+import { recordActivity } from "../modules/audit";
+import { actorPermissions } from "../modules/auth";
 import { permissionPage, roleById, roleOptionPage, rolePage } from "./queries";
 import { checkPermissionGrant, checkRoleChange, inCatalogOrder } from "./rules";
 
 export const rbacRoutes = new Hono<AppEnv>();
 
 const DUPLICATE = () => new ApiError("duplicate", "Another role already has this name. Use a different one.");
-/** Serializes catalog writes (the 500-name cap). */
-const CATALOG_LOCK = 50_001;
 const isUniqueViolation = (e: unknown) => (e as { errno?: string }).errno === "23505";
 
 /** Role options for the user filter and forms, under user.view: one page of { id, name }, name A–Z; `q` matches the name. */
@@ -40,14 +39,14 @@ rbacRoutes.post("/roles", async (c) => {
   const permissions = inCatalogOrder([...withViews(b.permissions)]);
   const role = await sql.begin(async (tx) => {
     // The actor's permissions are read now, not taken from the request's start: a revoke committed since must count.
-    if (checkPermissionGrant(await actorPermissions(tx, ctx.user.id), permissions)) {
+    if (checkPermissionGrant(await actorPermissions(orm(tx), ctx.user.id), permissions)) {
       throw new ApiError("forbidden", "Your role doesn't hold every permission you picked. Leave those out, or ask an administrator who has them.");
     }
     const id = Bun.randomUUIDv7();
     const [made] = await tx`insert into roles (id, name) values (${id}, ${b.name}) on conflict ((lower(name))) do nothing returning id`;
     if (!made) throw DUPLICATE();
     if (permissions.length) await tx`insert into role_permissions ${tx(permissions.map((permission) => ({ role_id: id, permission })))}`;
-    await recordActivity(tx, ctx, { action: "role.create", target: { type: "role", id, label: b.name }, after: { name: b.name, added: permissions, removed: [] } });
+    await recordActivity(orm(tx), ctx, { action: "role.create", target: { type: "role", id, label: b.name }, after: { name: b.name, added: permissions, removed: [] } });
     return roleById(tx, id);
   });
   return c.json(role, 201);
@@ -83,7 +82,7 @@ rbacRoutes.patch("/roles/:id", async (c) => {
     const next = withViews([...current.filter((p: PermissionName) => !remove.includes(p)), ...add]);
     const toAdd = inCatalogOrder([...next].filter((p) => !current.includes(p)));
     const toRemove = inCatalogOrder(current.filter((p: PermissionName) => !next.has(p)));
-    if (checkPermissionGrant(await actorPermissions(tx, ctx.user.id), [...add, ...remove, ...toAdd])) {
+    if (checkPermissionGrant(await actorPermissions(orm(tx), ctx.user.id), [...add, ...remove, ...toAdd])) {
       throw new ApiError("forbidden", "You can only add or remove permissions your own role holds. Ask an administrator who has them.");
     }
     if (name === r.name && !toAdd.length && !toRemove.length) return roleById(tx, id);
@@ -97,7 +96,7 @@ rbacRoutes.patch("/roles/:id", async (c) => {
     const rows = (xs: { permission: PermissionName }[]) => inCatalogOrder(xs.map((x) => x.permission));
     const added = toAdd.length ? rows(await tx`insert into role_permissions ${tx(toAdd.map((permission) => ({ role_id: id, permission })))} on conflict do nothing returning permission`) : [];
     const removed = toRemove.length ? rows(await tx`delete from role_permissions where role_id = ${id} and permission in ${tx(toRemove)} returning permission`) : [];
-    await recordActivity(tx, ctx, { action: "role.update", target: { type: "role", id, label: name }, before: { name: r.name }, after: { name, added, removed } });
+    await recordActivity(orm(tx), ctx, { action: "role.update", target: { type: "role", id, label: name }, before: { name: r.name }, after: { name, added, removed } });
     return roleById(tx, id);
   });
   return c.json(role);
@@ -115,7 +114,7 @@ rbacRoutes.delete("/roles/:id", async (c) => {
     if (stop) throw new ApiError(stop);
     const permissions = (await tx`select x.permission from role_permissions x join permissions p on p.name = x.permission where x.role_id = ${id} order by p.position`).map((x: { permission: string }) => x.permission);
     await tx`delete from roles where id = ${id}`;
-    await recordActivity(tx, ctx, { action: "role.delete", target: { type: "role", id, label: r.name }, before: { name: r.name, permissions } });
+    await recordActivity(orm(tx), ctx, { action: "role.delete", target: { type: "role", id, label: r.name }, before: { name: r.name, permissions } });
   });
   return c.json({ ok: true });
 });
@@ -136,7 +135,7 @@ rbacRoutes.post("/permissions", async (c) => {
   const ctx = await guard(c, "permission.create");
   const names = [...new Set((await body(c, CreatePermissionsBody)).names)];
   const res = await sql.begin(async (tx): Promise<CreatePermissionsResult> => {
-    await tx`select pg_advisory_xact_lock(${CATALOG_LOCK})`;
+    await tx`select pg_advisory_xact_lock(${LOCKS.catalog})`;
     const [{ n, last }] = await tx`select count(*)::int as n, coalesce(max(position), -1)::int as last from permissions`;
     const known = new Set((await tx`select name from permissions where name in ${tx(names)}`).map((x: { name: string }) => x.name));
     const fresh = names.filter((x) => !known.has(x));
@@ -148,7 +147,7 @@ rbacRoutes.post("/permissions", async (c) => {
     }
     const created = names.filter((x) => made.has(x));
     if (created.length) {
-      await recordActivity(tx, ctx, { action: "permission.create", target: { type: "permission", id: created.join(","), label: created.join(", ") }, after: { created } });
+      await recordActivity(orm(tx), ctx, { action: "permission.create", target: { type: "permission", id: created.join(","), label: created.join(", ") }, after: { created } });
     }
     return { created, skipped: names.filter((x) => !made.has(x)) };
   });

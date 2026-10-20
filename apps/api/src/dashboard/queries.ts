@@ -4,7 +4,7 @@ import { appDate, appDayStart, APP_TIME_ZONE, shiftDate } from "@starterkit/ui/l
 import { recentActivity } from "../audit/queries";
 import { sessionLive } from "../auth/sessions";
 import { sql } from "../db/client";
-import type { Ctx } from "../http/guard";
+import type { Ctx } from "../modules/auth";
 
 const HOUR = 3_600_000;
 

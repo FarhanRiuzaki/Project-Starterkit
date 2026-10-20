@@ -4,17 +4,16 @@
 import { Hono } from "hono";
 import { BRAND } from "@starterkit/shared/brand";
 import { ChangePasswordBody, ConnectionProvider, DisableTwoFactorBody, type MeDto as MeDtoType, MeDto, SessionListQuery, TwoFactorEnableBody, UpdateProfileBody } from "@starterkit/shared/contracts/me";
-import { recordActivity } from "../audit/record";
-import { decryptSecret, encryptSecret } from "../auth/crypto";
-import { hashPassword } from "../auth/password";
-import { endUserSessions, sessionLive, type UserRow } from "../auth/sessions";
+import { sessionLive } from "../auth/sessions";
 import { oauthOnly, reauth, userById } from "../auth/sign-in";
-import { matchTotpStep, newRecoveryCodes, newTotpSecret, otpauthUrl } from "../auth/totp";
-import { sql, type Tx } from "../db/client";
-import { ApiError, currentSession } from "../http/errors";
+import { orm, sql, type Tx } from "../db/client";
 import { guard } from "../http/guard";
 import type { AppEnv } from "../http/middleware";
 import { body, isUuid, query } from "../http/parse";
+import { decryptSecret, encryptSecret } from "../kernel/crypto";
+import { ApiError, currentSession } from "../kernel/errors";
+import { recordActivity } from "../modules/audit";
+import { endUserSessions, hashPassword, matchTotpStep, newRecoveryCodes, newTotpSecret, otpauthUrl, type UserRow } from "../modules/auth";
 import { duplicateOf, sessionPage } from "../users/queries";
 
 export const meRoutes = new Hono<AppEnv>();
@@ -50,7 +49,7 @@ meRoutes.patch("/me", async (c) => {
       if (name === cur.name && email === cur.email) return;
       if (email.toLowerCase() !== cur.email.toLowerCase() && (await duplicateOf(tx, undefined, email, u.id))) throw DUPLICATE();
       await tx`update users set name = ${name}, email = ${email}, updated_at = now() where id = ${u.id}`;
-      await recordActivity(tx, ctx, { action: "me.update", target: target(u, name), before: { name: cur.name, email: cur.email }, after: { name, email } });
+      await recordActivity(orm(tx), ctx, { action: "me.update", target: target(u, name), before: { name: cur.name, email: cur.email }, after: { name, email } });
     });
   } catch (e) {
     throw isUniqueViolation(e) ? DUPLICATE() : e;
@@ -69,9 +68,9 @@ meRoutes.post("/me/password", async (c) => {
   await sql.begin(async (tx) => {
     await lockUser(tx, u.id);
     await tx`update users set password_hash = ${hash}, updated_at = now() where id = ${u.id}`;
-    await endUserSessions(tx, u.id, ctx.sid);
+    await endUserSessions(orm(tx), u.id, ctx.sid);
     await tx`delete from user_tokens where user_id = ${u.id}`;
-    await recordActivity(tx, ctx, { action: "me.password", target: target(u) });
+    await recordActivity(orm(tx), ctx, { action: "me.password", target: target(u) });
   });
   return c.json({ ok: true });
 });
@@ -89,7 +88,7 @@ meRoutes.post("/me/2fa", async (c) => {
   await sql.begin(async (tx) => {
     const done = await tx`update users set pending_totp_secret = ${encryptSecret(secret)}, updated_at = now() where id = ${u.id} and totp_secret is null returning 1`;
     if (!done.length) throw new ApiError("already_enabled", "Two-factor authentication is already on. Turn it off first to set up a new device.");
-    await recordActivity(tx, ctx, { action: "me.2fa_setup", target: target(u) }); // the secret itself is never logged
+    await recordActivity(orm(tx), ctx, { action: "me.2fa_setup", target: target(u) }); // the secret itself is never logged
   });
   return c.json({ secret, otpauthUrl: otpauthUrl(secret, u.email, BRAND.name) });
 });
@@ -113,7 +112,7 @@ meRoutes.put("/me/2fa", async (c) => {
     if (!done.length) throw new ApiError("invalid_code", "That code didn't match. Enter the current code from your authenticator app.");
     await tx`delete from recovery_codes where user_id = ${u.id}`;
     await tx`insert into recovery_codes ${tx(hashes.map((code_hash) => ({ id: Bun.randomUUIDv7(), user_id: u.id, code_hash })))}`;
-    await recordActivity(tx, ctx, { action: "me.2fa_enable", target: target(u) });
+    await recordActivity(orm(tx), ctx, { action: "me.2fa_enable", target: target(u) });
   });
   return c.json({ recoveryCodes });
 });
@@ -136,7 +135,7 @@ meRoutes.delete("/me/2fa", async (c) => {
     const done = await tx`update users set totp_secret = null, pending_totp_secret = null, updated_at = now() where id = ${u.id} and totp_secret is not null returning 1`;
     if (!done.length) throw off();
     await tx`delete from recovery_codes where user_id = ${u.id}`;
-    await recordActivity(tx, ctx, { action: "me.2fa_disable", target: target(u) });
+    await recordActivity(orm(tx), ctx, { action: "me.2fa_disable", target: target(u) });
   });
   return c.json({ ok: true });
 });
@@ -155,7 +154,7 @@ meRoutes.delete("/me/connections/:provider", async (c) => {
     }
     // a provider that isn't linked changes nothing, so it leaves no entry
     if ((await tx`delete from user_identities where user_id = ${u.id} and provider = ${provider} returning 1`).length) {
-      await recordActivity(tx, ctx, { action: "me.disconnect", target: target(u), before: { provider } });
+      await recordActivity(orm(tx), ctx, { action: "me.disconnect", target: target(u), before: { provider } });
     }
   });
   return c.json(toMe((await userById(u.id))!));
@@ -179,7 +178,7 @@ meRoutes.delete("/me/sessions/:id", async (c) => {
     if (!s) throw gone();
     if (id === ctx.sid) throw currentSession();
     await tx`delete from sessions where id = ${id}`;
-    await recordActivity(tx, ctx, { action: "me.session_end", target: { type: "session", id, label: s.device } });
+    await recordActivity(orm(tx), ctx, { action: "me.session_end", target: { type: "session", id, label: s.device } });
   });
   return c.json({ ok: true });
 });

@@ -68,7 +68,7 @@ export const METHOD_LABEL: Record<AuthLogDto["method"], string> = { password: "P
 
 /** Shown in place of any value whose field name says it is a credential. */
 export const MASK = "••••";
-/** Field names whose values are credentials: masked when recorded (apps/api/src/audit/record.ts) and when shown. */
+/** Field names whose values are credentials: masked when recorded (apps/api/src/modules/audit/rules.ts) and when shown. */
 export const SECRET_KEY = /password|secret|token|recovery/i;
 const SECRET = SECRET_KEY;
 export type DiffRow = { field: string; before: string; after: string };
@@ -92,7 +92,7 @@ function show(v: unknown): string {
 export function diffFields(before: unknown, after: unknown): DiffRow[] {
   const b = record(before), a = record(after);
   const keys = [...new Set([...Object.keys(b), ...Object.keys(a)])];
-  // Compared as given, shown masked. Stored entries hold credential-named fields already masked (apps/api/src/audit/record.ts
+  // Compared as given, shown masked. Stored entries hold credential-named fields already masked (apps/api/src/modules/audit/rules.ts
   // snapshot), so for them a credential changed from one value to another compares equal (MASK on both sides) and is
   // not listed; set ↔ unset still shows.
   return keys.filter((k) => JSON.stringify(b[k]) !== JSON.stringify(a[k])).map((k) => SECRET.test(k)

@@ -1,4 +1,4 @@
-import { randomToken } from "./crypto";
+import { randomToken } from "../../kernel/crypto";
 
 const OPTIONS = { algorithm: "argon2id", memoryCost: 19456, timeCost: 2 } as const;
 

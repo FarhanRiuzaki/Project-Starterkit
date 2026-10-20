@@ -1,15 +1,14 @@
-// Port of apps/web/src/lib/server/sign-in.ts. deviceOf lives in ./sessions (createSession needs it).
+// Port of apps/web/src/lib/server/sign-in.ts.
 import type { SQL } from "bun";
 import type { AuthLogDto } from "@starterkit/shared/contracts/audit";
 import type { AuthMethod } from "@starterkit/shared/contracts/auth";
-import { recordAuth } from "../audit/record";
-import { sql, type Tx } from "../db/client";
+import { orm, sql, type Tx } from "../db/client";
 import type { Fragment } from "../db/page";
-import { ApiError, tooManyAttempts } from "../http/errors";
+import { ApiError, tooManyAttempts } from "../kernel/errors";
+import { recordAuth } from "../modules/audit";
+import { createSession, deviceOf, passwordFails, retryText, type UserRow, verifyPassword } from "../modules/auth";
 import { directory } from "./ldap";
-import { passwordFails, retryText } from "./limits";
-import { verifyPassword } from "./password";
-import { createSession, deviceOf, toUserRow, type UserRow } from "./sessions";
+import { toUserRow } from "./sessions";
 
 type Client = { ip: string; ua: string };
 
@@ -36,12 +35,12 @@ export const oauthOnly = (u: UserRow): boolean => !u.passwordHash && !u.isLdap;
 
 /** One sign-in log entry for this request (IP and device from the client headers). */
 export function logAuth(db: SQL, client: Client, event: AuthLogDto["event"], method: AuthMethod, login: string, userId: string | null): Promise<void> {
-  return recordAuth(db, { event, method, login, userId, ip: client.ip, device: deviceOf(client.ua), location: null });
+  return recordAuth(orm(db), { event, method, login, userId, ip: client.ip, device: deviceOf(client.ua), location: null });
 }
 
 /** Full sign-in inside `tx`: a new session (device, IP, method) and the user's lastLoginAt stamped. Returns the session token. */
 export async function completeSignIn(tx: Tx, user: UserRow, method: AuthMethod, client: Client): Promise<string> {
-  const { token } = await createSession(tx, { userId: user.id, method, client });
+  const { token } = await createSession(orm(tx), { userId: user.id, method, client });
   await tx`update users set last_login_at = now() where id = ${user.id}`;
   return token;
 }

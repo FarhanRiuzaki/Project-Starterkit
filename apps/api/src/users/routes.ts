@@ -7,17 +7,17 @@ import type { ErrorCode } from "@starterkit/shared/contracts/common";
 import { SessionListQuery } from "@starterkit/shared/contracts/me";
 import { BulkUserBody, CreateUserBody, MAX_USER_ROLES, SetUserStatusBody, UpdateUserBody, UserDto, UserListQuery, type UserRowDto } from "@starterkit/shared/contracts/users";
 import type { PermissionName } from "@starterkit/shared/permissions";
-import { recordActivity } from "../audit/record";
-import { hashToken, randomToken } from "../auth/crypto";
-import { hashPassword } from "../auth/password";
-import { actorPermissions, endUserSessions, sessionLive } from "../auth/sessions";
-import { config } from "../config";
-import { sql, type Tx } from "../db/client";
-import { ApiError, currentSession, notFound } from "../http/errors";
+import { sessionLive } from "../auth/sessions";
+import { orm, sql, type Tx } from "../db/client";
 import { type Ctx, guard } from "../http/guard";
 import type { AppEnv } from "../http/middleware";
 import { body, idParam, isUuid, query } from "../http/parse";
-import { sendMail } from "../mail/mailer";
+import { config } from "../kernel/config";
+import { hashToken, randomToken } from "../kernel/crypto";
+import { ApiError, currentSession, notFound } from "../kernel/errors";
+import { sendMail } from "../kernel/mailer";
+import { recordActivity } from "../modules/audit";
+import { actorPermissions, endUserSessions, hashPassword } from "../modules/auth";
 import { checkRoleGrant } from "../rbac/rules";
 import { duplicateOf, lockUsers, otherSuperadmins, recentActivity, type RoleRef, rolesByName, rolesOfUser, sessionPage, userPage, usersByIds } from "./queries";
 import { bulk, checkPasswordOp, checkTargetRank, checkUserChange, type UserChange } from "./rules";
@@ -32,7 +32,7 @@ const isUniqueViolation = (e: unknown) => (e as { errno?: string }).errno === "2
 
 /** The actor's permissions, read now; 403 when `u` holds one the actor lacks (actor rank). */
 async function actorOver(tx: Tx, ctx: Ctx, u: UserRowDto): Promise<Set<PermissionName>> {
-  const actor = await actorPermissions(tx, ctx.user.id);
+  const actor = await actorPermissions(orm(tx), ctx.user.id);
   if (checkTargetRank(actor, u.permissions)) throw RANK();
   return actor;
 }
@@ -55,14 +55,14 @@ const statusRule = async (tx: Tx, ctx: Ctx, u: UserRowDto, active: boolean): Pro
 async function applyStatus(tx: Tx, ctx: Ctx, u: UserRowDto, active: boolean): Promise<void> {
   if (u.isActive === active) return;
   await tx`update users set is_active = ${active}, updated_at = now() where id = ${u.id}`;
-  if (!active) await endUserSessions(tx, u.id);
-  await recordActivity(tx, ctx, { action: active ? "user.activate" : "user.deactivate", target: { type: "user", id: u.id, label: u.name }, before: { isActive: !active }, after: { isActive: active } });
+  if (!active) await endUserSessions(orm(tx), u.id);
+  await recordActivity(orm(tx), ctx, { action: active ? "user.activate" : "user.deactivate", target: { type: "user", id: u.id, label: u.name }, before: { isActive: !active }, after: { isActive: active } });
 }
 
 /** Deletes the user; sessions, identities, links and role grants go with the row (foreign keys). Activity keeps its names. */
 async function deleteUser(tx: Tx, ctx: Ctx, u: UserRowDto): Promise<void> {
   await tx`delete from users where id = ${u.id}`;
-  await recordActivity(tx, ctx, { action: "user.delete", target: { type: "user", id: u.id, label: u.name }, before: UserDto.parse(u) });
+  await recordActivity(orm(tx), ctx, { action: "user.delete", target: { type: "user", id: u.id, label: u.name }, before: UserDto.parse(u) });
 }
 
 /** 403 for the first role the actor may not grant or remove (it carries a permission they lack). */
@@ -104,7 +104,7 @@ usersRoutes.post("/users", async (c) => {
   const dto = await sql.begin(async (tx) => {
     const roles = canonical(b.roles, await rolesByName(tx, b.roles));
     if (!roles) throw UNKNOWN_ROLE();
-    roleGrantDenied(await actorPermissions(tx, ctx.user.id), roles);
+    roleGrantDenied(await actorPermissions(orm(tx), ctx.user.id), roles);
     const id = Bun.randomUUIDv7();
     const [made] = await tx`insert into users (id, name, username, email, is_active, is_ldap, password_hash)
       values (${id}, ${b.name}, ${b.username}, ${b.email}, ${b.isActive}, ${b.isLdap}, ${hash}) on conflict do nothing returning id`;
@@ -113,7 +113,7 @@ usersRoutes.post("/users", async (c) => {
     // One live link per user, stored hashed; POST /v1/auth/reset spends it.
     if (token) await tx`insert into user_tokens (token_hash, user_id, kind, expires_at) values (${hashToken(token)}, ${id}, 'invite', now() + interval '72 hours')`;
     const dto = UserDto.parse((await usersByIds(tx, [id]))[0]);
-    await recordActivity(tx, ctx, { action: "user.create", target: { type: "user", id, label: dto.name }, after: { ...dto, invited: !!b.invite } });
+    await recordActivity(orm(tx), ctx, { action: "user.create", target: { type: "user", id, label: dto.name }, after: { ...dto, invited: !!b.invite } });
     return dto;
   });
   if (token) {
@@ -146,7 +146,7 @@ usersRoutes.post("/users/bulk", async (c) => {
     const role = roleName === undefined ? undefined : (await rolesByName(tx, [roleName])).get(roleName.toLowerCase());
     if (action === "assignRole" && !role) throw new ApiError("bad_request", "This role doesn't exist. Pick a role from the list.");
     const users = await lockUsers(tx, ids.filter(isUuid));
-    const actor = await actorPermissions(tx, ctx.user.id);
+    const actor = await actorPermissions(orm(tx), ctx.user.id);
     const grant = role ? checkRoleGrant(actor, role) : null;
     const rule = async (u: UserRowDto): Promise<ErrorCode | null> => {
       if (action === "activate" || action === "deactivate") return statusRule(tx, ctx, u, action === "activate");
@@ -168,7 +168,7 @@ usersRoutes.post("/users/bulk", async (c) => {
         if (u.roles.includes(role!.name)) return; // already held: nothing to change, no entry
         await tx`insert into user_roles (user_id, role_id) values (${id}, ${role!.id})`;
         const [after] = await usersByIds(tx, [id]);
-        await recordActivity(tx, ctx, { action: "user.assign_role", target: { type: "user", id, label: u.name }, before: { roles: u.roles }, after: { roles: after!.roles } });
+        await recordActivity(orm(tx), ctx, { action: "user.assign_role", target: { type: "user", id, label: u.name }, before: { roles: u.roles }, after: { roles: after!.roles } });
       },
     );
   });
@@ -231,7 +231,7 @@ usersRoutes.patch("/users/:id", async (c) => {
     const changed = FIELDS.filter((k) => (k === "roles" ? rolesChange : before[k] !== after![k]));
     if (changed.length) {
       const pick = (d: UserRowDto) => Object.fromEntries(changed.map((k) => [k, d[k]]));
-      await recordActivity(tx, ctx, { action: "user.update", target: { type: "user", id, label: after!.name }, before: pick(before), after: pick(after!) });
+      await recordActivity(orm(tx), ctx, { action: "user.update", target: { type: "user", id, label: after!.name }, before: pick(before), after: pick(after!) });
     }
     if (statusChange) await applyStatus(tx, ctx, after!, b.isActive!);
     return UserDto.parse({ ...after, isActive: b.isActive ?? after!.isActive });
@@ -264,9 +264,9 @@ usersRoutes.post("/users/:id/reset-password", async (c) => {
     const stop = checkPasswordOp(u);
     if (stop) throw new ApiError(stop);
     await tx`update users set password_hash = ${hash}, updated_at = now() where id = ${id}`;
-    await endUserSessions(tx, id);
+    await endUserSessions(orm(tx), id);
     await tx`delete from user_tokens where user_id = ${id}`;
-    await recordActivity(tx, ctx, { action: "user.reset_password", target: { type: "user", id, label: u.name } });
+    await recordActivity(orm(tx), ctx, { action: "user.reset_password", target: { type: "user", id, label: u.name } });
   });
   return c.json({ temporaryPassword: password });
 });
@@ -308,7 +308,7 @@ usersRoutes.delete("/users/:id/sessions/:sid", async (c) => {
     await actorOver(tx, ctx, u);
     if (sid === ctx.sid) throw currentSession();
     await tx`delete from sessions where id = ${sid}`;
-    await recordActivity(tx, ctx, { action: "user.session_end", target: { type: "user", id, label: u.name }, after: { session: s.device } });
+    await recordActivity(orm(tx), ctx, { action: "user.session_end", target: { type: "user", id, label: u.name }, after: { session: s.device } });
   });
   return c.json({ ok: true });
 });
