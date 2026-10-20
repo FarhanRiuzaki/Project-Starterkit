@@ -305,3 +305,10 @@ terpisah"). Task 15 creates the layout, moves the kernel/config/db tests and the
 `test:integration` scripts, and adds unit tests for every pure helper that has none. Tasks 16–17 move each module's tests
 as the module moves and add unit tests for its `rules.ts`. Task 18 adds the conformance rule "no `*.test.ts` under
 `apps/api/src`". Test names and assertions stay the same when moved.
+
+### Modulith layout for 15–18 (decision 2026-10-20)
+Use the spec section "Modular monolith": `kernel/` (was `common/`), `modules/index.ts` registry, per module
+`index.ts` (public API) + `controller.ts` + `service.ts` + `schema.ts` + `rules.ts`. Task 15 creates `kernel/`, the
+registry, the table-ownership split of the Drizzle schema (each `schema.ts` in its module) and an API architecture test
+(no deep imports into another module, kernel never imports modules, every table owned once). Tasks 16–18 move modules
+into this shape. Task 13 documents "how to add a module" in AGENTS.md and README.

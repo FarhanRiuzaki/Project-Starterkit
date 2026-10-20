@@ -240,3 +240,40 @@ apps/api/test/
 `src/**` tidak berisi berkas `*.test.ts` (dijaga tes konformitas). Setiap `rules.ts` dan helper murni punya tes unit
 sendiri. `bun run test:unit` / `test:integration` menjalankan masing-masing. Web dan `packages/*` tetap berdampingan
 (aturan AGENTS.md saat ini) kecuali pemilik meminta lain **(Claude)**.
+
+### Modular monolith (modulith) — keputusan 2026-10-20
+
+Pemilik bertanya apakah modulith lebih baik untuk starterkit yang akan dipakai untuk aplikasi manajemen/CMS. Jawaban
+Claude: ya — satu deploy, satu database, tetapi batas modul ditegakkan, sehingga modul baru (konten, media, billing…)
+bisa ditambah tanpa menyentuh modul lain, dan modul bisa dipisah jadi service kelak bila perlu. Struktur di atas
+dipertajam menjadi:
+
+```
+apps/api/src/
+  app.ts                     # menyusun Elysia dari registry modul
+  kernel/                    # tanpa logika domain: config, db client, errors, plugins (context, internal-auth,
+                             # error, guard), pagination, crypto, log, mailer, locks
+  modules/
+    index.ts                 # registry: daftar modul yang di-mount (menambah modul = folder baru + satu baris)
+    <modul>/
+      index.ts               # API publik modul: plugin Elysia + fungsi/tipe yang boleh dipakai modul lain
+      controller.ts          # route + urutan cek kontrak
+      service.ts             # logika bisnis + Drizzle
+      schema.ts              # tabel Drizzle milik modul ini
+      rules.ts               # aturan murni (bila ada)
+  db/  migrate.ts  seed/     # runner migrasi dan seed (lintas modul)
+```
+
+Aturan batas (dijaga tes arsitektur API):
+- Modul lain hanya mengimpor `modules/<m>` (berkas `index.ts`-nya), tidak pernah `service.ts`/`schema.ts`/`rules.ts`
+  milik modul lain.
+- `kernel/` tidak mengimpor `modules/`.
+- Setiap tabel dimiliki tepat satu modul (`schema.ts`); modul lain membaca/menulisnya lewat API publik pemiliknya.
+  Join yang butuh tabel lintas modul memakai tabel yang diekspor dari `index.ts` pemiliknya (hanya-baca untuk query).
+- Tidak ada event bus dulu: efek lintas modul yang harus atomik (activity log) dipanggil sinkron di transaksi yang sama
+  lewat API publik `audit` **(ponytail: tambahkan event in-process saat ada efek samping yang tidak perlu atomik)**.
+- Pemetaan awal: `auth` (sessions, auth_challenges, user_tokens, rate_limits, login_backoff), `oauth` (oauth_states,
+  user_identities), `users` (users, recovery_codes), `rbac` (roles, permissions, role_permissions, user_roles),
+  `audit` (activity, auth_log), `me` dan `dashboard` (tanpa tabel), `health`.
+- Tes: `test/unit/<modul>/`, `test/integration/<modul>/`, `test/helpers/`.
+- FE sudah sejalan (`apps/web/src/features/<modul>`), jadi satu modul = satu folder di API + satu folder di web.
