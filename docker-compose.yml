@@ -1,8 +1,7 @@
 # The stack as it runs in production: PostgreSQL 18, one-shot migrations, the API (reachable only inside the compose
 # network) and the web on http://localhost:3001 (never :3000, the dev server's port).
 #   cp .env.compose.example .env.compose   # then replace every change-me and fill the secrets
-#   docker compose --env-file .env.compose up -d --build
-#   docker compose --env-file .env.compose run --rm migrate bun run db:seed   # first Superadmin (SEED_SUPERADMIN_*)
+#   docker compose --env-file .env.compose up -d --build   # migrate also seeds the first Superadmin (SEED_SUPERADMIN_*)
 #   docker compose --env-file .env.compose down
 # Every compose command needs `--env-file .env.compose`: the values are interpolated into each service's own
 # allow-list below, so a service sees only the keys it names. A required key that is unset or empty stops compose.
@@ -27,12 +26,13 @@ services:
       retries: 20
     restart: unless-stopped
 
-  # Applies pending migrations as the schema owner (MIGRATION_DATABASE_URL), then exits. `run --rm migrate bun run
-  # db:seed` seeds through the same URL; neither needs the server's secrets (kernel/db.ts reads only the pool keys).
+  # Applies pending migrations as the schema owner (MIGRATION_DATABASE_URL), then the system seed through the same URL
+  # (catalog, system roles, the SEED_SUPERADMIN_* user; idempotent: an existing user or role is left as it is), then
+  # exits. Neither needs the server's secrets (kernel/db.ts reads only the pool keys).
   migrate:
     build: { context: ., dockerfile: apps/api/Dockerfile }
     image: starterkit-api:local
-    command: ["bun", "run", "db:migrate"]
+    command: ["sh", "-c", "bun run db:migrate && bun run db:seed"]
     environment:
       MIGRATION_DATABASE_URL: ${MIGRATION_DATABASE_URL:?set in .env.compose}
       DATABASE_URL: ${DATABASE_URL:?set in .env.compose}
@@ -54,7 +54,7 @@ services:
       MAIL_TRANSPORT: ${MAIL_TRANSPORT:-smtp}
       SMTP_URL: ${SMTP_URL:?set in .env.compose}
       MAIL_FROM: ${MAIL_FROM:?set in .env.compose}
-      APP_URL: ${APP_URL:-http://localhost:3001}
+      APP_URL: ${APP_URL:?set in .env.compose (the public origin, e.g. https://app.example.com)}
       # Optional sign-in methods (apps/api/.env.example); empty = off.
       LDAP_URL: ${LDAP_URL:-}
       LDAP_BIND_DN: ${LDAP_BIND_DN:-}

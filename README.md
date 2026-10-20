@@ -26,25 +26,18 @@ bun run dev     # web http://localhost:3000, API http://127.0.0.1:4000
 
 `bun run setup` (`scripts/setup.ts`) prints file names and steps, never a value. It:
 
-1. writes `apps/api/.env` when missing: `DATABASE_URL`, a random `INTERNAL_API_TOKEN` and `DATA_ENCRYPTION_KEY`, and
-   `SEED_SUPERADMIN_*` from the environment (empty when unset);
+1. writes `apps/api/.env` when missing: `DATABASE_URL`, a random `INTERNAL_API_TOKEN` and `DATA_ENCRYPTION_KEY`,
+   `OAUTH_MOCK=true` and `LDAP_MOCK=true` (the demo Google, Apple and LDAP sign-in), and `SEED_SUPERADMIN_*` from the
+   environment (empty when unset);
 2. writes `apps/web/.env.local` when missing: `API_BASE_URL=http://127.0.0.1:4000`, the same `INTERNAL_API_TOKEN`, a
-   random `SESSION_SECRET`;
+   random `SESSION_SECRET`, `OAUTH_MOCK=true`;
 3. creates the database when missing, applies the migrations, and runs `db:seed` and `db:seed:demo`.
 
 Both files are written with mode 0600 and are gitignored; an existing file is kept as it is. `--database-url <url>`
-works too, but `bun run` echoes the command line, password included.
-
-To sign in with the demo LDAP, Google and Apple accounts, turn the development mocks on (setup doesn't), then restart
-`bun run dev`:
-
-```sh
-# apps/api/.env
-OAUTH_MOCK=true
-LDAP_MOCK=true
-# apps/web/.env.local
-OAUTH_MOCK=true
-```
+works too, but `bun run` echoes the command line, password included. With `NODE_ENV=production` setup writes no
+`*_MOCK` line (both apps refuse the mocks there). An env file written before setup did this lacks them: add
+`OAUTH_MOCK=true` and `LDAP_MOCK=true` to `apps/api/.env` and `OAUTH_MOCK=true` to `apps/web/.env.local` by hand, then
+restart `bun run dev`.
 
 ### Demo accounts
 
@@ -67,7 +60,8 @@ inactive), 200 activity entries and 300 sign-in log entries. These credentials e
 them.
 
 With `MAIL_TRANSPORT=log` (the default), "Forgot password?" and "Send an invitation link" send no email: the API writes
-a log line without the address or the text. An LDAP user created in the UI has no entry in the mock directory, so only
+a log line with the masked address (first letter and domain, `a***@example.com`) and the subject, never the text or the
+link. An LDAP user created in the UI has no entry in the mock directory, so only
 `ldap` can sign in through it.
 
 ### Your own Superadmin
@@ -131,6 +125,7 @@ scripts/                  setup.ts, compose-app-role.sh
 |---|---|
 | `bun run setup` | Env files (when missing), database, migrations, both seeds (see Quick start). |
 | `bun run dev` | `apps/web` on :3000 and `apps/api` on :4000 together. |
+| `bun run db:generate` | The next `apps/api/drizzle/NNNN_*.sql` from every module's `schema.ts` (drizzle-kit), with `"public".` stripped from its foreign keys; `-- --custom --name=<name>` (from `apps/api`) makes an empty file for custom SQL. Never edit an applied file. |
 | `bun run db:migrate` | Applies pending `apps/api/drizzle/*.sql` as `MIGRATION_DATABASE_URL` (else `DATABASE_URL`). |
 | `bun run db:seed` | Permission catalog, roles Superadmin/Admin/Viewer, the `SEED_SUPERADMIN_*` user. Idempotent. |
 | `bun run db:seed:demo` | Demo accounts and data. Refused with `NODE_ENV=production`. |
@@ -142,7 +137,6 @@ scripts/                  setup.ts, compose-app-role.sh
 | `bun run e2e` | Resets and demo-seeds `<database>_e2e`, starts the API on :4123 and a production web build (`apps/web/.next-e2e`) on :3123, and runs Playwright on the desktop (1440 × 900), tablet (834 × 1112) and mobile (390 × 844, touch) projects. `E2E_DATABASE_URL` picks another database (its name must end in `_e2e`); `E2E_REUSE=1` reuses servers already on `E2E_PORT` and `E2E_API_PORT`; artifacts go to `.superpowers/scratch/`. |
 | `bun run budget` | First-load JS per route after a build: at most 250 kB gzip each (`NEXT_DIST_DIR=.next-e2e` reads the E2E build). |
 | `bun run api:schemas` | Regenerates `docs/api/schemas/` and the activity action table from the zod contracts. |
-| `cd apps/api && bunx drizzle-kit generate` | The next migration from every module's `schema.ts` (then strip `"public".`, see `apps/api/drizzle.config.ts`). |
 
 Playwright uses the Chromium it already has. `/ds` screenshot baselines are per project and platform
 (`ds-light-desktop-darwin.png`), so a Linux CI runner looks for `…-linux.png` and fails until it has its own. Make them
@@ -170,7 +164,7 @@ or invalid value stops the process with an error that names the key, never the v
 | `API_PORT` | no | `4000` | Listen port. |
 | `SESSION_TTL_HOURS` | no | `12` | A session ends this long after sign-in, 1 to 24. |
 | `SESSION_IDLE_MINUTES` | no | `120` | A session ends after this long without a request, 5 to 1440. |
-| `APP_URL` | set it | `http://localhost:3000` | The web's public origin: links in emails and the OAuth redirect URIs. Not enforced, but the links are wrong without it. |
+| `APP_URL` | yes | `http://localhost:3000` | The web's public origin: links in emails and the OAuth redirect URIs. |
 | `MAIL_TRANSPORT` | `smtp` | `log` | `log` writes a log line instead of sending (development, tests). |
 | `SMTP_URL` | with `smtp` | – | `smtps://user:pass@host:465` (TLS from the first byte) or `smtp://user:pass@host:587?requireTLS=true` (STARTTLS, refused when the server doesn't offer it); production refuses plain `smtp://`. |
 | `MAIL_FROM` | with `smtp` | – | Sender, e.g. `SunnyGo <noreply@example.com>`. |
@@ -194,10 +188,10 @@ or invalid value stops the process with an error that names the key, never the v
 | `INTERNAL_API_TOKEN` | yes (always) | – | Same value as the API's, at least 32 characters. |
 | `SESSION_SECRET` | yes | random per process (development) | Seals the session cookie, at least 32 characters. Without it every restart signs everyone out. |
 | `API_BASE_URL` | yes | `http://127.0.0.1:4000` | The API, `http(s)` only; never reaches the browser. |
-| `APP_URL` | yes | `http://localhost:3000` | Public origin of the site (`metadataBase`: absolute `og:image` and icon URLs). |
+| `APP_URL` | yes | `http://localhost:3000` | Public origin of the site: an `/api/auth/*` POST without `Sec-Fetch-Site` must send this `Origin`; `metadataBase` (absolute `og:image` and icon URLs). |
 | `SESSION_TTL_HOURS` | no | `12` | Cookie lifetime, 1 to 24 hours (the API ends sessions by its own settings). |
 | `COOKIE_SECURE` | `true` behind HTTPS | `false` | `Secure` cookies and `Strict-Transport-Security`. |
-| `TRUSTED_PROXY` | no | `false` | `true` only behind a proxy that appends `X-Forwarded-For` and sets `X-Forwarded-Host`/`-Proto`; otherwise those headers are ignored. |
+| `TRUSTED_PROXY` | no | `false` | `true` only behind a proxy that appends `X-Forwarded-For` and sets `X-Forwarded-Host`/`-Proto`: the client IP is then the right-most `X-Forwarded-For` hop, and the forwarded origin counts as same-origin. Without it those headers are ignored and every client IP is "unknown", so the per-IP limits are off (the fleet-wide breakers and the per-account limits still apply). |
 | `LOG_LEVEL` | no | `info` | pino level. |
 | `OAUTH_MOCK` | must be `false` | `false` | Fake Google/Apple authorize page (the API needs it too); refused in production with `COOKIE_SECURE=true`. |
 | `NEXT_DIST_DIR` | build time only | `.next` | Build output folder (`.next-e2e` for the E2E build). |
@@ -213,13 +207,13 @@ or invalid value stops the process with an error that names the key, never the v
 | `INTERNAL_API_TOKEN` | yes | – | api, web | At least 32 characters. |
 | `DATA_ENCRYPTION_KEY` | yes | – | api | Base64 of 32 bytes. |
 | `SESSION_SECRET` | yes | – | web | At least 32 characters. |
-| `APP_URL` | yes | – (api alone: `http://localhost:3001`) | api, web | Public origin users open. |
+| `APP_URL` | yes | – | api, web | Public origin users open. |
 | `MAIL_TRANSPORT` | no | `smtp` | api | Production requires `smtp`. |
 | `SMTP_URL`, `MAIL_FROM` | yes | – | api | As in the API table. |
 | `COOKIE_SECURE` | no | `false` | web | `true` once served over HTTPS. |
-| `TRUSTED_PROXY` | no | – | web | `true` behind a proxy that sets `X-Forwarded-*`. |
+| `TRUSTED_PROXY` | no | – | web | `true` behind a proxy that sets `X-Forwarded-*`; without it the per-IP limits are off (see the web table). |
 | `LDAP_*`, `GOOGLE_*`, `APPLE_*` | no | – | api | As in the API table; empty = off. |
-| `SEED_SUPERADMIN_*` | no | – | migrate | For `run --rm migrate bun run db:seed`. |
+| `SEED_SUPERADMIN_*` | no | – | migrate | The first Superadmin, created by the seed `migrate` runs after the migrations. |
 
 Random values: `openssl rand -hex 32` (hex needs no URL-encoding inside the database URLs and holds no `$`, which compose
 would read as a variable); `DATA_ENCRYPTION_KEY` is `openssl rand -base64 32`.
@@ -231,16 +225,16 @@ would read as a variable); `DATA_ENCRYPTION_KEY` is `openssl rand -base64 32`.
 
 ```sh
 cp .env.compose.example .env.compose        # replace every change-me, fill every empty secret
-docker compose --env-file .env.compose up -d --build
-docker compose --env-file .env.compose run --rm migrate bun run db:seed   # first Superadmin (SEED_SUPERADMIN_*)
-docker compose --env-file .env.compose down                               # `down -v` also drops the database volume
+docker compose --env-file .env.compose up -d --build    # migrate also seeds the first Superadmin (SEED_SUPERADMIN_*)
+docker compose --env-file .env.compose down             # `down -v` also drops the database volume
 ```
 
 - Every compose command needs `--env-file .env.compose`: values are interpolated into each service's own
   `environment:` allow-list, so a service sees only the keys it names (the API never holds the schema owner's URL or the
   session secret; the web never holds a database URL or the encryption key). A required key that is unset or empty
   stops compose.
-- Two database roles: `migrate` connects as the schema owner and exits after applying pending migrations; the API starts
+- Two database roles: `migrate` connects as the schema owner, applies pending migrations, runs the idempotent system
+  seed (catalog, system roles, the `SEED_SUPERADMIN_*` user when it doesn't exist yet) and exits; the API starts
   after it (`service_completed_successfully`) and connects as `starterkit_app`, which may SELECT, INSERT, UPDATE and
   DELETE on the tables and nothing else. `scripts/compose-app-role.sh` creates that role when the volume is new; on a
   database you run yourself, run the same as the schema owner before the first migration:
@@ -258,7 +252,9 @@ docker compose --env-file .env.compose down                               # `dow
 - The API answers `SIGTERM` by stopping the janitor and waiting up to 10 s for requests in flight before it closes the
   pool. `/healthz` (process up) and `/readyz` (database answers within 2 s, else 503) need no token.
 - TLS ends in front of the web (a proxy or load balancer); then set `COOKIE_SECURE=true`, and `TRUSTED_PROXY=true` when
-  that proxy sets `X-Forwarded-*`.
+  that proxy sets `X-Forwarded-*`. Without `TRUSTED_PROXY` the web can't see client addresses (no socket address reaches
+  a Next route handler), so every request counts as IP "unknown" and the per-IP limits are off; the fleet-wide
+  breakers and the per-account limits still apply.
 - CI (`.github/workflows/ci.yml`): gitleaks, `bun run check`, E2E on a production build and the bundle budget, on every
   push and pull request, with a PostgreSQL 18 service. The repository has no remote yet, so it has never run on GitHub.
 
@@ -282,7 +278,20 @@ docker compose --env-file .env.compose down                               # `dow
   SQLSTATE, constraint and table, never the SQL or its values.
 - **Limits.** Sign-in, forgot-password, re-authentication and OAuth-start limits are shared through PostgreSQL by every
   API process (numbers in [`docs/api/README.md`](docs/api/README.md)); move them to Redis only if they become a
-  bottleneck.
+  bottleneck. The per-IP ones need `TRUSTED_PROXY=true` (see Deploy).
+- **Lost authenticator.** There is no admin "reset two-factor" action yet (next phase). Until then, as the schema owner
+  (`MIGRATION_DATABASE_URL`), for one user by email; it writes no activity entry, so note it in your own records:
+
+  ```sql
+  begin;
+  -- Two-factor off: the next sign-in asks for the password only; the user can set up a new authenticator.
+  update users set totp_secret = null, pending_totp_secret = null, totp_last_step = null, updated_at = now()
+    where lower(email) = lower('rina@example.com');   -- expect UPDATE 1
+  delete from recovery_codes where user_id = (select id from users where lower(email) = lower('rina@example.com'));
+  -- End their sessions: every device signs in again.
+  delete from sessions where user_id = (select id from users where lower(email) = lower('rina@example.com'));
+  commit;
+  ```
 
 ## Sign-in methods
 
@@ -302,6 +311,10 @@ isn't set up. Register these redirect URIs with the provider, `APP_URL` being th
   `SameSite=None; Secure`.
 - Only an identity already connected signs in: a user connects Google or Apple on `/me/security` while signed in. No
   account is created and none is matched by email.
+- Connecting adds a way to sign in, so it needs a session that proved the user within the last 10 minutes: a sign-in,
+  or the password (directory password for LDAP, a recovery code for an account without a password) asked on Connect.
+  An account with neither a password nor two-factor signs in again first.
+- A sign-in through Google or Apple doesn't ask for the two-factor code: the provider is the second factor.
 - Development and E2E use the mock (`OAUTH_MOCK=true` in both apps): the same redirects, state and binding checks, with a
   fake authorize step that approves at once. The API refuses it in production; the web refuses it in production over HTTPS (`COOKIE_SECURE=true`).
 
@@ -321,7 +334,8 @@ username, then backoff) bound how fast that can happen.
 Production requires `MAIL_TRANSPORT=smtp` with TLS: `smtps://…:465` (TLS from the first byte) or
 `smtp://…:587?requireTLS=true` (STARTTLS; the send fails when the server doesn't offer it). Plain `smtp://` would send
 reset links in clear text whenever STARTTLS is missing, so production refuses it. Mail goes out after the change
-commits and never delays the answer; a failure is logged with the masked address and the error code. There is no
+commits and never delays the answer; each mail logs one line with the masked address (first letter and domain) and the
+subject, and a failure adds the error's name and code. There is no
 outbox: a failed mail is not retried.
 
 ## Known limits
@@ -330,10 +344,11 @@ outbox: a failed mail is not retried.
   no real iPhone or iPad (Safari's keyboard over fixed layers, real safe-area insets).
 - Real Google, Apple and LDAP sign-in are tested against fakes only (token endpoint, JWKS, directory); a run against the
   real providers needs real credentials.
-- The compose stack and the images have not been run end to end: the Docker daemon was off while they were built. Their
-  parts were checked by hand (`docker compose config`, the image layouts rebuilt and started outside Docker).
-- The API image carries about 289 MB of `node_modules` (measured on a hand-built copy), mostly `@starterkit/ui`'s
-  runtime dependencies that come with the workspace; a `bun build` bundle is the upgrade path (`apps/api/Dockerfile`).
+- The compose stack has run end to end on one machine (Docker Desktop, macOS, arm64): build, migrations and seed,
+  health checks, a sign-in through the web on :3001. Not on a Linux host or behind a TLS proxy yet.
+- The API image is 696 MB, the web image 444 MB (`docker images`, arm64). The API's share is mostly
+  `@starterkit/ui`'s runtime dependencies that come with the workspace; a `bun build` bundle is the upgrade path
+  (`apps/api/Dockerfile`).
 - `DATA_ENCRYPTION_KEY` can't be rotated yet (see Operations).
 
 ## Standards

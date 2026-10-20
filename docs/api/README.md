@@ -44,7 +44,7 @@ other schema describes the answer exactly (`additionalProperties: false`).
   → 403 `csrf`; missing permission → 403 `forbidden`, before any data is read. The signed-in layout hands the token to
   the browser.
 - `/api/auth/*` POSTs carry no CSRF token (there is no session yet) but must be same-origin: `Sec-Fetch-Site:
-  same-origin` (or `none`), or an `Origin` equal to the server's origin; otherwise 403 `forbidden`. Sign out with a
+  same-origin` (or `none`), or an `Origin` equal to the site's public origin (`APP_URL`); otherwise 403 `forbidden`. Sign out with a
   full session needs `x-csrf-token` too.
 - A sign-in that passed the password step of a 2FA account holds only the pending marker (10 minutes): every guarded
   endpoint answers it 401; it can only finish (`/api/auth/2fa`) or cancel (`/api/auth/logout`).
@@ -69,6 +69,8 @@ other schema describes the answer exactly (`additionalProperties: false`).
   username (5 per minute), with a soft backoff per username after 3 failures (1 s, 2 s, 4 s … up to 60 s, cleared
   after 15 quiet minutes or a success). A signed-in user's wrong current password or recovery code (`PATCH /api/me`,
   `/api/me/password`, `/api/me/reauth`, `DELETE /api/me/2fa`) backs off after 5 failures (one budget per user).
+- A per-client-IP limit applies only when the web knows the client IP (`TRUSTED_PROXY=true` behind a proxy that sets
+  `X-Forwarded-For`); without it every IP is "unknown" and the per-IP limits are skipped, the others still apply.
 - `POST /api/auth/forgot` is limited per client IP (10 per minute) and per email (3 per 15 minutes). A throttled
   request still answers 200 `{ ok: true }` and sends nothing, so the limit reveals nothing about which emails exist.
 - Every limiter and backoff is a PostgreSQL row (`rate_limits`, `login_backoff`, UNLOGGED tables) updated by one atomic
@@ -192,8 +194,9 @@ generated from the action vocabulary (`ACTION_LABEL` in `packages/shared/src/aud
   per client IP, 300 in all.
 - Reset and invitation links: 32 random bytes (base64url), stored only as a SHA-256 hash, one live link per user
   (a new one replaces the old), single use (spent even when expired), valid 30 minutes (reset) or 72 hours
-  (invitation). They are spent by a password change, an admin reset and deleting the user. A reset by link ends all
-  of the user's sessions.
+  (invitation). They are spent by a password change, an admin reset, a deactivation, an email change (admin or own) and
+  deleting the user. A reset by link ends all of the user's sessions; an inactive user's link is refused
+  (`invalid_code`, spent).
 
 ## Endpoints
 
@@ -206,7 +209,7 @@ endpoint adds to the guard's 401/403 and the 400 for an invalid body or query.
 | POST | `/api/auth/2fa` | pending 2FA, same-origin | [TwoFactorBody](schemas/TwoFactorBody.json) (TOTP or recovery code, each works once) | [LoginResult](schemas/LoginResult.json) | `unauthenticated` (no or expired pending sign-in), `invalid_code`, `account_inactive`, `rate_limited` |
 | POST | `/api/auth/logout` | none, same-origin; `x-csrf-token` with a full session | none | [OkDto](schemas/OkDto.json) | `csrf` |
 | POST | `/api/auth/forgot` | none, same-origin | [ForgotPasswordBody](schemas/ForgotPasswordBody.json) | [OkDto](schemas/OkDto.json), the same for an unknown email and for a throttled request | none |
-| POST | `/api/auth/reset` | none, same-origin | [ResetPasswordBody](schemas/ResetPasswordBody.json) (the token is spent on first use; the user's sessions end; logs `password_reset`) | [OkDto](schemas/OkDto.json) | `invalid_code` (expired, used or LDAP user) |
+| POST | `/api/auth/reset` | none, same-origin | [ResetPasswordBody](schemas/ResetPasswordBody.json) (the token is spent on first use; the user's sessions end; logs `password_reset`) | [OkDto](schemas/OkDto.json) | `invalid_code` (expired, used, LDAP or inactive user) |
 | GET | `/api/auth/oauth/{provider}` | none (navigation); for `mode=link` a full session that proved the user within 10 minutes | `provider` = [ConnectionProvider](schemas/ConnectionProvider.json) (else 404); query `mode` = `login` (default) or `link`, `next` | 303 to the provider's authorize page (or `mock-authorize` under `OAUTH_MOCK`), with the `sk_oauth` browser-binding cookie (10 minutes); `link` without a session: 303 to `/login?next=/me/security`; `link` without a recent proof: 303 to `/me/security?oauth=reauth` | `not_found` (unknown provider, or not configured and no mock) |
 | GET | `/api/auth/oauth/{provider}/callback` | the `sk_oauth` cookie of the browser that started it | query `code`, `state` (or `error`) from the provider | 200 page that moves on with `<meta http-equiv="refresh">`: sign-in → the session cookie, then `next` (internal, else `/`); link → `/me/security?connected={provider}` (logs `me.connect`; already linked: no entry). Failure → `/login?error=oauth` (`/login?error=inactive` for an inactive account) or `/me/security?oauth=failed` | none (every failure lands on a page); the state is spent on first use |
 | POST | `/api/auth/oauth/{provider}/callback` | as GET | form fields `code`, `state` (Apple posts its answer: `response_mode=form_post`) | as GET | as GET |
@@ -234,12 +237,12 @@ endpoint adds to the guard's 401/403 and the 400 for an invalid body or query.
 | POST | `/api/users/bulk` | `user.edit`; `user.delete` for `action: "delete"` | [BulkUserBody](schemas/BulkUserBody.json) | [BulkResult](schemas/BulkResult.json); skipped codes `self_action`, `last_superadmin`, `forbidden` (escalation, actor rank), `bad_request` (already 20 roles), `not_found` | `bad_request` (unknown role) |
 | GET | `/api/users/roles` | `user.view` | [RoleOptionQuery](schemas/RoleOptionQuery.json) | [RoleOptionPage](schemas/RoleOptionPage.json) | none |
 | GET | `/api/users/{id}` | `user.view` (recent activity needs `audit.view`, else null) | none | [UserDetailDto](schemas/UserDetailDto.json) | `not_found` |
-| PATCH | `/api/users/{id}` | `user.edit` | [UpdateUserBody](schemas/UpdateUserBody.json) (deactivating ends the user's sessions; nothing to change = no entry) | [UserDto](schemas/UserDto.json) | `not_found`, `bad_request` (unknown role), `duplicate`, `forbidden` (escalation, actor rank), `self_action`, `last_superadmin` |
+| PATCH | `/api/users/{id}` | `user.edit` | [UpdateUserBody](schemas/UpdateUserBody.json) (deactivating ends the user's sessions and spends their links; a new email spends the links; nothing to change = no entry) | [UserDto](schemas/UserDto.json) | `not_found`, `bad_request` (unknown role), `duplicate`, `forbidden` (escalation, actor rank), `self_action`, `last_superadmin` |
 | DELETE | `/api/users/{id}` | `user.delete` | none | [OkDto](schemas/OkDto.json) | `not_found`, `forbidden` (actor rank), `self_action`, `last_superadmin` |
 | POST | `/api/users/{id}/reset-password` | `user.edit` | none (the user's sessions end) | [TemporaryPasswordDto](schemas/TemporaryPasswordDto.json) (shown once, never logged) | `not_found`, `forbidden` (actor rank), `self_action`, `ldap_password` |
 | GET | `/api/users/{id}/sessions` | `user.view` | [SessionListQuery](schemas/SessionListQuery.json) | [SessionPage](schemas/SessionPage.json) | `not_found` |
 | DELETE | `/api/users/{id}/sessions/{sid}` | `user.edit` | none | [OkDto](schemas/OkDto.json) | `not_found` (also when the session isn't that user's), `forbidden` (actor rank), `self_action` |
-| POST | `/api/users/{id}/status` | `user.edit` | [SetUserStatusBody](schemas/SetUserStatusBody.json) (deactivating ends the user's sessions) | [UserDto](schemas/UserDto.json) | `not_found`, `forbidden` (actor rank), `self_action`, `last_superadmin` |
+| POST | `/api/users/{id}/status` | `user.edit` | [SetUserStatusBody](schemas/SetUserStatusBody.json) (deactivating ends the user's sessions and spends their links) | [UserDto](schemas/UserDto.json) | `not_found`, `forbidden` (actor rank), `self_action`, `last_superadmin` |
 | GET | `/api/audit/activity` | `audit.view` | [ActivityQuery](schemas/ActivityQuery.json) | [ActivityPage](schemas/ActivityPage.json), or CSV with `format=csv` | none |
 | GET | `/api/audit/auth` | `audit.view` | [AuthLogQuery](schemas/AuthLogQuery.json) | [AuthLogPage](schemas/AuthLogPage.json), or CSV with `format=csv` | none |
 

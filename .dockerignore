@@ -14,3 +14,5 @@ docs
 apps/api/test
 **/*.test.ts
 **/*.test.tsx
+# Test-only config that imports tests/e2e (type-checked by next build when present).
+apps/web/playwright.config.ts
