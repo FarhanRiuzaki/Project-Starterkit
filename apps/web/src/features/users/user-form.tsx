@@ -3,7 +3,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useState } from "react";
-import { BlockedButton, ConfirmActionDialog, Failure, Field, Notice, Panel, PasswordChecks } from "@starterkit/ui/ds";
+import { BlockedButton, Failure, Field, Notice, Panel, PasswordChecks } from "@starterkit/ui/ds";
 import { Button } from "@starterkit/ui/ui/button";
 import { Icon } from "@starterkit/ui/ui/icon";
 import { SpinnerIcon, UsersIcon } from "@starterkit/ui/ui/icons";
@@ -15,6 +15,7 @@ import { toast } from "@starterkit/ui/ui/toast";
 import { DetailNotFound } from "@/components/detail-not-found";
 import { LoadingShape } from "@/components/route-skeleton";
 import { PageHeader } from "@/components/shell/page-header";
+import { LazyConfirmActionDialog } from "@/components/lazy-confirm";
 import { api, errorText, isNotFound } from "@/lib/client/api";
 import { useAuth } from "@/lib/client/auth-context";
 import type { UserDetailDto, UserDto } from "@starterkit/shared/contracts/users";
@@ -160,7 +161,7 @@ function UserForm({ user }: { user?: UserDetailDto }) {
         </div>
       </form>
       {guard.leaving && (
-        <ConfirmActionDialog open onOpenChange={(o) => { if (!o) guard.stay(); }} auditFields={false} reasons={[]} destructive title="Leave without saving"
+        <LazyConfirmActionDialog open onOpenChange={(o) => { if (!o) guard.stay(); }} auditFields={false} reasons={[]} destructive title="Leave without saving"
           description={user ? `Your changes to ${user.name} aren't saved.` : "This user isn't created yet."}
           impact={["What you typed is discarded."]} actionLabel="Leave page" onConfirm={async () => guard.leave()} />
       )}

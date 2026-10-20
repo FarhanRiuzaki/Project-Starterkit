@@ -3,7 +3,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useState } from "react";
-import { ConfirmActionDialog, Failure, Field, Panel } from "@starterkit/ui/ds";
+import { Failure, Field, Panel } from "@starterkit/ui/ds";
 import { useDelayedFlag } from "@starterkit/ui/motion";
 import { Button } from "@starterkit/ui/ui/button";
 import { Icon } from "@starterkit/ui/ui/icon";
@@ -13,6 +13,7 @@ import { PasswordInput } from "@starterkit/ui/ui/password-input";
 import { toast } from "@starterkit/ui/ui/toast";
 import { LoadingShape } from "@/components/route-skeleton";
 import { PageHeader } from "@/components/shell/page-header";
+import { LazyConfirmActionDialog } from "@/components/lazy-confirm";
 import { api, errorText } from "@/lib/client/api";
 import { useLeaveGuard } from "@/lib/client/use-leave-guard";
 import type { MeDto } from "@starterkit/shared/contracts/me";
@@ -91,7 +92,7 @@ function Form({ user }: { user: MeDto }) {
         {!dirty && <span className="text-caption text-fg-3">Change a field to save.</span>}
       </div>
       {guard.leaving && (
-        <ConfirmActionDialog open onOpenChange={(o) => { if (!o) guard.stay(); }} auditFields={false} reasons={[]} destructive title="Leave without saving"
+        <LazyConfirmActionDialog open onOpenChange={(o) => { if (!o) guard.stay(); }} auditFields={false} reasons={[]} destructive title="Leave without saving"
           description="Your profile changes aren't saved." impact={["What you typed is discarded."]} actionLabel="Leave page" onConfirm={async () => guard.leave()} />
       )}
     </form>

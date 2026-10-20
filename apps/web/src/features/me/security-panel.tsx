@@ -3,7 +3,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import dynamic from "next/dynamic";
 import { type FormEvent, useRef, useState } from "react";
-import { BlockedButton, ConfirmActionDialog, Failure, Field, Notice, Panel, PasswordChecks, StatusChip } from "@starterkit/ui/ds";
+import { BlockedButton, Failure, Field, Notice, Panel, PasswordChecks, StatusChip } from "@starterkit/ui/ds";
 import { useDelayedFlag } from "@starterkit/ui/motion";
 import { Button } from "@starterkit/ui/ui/button";
 import { Icon } from "@starterkit/ui/ui/icon";
@@ -13,6 +13,7 @@ import { PasswordInput } from "@starterkit/ui/ui/password-input";
 import { toast } from "@starterkit/ui/ui/toast";
 import { LoadingShape } from "@/components/route-skeleton";
 import { PageHeader } from "@/components/shell/page-header";
+import { LazyConfirmActionDialog } from "@/components/lazy-confirm";
 import { api, errorText } from "@/lib/client/api";
 import { passwordChecks } from "@/lib/shared/password";
 import { BRAND } from "@starterkit/shared/brand";
@@ -159,7 +160,7 @@ function TwoFactorCard({ user }: { user: MeDto }) {
       </div>
       {setup && <TwoFactorSetup setup={setup} onCancel={() => setSetup(null)} onDone={(c) => { setSetup(null); setCodes(c); toast("Two-factor authentication is on."); void refresh(); }} />}
       {codes && <RecoveryCodesDialog codes={codes} onClose={() => setCodes(null)} />}
-      <ConfirmActionDialog open={disabling} onOpenChange={(o) => { setDisabling(o); if (!o) setProof(""); }} auditFields={false} reasons={[]}
+      <LazyConfirmActionDialog open={disabling} onOpenChange={(o) => { setDisabling(o); if (!o) setProof(""); }} auditFields={false} reasons={[]}
         title="Turn off two-factor authentication" description="Sign-in will ask for your password only."
         impact={["Your recovery codes stop working."]} actionLabel="Turn off" destructive
         extra={(
