@@ -2,6 +2,7 @@
 
 import {
   type ComponentProps, type ComponentType, createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState,
+  useSyncExternalStore,
 } from "react";
 import { Slot } from "radix-ui";
 import { createLoader, whenIdle } from "../motion/gate";
@@ -13,6 +14,7 @@ type TriggerProps = ComponentProps<"button"> & { asChild?: boolean };
 export type OverlayImpl = { Root: ComponentType<RootProps>; Trigger: ComponentType<TriggerProps> };
 
 type ElRef = (el: HTMLElement | null) => void;
+const noSubscribe = () => () => {};
 type Ctx<M> = { impl: M | null; twin: ElRef; real: ElRef; open: (how: OpenHow) => void; preload: () => void; takeKeyOpen: () => boolean };
 
 /**
@@ -34,9 +36,10 @@ export function deferredOverlay<M extends OverlayImpl>(kind: OverlayKind, slot: 
   const C = createContext<Ctx<M> | null>(null);
 
   function Root({ children, defaultOpen, ...props }: RootProps) {
-    // Hydration: on a hard load the chunk is never loaded before the shell hydrates (it loads after idle), so this is
-    // null on the server and in the hydrating render alike. A root mounted later (client navigation) starts on Radix.
-    const [state, setState] = useState<{ impl: M | null; openWith: OpenHow | null }>(() => ({ impl: loader.get(), openWith: null }));
+    // Server and hydrating renders read the server snapshot (false): the stand-in, also when the chunk loaded (after
+    // idle) before a later boundary hydrates, so the markup matches. A root mounted later (client navigation) starts on Radix.
+    const mounted = useSyncExternalStore(noSubscribe, () => true, () => false);
+    const [state, setState] = useState<{ impl: M | null; openWith: OpenHow | null }>(() => ({ impl: mounted ? loader.get() : null, openWith: null }));
     const intent = useRef<Intent | null>(null);
     const keyOpen = useRef(false);
     const twinEl = useRef<HTMLElement | null>(null);

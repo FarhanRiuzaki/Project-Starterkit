@@ -51,6 +51,14 @@ describe("deferred overlay stand-in (server and hydration markup)", () => {
     expect(extra(real, twin)).toEqual([]);
   });
 
+  it("a hydrating render is the stand-in even when the chunk already loaded (a boundary that hydrates after idle)", async () => {
+    await Menu.menuLoader.load();
+    const tree = h(Menu.DropdownMenu, null, h(Menu.DropdownMenuTrigger, { "aria-label": "Role: Any" }, "Role"));
+    // Server and hydrating renders read the server snapshot: the generated Radix id would differ from the server HTML.
+    expect(html(tree)).not.toContain('id="');
+    expect(html(tree)).toContain('aria-haspopup="menu"');
+  });
+
   it("a part follows its own root, not the loader: loaded chunk + root still on the stand-in → the part renders nothing", async () => {
     await Menu.menuLoader.load();
     // Outside a root (the closest case to a root that has not switched yet): Radix parts would throw without Menu.
