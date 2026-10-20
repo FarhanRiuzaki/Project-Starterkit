@@ -60,8 +60,8 @@ export async function createSession(
   return { id, token, expiresAt: r.expires_at.toISOString() };
 }
 
-/** SQL for the union of the permissions of a user's roles (`userId`: a value or a column fragment); one expression for sessions and actorPermissions. */
-const permsOf = (userId: unknown) =>
+/** SQL for the union of the permissions of a user's roles (`userId`: a value or a column fragment); one expression for sessions, actorPermissions and user lists. */
+export const permsOf = (userId: unknown) =>
   sql`array(select distinct rp.permission from user_roles ur join role_permissions rp on rp.role_id = ur.role_id where ur.user_id = ${userId})`;
 
 /** The user's permissions right now, read through `db` (a transaction sees its own locks): escalation checks use this, not the request's earlier `ctx.perms`. */
@@ -69,6 +69,10 @@ export async function actorPermissions(db: SQL | Tx, userId: string): Promise<Se
   const [r] = await db`select ${permsOf(userId)} as perms`;
   return new Set(r.perms);
 }
+
+/** SQL: session `s` has not ended (SESSION_TTL_HOURS since sign-in, SESSION_IDLE_MINUTES since its last request). */
+export const sessionLive = () =>
+  sql`s.expires_at > now() and s.last_seen_at >= now() - make_interval(mins => ${config().SESSION_IDLE_MINUTES})`;
 
 /**
  * The user behind a session token, or null: unknown token, the session expired (SESSION_TTL_HOURS) or went idle
@@ -78,7 +82,7 @@ export async function actorPermissions(db: SQL | Tx, userId: string): Promise<Se
 export async function resolveSession(token: string): Promise<AuthUser | null> {
   const [r] = await sql`
     select u.*, s.id as sid,
-      s.expires_at > now() and s.last_seen_at >= now() - make_interval(mins => ${config().SESSION_IDLE_MINUTES}) as live,
+      ${sessionLive()} as live,
       s.last_seen_at < now() - interval '60 seconds' as stale,
       array(select r.name from user_roles ur join roles r on r.id = ur.role_id where ur.user_id = u.id order by r.name) as roles,
       array(select i.provider from user_identities i where i.user_id = u.id order by i.provider) as connected,

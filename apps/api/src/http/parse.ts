@@ -17,10 +17,12 @@ export async function body<T>(c: Context, schema: ZodType<T>): Promise<T> {
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** `s` is a UUID (safe to compare with a uuid column). */
+export const isUuid = (s: string): boolean => UUID.test(s);
 
 /** Path parameter `name` as a UUID; anything else is 404 `not_found` for `noun` (never a failed uuid cast). */
 export function idParam(c: Context, name: string, noun: string): string {
   const id = c.req.param(name);
-  if (!id || !UUID.test(id)) throw notFound(noun);
+  if (!id || !isUuid(id)) throw notFound(noun);
   return id;
 }
