@@ -7,7 +7,9 @@ import { SCRATCH } from "./tests/e2e/global-setup";
 /**
  * Playwright against the real stack: the API on E2E_API_PORT (4123) over its own database, reset and seeded at
  * start, and a production build of the web on E2E_PORT (3123) in .next-e2e; never the dev servers (:3000, :4000) or
- * their .next. Desktop viewport, one worker (the database and the sign-in rate limits are shared by every test),
+ * their .next. Three projects (design-system §0): `desktop` 1440 × 900 runs every spec; `tablet` 834 × 1112 runs
+ * responsive.spec; `mobile` 390 × 844 (touch, mobile emulation, 3× pixels) runs responsive.spec and the axe pages of
+ * a11y.spec. One worker (the database and the sign-in rate limits are shared by every test),
  * artifacts under .superpowers/scratch/ (gitignored; E2E_SCRATCH names the folder). Screenshot baselines are
  * committed next to their spec (`*.spec.ts-snapshots/`). E2E_REUSE=1 reuses servers already running on those ports.
  */
@@ -40,7 +42,12 @@ export default defineConfig({
   reporter: [["list"]],
   workers: 1,
   globalSetup: "./tests/e2e/global-setup.ts",
-  use: { baseURL: `http://localhost:${PORT}`, viewport: { width: 1440, height: 900 }, trace: "retain-on-failure" },
+  use: { baseURL: `http://localhost:${PORT}`, trace: "retain-on-failure" },
+  projects: [
+    { name: "desktop", use: { viewport: { width: 1440, height: 900 } } },
+    { name: "tablet", testMatch: /responsive\.spec\.ts/, use: { viewport: { width: 834, height: 1112 } } },
+    { name: "mobile", testMatch: /(responsive|a11y)\.spec\.ts/, use: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 3 } },
+  ],
   webServer: [
     {
       // From the repo root: create the database when missing, drop + migrate + seed it, then serve.

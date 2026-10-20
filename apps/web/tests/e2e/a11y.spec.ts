@@ -1,28 +1,15 @@
-import path from "node:path";
-import { type Browser, expect, type Page, test } from "@playwright/test";
-import { AUTH_STATE, SCRATCH } from "./global-setup";
-import { axeSerious, signIn, withIds } from "./helpers";
+import { expect, type Page, test } from "@playwright/test";
+import { AUTH_STATE } from "./global-setup";
+import { axeSerious, pending2faState, withIds } from "./helpers";
 
 /**
  * axe (WCAG 2.0–2.2 A/AA): no serious or critical violation on the sign-in steps and the main screens, light and
- * dark. Signed-in pages use the superadmin session from global-setup; /login/2fa needs a sign-in waiting for its
- * second factor, made once per worker.
+ * dark, on the desktop and the mobile project (playwright.config.ts). Signed-in pages use the superadmin session from
+ * global-setup; /login/2fa needs a sign-in waiting for its second factor (helpers.ts pending2faState).
  */
 /** `{name}` = a demo id (helpers.ts demoIds). */
 const SIGNED_IN = ["/", "/users", "/users/{admin}", "/roles/{superadminRole}", "/permissions", "/audit/activity", "/audit/auth", "/me/security"];
 
-const PENDING_2FA = path.join(SCRATCH, "pending-2fa-state.json");
-let pending: Promise<string> | null = null;
-/** A cookie that has passed the password step of twofa@example.com (valid 10 minutes). */
-const pending2fa = (browser: Browser) => (pending ??= (async () => {
-  const ctx = await browser.newContext();
-  const page = await ctx.newPage();
-  await signIn(page, "twofa@example.com");
-  await page.waitForURL("/login/2fa");
-  await ctx.storageState({ path: PENDING_2FA });
-  await ctx.close();
-  return PENDING_2FA;
-})());
 
 /** The theme follows the emulated color scheme (next-themes "system"), then axe runs on the settled page. */
 async function check(page: Page, dark: boolean) {
@@ -42,7 +29,7 @@ for (const colorScheme of ["light", "dark"] as const) {
     });
 
     test("/login/2fa", async ({ browser }) => {
-      const ctx = await browser.newContext({ colorScheme, storageState: await pending2fa(browser) });
+      const ctx = await browser.newContext({ colorScheme, storageState: await pending2faState(browser) });
       const page = await ctx.newPage();
       await page.goto("/login/2fa");
       await expect(page.getByRole("heading", { level: 1, name: "Two-factor authentication" })).toBeVisible();

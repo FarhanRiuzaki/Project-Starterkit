@@ -401,7 +401,9 @@ test.describe("client navigation and table changes", () => {
     const before = await rows.count();
     // The list API answers after 250 ms, so there is a window in which the next rows are still loading.
     await page.route("**/api/users?*", async (r) => { await new Promise((x) => setTimeout(x, 250)); await r.continue(); });
-    const first = () => rows.first().innerText();
+    // The first row's identity (its user link), not its text: a relative time in the row ("1 min ago") can tick over
+    // between two reads and would look like a different row.
+    const first = () => rows.first().locator('a[href^="/users/"]').first().getAttribute("href");
 
     const page1 = await first();
     await page.getByRole("button", { name: "Last sign-in" }).click();
