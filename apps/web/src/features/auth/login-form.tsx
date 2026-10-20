@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useEffect, useState } from "react";
 import { BlockedButton, Segmented } from "@starterkit/ui/ds";
 import { Button, buttonVariants } from "@starterkit/ui/ui/button";
 import { Icon } from "@starterkit/ui/ui/icon";
@@ -20,7 +20,7 @@ const PROVIDERS = [{ id: "google", label: "Google" }, { id: "apple", label: "App
 /**
  * Sign in with email or username + password (or LDAP directory password), or a connected Google / Apple account
  * (`providers`: the ones the server has set up; the others stay visible, blocked with the reason). `error`: a
- * message to show first (a provider sign-in that came back failed).
+ * message to show first (a provider sign-in that came back failed); its `?error=` is then dropped from the URL.
  */
 export function LoginForm({ next, providers, error: initialError = null }: { next: string; providers: Record<ConnectionProvider, boolean>; error?: string | null }) {
   const router = useRouter();
@@ -30,6 +30,10 @@ export function LoginForm({ next, providers, error: initialError = null }: { nex
   const [error, setError] = useState<string | null>(initialError);
   const [busy, setBusy] = useState(false);
   const back = next === "/" ? "" : `?next=${encodeURIComponent(next)}`;
+  // Shown once: the `?error=` goes from the URL (no new history entry), so a reload doesn't repeat it.
+  useEffect(() => {
+    if (initialError) router.replace(`/login${back}`, { scroll: false });
+  }, [initialError, back, router]);
 
   async function submit(e: FormEvent) {
     e.preventDefault();

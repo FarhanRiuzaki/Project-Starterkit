@@ -52,6 +52,14 @@ test("connect Google from /me/security shows the connected state and a toast", a
   await expect(google.getByRole("button", { name: "Disconnect Google" })).toBeVisible();
 });
 
+test("a failed Google/Apple sign-in shows its message once, then drops ?error= from the URL", async ({ page }) => {
+  await page.goto("/login?error=oauth&next=%2Fusers");
+  await expect(page.locator("#login-error")).toContainText("Google or Apple sign-in didn't complete."); // not Next's route announcer (also role=alert)
+  await expect(page).toHaveURL("/login?next=%2Fusers");
+  await page.reload();
+  await expect(page.locator("#login-error")).toHaveCount(0);
+});
+
 test("LDAP: directory username and directory password", async ({ page }) => {
   await signIn(page, "ldap", SEED.ldapPassword, "LDAP");
   await expect(page).toHaveURL("/");

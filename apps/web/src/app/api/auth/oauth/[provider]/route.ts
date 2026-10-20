@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import { cookies } from "next/headers";
+import { afterSignIn } from "@starterkit/ui/lib/safe-path";
 import { apiError } from "@/lib/server/api";
 import { backend } from "@/lib/server/backend";
 import { isProvider, OAUTH_COOKIE, oauthCookieOptions, seeOther } from "@/lib/server/oauth";
@@ -19,9 +20,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ provider
   const s = await getSession();
   if (mode === "link" && !(s.token && s.csrf)) return seeOther("/login?next=%2Fme%2Fsecurity");
   const binding = randomBytes(32).toString("base64url");
+  // Internal and at most what the API accepts (2048), else Overview: an odd `next` never costs the sign-in.
+  const next = afterSignIn(q.get("next"));
   const res = await backend(`/v1/auth/oauth/${provider}/start`, {
-    method: "POST", contentType: "application/json", token: mode === "link" ? s.token : null, req,
-    body: JSON.stringify({ mode, next: q.get("next") ?? undefined, bindingHash: createHash("sha256").update(binding).digest("base64url") }),
+    // The bearer in both modes: the API ties the state to this session (ending it cancels the round trip; a sign-in ends it).
+    method: "POST", contentType: "application/json", token: s.token && s.csrf ? s.token : null, req,
+    body: JSON.stringify({ mode, next: next.length <= 2048 ? next : "/", bindingHash: createHash("sha256").update(binding).digest("base64url") }),
   });
   if (!res.ok) {
     await res.body?.cancel();

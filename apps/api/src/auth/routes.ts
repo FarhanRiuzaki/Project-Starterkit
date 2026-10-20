@@ -17,10 +17,10 @@ import { log } from "../log";
 import { sendMail } from "../mail/mailer";
 import { decryptSecret, hashToken, randomToken, safeEqual } from "./crypto";
 import { directory } from "./ldap";
-import { forgotLimits, loginGate, loginLimits, retryText } from "./limits";
+import { forgotLimits, loginGate, loginLimits, oauthStartLimits, retryText } from "./limits";
 import { authorizeUrl, identityOf, OAuthCallbackBody, OAuthStartBody, providerEnabled } from "./oauth";
 import { hashPassword, verifyPassword } from "./password";
-import { endUserSessions, type UserRow } from "./sessions";
+import { endUserSessions, resolveSession, sessionLive, type UserRow } from "./sessions";
 import { completeSignIn, findUser, logAuth, spendRecoveryCode, userById } from "./sign-in";
 import { matchTotpStep } from "./totp";
 
@@ -223,39 +223,47 @@ authRoutes.get("/auth/providers", (c) => c.json({ google: providerEnabled("googl
 
 /**
  * Start a provider sign-in (`login`) or a link to the signed-in user (`link`, bearer required): a state row (state
- * stored hashed, the browser binding's hash, PKCE verifier, nonce, who links, `next`; 10 minutes) and the URL the
- * browser goes to next.
+ * stored hashed, the browser binding's hash, PKCE verifier, nonce, who links, `next`, the bearer's session; 10
+ * minutes) and the URL the browser goes to next. The browser's session (any mode) is stored so that ending it deletes
+ * the state, and a sign-in ends it. 20 starts per client IP and 300 in all per minute, then 429.
  */
 authRoutes.post("/auth/oauth/:provider/start", async (c) => {
   const b = await body(c, OAuthStartBody);
-  const ctx = b.mode === "link" ? await guard(c, null) : null;
+  const token = bearer(c);
+  const auth = b.mode === "link" ? await guard(c, null) : token ? await resolveSession(token) : null;
   const p = oauthProvider(c.req.param("provider"));
+  const waits = await Promise.all([oauthStartLimits.ip.hit(c.var.client.ip), oauthStartLimits.breaker.hit("all")]);
+  const wait = Math.max(0, ...waits.map((w) => w ?? 0));
+  if (wait > 0) throw tooManyAttempts(wait, retryText(wait));
   const s = { state: randomToken(), verifier: randomToken(), nonce: randomToken() };
-  // ponytail: rows of abandoned sign-ins stay until their 10 minutes pass and the janitor removes them; no per-IP cap on starts.
-  await sql`insert into oauth_states (state_hash, provider, mode, user_id, binding_hash, code_verifier, nonce, next, expires_at)
-    values (${hashToken(s.state)}, ${p}, ${b.mode}, ${ctx?.user.id ?? null}, ${Buffer.from(b.bindingHash, "base64url")}, ${s.verifier}, ${s.nonce},
-      ${b.mode === "login" ? afterSignIn(b.next) : null}, now() + interval '10 minutes')`;
+  // ponytail: rows of abandoned sign-ins stay until their 10 minutes pass and the janitor removes them.
+  await sql`insert into oauth_states (state_hash, provider, mode, user_id, session_id, binding_hash, code_verifier, nonce, next, expires_at)
+    values (${hashToken(s.state)}, ${p}, ${b.mode}, ${b.mode === "link" ? auth!.user.id : null}, ${auth?.sid ?? null},
+      ${Buffer.from(b.bindingHash, "base64url")}, ${s.verifier}, ${s.nonce}, ${b.mode === "login" ? afterSignIn(b.next) : null}, now() + interval '10 minutes')`;
   return c.json({ url: authorizeUrl(p, s) });
 });
 
 /**
  * Finish a provider round trip. The state is spent on first use (also when expired, for another provider or with
  * another browser's binding: all 401). Login: only an identity already linked signs in (no new users, no match by
- * email); the provider counts as the second factor; answers `{ next, token }`. Link: the identity joins the user who
- * started it (one `me.connect` entry; already linked = no entry; linked to someone else = 409); answers `{ next }`.
+ * email); the provider counts as the second factor; the browser's earlier session ends; answers `{ next, token }`.
+ * Link: only while the session that started it is live; the identity joins its user (one `me.connect` entry; already
+ * linked = no entry; linked to someone else = 409); answers `{ next }`.
  */
 authRoutes.post("/auth/oauth/:provider/callback", async (c) => {
   const b = await body(c, OAuthCallbackBody);
   const p = oauthProvider(c.req.param("provider"));
   const client = c.var.client;
   const [s] = await sql`delete from oauth_states where state_hash = ${hashToken(b.state)}
-    returning provider, mode, user_id, binding_hash, code_verifier, nonce, next, expires_at > now() as live`;
+    returning provider, mode, user_id, session_id, binding_hash, code_verifier, nonce, next, expires_at > now() as live`;
   if (!s?.live || s.provider !== p || !safeEqual(hashToken(b.binding).toString("hex"), Buffer.from(s.binding_hash).toString("hex"))) {
     throw new ApiError("unauthenticated", OAUTH_EXPIRED);
   }
   const id = await identityOf(p, b.code, { verifier: s.code_verifier, nonce: s.nonce, userId: s.user_id });
   if (s.mode === "link") {
-    const user = await userById(s.user_id);
+    // The session that started the link is still live and still this user's (sign-out or revoke deletes the state too).
+    const [live] = s.session_id ? await sql`select 1 from sessions s where s.id = ${s.session_id} and s.user_id = ${s.user_id} and ${sessionLive()}` : [];
+    const user = live ? await userById(s.user_id) : null;
     if (!user?.isActive) throw new ApiError("unauthenticated");
     await sql.begin(async (tx) => {
       const added = await tx`insert into user_identities (user_id, provider, subject, email) values (${user.id}, ${p}, ${id.subject}, ${id.email})
@@ -275,6 +283,8 @@ authRoutes.post("/auth/oauth/:provider/callback", async (c) => {
     throw user ? new ApiError("account_inactive") : new ApiError("invalid_credentials", NOT_CONNECTED);
   }
   const token = await sql.begin(async (tx) => {
+    // One browser, one session: the session the browser had at start ends (its cookie can't reach the web here).
+    if (s.session_id) await tx`delete from sessions where id = ${s.session_id}`;
     const t = await completeSignIn(tx, user, p, client);
     await logAuth(tx, client, "login_success", p, user.email, user.id);
     return t;

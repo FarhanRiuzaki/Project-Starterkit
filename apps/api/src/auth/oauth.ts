@@ -63,12 +63,12 @@ export function authorizeUrl(p: ConnectionProvider, s: { state: string; verifier
 }
 
 /**
- * The id_token's subject and email once its signature (the provider's keys, RS256), issuer, audience (our client id),
- * expiry (60 s of clock skew) and nonce check out; else throws.
+ * The id_token's subject and email once its signature (the provider's keys, RS256 only), issuer, audience (our client
+ * id), `iat`, expiry (60 s of clock skew) and nonce check out; else throws.
  */
 export async function verifyIdToken(p: ConnectionProvider, idToken: string, o: { clientId: string; nonce: string; keys?: JWTVerifyGetKey }): Promise<{ subject: string; email: string | null }> {
   const { payload } = await jwtVerify(idToken, o.keys ?? providerKeys[p], {
-    issuer: ISSUER[p], audience: o.clientId, algorithms: ["RS256"], clockTolerance: 60, requiredClaims: ["sub", "exp", "nonce"],
+    issuer: ISSUER[p], audience: o.clientId, algorithms: ["RS256"], clockTolerance: 60, requiredClaims: ["sub", "iat", "exp", "nonce"],
   });
   if (typeof payload.nonce !== "string" || !safeEqual(payload.nonce, o.nonce)) throw new Error("id_token nonce mismatch");
   return { subject: payload.sub!, email: typeof payload.email === "string" ? payload.email : null };

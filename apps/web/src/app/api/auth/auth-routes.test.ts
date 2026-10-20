@@ -169,6 +169,27 @@ describe("/api/auth/oauth (Google and Apple: browser binding, landing page)", ()
     expect(await seen[0]!.json()).toEqual({ mode: "login", next: "/users", bindingHash: createHash("sha256").update(binding!).digest("base64url") });
   });
 
+  it("start: a signed-in browser's bearer goes along in login mode too; next is made internal and capped before the API sees it", async () => {
+    const seen = fakeApi(() => Response.json({ url: "/api/auth/oauth/google/mock-authorize?state=s1" }));
+    await sealCookie(jar);
+    await oauthStart(startUrl("?next=%2F%2Fevil.com"), ctx("google"));
+    expect(seen[0]!.headers.get("authorization")).toBe(`Bearer ${TEST_TOKEN}`);
+    expect((await seen[0]!.json()).next).toBe("/");
+    await oauthStart(startUrl(`?next=${encodeURIComponent(`/users?q=${"x".repeat(3000)}`)}`), ctx("google"));
+    expect((await seen[1]!.json()).next).toBe("/");
+    await oauthStart(startUrl("?next=%2Fusers%3Fpage%3D2"), ctx("google"));
+    expect((await seen[2]!.json()).next).toBe("/users?page=2");
+  });
+
+  it("logout also clears sk_oauth, so a started round trip can't finish after sign-out", async () => {
+    fakeApi(() => Response.json({ ok: true }));
+    await sealCookie(jar);
+    jar.set("sk_oauth", `link.${"b".repeat(43)}`);
+    expect((await post(logout, {}, { "x-csrf-token": TEST_CSRF })).status).toBe(200);
+    expect(jar.has("sk_oauth")).toBe(false);
+    expect(cookieOpts.get("sk_oauth")).toMatchObject({ path: "/api/auth/oauth", maxAge: 0 });
+  });
+
   it("the binding cookie is Secure and SameSite=None over HTTPS (Apple posts its answer from its own site)", () => {
     const c = parseConfig({ SESSION_SECRET: "s".repeat(40), INTERNAL_API_TOKEN: "i".repeat(40), COOKIE_SECURE: "true" });
     expect(oauthCookieOptions(c)).toEqual({ httpOnly: true, path: "/api/auth/oauth", maxAge: 600, secure: true, sameSite: "none" });

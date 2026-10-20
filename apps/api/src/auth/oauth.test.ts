@@ -2,7 +2,7 @@
 // (OAUTH_MOCK, on in tests) goes through the same state rows; the real flow runs against a stubbed token endpoint and
 // id_tokens signed with a local key pair (no network). Ports the mock OAuth tests of Tasks 7/9 (connect, next, inactive).
 import { afterEach, beforeEach, describe, expect, it, spyOn } from "bun:test";
-import { createLocalJWKSet, exportJWK, exportPKCS8, generateKeyPair, type JWTPayload, SignJWT } from "jose";
+import { createLocalJWKSet, exportJWK, exportPKCS8, exportSPKI, generateKeyPair, type JWTPayload, SignJWT } from "jose";
 import { call, resetData, signIn } from "../../test/app";
 import * as conf from "../config";
 import { sql } from "../db/client";
@@ -43,6 +43,24 @@ describe("mock provider (OAUTH_MOCK)", () => {
     expect(await sessionOf(token)).toMatchObject({ user_id: await idOf("google"), method: "google" });
     expect(await lastAuth()).toMatchObject({ event: "login_success", method: "google", login: "google@example.com", userId: await idOf("google") });
     expect((await sql`select last_login_at from users where username = 'google'`)[0].last_login_at).not.toBeNull();
+  });
+
+  it("a sign-in from a browser that was signed in ends that browser's earlier session", async () => {
+    const old = await signIn("admin");
+    const r = await mockFlow("google", {}, old);
+    expect(r.status).toBe(200);
+    expect(await sessionOf(old)).toBeUndefined();
+    expect(await sessionOf((await r.json()).token)).toMatchObject({ user_id: await idOf("google") });
+    expect(await count("sessions")).toBe(1);
+  });
+
+  it("the 21st start from one client within a minute is 429 with Retry-After, and stores no state", async () => {
+    for (let i = 0; i < 20; i++) expect((await start("google")).status).toBe(200);
+    const r = await start("google");
+    expect(r.status).toBe(429);
+    expect((await r.json()).error.code).toBe("rate_limited");
+    expect(Number(r.headers.get("retry-after"))).toBeWithin(1, 61);
+    expect(await count("oauth_states")).toBe(20);
   });
 
   it("start answers the mock authorize URL and stores the state hashed, bound to the browser, for 10 minutes", async () => {
@@ -156,7 +174,22 @@ describe("linking (mode link)", () => {
     expect(await count("oauth_states")).toBe(0);
     const token = await signIn("admin");
     await start("google", { mode: "link", next: "/users" }, token);
-    expect((await sql`select mode, user_id, next from oauth_states`)[0]).toEqual({ mode: "link", user_id: await idOf("admin"), next: null });
+    expect((await sql`select mode, user_id, session_id, next from oauth_states`)[0])
+      .toEqual({ mode: "link", user_id: await idOf("admin"), session_id: (await sessionOf(token)).id, next: null });
+  });
+
+  it("a link state whose session ended fails and links nothing (sign-out cascades; an idle session is checked)", async () => {
+    const token = await signIn("twofa");
+    const first = await (await start("apple", { mode: "link" }, token)).json();
+    await call("POST", "/v1/auth/logout", { token }); // sign-out deletes the session, and with it the pending state
+    expect(await count("oauth_states")).toBe(0);
+    expect((await callback("apple", { code: "mock", state: stateOf(first.url) })).status).toBe(401);
+    const again = await signIn("twofa");
+    const second = await (await start("apple", { mode: "link" }, again)).json();
+    await sql`update sessions set last_seen_at = now() - interval '1 day'`; // idle: ended, row not yet removed
+    expect((await callback("apple", { code: "mock", state: stateOf(second.url) })).status).toBe(401);
+    expect(await count("oauth_states")).toBe(0);
+    expect(await sql`select 1 from user_identities where user_id = ${await idOf("twofa")}`).toHaveLength(0);
   });
 
   it("a user deactivated before the callback links nothing", async () => {
@@ -183,11 +216,12 @@ const ISS = { google: "https://accounts.google.com", apple: "https://appleid.app
 const AUD = { google: REAL.GOOGLE_CLIENT_ID, apple: REAL.APPLE_CLIENT_ID } as const;
 
 /** An id_token as the provider would sign it; `claims` override the defaults, `key` signs instead of the trusted key. */
-const idToken = (p: "google" | "apple", claims: JWTPayload, o: { key?: CryptoKey; exp?: number | string } = {}) =>
-  new SignJWT({ email: `${claims.sub}@example.org`, ...claims })
-    .setProtectedHeader({ alg: "RS256", kid: KID })
-    .setIssuer(claims.iss ?? ISS[p]).setAudience(claims.aud ?? AUD[p]).setIssuedAt().setExpirationTime(o.exp ?? "5m")
-    .sign(o.key ?? keys.privateKey);
+const idToken = (p: "google" | "apple", claims: JWTPayload, o: { key?: CryptoKey; exp?: number | string; kid?: string; noIat?: boolean } = {}) => {
+  const jwt = new SignJWT({ email: `${claims.sub}@example.org`, ...claims })
+    .setProtectedHeader({ alg: "RS256", kid: o.kid ?? KID })
+    .setIssuer(claims.iss ?? ISS[p]).setAudience(claims.aud ?? AUD[p]).setExpirationTime(o.exp ?? "5m");
+  return (o.noIat ? jwt : jwt.setIssuedAt()).sign(o.key ?? keys.privateKey);
+};
 
 let restore: (() => void)[] = [];
 afterEach(() => {
@@ -336,6 +370,18 @@ describe("verifyIdToken", () => {
     expect(await fails(verify("google", await idToken("google", { sub: "s1", nonce: "n1", aud: "another-client" })))).toBe("rejected");
     expect(await fails(verify("google", await idToken("google", { sub: "s1", nonce: "n1", iss: "https://evil.example" })))).toBe("rejected");
     expect(await fails(verify("apple", await idToken("google", { sub: "s1", nonce: "n1", aud: AUD.apple })))).toBe("rejected"); // Google's issuer for Apple
+  });
+
+  it("alg none, HS256 keyed with the public key, an unknown kid and a missing iat are rejected", async () => {
+    const b64 = (v: unknown) => Buffer.from(JSON.stringify(v)).toString("base64url");
+    const now = Math.floor(Date.now() / 1000);
+    const claims = { iss: ISS.google, aud: AUD.google, sub: "s1", nonce: "n1", iat: now, exp: now + 300 };
+    expect(await fails(verify("google", `${b64({ alg: "none", typ: "JWT" })}.${b64(claims)}.`))).toBe("rejected");
+    const pem = new TextEncoder().encode(await exportSPKI(keys.publicKey));
+    const hs = await new SignJWT(claims).setProtectedHeader({ alg: "HS256", kid: KID }).sign(pem);
+    expect(await fails(verify("google", hs))).toBe("rejected");
+    expect(await fails(verify("google", await idToken("google", { sub: "s1", nonce: "n1" }, { kid: "unknown-key" })))).toBe("rejected");
+    expect(await fails(verify("google", await idToken("google", { sub: "s1", nonce: "n1" }, { noIat: true })))).toBe("rejected");
   });
 
   it("an expired token (beyond 60 s of clock skew) or one signed by another key is rejected", async () => {

@@ -121,6 +121,8 @@ export const loginLimits: LoginLimits = {
  * Forgot-password requests: per client IP (10 per minute) and per email (3 per 15 minutes). A throttled request still
  * answers 200 and simply sends nothing, so the limit doesn't reveal which emails exist.
  */
+/** OAuth starts (each stores a state row, no account needed): per client IP and fleet-wide, per minute. */
+export const oauthStartLimits = { ip: new RateLimiter("oauth-start-ip", 20, 60_000), breaker: new RateLimiter("oauth-start-breaker", 300, 60_000) };
 export const forgotLimits = { ip: new RateLimiter("forgot-ip", 10, 60_000), email: new RateLimiter("forgot-email", 3, 15 * 60_000) };
 
 /**

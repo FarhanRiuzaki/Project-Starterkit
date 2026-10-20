@@ -171,6 +171,11 @@ generated from the action vocabulary (`ACTION_LABEL` in `packages/shared/src/aud
   `activity (target_id, at DESC)`. `RoleDto.userCount` is a `GROUP BY role` count over the user–role table, not a
   per-role query.
 - Recovery codes: 8 codes of 80 random bits each, stored as Argon2id hashes, spent on use.
+- Google/Apple sign-in and linking: the state is stored hashed and is valid once for 10 minutes. It is bound to the
+  browser by the `sk_oauth` cookie and to the browser's session when there is one: ending that session (sign-out,
+  revoke) cancels the round trip, and a sign-in through the provider ends it. A link needs that session to be live at
+  the callback. A second start in another tab replaces the first (one `sk_oauth` per browser). Starts: 20 per minute
+  per client IP, 300 in all.
 - Reset and invitation links: 32 random bytes (base64url), stored only as a SHA-256 hash, one live link per user
   (a new one replaces the old), single use (spent even when expired), valid 30 minutes (reset) or 72 hours
   (invitation). They are spent by a password change, an admin reset and deleting the user. A reset by link ends all
