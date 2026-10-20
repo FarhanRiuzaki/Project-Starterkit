@@ -1,0 +1,255 @@
+// What the web's static route checks (apps/web/src/test/architecture.test.ts, api-contract.test.ts) enforced for the
+// mock, enforced for the API: (a) the routes of createApp() are the README's endpoint table, (b) every handler in
+// src/**/routes.ts follows the contract's order. Handlers are read with the TypeScript compiler API, not regexes.
+import { describe, expect, it } from "bun:test";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import ts from "typescript";
+import { createApp } from "./app";
+
+const SRC = import.meta.dir;
+const README = readFileSync(path.join(SRC, "../../../docs/api/README.md"), "utf8");
+
+// ---------------------------------------------------------------- (a) endpoint table
+
+/** Routes the API has that the README does not list (internal). */
+const API_ONLY = ["GET /v1/auth/context", "GET /healthz", "GET /readyz"];
+/** README rows with no API route yet. Task 10 (OAuth) removes them. */
+const WEB_ONLY = ["GET /api/auth/oauth/{provider}", "POST /api/me/connections/{provider}"];
+
+/** "METHOD /v1/path/{param}" of every registered route; middleware (ALL) is not a route. Hono answers HEAD/OPTIONS itself. */
+const registered = (app: { routes: { method: string; path: string }[] }): string[] =>
+  app.routes.filter((r) => r.method !== "ALL").map((r) => `${r.method} ${r.path.replace(/:(\w+)/g, "{$1}")}`);
+
+/** "METHOD /api/path" of every row of the README's endpoint table. */
+const documented = (md: string): string[] =>
+  [...md.matchAll(/^\| (GET|HEAD|OPTIONS|POST|PATCH|PUT|DELETE) \| `([^`]+)` \|/gm)].map((m) => `${m[1]} ${m[2]}`);
+
+/** Differences between the routes and the table (with the allowlists applied): `missing` = documented but not served, `extra` = served but not documented. */
+function tableDiff(routes: string[], rows: string[]): { missing: string[]; extra: string[] } {
+  const served = routes.filter((r) => !API_ONLY.includes(r)).map((r) => r.replace(" /v1/", " /api/"));
+  const docs = rows.filter((r) => !WEB_ONLY.includes(r));
+  return { missing: docs.filter((r) => !served.includes(r)), extra: served.filter((r) => !docs.includes(r)) };
+}
+
+describe("endpoint table (docs/api/README.md)", () => {
+  const routes = registered(createApp());
+  const rows = documented(README);
+
+  it("every route is a README row and every row is a route, once (internal and not-yet-ported routes are allowlisted)", () => {
+    expect(rows.length).toBe(new Set(rows).size);
+    expect(routes.length).toBe(new Set(routes).size);
+    expect(tableDiff(routes, rows)).toEqual({ missing: [], extra: [] });
+  });
+
+  it("the allowlists name real routes and real rows (a stale entry fails)", () => {
+    expect(API_ONLY.filter((r) => !routes.includes(r))).toEqual([]);
+    expect(WEB_ONLY.filter((r) => !rows.includes(r))).toEqual([]);
+    expect(WEB_ONLY.filter((r) => routes.includes(r.replace(" /api/", " /v1/")))).toEqual([]); // ported: drop it from WEB_ONLY
+  });
+
+  it("fixture: a route without a row, a row without a route and a stale allowlist entry are reported", () => {
+    expect(tableDiff(["GET /v1/a", "GET /v1/b/{id}"], ["GET /api/a", "POST /api/c", "GET /api/auth/oauth/{provider}"]))
+      .toEqual({ missing: ["POST /api/c"], extra: ["GET /api/b/{id}"] });
+    expect(registered({ routes: [{ method: "ALL", path: "/*" }, { method: "PATCH", path: "/v1/users/:id/sessions/:sid" }] })).toEqual(["PATCH /v1/users/{id}/sessions/{sid}"]);
+  });
+});
+
+// ---------------------------------------------------------------- (b) handlers
+
+/**
+ * GET routes that answer one record, a summary or the caller, not a list; every other GET outside auth/ pages with
+ * pageQuery( (or a function that does). Keys are "GET <path under /v1>".
+ */
+const NON_LIST_GETS: Record<string, string> = {
+  "GET /dashboard": "summary numbers; its recent list is fixed at 5",
+  "GET /me": "the signed-in user",
+  "GET /roles/:id": "one role",
+  "GET /users/:id": "one user; its recent activity is fixed at 20",
+};
+
+type Call = { name: string; pos: number };
+type Handler = { file: string; method: string; path: string; calls: Call[]; csv: boolean };
+const HONO_METHODS = ["get", "post", "patch", "put", "delete"];
+/** Modules whose imports read or write the database: calling one is "data" for the guard-first rule. */
+const DATA_MODULE = /(^|\/)(queries|db\/\w+|audit\/record|auth\/sessions|auth\/sign-in)$/;
+
+const rootName = (e: ts.Expression): string | null =>
+  ts.isIdentifier(e) ? e.text : ts.isPropertyAccessExpression(e) ? rootName(e.expression) : null;
+
+/** The Hono handlers registered in a routes file: `<router>.<method>("<path>", …, handler)` with the calls inside each, in source order. */
+function handlersOf(file: string, src: string): Handler[] {
+  const sf = ts.createSourceFile(file, src, ts.ScriptTarget.Latest, true);
+  const data = new Set(["sql", "pageQuery", "recordActivity"]);
+  for (const s of sf.statements) {
+    if (ts.isImportDeclaration(s) && ts.isStringLiteral(s.moduleSpecifier) && DATA_MODULE.test(s.moduleSpecifier.text)) {
+      const b = s.importClause?.namedBindings;
+      if (!s.importClause?.isTypeOnly && b && ts.isNamedImports(b)) for (const e of b.elements) if (!e.isTypeOnly) data.add(e.name.text);
+    }
+  }
+  // Routers (`const x = new Hono…`) and the file's own helpers that record activity (directly or through another helper).
+  const routers = new Set<string>(), recorders = new Set(["recordActivity"]);
+  const calls = (n: ts.Node, names: Set<string>): boolean =>
+    (ts.isCallExpression(n) && ts.isIdentifier(n.expression) && names.has(n.expression.text)) || ts.forEachChild(n, (c) => calls(c, names) || undefined) === true;
+  const decls: { name: string; node: ts.Node }[] = sf.statements.flatMap((s): { name: string; node: ts.Node }[] => (ts.isFunctionDeclaration(s) && s.name ? [{ name: s.name.text, node: s }]
+    : ts.isVariableStatement(s) ? s.declarationList.declarations.flatMap((d) => (ts.isIdentifier(d.name) && d.initializer ? [{ name: d.name.text, node: d.initializer }] : [])) : []));
+  for (const d of decls) if (ts.isNewExpression(d.node) && d.node.expression.getText(sf) === "Hono") routers.add(d.name);
+  for (let grown = true; grown;) {
+    grown = false;
+    for (const d of decls) if (!recorders.has(d.name) && calls(d.node, recorders)) grown = !!recorders.add(d.name);
+  }
+  const out: Handler[] = [];
+  const visit = (n: ts.Node) => {
+    if (ts.isCallExpression(n) && ts.isPropertyAccessExpression(n.expression) && ts.isIdentifier(n.expression.expression) && routers.has(n.expression.expression.text)
+      && HONO_METHODS.includes(n.expression.name.text)) {
+      const [p, ...rest] = n.arguments;
+      const fn = rest.at(-1);
+      if (p && ts.isStringLiteral(p) && fn && (ts.isArrowFunction(fn) || ts.isFunctionExpression(fn))) {
+        const found: Call[] = [];
+        let csv = false;
+        const inner = (m: ts.Node) => {
+          const at = m.getStart(sf);
+          if (ts.isCallExpression(m) || ts.isTaggedTemplateExpression(m)) {
+            const callee = ts.isCallExpression(m) ? m.expression : m.tag;
+            const root = rootName(callee);
+            if (root) found.push({ name: root === "sql" || data.has(root) ? `data:${root}` : root, pos: at });
+            if (ts.isCallExpression(m) && ts.isIdentifier(callee)) found.push({ name: callee.text, pos: at });
+            if (ts.isCallExpression(m) && ts.isIdentifier(callee) && recorders.has(callee.text)) found.push({ name: "recordActivity", pos: at });
+          }
+          if (ts.isNewExpression(m) && m.arguments?.[0] && ts.isStringLiteral(m.arguments[0]) && m.arguments[0].text === "not_found") found.push({ name: "notFound", pos: at });
+          if (ts.isStringLiteral(m) && m.text === "csv") csv = true;
+          ts.forEachChild(m, inner);
+        };
+        inner(fn);
+        out.push({ file, method: n.expression.name.text.toUpperCase(), path: p.text, calls: found.sort((a, b) => a.pos - b.pos), csv });
+      }
+    }
+    ts.forEachChild(n, visit);
+  };
+  visit(sf);
+  return out;
+}
+
+/** Exported functions/consts of query files that call `pageQuery(` (pagers) and the ones named `…Csv` with whether they LIMIT to CSV_MAX_ROWS. */
+function exportsOf(files: { file: string; src: string }[]): { pagers: string[]; csv: Record<string, boolean> } {
+  const pagers: string[] = [], csv: Record<string, boolean> = {};
+  for (const { file, src } of files.filter((f) => /\/queries\.ts$/.test(f.file))) {
+    const sf = ts.createSourceFile(file, src, ts.ScriptTarget.Latest, true);
+    for (const s of sf.statements) {
+      const names = ts.isFunctionDeclaration(s) && s.name ? [s.name.text] : ts.isVariableStatement(s) ? s.declarationList.declarations.flatMap((d) => (ts.isIdentifier(d.name) ? [d.name.text] : [])) : [];
+      if (!names.length || !(ts.canHaveModifiers(s) && ts.getModifiers(s)?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword))) continue;
+      const text = s.getText(sf);
+      for (const name of names) {
+        if (/\bpageQuery\s*[<(]/.test(text)) pagers.push(name);
+        if (/Csv$/.test(name)) csv[name] = /\blimit \$\{CSV_MAX_ROWS\}/.test(text);
+      }
+    }
+  }
+  return { pagers, csv };
+}
+
+const first = (h: Handler, name: string) => h.calls.find((c) => c.name === name)?.pos ?? -1;
+const NOT_FOUND = ["idParam", "notFound"];
+
+/**
+ * Rules for every handler of a routes file outside auth/ (auth/ answers before a session exists):
+ * guard( first (before any data call); non-GET records activity; a list GET pages with pageQuery( (the JSON branch of a
+ * `format=csv` route counts: its CSV branch must call a `…Csv` function that LIMITs to CSV_MAX_ROWS); query( before
+ * guard( (400 before 401); body( before idParam( / a 404 (400 before 404).
+ */
+function routeViolations(files: { file: string; src: string }[], nonList: Record<string, string> = NON_LIST_GETS): string[] {
+  const { pagers, csv } = exportsOf(files);
+  const hs = files.filter((f) => /\/routes\.ts$/.test(f.file) && !/(^|\/)auth\//.test(f.file)).flatMap((f) => handlersOf(f.file, f.src));
+  const paging = new Set(["pageQuery", ...pagers]);
+  const csvFns = new Set(Object.keys(csv));
+  const gets = new Set<string>();
+  const out = hs.flatMap((h) => {
+    const id = `${h.file} ${h.method} ${h.path}`;
+    const g = first(h, "guard"), firstData = Math.min(...h.calls.filter((c) => c.name.startsWith("data:")).map((c) => c.pos), Infinity);
+    const q = first(h, "query"), b = first(h, "body");
+    const nf = Math.min(...h.calls.filter((c) => NOT_FOUND.includes(c.name)).map((c) => c.pos), Infinity);
+    if (h.method === "GET") gets.add(`GET ${h.path}`);
+    return [
+      ...(g < 0 ? [`${id}: no guard(`] : g > firstData ? [`${id}: reads data before guard(`] : []),
+      ...(h.method === "GET" || h.calls.some((c) => c.name === "recordActivity") ? [] : [`${id}: no recordActivity(`]),
+      ...(h.method !== "GET" || `GET ${h.path}` in nonList || h.calls.some((c) => paging.has(c.name)) ? [] : [`${id}: GET answers a list without pageQuery(`]),
+      ...(h.csv && !h.calls.some((c) => csvFns.has(c.name)) ? [`${id}: format=csv branch without a …Csv query function`] : []),
+      ...(q >= 0 && g >= 0 && q > g ? [`${id}: guard( before query( (a bad query must answer 400 before 401)`] : []),
+      ...(b >= 0 && nf < b ? [`${id}: checks existence (404) before the request body (400)`] : []),
+    ];
+  });
+  return [
+    ...out,
+    ...Object.entries(csv).filter(([, ok]) => !ok).map(([n]) => `${n}: CSV query without \`limit \${CSV_MAX_ROWS}\``),
+    ...Object.keys(nonList).filter((k) => !gets.has(k)).map((k) => `${k}: listed as a non-list GET but has no such handler`),
+  ];
+}
+
+const walk = (dir: string): string[] => [...new Bun.Glob("**/*.ts").scanSync(dir)].filter((f) => !f.endsWith(".test.ts")).map((f) => path.join(dir, f));
+const real = walk(SRC).map((f) => ({ file: path.relative(SRC, f), src: readFileSync(f, "utf8") }));
+
+describe("route handlers (src/**/routes.ts)", () => {
+  it("every handler outside auth/ follows the contract's order, pages its lists and records its changes", () => {
+    expect(routeViolations(real)).toEqual([]);
+  });
+
+  it("the scan sees every route the app registers (so a handler the parser misses can't hide)", () => {
+    const seen = real.filter((f) => /(^|\/)routes\.ts$/.test(f.file)).flatMap((f) => handlersOf(f.file, f.src).map((h) => `${h.method} /v1${h.path}`)).sort();
+    expect(seen).toEqual(registered(createApp()).map((r) => r.replace(/\{(\w+)\}/g, ":$1")).filter((r) => !/ \/(healthz|readyz)$/.test(r)).sort());
+  });
+
+  // Fixtures: each rule fails on a violation, and the clean handler passes.
+  const imports = `const r = new Hono(); import { guard } from "../http/guard"; import { body, idParam, query } from "../http/parse"; import { sql } from "../db/client";
+import { recordActivity } from "../audit/record"; import { thing, thingPage } from "./queries";\n`;
+  const routes = (code: string) => ({ file: "x/routes.ts", src: imports + code });
+  const queries = (code: string) => ({ file: "x/queries.ts", src: `import { pageQuery } from "../db/page"; import { CSV_MAX_ROWS } from "@starterkit/shared/audit";\n${code}` });
+  const PAGER = queries("export const thingPage = (q) => pageQuery({ q });");
+  const run = (code: string, ...more: { file: string; src: string }[]) => routeViolations([routes(code), PAGER, ...more], {});
+
+  it("fixture: a clean list GET, mutation and csv route pass", () => {
+    expect(run(`r.get("/a", async (c) => { const q = query(c, Q); await guard(c, "x.view"); return c.json(await thingPage(q)); });
+r.patch("/a/:id", async (c) => { const ctx = await guard(c, "x.edit"); const b = await body(c, B); const id = idParam(c, "id", "a"); await sql.begin(async (tx) => { await recordActivity(tx, ctx, e); }); return c.json(1); });`)).toEqual([]);
+    expect(run(`r.get("/a", async (c) => { await guard(c, "x.view"); return c.req.query("format") === "csv" ? c.body(await thingCsv(q)) : c.json(await thingPage(q)); });`,
+      queries("export const thingCsv = (q) => sql`select 1 limit ${CSV_MAX_ROWS}`;"))).toEqual([]);
+  });
+  it("fixture: no guard(, or data read before it, is reported", () => {
+    expect(run(`r.get("/a", async (c) => c.json(await thingPage(q)));`)).toEqual(["x/routes.ts GET /a: no guard("]);
+    expect(run(`r.get("/a", async (c) => { const rows = await sql\`select 1\`; await guard(c, null); return c.json(await thingPage(q)); });`)).toEqual(["x/routes.ts GET /a: reads data before guard("]);
+    expect(run(`r.get("/a", async (c) => { await thing(); await guard(c, null); return c.json(await thingPage(q)); });`)).toEqual(["x/routes.ts GET /a: reads data before guard("]);
+    expect(run(`r.get("/a", async (c) => { await pageQuery(o); await guard(c, null); return c.json(1); });`)).toEqual(["x/routes.ts GET /a: reads data before guard("]);
+  });
+  it("fixture: a mutation without recordActivity( is reported", () => {
+    expect(run(`r.delete("/a/:id", async (c) => { await guard(c, "x.delete"); await sql\`delete from a\`; return c.json(1); });`)).toEqual(["x/routes.ts DELETE /a/:id: no recordActivity("]);
+  });
+  it("fixture: a list GET without pageQuery( is reported; a comment or a non-pager function doesn't count; a non-list allowlist entry passes and a stale one fails", () => {
+    expect(run(`r.get("/a", async (c) => { await guard(c, "x.view"); return c.json(await thing()); }); // pageQuery( in a comment`)).toEqual(["x/routes.ts GET /a: GET answers a list without pageQuery("]);
+    expect(routeViolations([routes(`r.get("/a/:id", async (c) => { await guard(c, null); return c.json(await thing()); });`)], { "GET /a/:id": "one" })).toEqual([]);
+    expect(routeViolations([routes(`r.get("/a", async (c) => { await guard(c, null); return c.json(await thingPage(q)); });`), PAGER], { "GET /gone": "x" })).toEqual(["GET /gone: listed as a non-list GET but has no such handler"]);
+  });
+  it("fixture: a format=csv branch needs a …Csv function with limit CSV_MAX_ROWS, besides the paged JSON branch", () => {
+    const get = (json: string, csv: string) => `r.get("/a", async (c) => { await guard(c, "x.view"); return q.format === "csv" ? ${csv} : ${json}; });`;
+    expect(run(get("c.json(await thing())", "c.body(await thingCsv(q))"), queries("export const thingCsv = (q) => sql`select 1 limit ${CSV_MAX_ROWS}`;")))
+      .toEqual(["x/routes.ts GET /a: GET answers a list without pageQuery("]); // csv alone does not make it a paged list
+    expect(run(get("c.json(await thingPage(q))", "c.body(await thing())"), queries("export const thingCsv = (q) => sql`select 1 limit ${CSV_MAX_ROWS}`;")))
+      .toEqual(["x/routes.ts GET /a: format=csv branch without a …Csv query function"]);
+    expect(run(get("c.json(await thingPage(q))", "c.body(await thingCsv(q))"), queries("export const thingCsv = (q) => sql`select 1 limit 1000000`;")))
+      .toEqual(["thingCsv: CSV query without `limit ${CSV_MAX_ROWS}`"]);
+  });
+  it("fixture: guard( before query( is reported", () => {
+    expect(run(`r.get("/a", async (c) => { await guard(c, "x.view"); const q = query(c, Q); return c.json(await thingPage(q)); });`))
+      .toEqual(["x/routes.ts GET /a: guard( before query( (a bad query must answer 400 before 401)"]);
+  });
+  it("fixture: a 404 (idParam( or notFound() before body( is reported; a handler without a body is free", () => {
+    const post = (inner: string) => `r.post("/a/:id", async (c) => { const ctx = await guard(c, "x.edit"); ${inner} await recordActivity(tx, ctx, e); return c.json(1); });`;
+    const bad = ["x/routes.ts POST /a/:id: checks existence (404) before the request body (400)"];
+    expect(run(post(`const id = idParam(c, "id", "a"); const b = await body(c, B);`))).toEqual(bad);
+    expect(run(post(`if (!x) throw notFound("a"); const b = await body(c, B);`))).toEqual(bad);
+    expect(run(post(`if (!x) throw new ApiError("not_found"); const b = await body(c, B);`))).toEqual(bad);
+    expect(run(post(`const id = idParam(c, "id", "a");`))).toEqual([]);
+    expect(run(post(`const b = await body(c, B); const id = idParam(c, "id", "a");`))).toEqual([]);
+  });
+  it("fixture: auth/ routes are exempt, a non-handler call named like a route method is ignored", () => {
+    expect(routeViolations([{ file: "auth/routes.ts", src: `r.post("/login", async (c) => { await sql\`select 1\`; return c.json(1); });` }], {})).toEqual([]);
+    expect(run(`const m = new Map(); m.get("k", () => 1); r.get("/a", async (c) => { await guard(c, null); return c.json(await thingPage(q)); });`)).toEqual([]);
+  });
+});

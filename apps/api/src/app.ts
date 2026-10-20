@@ -1,6 +1,8 @@
 import type { SQL } from "bun";
 import { Hono } from "hono";
+import { auditRoutes } from "./audit/routes";
 import { authRoutes } from "./auth/routes";
+import { dashboardRoutes } from "./dashboard/routes";
 import { sql } from "./db/client";
 import { ApiError, onError } from "./http/errors";
 import { type AppEnv, bodyLimit, internalAuth, requestContext } from "./http/middleware";
@@ -31,6 +33,8 @@ export function createApp(deps: { db?: SQL } = {}) {
   app.route("/v1", rbacRoutes); // owns /users/roles: keep it before the users router, whose /users/:id would capture it
   app.route("/v1", usersRoutes);
   app.route("/v1", meRoutes);
+  app.route("/v1", auditRoutes);
+  app.route("/v1", dashboardRoutes);
   app.notFound(() => {
     throw new ApiError("not_found");
   });
