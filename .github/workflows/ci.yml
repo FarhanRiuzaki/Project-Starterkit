@@ -1,5 +1,6 @@
-# Secret scan, check, E2E (on a production build), bundle budget, on every push and pull request.
-# No secret lives here: PostgreSQL trusts connections (the service is reachable only from this job), the API tests use
+# Secret scan on every push; check, E2E (on a production build, in 4 parallel shards) and the bundle budget on pushes
+# to main, pull requests and manual runs. A change that touches only Markdown or docs/ skips E2E and the budget.
+# No secret lives here: PostgreSQL trusts connections (the service is reachable only from its job), the API tests use
 # the fixed test values of apps/api/test/helpers/preload.ts, and the E2E run draws a random internal token, encryption
 # key and session secret per run (apps/web/playwright.config.ts).
 name: CI
@@ -7,6 +8,7 @@ name: CI
 on:
   push:
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -15,10 +17,40 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  NEXT_TELEMETRY_DISABLED: "1"
+
 jobs:
-  ci:
+  gitleaks:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 5
+    outputs:
+      app: ${{ steps.changes.outputs.app }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0 # gitleaks scans the history
+
+      - uses: gitleaks/gitleaks-action@v2.3.9
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_VERSION: 8.30.1
+
+      # app=false only when every changed file is Markdown or under docs/; an unknown base (a new branch, a force push,
+      # a manual run) counts as an app change.
+      - id: changes
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [ "${{ github.event_name }}" != workflow_dispatch ] && git cat-file -e "$BASE^{commit}" 2>/dev/null \
+            && ! git diff --name-only "$BASE" HEAD | grep -qvE '(\.md$|^docs/)'; then app=false; else app=true; fi
+          echo "app=$app" | tee -a "$GITHUB_OUTPUT"
+
+  check:
+    # A branch push is checked by its pull request (no second run of the same commit); main is checked on push.
+    if: github.event_name != 'push' || github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     services:
       postgres:
         image: postgres:18
@@ -32,46 +64,80 @@ jobs:
           --health-timeout 3s
           --health-retries 20
     env:
-      # Both databases are created on first use; the E2E name must end in _e2e (its schema is dropped at start).
       TEST_DATABASE_URL: postgresql://postgres@localhost:5432/starterkit_test
-      E2E_DATABASE_URL: postgresql://postgres@localhost:5432/starterkit_e2e
-      NEXT_TELEMETRY_DISABLED: "1"
     steps:
       - uses: actions/checkout@v5
-        with:
-          fetch-depth: 0 # gitleaks scans the history
-
-      - uses: gitleaks/gitleaks-action@v2.3.9
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITLEAKS_VERSION: 8.30.1
-
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.4.3
-
       - uses: actions/setup-node@v5
         with:
           node-version: 24
-
       - run: bun install --frozen-lockfile
-
       - run: bun run check
 
-      # The browser matching apps/web's @playwright/test; CI only (never on a developer machine).
+  e2e:
+    needs: gitleaks
+    if: (github.event_name != 'push' || github.ref == 'refs/heads/main') && needs.gitleaks.outputs.app == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    # Each shard has its own runner, database and servers, so playwright.config.ts's single worker still holds.
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      # Created on first use; the name must end in _e2e (its schema is dropped at start).
+      E2E_DATABASE_URL: postgresql://postgres@localhost:5432/starterkit_e2e
+    steps:
+      - uses: actions/checkout@v5
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.3
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - run: bun install --frozen-lockfile
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+      # The browser matching apps/web's @playwright/test (a cached one is kept) and its system libraries; CI only.
       - run: bunx playwright install --with-deps chromium
         working-directory: apps/web
 
-      # Builds the web into .next-e2e itself (playwright.config.ts webServer), then runs the suite.
-      - run: bun run e2e
+      # Next's build cache: an unchanged module is not compiled again.
+      - uses: actions/cache@v4
+        with:
+          path: apps/web/.next-e2e/cache
+          key: next-e2e-${{ hashFiles('bun.lock') }}-${{ github.sha }}
+          restore-keys: next-e2e-${{ hashFiles('bun.lock') }}-
 
-      - run: bun run budget
+      # Builds the web into .next-e2e itself (playwright.config.ts webServer), then runs this shard's quarter.
+      - run: bunx playwright test --shard=${{ matrix.shard }}/4
+        working-directory: apps/web
+
+      - if: matrix.shard == 1
+        run: bun run budget
         env:
           NEXT_DIST_DIR: .next-e2e
 
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: playwright
+          name: playwright-${{ matrix.shard }}
           path: .superpowers/scratch/e2e/
           retention-days: 7

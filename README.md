@@ -77,7 +77,7 @@ on Bun and PostgreSQL. A new project copies this repository and changes it; noth
 - A Docker Compose stack: PostgreSQL 18, a one-shot `migrate` service, the API and the web; the API connects as a role
   limited to SELECT, INSERT, UPDATE and DELETE.
 - `/healthz` and `/readyz`, graceful shutdown on `SIGTERM`, JSON logs with shared redaction, a janitor for expired rows.
-- A CI workflow: gitleaks, `bun run check`, E2E on a production build, the bundle budget.
+- A CI workflow: gitleaks, `bun run check`, E2E on a production build in 4 parallel shards, the bundle budget.
 
 ## Screens
 
@@ -217,7 +217,7 @@ password must be 12 to 128 characters; elsewhere a shorter one is accepted with 
 Playwright uses the Chromium it already has. `/ds` screenshot baselines are per project and platform:
 `…-darwin.png` for macOS and `…-linux.png` for the CI runner (taken from CI's own output, `ubuntu-24.04`). After a
 visual change, update the macOS ones with `bunx playwright test ds --update-snapshots` inside `apps/web`, and the
-Linux ones from the `playwright` artifact of the failing CI run (`test-results/ds-*/ds-*-actual.png`); review both by
+Linux ones from the `playwright-<shard>` artifact of the failing CI run (`test-results/ds-*/ds-*-actual.png`); review both by
 eye and commit them next to the others.
 
 ## Architecture
@@ -381,8 +381,9 @@ docker compose --env-file .env.compose down             # `down -v` also drops t
   that proxy sets `X-Forwarded-*`. Without `TRUSTED_PROXY` the web can't see client addresses (no socket address reaches
   a Next route handler), so every request counts as IP "unknown" and the per-IP limits are off; the fleet-wide
   breakers and the per-account limits still apply.
-- CI (`.github/workflows/ci.yml`): gitleaks, `bun run check`, E2E on a production build and the bundle budget, on every
-  push and pull request, with a PostgreSQL 18 service. The repository has no remote yet, so it has never run on GitHub.
+- CI (`.github/workflows/ci.yml`): gitleaks on every push; `bun run check`, E2E on a production build (4 parallel
+  shards, each with its own PostgreSQL 18 service) and the bundle budget on pushes to `main`, pull requests and manual
+  runs. A branch push is checked by its pull request, not twice. A change that touches only Markdown or `docs/` skips E2E.
 
 ## Operations
 
