@@ -13,7 +13,7 @@ import { toast } from "@starterkit/ui/ui/toast";
 import { LoadingShape } from "@/components/route-skeleton";
 import { PageHeader } from "@/components/shell/page-header";
 import { api, errorText } from "@/lib/client/api";
-import { BRAND } from "@/lib/shared/brand";
+import { BRAND } from "@starterkit/shared/brand";
 import type { MeDto, TwoFactorSetupDto } from "@starterkit/shared/contracts/me";
 import { ConnectionsCard } from "./connections-card";
 import { MeNav } from "./me-nav";

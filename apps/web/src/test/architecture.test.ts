@@ -219,8 +219,8 @@ function legendViolations(fs: F[]): string[] {
   return fs.filter(({ r, src }) => r !== LEGEND_HOME && /<StatusLegend\b/.test(strip(src))).map(({ r }) => `${r}: renders StatusLegend; pass Panel legend instead`);
 }
 
-/** The product name is one constant (BRAND in lib/shared/brand.ts); titles, error sources and the logo read it. */
-const BRAND_HOME = `${WEB}lib/shared/brand.ts`;
+/** The product name is one constant (BRAND in packages/shared/src/brand.ts); titles, error sources and the logo read it. */
+const BRAND_HOME = `${SHARED}brand.ts`;
 const brandViolations = (fs: F[]) => fs.filter(({ r, src }) => r !== BRAND_HOME && /\bStarterkit\b/.test(src)).map(({ r }) => `${r}: write BRAND.name, not the product name`);
 
 /** Each signed-in page.tsx guards with the permission pagePerm gives its path (the layout's 404 check uses pagePerm). */
@@ -246,7 +246,7 @@ describe("architecture", () => {
     expect(pageGuardViolations(files)).toEqual([]);
   });
 
-  it("the product name appears only in lib/shared/brand.ts", () => {
+  it("the product name appears only in packages/shared/src/brand.ts", () => {
     expect(brandViolations(files)).toEqual([]);
   });
 

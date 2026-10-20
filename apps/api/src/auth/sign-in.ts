@@ -59,19 +59,25 @@ export async function spendRecoveryCode(userId: string, code: string): Promise<b
 /**
  * Re-authentication of the signed-in user before a credential or identity change (password, email, turning 2FA off):
  * the account password (the directory password for LDAP users), or, for `recoveryCode`, an unused recovery code
- * (spent on success). Wrong proofs share one soft backoff per user (passwordFails: 5 free, then 1 s, 2 s …), checked
+ * (spent on success). Wrong proofs share one soft backoff per user (passwordFails: 5 free, then 1 s, 2 s …), reserved
  * before anything is verified. Resolves when confirmed; else throws 400 invalid_credentials / invalid_code or 429.
  */
 export async function reauth(u: UserRow, proof: { password: string } | { recoveryCode: string }): Promise<void> {
-  const wait = Math.ceil((await passwordFails.retryAfterMs(u.id)) / 1000);
+  // The attempt is reserved as a failure in one statement, so parallel guesses can't all read "no wait"; a right proof clears it.
+  const wait = Math.ceil((await passwordFails.reserve(u.id)) / 1000);
   if (wait > 0) throw tooManyAttempts(wait, retryText(wait));
-  const ok = "recoveryCode" in proof
-    ? await spendRecoveryCode(u.id, proof.recoveryCode)
-    : u.isLdap
-      ? (await directory()?.verify(u.username, proof.password)) ?? false
-      : await verifyPassword(proof.password, u.passwordHash);
+  let ok: boolean;
+  try {
+    ok = "recoveryCode" in proof
+      ? await spendRecoveryCode(u.id, proof.recoveryCode)
+      : u.isLdap
+        ? (await directory()?.verify(u.username, proof.password)) ?? false
+        : await verifyPassword(proof.password, u.passwordHash);
+  } catch (e) {
+    await passwordFails.release(u.id); // no verdict (directory unreachable): the attempt doesn't count
+    throw e;
+  }
   if (!ok) {
-    await passwordFails.fail(u.id);
     // 400, not 401: a 401 would make the browser think the session ended
     throw "recoveryCode" in proof
       ? new ApiError("invalid_code", "That recovery code didn't match or was already used. Check it and try again.")

@@ -2,6 +2,7 @@
 // OAuth flow (Task 10). Nothing here lowers the number of active Superadmins (no role, status or delete change), so
 // SUPERADMIN_LOCK isn't taken. Checks that read the user lock its row in the transaction and re-read what they decide on.
 import { Hono } from "hono";
+import { BRAND } from "@starterkit/shared/brand";
 import { ChangePasswordBody, ConnectionProvider, DisableTwoFactorBody, type MeDto as MeDtoType, MeDto, SessionListQuery, TwoFactorEnableBody, UpdateProfileBody } from "@starterkit/shared/contracts/me";
 import { recordActivity } from "../audit/record";
 import { decryptSecret, encryptSecret } from "../auth/crypto";
@@ -18,8 +19,6 @@ import { duplicateOf, sessionPage } from "../users/queries";
 
 export const meRoutes = new Hono<AppEnv>();
 
-/** Issuer shown in the authenticator app (BRAND.name of the web). */
-const ISSUER = "Starterkit";
 const isUniqueViolation = (e: unknown) => (e as { errno?: string }).errno === "23505";
 const target = (u: UserRow, name = u.name) => ({ type: "user", id: u.id, label: name });
 const toMe = (u: UserRow): MeDtoType => MeDto.parse({ ...u, hasPassword: u.passwordHash !== null }); // parse drops the secret fields
@@ -92,7 +91,7 @@ meRoutes.post("/me/2fa", async (c) => {
     if (!done.length) throw new ApiError("already_enabled", "Two-factor authentication is already on. Turn it off first to set up a new device.");
     await recordActivity(tx, ctx, { action: "me.2fa_setup", target: target(u) }); // the secret itself is never logged
   });
-  return c.json({ secret, otpauthUrl: otpauthUrl(secret, u.email, ISSUER) });
+  return c.json({ secret, otpauthUrl: otpauthUrl(secret, u.email, BRAND.name) });
 });
 
 /** Confirm with a code from the app: turns 2FA on and returns 8 recovery codes, once (only hashes are stored). */
@@ -154,8 +153,10 @@ meRoutes.delete("/me/connections/:provider", async (c) => {
     if (!cur.has_password && !u.isLdap && cur.rest === 0) {
       throw new ApiError("only_sign_in_method", "This is your only way to sign in. Set a password or connect another account first.");
     }
-    await tx`delete from user_identities where user_id = ${u.id} and provider = ${provider}`;
-    await recordActivity(tx, ctx, { action: "me.disconnect", target: target(u), before: { provider } });
+    // a provider that isn't linked changes nothing, so it leaves no entry
+    if ((await tx`delete from user_identities where user_id = ${u.id} and provider = ${provider} returning 1`).length) {
+      await recordActivity(tx, ctx, { action: "me.disconnect", target: target(u), before: { provider } });
+    }
   });
   return c.json(toMe((await userById(u.id))!));
 });

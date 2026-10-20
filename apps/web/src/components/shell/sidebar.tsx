@@ -10,7 +10,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef } from "react";
 import { useAuth } from "@/lib/client/auth-context";
 import { usePrefs } from "@/lib/client/prefs-context";
-import { BRAND } from "@/lib/shared/brand";
+import { BRAND } from "@starterkit/shared/brand";
 import { isActive, navFor } from "@/lib/shared/nav";
 import { AccountMenu } from "./account-menu";
 import { NavGlyph } from "./nav-icon";

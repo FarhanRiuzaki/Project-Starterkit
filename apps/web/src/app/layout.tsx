@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { cookies, headers } from "next/headers";
 import { connection } from "next/server";
 import { Providers } from "@/components/providers";
-import { BRAND } from "@/lib/shared/brand";
+import { BRAND } from "@starterkit/shared/brand";
 import { PREFS_COOKIE, parsePrefs } from "@/lib/shared/prefs";
 import { fontVariables } from "./fonts";
 import "./globals.css";

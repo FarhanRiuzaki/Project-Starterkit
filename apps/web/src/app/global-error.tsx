@@ -1,7 +1,7 @@
 "use client";
 
 import { ErrorState } from "@starterkit/ui/ds";
-import { BRAND } from "@/lib/shared/brand";
+import { BRAND } from "@starterkit/shared/brand";
 import { fontVariables } from "./fonts";
 import "./globals.css";
 

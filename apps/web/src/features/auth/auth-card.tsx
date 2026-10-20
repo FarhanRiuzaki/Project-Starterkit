@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { Brand, Panel } from "@starterkit/ui/ds";
 import { Icon } from "@starterkit/ui/ui/icon";
 import { FailedIcon } from "@starterkit/ui/ui/icons";
-import { BRAND } from "@/lib/shared/brand";
+import { BRAND } from "@starterkit/shared/brand";
 
 /** The sign-in card (design system §5.4 flat variant): brand, title, one-line description, then the step. */
 export function AuthCard({ title, description, children }: { title: string; description?: ReactNode; children: ReactNode }) {

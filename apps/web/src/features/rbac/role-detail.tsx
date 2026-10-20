@@ -17,7 +17,7 @@ import { api, isNotFound } from "@/lib/client/api";
 import { useAuth } from "@/lib/client/auth-context";
 import type { RoleDto } from "@starterkit/shared/contracts/rbac";
 import { PERMISSIONS, type PermissionName } from "@starterkit/shared/permissions";
-import { BRAND } from "@/lib/shared/brand";
+import { BRAND } from "@starterkit/shared/brand";
 import { useLeaveGuard } from "@/lib/client/use-leave-guard";
 import { applyEdit, type Draft, rebase, withDraft } from "./matrix";
 import { PermissionMatrix } from "./permission-matrix";

@@ -22,7 +22,7 @@ import type { SessionDto } from "@starterkit/shared/contracts/me";
 import type { ActivityBrief } from "@starterkit/shared/contracts/users";
 import { MODULES, permissionLabel } from "@starterkit/shared/permissions";
 import { userDetail, userSessions } from "@/lib/shared/queries";
-import { BRAND } from "@/lib/shared/brand";
+import { BRAND } from "@starterkit/shared/brand";
 import { UserStatusChip } from "./user-columns";
 import { USERS_KEY, protection, rankBlock, useLastSuperadminId, useUserDetail } from "./use-users";
 import { USER_DETAIL_SHAPE } from "./shapes";

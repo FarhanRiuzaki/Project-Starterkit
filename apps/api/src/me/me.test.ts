@@ -220,6 +220,15 @@ describe("/api/me/connections/[provider]", () => {
     expect((await acts()).at(-1)).toMatchObject({ action: "me.disconnect", before: { provider: "google" } });
   });
 
+  it("disconnecting a provider that isn't linked answers 200 and writes no activity", async () => {
+    const token = await signIn("google");
+    const n = (await acts()).length;
+    const r = await me("DELETE", "/connections/apple", token);
+    expect(r.status).toBe(200);
+    expect(((await r.json()) as { connected: string[] }).connected).toEqual(["google"]);
+    expect((await acts()).length).toBe(n);
+  });
+
   it("refuses to disconnect the only way to sign in; an unknown provider is 400", async () => {
     const token = await signIn("google");
     await sql`update users set password_hash = null where username = 'google'`;
@@ -354,6 +363,25 @@ describe("PATCH /api/me: changing the email needs the current credential", () =>
     for (let i = 0; i < 5; i++) expect((await patch("Wrong-password-1")).status).toBe(400);
     expect((await patch(SEED_PASSWORD)).status).toBe(429);
     expect((await me("POST", "/password", token, { current: SEED_PASSWORD, next: NEW_PW })).status).toBe(429);
+  });
+});
+
+describe("password guess throttle under concurrency", () => {
+  it("parallel wrong guesses reserve the budget: at most 5 are checked, the rest are 429", async () => {
+    const token = await signIn("admin");
+    const rs = await Promise.all(Array.from({ length: 8 }, () => me("POST", "/password", token, { current: "Wrong-password-1", next: NEW_PW })));
+    const codes = rs.map((r) => r.status);
+    expect(codes.filter((s) => s === 429).length).toBeGreaterThanOrEqual(3);
+    expect(codes.filter((s) => s === 400).length).toBeLessThanOrEqual(5);
+    expect(codes.every((s) => s === 400 || s === 429)).toBe(true);
+  });
+});
+
+describe("product name", () => {
+  it("me/routes.ts reads BRAND and has no product-name literal", async () => {
+    const src = await Bun.file(new URL("./routes.ts", import.meta.url)).text();
+    expect(src).toMatch(/import \{ BRAND \} from "@starterkit\/shared\/brand"/);
+    expect(src).not.toMatch(/\bStarterkit\b/);
   });
 });
 
