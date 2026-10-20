@@ -48,7 +48,13 @@ function DialogOverlay({
   )
 }
 
-/** Dialog (spec §5.14): 480 px (pass `max-w-160` for 640), radius 16, padding 24, title title-1, footer buttons right; scrim fade `--dur-enter` in / `--dur-exit` out, panel opacity + scale 0.98, `--dur-slow` in / `--dur-exit` out (OVERLAY_MOTION.scrim, .dialog). */
+/**
+ * Dialog (spec §5.14): 480 px (pass `max-w-160` for 640), radius 16, padding 24, title title-1, footer buttons right; scrim fade `--dur-enter` in / `--dur-exit` out, panel opacity + scale 0.98, `--dur-slow` in / `--dur-exit` out (OVERLAY_MOTION.scrim, .dialog).
+ * Below 768 px (`max-md:`) the same panel is a bottom sheet: full width, at most 90 dvh, the content scrolls with the
+ * action row (DialogFooter) stuck to its bottom, safe-area padding below; it rises from the bottom on the same tokens
+ * (reduced motion: fade only). CSS only, so the server HTML is already the right shape; `max-md:` rules win over a
+ * caller's unprefixed desktop classes.
+ */
 function DialogContent({
   className,
   children,
@@ -64,7 +70,8 @@ function DialogContent({
         data-slot="dialog-content"
         className={cn(
           "fixed top-1/2 left-1/2 z-50 grid w-[calc(100%-2rem)] max-w-120 -translate-x-1/2 -translate-y-1/2 gap-0 overflow-hidden rounded-xl border border-line bg-raised text-fg shadow-overlay outline-none data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-98 data-[state=closed]:duration-(--dur-exit) data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-98 data-[state=open]:duration-(--dur-slow)",
-          className
+          className,
+          "max-md:top-auto max-md:bottom-0 max-md:left-0 max-md:w-full max-md:max-w-none max-md:max-h-[90dvh] max-md:translate-x-0 max-md:translate-y-0 max-md:overflow-y-auto max-md:overscroll-contain max-md:rounded-b-none max-md:border-x-0 max-md:border-b-0 max-md:pb-safe max-md:data-[state=open]:slide-in-from-bottom max-md:data-[state=closed]:slide-out-to-bottom max-md:data-[state=open]:zoom-in-100 max-md:data-[state=closed]:zoom-out-100"
         )}
         {...props}
       >
@@ -106,7 +113,8 @@ function DialogFooter({
       data-slot="dialog-footer"
       className={cn(
         "flex flex-row justify-end gap-2 border-t border-line px-6 py-4",
-        className
+        className,
+        "max-md:sticky max-md:bottom-0 max-md:bg-raised"
       )}
       {...props}
     >

@@ -61,9 +61,11 @@ type Props<T> = {
  * fg-3, optional icon, sort caret); rows --row-h 44 (compact 36), or --row-h-identity 52 (compact 44) with
  * `rowHeight="identity"`;
  * 1 px dividers, no zebra, no vertical rules; hover tray @ 60 %; `isSelected` tint; row actions (secondary) show on row
- * hover, on keyboard focus anywhere in the row, and while one of their menus is open; they stay in the tab order.
+ * hover, on keyboard focus anywhere in the row, and while one of their menus is open; on a touch screen (no hover)
+ * always; they stay in the tab order.
  * Footer 48 px (server paging): `Pagination` ("Showing 1–15 of 312" left, first / previous / numbers / next / last right). The body fades in
- * once after loading (never staggered). Desktop only: no stacked list.
+ * once after loading (never staggered). The table scrolls sideways inside its card when it is wider than the screen
+ * (ui/table.tsx); stacked rows on phones are not built yet.
  */
 export function DataTable<T>({ columns, rows, rowKey, label, loading, error, empty, sort, onSortChange, rowActions, paging, isSelected, rowHeight = "default", highlightNew = false, highlightScope, skeletonRows }: Props<T>) {
   const fresh = useNewKeys(rows.map(rowKey), { enabled: highlightNew, scope: highlightScope });
@@ -142,7 +144,7 @@ export function DataTable<T>({ columns, rows, rowKey, label, loading, error, emp
                   {columns.map((c) => <TableCell key={c.key} className={cn("max-w-80", rowHeight === "identity" && "h-(--row-h-identity)", c.align === "right" && "text-right tabular", c.className)}>{c.cell(r)}</TableCell>)}
                   {rowActions && (
                     <TableCell className={cn("w-px text-right", rowHeight === "identity" && "h-(--row-h-identity)")}>
-                      <div className="flex justify-end gap-1 opacity-0 transition-opacity duration-(--dur-fast) group-hover/row:opacity-100 group-focus-within/row:opacity-100 has-data-[state=open]:opacity-100">{rowActions(r)}</div>
+                      <div className="flex justify-end gap-1 opacity-0 transition-opacity duration-(--dur-fast) group-hover/row:opacity-100 group-focus-within/row:opacity-100 has-data-[state=open]:opacity-100 pointer-coarse:opacity-100">{rowActions(r)}</div>
                     </TableCell>
                   )}
                 </TableRow>

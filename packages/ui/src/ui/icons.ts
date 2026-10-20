@@ -91,5 +91,6 @@ export {
   UnfoldMoreIcon as ChevronsUpDownIcon, // Unsorted column, account switcher
   PanelLeftOpenIcon as SidebarCollapseIcon, // Hugeicons names are the reverse of Lucide's: this glyph points left
   PanelLeftCloseIcon as SidebarExpandIcon, // …and this one points right
+  Menu01Icon as MenuIcon, // Open the navigation drawer (phone top bar)
   CircleIcon as DotIcon, // Radio item indicator (filled with `fill-current`)
 } from "@hugeicons/core-free-icons";

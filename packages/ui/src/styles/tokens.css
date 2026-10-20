@@ -72,6 +72,10 @@
   --gap-dense: 8px;
   --row-h: 44px; /* table row, single line (spec §5.7) */
   --row-h-identity: 52px; /* identity row: avatar 28 + name + secondary line (DataTable rowHeight="identity") */
+  /* touch (pointer: coarse; base.css): the smallest hit area of a control, and the smallest input text (iOS Safari
+     zooms the page into an input whose text is under 16 px) */
+  --touch-min: 44px;
+  --text-input-touch: 16px;
   /* motion (spec §7.1; mirrored in components/motion/tokens.ts) */
   --dur-instant: 100ms;
   --dur-fast: 150ms;
