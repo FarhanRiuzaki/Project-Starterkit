@@ -1,3 +1,4 @@
+import { DrizzleQueryError } from "drizzle-orm";
 import { $ZodError } from "zod/v4/core";
 import { type ErrorCode, ERROR_STATUS } from "@starterkit/shared/contracts/common";
 import { maskText } from "@starterkit/shared/log-redact";
@@ -46,9 +47,13 @@ export const crossSite = () => new ApiError("forbidden", "The request didn't com
 /** 429 with Retry-After (seconds). */
 export const tooManyAttempts = (sec: number, text: string) => new ApiError("rate_limited", text, { "Retry-After": String(sec) });
 
-/** An unexpected error: logged (name and masked message; a non-Error only by its type) and the fixed 500. */
+/**
+ * An unexpected error: logged (name and masked message; a non-Error only by its type) and the fixed 500. A failed
+ * Drizzle query is logged as the driver's error: its own message holds the SQL and every parameter (hashes, emails).
+ */
 export function unexpected(err: unknown, requestId?: string): Response {
-  const detail = err instanceof Error ? { name: err.name, message: maskText(err.message) } : { name: typeof err };
+  const e = err instanceof DrizzleQueryError && err.cause ? err.cause : err;
+  const detail = e instanceof Error ? { name: e.name, message: maskText(e.message) } : { name: typeof e };
   log.error({ err: detail, requestId }, "api error");
   return Response.json(errorBody("internal", INTERNAL), { status: 500, headers: { "Cache-Control": "no-store" } });
 }
