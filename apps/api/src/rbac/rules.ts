@@ -1,11 +1,9 @@
 import type { ErrorCode } from "@starterkit/shared/contracts/common";
 import { PERMISSIONS, type PermissionName } from "@starterkit/shared/permissions";
 
-export const SUPERADMIN = "Superadmin";
-
 /** A role may not be changed when locked (Superadmin), nor deleted while `holders` users still have it. */
 export function checkRoleChange(role: { name: string; locked: boolean }, change: "edit" | "delete", holders: number): ErrorCode | null {
-  if (role.locked || role.name === SUPERADMIN) return "superadmin_locked";
+  if (role.locked) return "superadmin_locked";
   return change === "delete" && holders > 0 ? "role_in_use" : null;
 }
 

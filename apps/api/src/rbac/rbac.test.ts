@@ -200,6 +200,18 @@ describe("PATCH /v1/roles/{id}", () => {
   });
 });
 
+describe("the actor's permissions are read inside the transaction", () => {
+  it("a stale session token can't add a permission revoked from the actor's own role", async () => {
+    const custom = await giveOnlyRole("admin", ["role.view", "role.edit", "user.view", "audit.view"]);
+    const admin = await signIn("admin"); // token from before the revoke
+    expect((await call("PATCH", `/v1/roles/${custom}`, { token: sa, body: { remove: ["audit.view"] } })).status).toBe(200);
+    expect(await code(await patch("Viewer", { add: ["audit.view"] }, admin))).toBe("forbidden");
+    expect(await code(await create({ name: "Ops", permissions: ["audit.view"] }, admin))).toBe("forbidden");
+    expect(await permsOf(await idOf("Viewer"))).toEqual(["user.view", "audit.view"]); // Viewer already had it; nothing else moved
+    expect(await acts("role.update")).toHaveLength(1);
+  });
+});
+
 describe("PATCH applies add/remove to the current set", () => {
   it("concurrent revoke is not undone by a stale save that adds another permission", async () => {
     // two pages loaded Viewer = user.view + audit.view; the first revokes audit.view

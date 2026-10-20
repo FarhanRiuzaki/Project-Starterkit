@@ -7,6 +7,7 @@ import { likeEscape, pageQuery, sortSql } from "../db/page";
 
 type RoleRow = { id: string; name: string; locked: boolean; permissions: PermissionName[]; userCount: number };
 
+// ponytail: aggregates all of user_roles / role_permissions per list request; fine for a few roles. Upgrade path: a denormalized counter.
 // Holder counts and permission lists come from one grouped subquery each, never one query per role.
 const ROLE_SELECT = sql`r.id, r.name, r.locked, coalesce(rp.perms, '{}') as permissions, coalesce(uc.n, 0) as "userCount"`;
 const ROLE_FROM = sql`from roles r
@@ -43,7 +44,7 @@ export const permissionPage = (q: PermissionListQuery): Promise<Page<PermissionD
     from: sql`from permissions p
       left join (select x.permission, count(*)::int as n, (array_agg(r.name order by lower(r.name), r.name))[1:${PERMISSION_ROLES_SHOWN}] as names
                  from role_permissions x join roles r on r.id = x.role_id group by x.permission) h on h.permission = p.name
-      where ${matches("p.name", q.q)} and ${q.module ? sql`p.name like ${`${q.module}.%`}` : sql`true`}`,
+      where ${matches("p.name", q.q)} and ${q.module ? sql`p.name like ${`${likeEscape(q.module)}.%`}` : sql`true`}`,
     orderBy: sortSql(q.sort, PERM_SORTS, "module"),
     query: q,
     map: (r) => ({ id: r.id, name: r.id, roles: r.roles, roleCount: r.roleCount }),

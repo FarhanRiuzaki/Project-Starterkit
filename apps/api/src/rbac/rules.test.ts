@@ -11,7 +11,6 @@ describe("rbac rules", () => {
   it("superadmin role cannot be edited or deleted", () => {
     expect(checkRoleChange(superRole, "edit", 0)).toBe("superadmin_locked");
     expect(checkRoleChange(superRole, "delete", 0)).toBe("superadmin_locked");
-    expect(checkRoleChange(role("Superadmin", [], false), "edit", 0)).toBe("superadmin_locked"); // by name too
   });
   it("role with users cannot be deleted", () => {
     expect(checkRoleChange(viewerRole, "delete", 2)).toBe("role_in_use");

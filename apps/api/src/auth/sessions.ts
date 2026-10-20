@@ -1,5 +1,6 @@
 import type { AuthMethod } from "@starterkit/shared/contracts/auth";
 import type { PermissionName } from "@starterkit/shared/permissions";
+import type { SQL } from "bun";
 import { config } from "../config";
 import { sql, type Tx } from "../db/client";
 import { hashToken, randomToken } from "./crypto";
@@ -59,6 +60,16 @@ export async function createSession(
   return { id, token, expiresAt: r.expires_at.toISOString() };
 }
 
+/** SQL for the union of the permissions of a user's roles (`userId`: a value or a column fragment); one expression for sessions and actorPermissions. */
+const permsOf = (userId: unknown) =>
+  sql`array(select distinct rp.permission from user_roles ur join role_permissions rp on rp.role_id = ur.role_id where ur.user_id = ${userId})`;
+
+/** The user's permissions right now, read through `db` (a transaction sees its own locks): escalation checks use this, not the request's earlier `ctx.perms`. */
+export async function actorPermissions(db: SQL | Tx, userId: string): Promise<Set<PermissionName>> {
+  const [r] = await db`select ${permsOf(userId)} as perms`;
+  return new Set(r.perms);
+}
+
 /**
  * The user behind a session token, or null: unknown token, the session expired (SESSION_TTL_HOURS) or went idle
  * (SESSION_IDLE_MINUTES; its row is deleted), or the user is inactive. One query reads the session, the user, their
@@ -71,7 +82,7 @@ export async function resolveSession(token: string): Promise<AuthUser | null> {
       s.last_seen_at < now() - interval '60 seconds' as stale,
       array(select r.name from user_roles ur join roles r on r.id = ur.role_id where ur.user_id = u.id order by r.name) as roles,
       array(select i.provider from user_identities i where i.user_id = u.id order by i.provider) as connected,
-      array(select distinct rp.permission from user_roles ur join role_permissions rp on rp.role_id = ur.role_id where ur.user_id = u.id) as perms
+      ${permsOf(sql`u.id`)} as perms
     from sessions s join users u on u.id = s.user_id
     where s.token_hash = ${hashToken(token)}`;
   if (!r) return null;

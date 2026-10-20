@@ -5,6 +5,7 @@ import { type PermissionName, withViews } from "@starterkit/shared/permissions";
 import { recordActivity } from "../audit/record";
 import { sql } from "../db/client";
 import { ApiError, notFound } from "../http/errors";
+import { actorPermissions } from "../auth/sessions";
 import { guard } from "../http/guard";
 import type { AppEnv } from "../http/middleware";
 import { body, idParam, query } from "../http/parse";
@@ -37,10 +38,11 @@ rbacRoutes.post("/roles", async (c) => {
   const ctx = await guard(c, "role.create");
   const b = await body(c, CreateRoleBody);
   const permissions = inCatalogOrder([...withViews(b.permissions)]);
-  if (checkPermissionGrant(ctx.perms, permissions)) {
-    throw new ApiError("forbidden", "Your role doesn't hold every permission you picked. Leave those out, or ask an administrator who has them.");
-  }
   const role = await sql.begin(async (tx) => {
+    // The actor's permissions are read now, not taken from the request's start: a revoke committed since must count.
+    if (checkPermissionGrant(await actorPermissions(tx, ctx.user.id), permissions)) {
+      throw new ApiError("forbidden", "Your role doesn't hold every permission you picked. Leave those out, or ask an administrator who has them.");
+    }
     const id = Bun.randomUUIDv7();
     const [made] = await tx`insert into roles (id, name) values (${id}, ${b.name}) on conflict ((lower(name))) do nothing returning id`;
     if (!made) throw DUPLICATE();
@@ -76,11 +78,12 @@ rbacRoutes.patch("/roles/:id", async (c) => {
     const stop = checkRoleChange(r, "edit", 0);
     if (stop) throw new ApiError(stop);
     const current = (await tx`select permission from role_permissions where role_id = ${id}`).map((x: { permission: PermissionName }) => x.permission);
+    // Read after the lock: a PATCH of the actor's own role that committed first is seen here.
     const { name = r.name, add = [], remove = [] } = b;
     const next = withViews([...current.filter((p: PermissionName) => !remove.includes(p)), ...add]);
     const toAdd = inCatalogOrder([...next].filter((p) => !current.includes(p)));
     const toRemove = inCatalogOrder(current.filter((p: PermissionName) => !next.has(p)));
-    if (checkPermissionGrant(ctx.perms, [...add, ...remove, ...toAdd])) {
+    if (checkPermissionGrant(await actorPermissions(tx, ctx.user.id), [...add, ...remove, ...toAdd])) {
       throw new ApiError("forbidden", "You can only add or remove permissions your own role holds. Ask an administrator who has them.");
     }
     if (name === r.name && !toAdd.length && !toRemove.length) return roleById(tx, id);
