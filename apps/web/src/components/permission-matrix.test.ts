@@ -11,7 +11,7 @@ import { PermissionMatrix } from "./permission-matrix";
 /** The viewer lacks role.delete: that cell is read-only with its reason. */
 const ALLOWED: ReadonlySet<PermissionName> = new Set(PERMISSIONS.filter((p) => p !== "role.delete"));
 function Harness() {
-  const [value, setValue] = useState<ReadonlySet<PermissionName>>(new Set(["user.view"]));
+  const [value, setValue] = useState<ReadonlySet<string>>(new Set(["user.view"]));
   return h(TooltipProvider, null, h(PermissionMatrix, { label: "Permissions of Test", value, allowed: ALLOWED, onChange: (edit) => setValue((v) => edit(v)) }));
 }
 

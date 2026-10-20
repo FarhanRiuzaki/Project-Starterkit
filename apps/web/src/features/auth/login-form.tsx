@@ -8,6 +8,7 @@ import { Button, buttonVariants } from "@starterkit/ui/ui/button";
 import { Icon } from "@starterkit/ui/ui/icon";
 import { SecureIcon, SpinnerIcon } from "@starterkit/ui/ui/icons";
 import { Input } from "@starterkit/ui/ui/input";
+import { PasswordInput } from "@starterkit/ui/ui/password-input";
 import { api, errorText } from "@/lib/client/api";
 import type { LoginResult } from "@starterkit/shared/contracts/auth";
 import type { ConnectionProvider } from "@starterkit/shared/contracts/me";
@@ -64,7 +65,7 @@ export function LoginForm({ next, providers, error: initialError = null }: { nex
             <label htmlFor="password" className="text-label text-fg">{method === "ldap" ? "Directory password" : "Password"}</label>
             {method === "password" && <Link href="/forgot-password" className="ml-auto text-label text-primary-ink underline underline-offset-4 hover:decoration-2">Forgot password?</Link>}
           </div>
-          <Input id="password" className="h-10" type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} {...described} />
+          <PasswordInput id="password" className="h-10" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} {...described} />
         </div>
         {error && <FormError id={errId} message={error} />}
         <Button type="submit" size="lg" className="h-10 w-full" disabled={busy}>

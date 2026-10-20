@@ -17,6 +17,9 @@ export {
   Notification03Icon as AlertsIcon, // Alerts & SLOs, "No alerts firing"
   Task01Icon as LogIcon, // Logs and history lists
   UserMultiple02Icon as UsersIcon, // People (tiles, panels, column headers)
+  UserListIcon as AllUsersIcon, // Nav child: all users
+  UserCheck01Icon as ActiveUserIcon, // Nav child: active users
+  UserBlock01Icon as InactiveUserIcon, // Nav child: inactive users
 
   // Metrics
   CpuIcon,
@@ -47,7 +50,8 @@ export {
   PrinterIcon as PrintIcon,
   PencilEdit02Icon as EditIcon, // Edit an About summary
   RotateLeftIcon as ResetIcon, // Reset to the automatic summary
-  ViewOffIcon as HideIcon, // Hide a repository from reviews
+  ViewOffIcon as HideIcon, // Hide a repository from reviews, hide a shown password
+  ViewIcon as ShowIcon, // Show a masked password
 
   // Charts
   ChartColumnIcon as ColumnChartIcon,
@@ -59,7 +63,7 @@ export {
   Alert02Icon as WarningIcon,
   InformationCircleIcon as InfoIcon,
   CancelCircleIcon as ErrorIcon, // Error toast
-  SecurityCheckIcon as SecureIcon, // Security settings, two-step sign-in
+  SecurityCheckIcon as SecureIcon, // Security settings, two-factor authentication
   Loading03Icon as SpinnerIcon, // Animate with `motion-safe:animate-spin`
   FileUnknownIcon as NotFoundIcon,
 

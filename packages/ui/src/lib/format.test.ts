@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  APP_TIME_ZONE, formatBudgetLeft, formatBytes, formatCompact, formatDateTime, formatDate, formatDecimal, plural, formatDateTimeLong, formatDuration, formatNumber, formatPercent, formatRelative, formatSignedPercent, formatTime, secondsSinceMidnight,
+  APP_TIME_ZONE, formatBudgetLeft, formatBytes, formatCompact, formatDateTime, formatDate, formatDecimal, plural, formatDateTimeLong, formatDuration, formatNumber, formatPercent, formatRelative, formatSignedNumber, formatSignedPercent, formatTime, secondsSinceMidnight,
 } from "./format";
 
 describe("format", () => {
@@ -87,6 +87,12 @@ describe("format enterprise", () => {
     for (const v of [null, undefined, Number.NaN, Number.POSITIVE_INFINITY]) expect(formatCompact(v)).toBe("–");
     expect(formatDateTimeLong(null)).toBe("–");
     expect(formatSignedPercent(Number.NaN)).toBe("–");
+    expect(formatSignedNumber(null)).toBe("–");
+  });
+  it("signed count for a stat tile delta", () => {
+    expect(formatSignedNumber(3)).toBe("+3");
+    expect(formatSignedNumber(-1250)).toBe("−1,250");
+    expect(formatSignedNumber(0)).toBe("0");
   });
   it("long date-time in WIB", () => {
     expect(formatDateTimeLong(Date.UTC(2026, 9, 16, 7, 5))).toBe("16 Oct 2026, 14:05 WIB");

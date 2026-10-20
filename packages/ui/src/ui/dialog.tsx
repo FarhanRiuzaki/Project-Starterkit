@@ -78,7 +78,7 @@ function DialogContent({
           "max-md:left-0 max-md:w-full max-md:max-w-none max-md:translate-x-0 max-md:translate-y-0 max-md:border-x-0 max-md:data-[state=open]:zoom-in-100 max-md:data-[state=closed]:zoom-out-100",
           phone === "top"
             ? "max-md:top-0 max-md:rounded-t-none max-md:border-t-0 max-md:pt-safe max-md:data-[state=open]:slide-in-from-top max-md:data-[state=closed]:slide-out-to-top"
-            : "max-md:top-auto max-md:bottom-0 max-md:max-h-[90dvh] max-md:overflow-y-auto max-md:overscroll-contain max-md:rounded-b-none max-md:border-b-0 max-md:pb-safe max-md:data-[state=open]:slide-in-from-bottom max-md:data-[state=closed]:slide-out-to-bottom"
+            : "max-md:top-auto max-md:bottom-0 max-md:max-h-[90dvh] scroll-quiet max-md:overflow-y-auto max-md:overscroll-contain max-md:rounded-b-none max-md:border-b-0 max-md:pb-safe max-md:data-[state=open]:slide-in-from-bottom max-md:data-[state=closed]:slide-out-to-bottom"
         )}
         {...props}
       >

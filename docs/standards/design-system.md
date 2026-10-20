@@ -103,7 +103,7 @@ starterkit.
 │┌ sidebar 248 ──────┐ 8 ┌ sheet (radius 16, line) ─────────────────────────────────────────┐ 8│
 ││ logo · collapse   │   │ top bar 56: breadcrumb ............ search ⌘K · bell · account   │  │
 ││ MAIN              │   ├──────────────────────────────────────────────────────────────────┤  │
-││  Dashboard        │   │ content: padding 32 / 24 top, max-width 1376, 12 col, gap 16     │  │
+││  Dashboard        │   │ content: padding 32 / 24 top, full width, 12 col, gap 16         │  │
 ││  Users        24  │   │                                                                  │  │
 ││ ...               │   │                                                                  │  │
 ││ SETTINGS (bottom) │   │                                                                  │  │
@@ -114,7 +114,8 @@ starterkit.
 - Sidebar 248 px expanded, 64 px collapsed (icon rail, tooltips); collapse state persists per viewer.
 - Sheet inset 8 px top/right/bottom; content padding 32 px horizontal, 24 px top, 40 px bottom.
 - At 1440: content width 1440 − 248 − 8 − 8 − 64 = 1112 px; 12 columns, 16 px gutters → column 78.0 px.
-- At 1920: content capped at 1376 px and centred in the sheet. At 1280: 952 px content, same 12 columns.
+- The content fills the sheet at every width (no max width): at 1920, or with the sidebar collapsed, the grid widens
+  instead of leaving empty margins. At 1280: 952 px content, same 12 columns.
 - Tablet, 768–1279: the sidebar is always the 64 px rail; 12-col spans of 3 become 6, 4 become 6 (2 per row).
 - Phone, below 768: no sidebar (drawer), the sheet fills the window edge to edge (no inset, no radius), content padding
   16 px, top bar sticky; every span becomes 12 (one column) and a KPI tray shows 2 tiles per row; tables are stacked
@@ -163,8 +164,8 @@ All colours are CSS custom properties in `packages/ui/src/styles/tokens.css`, ma
 | `--line-strong` | `#dcdce0` | Inputs, buttons (secondary), focus-adjacent | non-text |
 | `--grid` | `#ececee` | Chart gridlines (dashed) | non-text |
 | `--fg` | `#151518` | Primary text, KPI values | 18.2:1 on card |
-| `--fg-2` | `#55555c` | Secondary text, labels, panel titles' icons | 7.4:1 |
-| `--fg-3` | `#6e6e77` | Muted text, captions, axis ticks, denominators | 5.05:1 card, 4.6:1 tray |
+| `--fg-2` | `#4a5263` | Secondary text, labels, panel titles' icons (cool grey, from Airform's ink family) | 7.84:1 card, 6.95:1 stopped-soft |
+| `--fg-3` | `#636b7c` | Muted text, captions, axis ticks, denominators | 5.35:1 card, 5.00:1 tray, 4.74:1 stopped-soft |
 | `--fg-4` | `#a1a1aa` | Disabled, placeholder glyphs only — never information | decorative |
 | `--primary` | `#0d1530` | Brand navy: selection, links, focus ring, checkbox, active tab underline. Links are always underlined: navy is 1.01:1 against `--fg` | 17.99:1 card, 16.23:1 bg |
 | `--primary-hover` | `#1b2547` | | white on it 14.98:1 |
@@ -229,11 +230,15 @@ marks ≥ 3:1 on white (3.38 / 3.79 / 4.36) except Stopped/Unknown, which are al
 | 5 | ochre | `#b88700` | `#b8890f` | role E |
 | 6 | magenta | `#d6428e` | `#d65592` | role F |
 
-Rules: hue follows the entity, not its rank (role → slot is a fixed map in `packages/ui/src/charts/chart-theme.ts`); a 7th series folds
+Role chips: Superadmin slot 4 (violet), Admin slot 1 (blue), Viewer `neutral` (grey, no hue), any other role slot 3, so
+they never read as the green/orange status pills beside them (`apps/web/src/components/role-chips.tsx`).
+
+Rules: hue follows the entity, not its rank (a fixed map per entity, e.g. `role-chips.tsx`); a 7th series folds
 into "Other" (`--fg-3`); scatter/heatmap-like all-pairs forms use at most slots 1–3. Sequential (magnitude,
 heatmap) = slot-1 blue ramp: light `#ebf4ff #cfe3fd #a6cbfa #74adf5 #3f8cef #1a7cf0 #0f5fc2 #0a4590`, dark
 `#162236 #1b3254 #214577 #2a5c9e #3a78cc #5aa6ff #8cc1ff #bfdcff`. Texture: 45° stripes, 2 px line / 4 px gap at
-35 % white (light) or 25 % black (dark) on top of the fill — the "partial" and "projected" encoding.
+35 % white (light) or 25 % black (dark) on top of the fill — every bar's surface (§6.3); a partial or projected
+series is told apart by its soft tint, not by the texture.
 
 **CVD validation** (`validate_palette.js` from the dataviz skill, run 17 Oct 2026):
 
@@ -295,21 +300,22 @@ Nesting rule: inner radius = outer radius − tray padding (16 − 4 = 12).
 ### 3.5 Typography
 
 - **Sans: Inter Variable** (`@fontsource-variable/inter`, OFL). `font-feature-settings: "cv11", "ss01"` off; `"tnum"` on for every number.
-- **Mono: Geist Mono Variable** (already installed) for IDs, IPs, hashes and the `eyebrow` style.
+- **Mono: Geist Mono Variable** (already installed) for machine values only: IDs, IPs, hashes, codes, permission
+  names, usernames, timestamps in tables. Never for words people read as words: names, emails, search text, labels.
 
 | Token | Size / line | Weight | Tracking | Use |
 |---|---|---|---|---|
-| `display` | 32 / 40 | 500 | −0.02em | Dashboard hero number |
-| `title-1` | 22 / 28 | 600 | −0.015em | Page title |
+| `display` | 32 / 40 | 400 | −0.02em | Dashboard hero number |
+| `title-1` | 22 / 28 | 600 | −0.02em | Page title |
 | `title-2` | 15 / 22 | 500 | −0.01em | Panel title |
 | `title-3` | 14 / 20 | 600 | −0.006em | Card title, dialog section |
-| `stat` | 28 / 32 | 500 | −0.02em | KPI value (unit/denominator at `body`, `--fg-3`) |
-| `stat-sm` | 20 / 28 | 500 | −0.01em | Card metric (CPU 52 %) |
+| `stat` | 28 / 32 | 400 | −0.02em | KPI value (unit/denominator at `body`, `--fg-3`); regular, not bold, so the number reads light |
+| `stat-sm` | 20 / 28 | 400 | −0.01em | Card metric (CPU 52 %) |
 | `body` | 14 / 20 | 400 | −0.006em | Default, table cells |
 | `body-sm` | 13 / 18 | 400 | 0 | Secondary line, descriptions |
-| `label` | 12 / 16 | 500 | 0 | Table headers, chips, field labels |
+| `label` | 12 / 16 | 500 | 0 | Chips, field labels; table header cells use it at 400 (`ui/table.tsx`) |
 | `caption` | 11 / 16 | 400 | 0.01em | Axis ticks, footnotes |
-| `eyebrow` | 11 / 16 mono | 500 | 0.06em uppercase | Sidebar section labels, tooltip period |
+| `eyebrow` | 11 / 16 Inter | 500 | 0.04em uppercase | Sidebar section labels, tooltip period |
 
 Numerals: tabular everywhere numbers stack; minor parts (decimals, units, "/ 100 %") in `--fg-3` at one step
 smaller; negative values use the true minus sign `−`.
@@ -327,11 +333,12 @@ in nav, toolbars, panel headers and KPI tiles, 14 px in chips and table headers,
 
 ```
 ┌──────────────────────┐ ┌───────────────────────────────────────────────────────────────────┐
-│ [■] App name      [⫞]│ │ ⌂ Dashboard / ▦ Users / Rina Wulandari         [⌕ Search… ⌘K] [ ◔ ]│
-│                      │ │ ───────────────────────────────────────────────────────────────── │
-│ MAIN                 │ │                                                                   │
-│ [▦ Dashboard       ] │ │  Page title            [Last 24 h ▾] [Legend] [Action]  │
-│  ▣ Users             │ │  One sentence scope + freshness.                                  │
+│ [■] App name      [⫞]│ │ ▦ Users / Rina Wulandari                                          │
+│ ──────────────────── │ │ ───────────────────────────────────────────────────────────────── │
+│ [⌕ Search pages… ⌘K] │ │                                                                   │
+│ MAIN                 │ │  Page title            [Last 24 h ▾] [Legend] [Action]            │
+│ [▦ Dashboard       ] │ │  One sentence scope + freshness.                                  │
+│  ▣ Users             │ │  ┌ All users 50 ───────────── [⌕ Search] [Role ▾] [Status ▾] ⓘ ┐ │
 │ ACCESS               │ │  …                                                                │
 │  ⛨ Roles             │ │                                                                   │
 │  ⚿ Permissions       │ │                                                                   │
@@ -345,9 +352,12 @@ in nav, toolbars, panel headers and KPI tiles, 14 px in chips and table headers,
 └──────────────────────┘ └───────────────────────────────────────────────────────────────────┘
 ```
 
+The search sits in the sidebar under the logo (a field in the expanded sidebar, an icon in the rail; ⌘K anywhere); the
+theme switch is in the account menu. The top bar holds the breadcrumb.
+
 Phone (below 768 px): the sidebar is not shown. The top bar holds the menu button ("Open navigation", 32 px), the logo
-mark, the breadcrumb as the page title, search as a 32 px icon button and the account menu (avatar; the theme switch is
-in it). The menu button opens the same sections in a drawer from the left (`Drawer`, `packages/ui/src/ui/drawer.tsx`:
+mark, the nav page's name as its title, search as a 32 px icon button and the account menu (avatar; the theme switch
+is in it). The menu button opens the same sections in a drawer from the left (`Drawer`, `packages/ui/src/ui/drawer.tsx`:
 a Radix dialog loaded through `deferred-overlay`): 288 px (at most 5/6 of the width), items 44 px, focus trapped,
 Escape and the scrim close it, any route change closes it, the page behind is `inert`, focus returns to the menu
 button (`packages/ui/src/ui/drawer.test.ts`, `responsive.spec.ts` "phone"). The bar is server-rendered and switched by
@@ -355,7 +365,20 @@ CSS, so it never shifts on first paint.
 
 Rules: the nav is exactly Dashboard, Users, Roles, Permissions, Activity log, Sign-in log, Design system and Profile
 (own sessions live at /me/sessions and on a user's detail page; there is no global Sessions page). Nav items carry no
-badges; count badges elsewhere are counts, never words ("New" pills are not used).
+badges; count badges elsewhere are counts, never words ("New" pills are not used). A hairline separates the logo from
+the nav. The nav scrolls inside the sidebar when the menu is longer than the window, in a `ScrollArea`
+(`packages/ui/src/ui/scroll-area.tsx`): no native scrollbar, a 4 px thumb drawn in the sidebar's padding, shown on
+hover, focus or while scrolling, so the search, the menu and the account row share one width on every system. In the
+rail (below 1280 px, or collapsed) every control, the search included, is a centred 36 px square, and a hairline
+separates the groups in place of their hidden labels. An item may have `children`
+(`NavItem.children` in `apps/web/src/lib/shared/nav.ts`): views of its own page
+(Users → All users, Active users, Inactive users), shown under it on a guide line while the page is open, in the
+expanded sidebar (≥ 1280 px) and the phone menu; the open child carries the highlight (`activeChild`).
+
+Breadcrumb (top bar): the nav page, then the open page's parents and itself: `Users / Rina Wulandari`, `Users /
+Rina Wulandari / Edit user`, `Roles / Admin`, `Profile / Security`. `PageHeader` publishes its title as the last crumb
+on a sub-page (`trail` adds parents; `apps/web/src/lib/client/crumb-trail.ts`); every crumb but the last links back.
+On a phone the bar shows the nav page only (it is the bar's title, in the server HTML).
 
 ---
 
@@ -435,6 +458,7 @@ text, × 14 px).
   no border. Always with tooltip description from `packages/ui/src/lib/status.ts`.
 - **Category chip** (role, team, event type): 22 px, radius 6, padding 0 8, soft tint of its categorical slot
   (10 % on card) with text in `--fg` (never the series colour, per text-token rule) and a 6 px slot-colour dot.
+  `slot="neutral"` (inset fill, `--fg-4` dot) is the plain, lowest member of a set (Viewer).
 - **Count badge**: 18 px pill, `--tray` (in tray: `--card`), `label` fg-2, tabular.
 - **Result chip** (sign-in Success / Failed, or any pass / block outcome): use slot 1 / slot 2 dots, not status
   colours (a failed sign-in is an event, not a system failure).
@@ -499,7 +523,10 @@ Horizontal gridlines only, `--grid`, 1 px, `strokeDasharray="4 4"`; 4–5 ticks 
 - Band gap: bar = 72 % of the band (`barCategoryGap="28%"`), max bar width 32 px, min 6 px.
 - Caps: radius `min(6, width/4)` on the value end, 2 px on the baseline end (stacks: only the top segment rounds).
 - Grouped: 2 px gap between bars of one group; stacked: 2 px surface gap between segments.
-- Secondary/partial series: same hue at 35 % with the stripe texture (reference "Attended / Partial").
+- Texture: every bar (columns, horizontal top-N, distribution segments, progress fills) carries the 45° stripe
+  texture (2 px line / 4 px gap, `--stripe`) over its fill; one look for all bars (`bar-chart.tsx`, `hbar-chart.tsx`,
+  `distribution-bar.tsx`, `StatTile progress`).
+- Secondary/partial series: the same hue's soft tint (35 %), striped too (reference "Attended / Partial").
 - Highlight on hover: other bars drop to 40 % opacity (150 ms).
 - Direct labels only on the max or the selected bar, `label` fg above the cap.
 - Horizontal bars (top-N): 20 px rows, 8 px bars radius full on a `--inset` track, label left (`body-sm` fg), value

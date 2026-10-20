@@ -30,7 +30,7 @@ export function useScrollsX<T extends HTMLElement>(): [React.RefCallback<T>, boo
 function Table({ className, ...props }: React.ComponentProps<"table">) {
   const [ref, scrolls] = useScrollsX<HTMLDivElement>();
   return (
-    <div ref={ref} data-slot="table-container" className="relative w-full overflow-x-auto"
+    <div ref={ref} data-slot="table-container" className="scroll-quiet relative w-full overflow-x-auto"
       {...(scrolls ? { tabIndex: 0, role: "region", "aria-label": props["aria-label"] } : {})}>
       <table data-slot="table" className={cn("w-full border-separate border-spacing-0 text-body", className)} {...props} />
     </div>
@@ -49,7 +49,7 @@ function TableRow({ className, ...props }: React.ComponentProps<"tr">) {
   return <tr data-slot="table-row" className={cn("group/row transition-colors duration-(--dur-instant) hover:bg-tray/60 data-[state=selected]:bg-row-selected data-[state=selected]:[&>td:first-child]:row-mark", className)} {...props} />;
 }
 function TableHead({ className, ...props }: React.ComponentProps<"th">) {
-  return <th data-slot="table-head" className={cn("h-10 border-b border-line px-3 text-left align-middle text-label whitespace-nowrap text-fg-3", className)} {...props} />;
+  return <th data-slot="table-head" className={cn("h-10 border-b border-line px-3 text-left align-middle text-label font-normal whitespace-nowrap text-fg-3", className)} {...props} />;
 }
 function TableCell({ className, ...props }: React.ComponentProps<"td">) {
   return <td data-slot="table-cell" className={cn("h-(--row-h) border-b border-line px-3 py-1.5 align-middle whitespace-nowrap", className)} {...props} />;

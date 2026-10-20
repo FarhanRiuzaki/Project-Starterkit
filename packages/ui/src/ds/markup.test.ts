@@ -6,6 +6,7 @@ import { Panel } from "./panel";
 import { Avatar } from "./avatar";
 import { TickMeter } from "./meter";
 import { StatTile } from "./stat-tile";
+import { PasswordChecks } from "./password-checks";
 
 /** Server markup of the v3 signature components (spec §5.4, §5.5): structure and copy, not pixels. */
 const html = (el: ReturnType<typeof h>) => renderToStaticMarkup(el);
@@ -25,7 +26,7 @@ describe("Panel (tray + card)", () => {
   });
   it("description: after a middot on the title row; on a phone its own line, no middot", () => {
     const out = html(h(Panel, { title: "Users", description: "Select rows", children: "x" }));
-    expect(out).toMatch(/<p class="text-body-sm text-fg-3 max-md:order-last max-md:basis-full"><span aria-hidden="true" class="mr-2 text-fg-4 max-md:hidden">·<\/span>Select rows<\/p>/);
+    expect(out).toMatch(/<p class="min-w-0 grow basis-48 text-body-sm text-fg-3 max-md:order-last max-md:basis-full"><span aria-hidden="true" class="mr-2 text-fg-4 max-md:hidden">·<\/span>Select rows<\/p>/);
   });
   it("flat: card only, no tray; cards: no inner card wrapper", () => {
     expect(html(h(Panel, { variant: "flat", children: "x" }))).not.toContain("bg-tray");
@@ -37,7 +38,7 @@ describe("Panel (tray + card)", () => {
 describe("StatTile (KPI)", () => {
   it("number-first delta → pill (arrow + number) right of the label, comparison as caption", () => {
     const out = html(h(StatTile, { label: "AI requests · 24 hours", value: "1,284", delta: { text: "+18% vs previous 24 hours", direction: "up", good: "up" } }));
-    expect(out).toMatch(/<span class="ml-auto [^"]*bg-healthy-soft text-healthy-ink"><svg[^>]*aria-hidden="true"[^>]*>.*?<\/svg>\+18%<\/span>/);
+    expect(out).toMatch(/<span class="-my-0.5 ml-auto [^"]*bg-healthy-soft text-healthy-ink"><svg[^>]*aria-hidden="true"[^>]*>.*?<\/svg>\+18%<\/span>/);
     expect(out).toContain('<span class="text-caption text-fg-3">vs previous 24 hours</span>');
     expect(out).toContain(">1,284<");
   });
@@ -61,6 +62,16 @@ describe("StatTile (KPI)", () => {
     const out = html(h(StatTile, { label: "AI requests", value: "12", caption: "Last 7 days · vs previous 7 days", delta: { text: "+15% vs previous 7 days", direction: "up", good: null } }));
     expect(out).toContain(">Last 7 days · vs previous 7 days</span>");
     expect(out).toMatch(/bg-tray text-fg-2"><svg[^>]*>.*?<\/svg>\+15%<\/span>/);
+  });
+});
+
+describe("PasswordChecks", () => {
+  it("a met item is fg with a tick, an open one fg-3 with a ring; each says its state to a screen reader; no live region", () => {
+    const out = html(h(PasswordChecks, { id: "pw-checks", checks: [{ label: "At least 12 characters", met: true }, { label: "The two passwords match", met: false }] }));
+    expect(out).toMatch(/^<ul id="pw-checks"/);
+    expect(out).toMatch(/<li class="[^"]*text-fg"><svg[^>]*aria-hidden="true"[^>]*>.*?<\/svg>At least 12 characters<span class="sr-only">, done<\/span><\/li>/);
+    expect(out).toMatch(/<li class="[^"]*text-fg-3"><span aria-hidden="true"[^>]*rounded-full[^>]*><\/span>The two passwords match<span class="sr-only">, not yet<\/span><\/li>/);
+    expect(out).not.toMatch(/aria-live|role="status"|role="alert"/);
   });
 });
 

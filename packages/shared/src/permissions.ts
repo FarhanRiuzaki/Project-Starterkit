@@ -27,10 +27,10 @@ export const PERMISSIONS: readonly PermissionName[] = MODULES.flatMap((m) =>
  * `perms` plus the module's `view` for any other action of that module (`user.edit` → `user.view`): a screen that
  * edits a list must be able to open it. Role saves (server and matrix) apply it, so a role never holds one without view.
  */
-export function withViews(perms: Iterable<PermissionName>): Set<PermissionName> {
+export function withViews<P extends string>(perms: Iterable<P>): Set<P> {
   const out = new Set(perms);
   for (const p of out) {
-    const view = `${p.split(".")[0]}.view` as PermissionName;
+    const view = `${p.split(".")[0]}.view` as P & PermissionName;
     if (PERMISSIONS.includes(view)) out.add(view);
   }
   return out;

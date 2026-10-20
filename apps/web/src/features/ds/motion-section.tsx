@@ -304,7 +304,7 @@ export function MotionSection() {
         </Panel>
         <Panel title="When to use which" description="Transform and opacity only; native details animate height" className="col-span-12" flush>
           {/* Scrolls inside the card below 768 px until the stacked layout (Task 20). */}
-          <div ref={rulesBox} className="overflow-x-auto" {...(rulesScroll ? { tabIndex: 0, role: "region", "aria-label": "Motion rules" } : {})}><table aria-label="Motion rules" className="w-full text-body-sm">
+          <div ref={rulesBox} className="scroll-quiet overflow-x-auto" {...(rulesScroll ? { tabIndex: 0, role: "region", "aria-label": "Motion rules" } : {})}><table aria-label="Motion rules" className="w-full text-body-sm">
             <thead>
               <tr className="text-left text-label text-fg-3">
                 <th scope="col" className="px-4 py-2 font-medium">Pattern</th><th scope="col" className="px-4 py-2 font-medium">Layer</th>

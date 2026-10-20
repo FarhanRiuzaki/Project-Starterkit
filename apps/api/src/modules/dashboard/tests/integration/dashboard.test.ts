@@ -5,7 +5,7 @@
 import { afterEach, beforeEach, describe, expect, it, setSystemTime } from "bun:test";
 import type { AuthLogDto } from "@starterkit/shared/contracts/audit";
 import type { DashboardDto } from "@starterkit/shared/contracts/dashboard";
-import { desc, eq, gte, sql } from "drizzle-orm";
+import { and, desc, eq, gte, lt, sql } from "drizzle-orm";
 import { call, resetData, signIn } from "../../../../../test/helpers/app";
 import { db } from "../../../../kernel/db";
 import { activity, authLog } from "../../../audit";
@@ -55,18 +55,20 @@ describe("GET /api/dashboard", () => {
     const b = await body(await signIn("viewer"));
     expect(b.recent).toBeNull();
     expect(b.failedLogins24h).toBeNull();
+    expect(b.failedLoginsPrev24h).toBeNull();
     expect(b.activeUsers).toBeGreaterThan(0);
     expect(b.loginsPerDay).toHaveLength(14);
     expect(b.loginsPerDay.every((d) => d.failed === null && typeof d.success === "number")).toBe(true);
   });
 
-  it("with audit.view: the 5 newest activity entries and the failed sign-ins of the last 24 hours", async () => {
+  it("with audit.view: the 5 newest activity entries and the failed sign-ins of the last 24 hours and the 24 before", async () => {
     await setAuthLog([
       [1, NOW - 1 * HOUR, "login_failed"], [2, NOW - 23 * HOUR, "login_failed"], [3, NOW - 25 * HOUR, "login_failed"],
-      [4, NOW - 2 * HOUR, "login_success"], [5, NOW - HOUR, "2fa_failed"],
+      [4, NOW - 2 * HOUR, "login_success"], [5, NOW - HOUR, "2fa_failed"], [6, NOW - 24 * HOUR, "login_failed"], [7, NOW - 48 * HOUR - 1, "login_failed"],
     ]);
     const b = await body(await signIn("viewer"));
     expect(b.failedLogins24h).toBe(2);
+    expect(b.failedLoginsPrev24h).toBe(2); // 24 h and 25 h ago; 48 h ago and older is outside
     expect(b.recent).toHaveLength(5);
     const newest = await db.select({ at: activity.at }).from(activity).orderBy(desc(activity.at), desc(activity.id)).limit(5);
     expect(b.recent!.map((e) => e.at)).toEqual(newest.map((e) => e.at.toISOString()));
@@ -93,9 +95,10 @@ describe("GET /api/dashboard", () => {
     expect(days.reduce((n, d) => n + d.success + (d.failed ?? 0), 0)).toBe(5);
   });
 
-  it("counts active users, users created in the last 7 days, and live sessions of active users", async () => {
+  it("counts active users, users created in the last 7 days and the 7 before, and live sessions of active users", async () => {
     await db.update(users).set({ createdAt: new Date(NOW - 2 * 24 * HOUR) }).where(eq(users.username, "admin"));
     await db.update(users).set({ createdAt: new Date(NOW - 8 * 24 * HOUR) }).where(eq(users.username, "twofa"));
+    await db.update(users).set({ createdAt: new Date(NOW - 14 * 24 * HOUR - 1) }).where(eq(users.username, "ldap"));
     await signIn("viewer");
     await addSession(await idOf("inactive")); // a session of an inactive user is not counted
     const b = await body(await signIn("viewer"));
@@ -104,6 +107,9 @@ describe("GET /api/dashboard", () => {
     expect(b.activeUsers).toBe(active);
     expect(b.newUsers7d).toBe(fresh);
     expect(b.newUsers7d).toBeGreaterThanOrEqual(1);
+    const before = await db.$count(users, and(gte(users.createdAt, new Date(NOW - 14 * 24 * HOUR)), lt(users.createdAt, new Date(NOW - 7 * 24 * HOUR))));
+    expect(b.newUsersPrev7d).toBe(before);
+    expect(b.newUsersPrev7d).toBeGreaterThanOrEqual(1);
     expect(b.activeSessions).toBe(2); // the two viewer sign-ins above
   });
 });

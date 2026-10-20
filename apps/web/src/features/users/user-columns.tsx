@@ -18,14 +18,14 @@ export function UserStatusChip({ user }: { user: UserDto }) {
  * hide too (and the row's Deactivate / Activate button moves into its menu, users-page.tsx), so the name keeps its
  * 192 px (`min-w-48`) without the table scrolling sideways.
  */
-export function userColumns(select?: { has: (id: string) => boolean; toggle: (id: string) => void }): Column<UserRowDto>[] {
+export function userColumns(select?: { has: (id: string) => boolean; toggle: (id: string) => void; all: { checked: boolean; count: number; toggle: () => void } }): Column<UserRowDto>[] {
   const cols: Column<UserRowDto>[] = [
     { key: "name", header: "User", icon: UsersIcon, sortable: true, mobile: "title", className: "min-w-48", cell: (u) => (
       <span className="flex min-w-0 max-w-72 items-center gap-2.5">
         <Avatar name={u.name} />
         <span className="grid min-w-0">
           <Truncate title={u.name}><Link href={`/users/${u.id}`} className="font-medium text-fg hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">{u.name}</Link></Truncate>
-          <span className="truncate font-mono text-caption text-fg-3">{u.email}</span>
+          <span className="truncate text-caption text-fg-3">{u.email}</span>
         </span>
       </span>
     ) },
@@ -36,7 +36,13 @@ export function userColumns(select?: { has: (id: string) => boolean; toggle: (id
     { key: "createdAt", header: "Created", sortable: true, mobile: "hidden", className: "max-xl:hidden", cell: (u) => <RelativeTime at={Date.parse(u.createdAt)} /> },
   ];
   if (!select) return cols;
-  return [{ key: "select", header: "Select", className: "w-8", mobile: "lead", cell: (u) => (
+  // The header's checkbox selects the page (tablet and desktop); on a phone the bulk bar holds it (the header is hidden).
+  const all = (
+    <label className="inline-grid size-7 cursor-pointer place-items-center">
+      <input type="checkbox" aria-label={`Select all ${select.all.count} on this page`} checked={select.all.checked} onChange={select.all.toggle} className="size-4 cursor-pointer accent-primary" />
+    </label>
+  );
+  return [{ key: "select", header: "Select", headerCell: all, className: "w-8", mobile: "lead", cell: (u) => (
     // The label is the touch hit area (base.css): a native checkbox can't carry one.
     <label className="inline-grid size-7 cursor-pointer place-items-center"><input type="checkbox" aria-label={`Select ${u.name}`} checked={select.has(u.id)} onChange={() => select.toggle(u.id)} className="size-4 cursor-pointer accent-primary" /></label>
   ) }, ...cols];

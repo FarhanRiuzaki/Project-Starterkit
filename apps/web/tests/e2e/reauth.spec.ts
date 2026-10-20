@@ -25,7 +25,7 @@ test("connect Google from an older session asks for the password, then goes thro
     expect(Math.round(box.width)).toBe(view.width);
     expect(Math.round(box.y + box.height)).toBe(view.height);
   }
-  const password = dialog.getByLabel("Password");
+  const password = dialog.getByLabel("Password", { exact: true }); // not the field's "Show password" toggle
   await password.fill("Wrong-password-1");
   await dialog.getByRole("button", { name: "Connect Google" }).click();
   await expect(dialog.getByRole("alert")).toContainText("The current password is wrong.");

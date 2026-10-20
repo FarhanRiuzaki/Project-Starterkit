@@ -3,23 +3,27 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useState } from "react";
-import { BlockedButton, Failure, Field, Notice, Panel } from "@starterkit/ui/ds";
+import { BlockedButton, Failure, Field, Notice, Panel, PasswordChecks } from "@starterkit/ui/ds";
 import { Button } from "@starterkit/ui/ui/button";
 import { Icon } from "@starterkit/ui/ui/icon";
 import { SpinnerIcon, UsersIcon } from "@starterkit/ui/ui/icons";
 import { Input } from "@starterkit/ui/ui/input";
+import { PasswordInput } from "@starterkit/ui/ui/password-input";
 import { Reveal, useDelayedFlag } from "@starterkit/ui/motion";
 import { Skeleton } from "@starterkit/ui/ui/skeleton";
 import { toast } from "@starterkit/ui/ui/toast";
 import { DetailNotFound } from "@/components/detail-not-found";
 import { LoadingShape } from "@/components/route-skeleton";
 import { PageHeader } from "@/components/shell/page-header";
+import { LazyConfirmActionDialog } from "@/components/lazy-confirm";
 import { api, errorText, isNotFound } from "@/lib/client/api";
 import { useAuth } from "@/lib/client/auth-context";
 import type { UserDetailDto, UserDto } from "@starterkit/shared/contracts/users";
 import { BRAND } from "@starterkit/shared/brand";
 import { rankBlock, USERS_KEY, useRoleNames, useUserDetail } from "./use-users";
 import { useDebounced } from "@/lib/client/use-debounced";
+import { useLeaveGuard } from "@/lib/client/use-leave-guard";
+import { passwordChecks } from "@/lib/shared/password";
 import { EDIT_USER_SHAPE } from "./shapes";
 
 const CHECK = "size-4 cursor-pointer accent-primary";
@@ -58,6 +62,12 @@ function UserForm({ user }: { user?: UserDetailDto }) {
   const searchable = roleNames.more || roleTerm !== "";
   const shownRoles = searchable ? [...new Set([...roles, ...roleNames.names])] : roleNames.names;
   const toggleRole = (r: string) => setRoles((cur) => (cur.includes(r) ? cur.filter((x) => x !== r) : [...cur, r]));
+  // Typed but not saved: a link click asks first (while saving, the form navigates away itself).
+  const startRoles = user?.roles ?? ["Viewer"];
+  const dirty = name !== (user?.name ?? "") || username !== (user?.username ?? "") || email !== (user?.email ?? "") || password !== ""
+    || isActive !== (user?.isActive ?? true) || isLdap !== (user?.isLdap ?? false)
+    || roles.length !== startRoles.length || roles.some((r) => !startRoles.includes(r));
+  const guard = useLeaveGuard(dirty && !busy);
 
   async function save(e: FormEvent) {
     e.preventDefault();
@@ -132,9 +142,12 @@ function UserForm({ user }: { user?: UserDetailDto }) {
                 </label>
                 {!isActive && <span id="u-invite-note" className="text-caption text-fg-3">An inactive user can&apos;t use an invitation. Set the user active to send one.</span>}
                 {how === "password" && (
-                  <Field id="u-password" label="Password" note="At least 12 characters.">
-                    <Input id="u-password" type="password" value={password} minLength={12} maxLength={128} required onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" />
-                  </Field>
+                  <div className="grid gap-2">
+                    <Field id="u-password" label="Password">
+                      <PasswordInput id="u-password" value={password} minLength={12} maxLength={128} required onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" aria-describedby="u-password-checks" />
+                    </Field>
+                    <PasswordChecks id="u-password-checks" checks={passwordChecks(password)} />
+                  </div>
                 )}
               </fieldset>
             )}
@@ -147,6 +160,11 @@ function UserForm({ user }: { user?: UserDetailDto }) {
           <Button type="button" variant="ghost" onClick={() => router.back()} disabled={busy}>Cancel</Button>
         </div>
       </form>
+      {guard.leaving && (
+        <LazyConfirmActionDialog open onOpenChange={(o) => { if (!o) guard.stay(); }} auditFields={false} reasons={[]} destructive title="Leave without saving"
+          description={user ? `Your changes to ${user.name} aren't saved.` : "This user isn't created yet."}
+          impact={["What you typed is discarded."]} actionLabel="Leave page" onConfirm={async () => guard.leave()} />
+      )}
     </Panel>
   );
 }
@@ -159,5 +177,5 @@ export function EditUser({ id }: { id: string }) {
   if (isNotFound(q.error)) return <DetailNotFound title={EDIT.title} noun="user" list={{ href: "/users", label: "Users" }} />;
   if (q.error && !q.data) return <div className="grid gap-section"><PageHeader {...EDIT} /><Panel><Failure title="Couldn't load this user" error={q.error} source={BRAND.name} onRetry={() => void q.refetch()} /></Panel></div>;
   if (!q.data || skeleton) return <LoadingShape sections={EDIT_USER_SHAPE} shown={skeleton} />;
-  return <div className="grid gap-section"><PageHeader {...EDIT} /><UserForm key={q.data.id} user={q.data} /></div>;
+  return <div className="grid gap-section"><PageHeader {...EDIT} trail={[{ label: q.data.name, href: `/users/${q.data.id}` }]} /><UserForm key={q.data.id} user={q.data} /></div>;
 }

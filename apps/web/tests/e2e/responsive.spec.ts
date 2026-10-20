@@ -94,7 +94,7 @@ test.describe("tablet with touch", () => {
     await page.getByRole("button", { name: "Open navigation" }).tap();
     const drawer = page.getByRole("dialog", { name: "Navigation" });
     await expect(drawer).toBeVisible();
-    for (const n of NAV) await expect(drawer.getByRole("link", { name: n.label })).toBeVisible();
+    for (const n of NAV) await expect(drawer.getByRole("link", { name: n.label, exact: true })).toBeVisible();
     await ctx.close();
   });
 });
@@ -187,7 +187,7 @@ test.describe("phone", () => {
     for (const n of NAV) {
       await menuButton(page).click();
       await expect(drawer(page)).toBeVisible();
-      await drawer(page).getByRole("link", { name: n.label }).click();
+      await drawer(page).getByRole("link", { name: n.label, exact: true }).click();
       await expect(page).toHaveURL((u) => u.pathname === n.href);
       await expect(drawer(page)).toBeHidden();
       await expect(page.getByRole("heading", { level: 1 })).toBeVisible();

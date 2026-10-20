@@ -161,6 +161,24 @@ works too, but `bun run` echoes the command line, password included. With `NODE_
 `OAUTH_MOCK=true` and `LDAP_MOCK=true` to `apps/api/.env` and `OAUTH_MOCK=true` to `apps/web/.env.local` by hand, then
 restart `bun run dev`.
 
+### Quick start in Docker (hot reload)
+
+Needs Docker only. `docker-compose.dev.yml` runs PostgreSQL and one container with `bun run dev` on the mounted
+checkout: a saved file reloads the web (Fast Refresh) or restarts the API (`bun --watch`), no image rebuild. One host
+port, http://localhost:3000; the API and the database stay inside. The first `up` installs, migrates and runs both
+seeds (`scripts/docker-dev.sh`); secrets are generated once into a volume. Database roles match production: the
+servers connect as `starterkit_app` (SELECT/INSERT/UPDATE/DELETE only), migrations and seeds run as the owner.
+
+```sh
+docker compose -f docker-compose.dev.yml up -d
+docker compose -f docker-compose.dev.yml logs -f app
+docker compose -f docker-compose.dev.yml exec app bun run check   # tests against starterkit_test in the container
+docker compose -f docker-compose.dev.yml down                     # -v also drops the database and the volumes
+```
+
+A changed `bun.lock` is installed on `docker compose -f docker-compose.dev.yml restart app`. Stop a local
+`bun run dev` first: both use port 3000.
+
 ### Demo accounts
 
 `bun run db:seed:demo` (`apps/api/src/db/seed/demo.ts`, refused in production) creates them; `bun run db:reset` brings

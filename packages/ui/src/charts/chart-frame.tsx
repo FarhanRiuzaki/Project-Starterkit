@@ -50,7 +50,7 @@ export function ChartFrame({ label, legend, table, children, fill }: {
       {view === "chart" ? children : (
         // Long tables scroll inside the box: a tab stop so keyboard users can scroll it (axe scrollable-region-focusable).
         <div tabIndex={0} role="region" aria-label={`${label}, table`}
-          className="max-h-80 overflow-auto rounded-lg border border-line outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+          className="scroll-quiet max-h-80 overflow-auto rounded-lg border border-line outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
           <table className="w-full border-separate border-spacing-0 text-body-sm">
             <caption className="sr-only">{label}</caption>
             <thead className="sticky top-0 bg-tray"><tr>{table.columns.map((c) => <th key={c} scope="col" className="h-8 border-b border-line px-3 text-left text-label text-fg-3">{c}</th>)}</tr></thead>

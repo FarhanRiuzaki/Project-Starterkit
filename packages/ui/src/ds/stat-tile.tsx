@@ -52,7 +52,7 @@ export function StatTile({ label, value, unit, delta, caption: captionProp, tren
         {icon && <Icon icon={icon} className="size-4 shrink-0 text-fg-3" />}
         <span className="min-w-0 truncate" title={label}>{label}</span>
         {pill && (
-          <span className={cn("ml-auto inline-flex h-5 shrink-0 items-center gap-0.5 rounded-full px-1.5 text-label", PILL[tone])}>
+          <span className={cn("-my-0.5 ml-auto inline-flex h-5 shrink-0 items-center gap-0.5 rounded-full px-1.5 text-label", PILL[tone])}>
             {arrow && <Icon icon={arrow} className="size-3" />}{pill}
           </span>
         )}

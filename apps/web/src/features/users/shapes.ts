@@ -10,8 +10,8 @@ import type { Section } from "@/components/route-skeleton";
  */
 export const USER_DETAIL_SHAPE: readonly Section[] = [
   { kind: "header", h: 50 },
-  { kind: "panels", panels: [[6, 203], [6, 203]] },
-  { kind: "panels", panels: [[12, 195]] },
+  { kind: "panels", panels: [[6, 211], [6, 211]] },
+  { kind: "panels", panels: [[12, 203]] },
   { kind: "table", chrome: 154, rows: 3, rowHeight: 44 },
   { kind: "table", chrome: 96, rows: 2, rowHeight: 44, perm: "audit.view" },
 ];

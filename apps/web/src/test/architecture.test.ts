@@ -178,7 +178,34 @@ function pageGuardViolations(fs: F[]): string[] {
 const ZONE_LITERAL = /7\s*\*\s*(?:3600|60\s*\*\s*60)|25_?200|["'`>(\s]WIB\b|\bUTC\s*\+\s*7\b|\w+WIB\b/;
 const zoneViolations = (fs: F[]) => fs.filter(({ r, src }) => r.startsWith(WEB) && ZONE_LITERAL.test(strip(src))).map(({ r }) => r);
 
+/** Password fields are PasswordInput (show/hide, Caps Lock note, paste works): no raw type="password" elsewhere. */
+const PASSWORD_HOME = `${UI}ui/password-input.tsx`;
+const RAW_PASSWORD = /\btype=(?:"password"|'password'|\{[^}]*["']password["'][^}]*\})/;
+const passwordFieldViolations = (fs: F[]) => fs.filter(({ r, src }) => r !== PASSWORD_HOME && r.endsWith(".tsx") && RAW_PASSWORD.test(strip(src)))
+  .map(({ r }) => `${r}: a raw password input; use PasswordInput`);
+/** A new-password field lists its requirements while the user types (PasswordChecks + passwordChecks()). */
+const newPasswordViolations = (fs: F[]) => fs.filter(({ r, src }) => r.startsWith(WEB) && /autoComplete=["']new-password["']/.test(src) && !/<PasswordChecks\b/.test(strip(src)))
+  .map(({ r }) => `${r}: a new-password field without PasswordChecks`);
+
+/**
+ * Inner scroll areas use the quiet scrollbar (base.css `scroll-quiet`), or none with ScrollArea's own thumb
+ * (`scroll-none`): a class string with overflow-*-auto names one of them too.
+ */
+const OVERFLOW_AUTO = /\boverflow(?:-[xy])?-auto\b/;
+const scrollViolations = (fs: F[]) => fs.filter(({ r }) => r.endsWith(".tsx")).flatMap(({ r, src }) =>
+  [...strip(src).matchAll(/"[^"\n]*"|`[^`]*`/g)].map((m) => m[0]).filter((c) => OVERFLOW_AUTO.test(c) && !/\bscroll-(?:quiet|none)\b/.test(c))
+    .map((c) => `${r}: ${c.match(OVERFLOW_AUTO)![0]} without scroll-quiet`));
+
 describe("architecture", () => {
+  it("inner scroll areas use the quiet scrollbar (scroll-quiet next to overflow-*-auto)", () => {
+    expect(scrollViolations(files)).toEqual([]);
+  });
+
+  it("password fields are PasswordInput; a new-password field shows PasswordChecks", () => {
+    expect(passwordFieldViolations(files)).toEqual([]);
+    expect(newPasswordViolations(files)).toEqual([]);
+  });
+
   it("apps/web writes no UTC offset or zone label (APP_UTC_OFFSET_SEC, APP_TIME_ZONE_LABEL, formatDate…)", () => {
     expect(zoneViolations(files)).toEqual([]);
   });
@@ -452,6 +479,27 @@ describe("architecture checkers (fixtures)", () => {
       `${WEB}app/(main)/roles/page.tsx: guards with user.view, pagePerm("/roles") is role.view`,
       `${WEB}app/(main)/audit/auth/page.tsx: guards with nothing, pagePerm("/audit/auth") is audit.view`,
     ]);
+  });
+
+  it("overflow-*-auto without scroll-quiet is reported; with it, or overflow-hidden, passes", () => {
+    expect(scrollViolations([
+      f(`${UI}ui/a.tsx`, `<div className="max-h-80 overflow-y-auto" />`),
+      f(`${WEB}features/x/b.tsx`, "<div className={`grid ${x} overflow-x-auto`} />"),
+      f(`${UI}ui/ok.tsx`, `<div className="scroll-quiet overflow-auto" /><div className="overflow-hidden" />`),
+    ])).toEqual([`${UI}ui/a.tsx: overflow-y-auto without scroll-quiet`, `${WEB}features/x/b.tsx: overflow-x-auto without scroll-quiet`]);
+  });
+
+  it("a raw password input and a new-password field without its checklist are reported; PasswordInput passes", () => {
+    expect(passwordFieldViolations([
+      f(`${WEB}features/auth/a.tsx`, `<Input id="p" type="password" />`),
+      f(`${WEB}features/me/b.tsx`, `<Input type={show ? "text" : "password"} />`),
+      f(`${WEB}features/me/c.tsx`, `<PasswordInput id="p" autoComplete="current-password" /> // type="password" in a comment`),
+      f(PASSWORD_HOME, `<Input type={shown ? "text" : "password"} />`),
+    ])).toEqual([`${WEB}features/auth/a.tsx: a raw password input; use PasswordInput`, `${WEB}features/me/b.tsx: a raw password input; use PasswordInput`]);
+    expect(newPasswordViolations([
+      f(`${WEB}features/users/form.tsx`, `<PasswordInput autoComplete="new-password" />`),
+      f(`${WEB}features/me/ok.tsx`, `<PasswordInput autoComplete="new-password" /><PasswordChecks id="c" checks={passwordChecks(pw)} />`),
+    ])).toEqual([`${WEB}features/users/form.tsx: a new-password field without PasswordChecks`]);
   });
 
   it("a literal product name outside brand.ts is reported; BRAND.name and the package scope pass", () => {

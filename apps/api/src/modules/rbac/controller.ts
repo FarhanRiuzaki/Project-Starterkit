@@ -5,7 +5,7 @@ import { CreatePermissionsBody, CreateRoleBody, PermissionListQuery, RoleListQue
 import { notFound } from "../../kernel/errors";
 import { body, idParam } from "../../kernel/parse";
 import { guard } from "../auth";
-import { createPermissions, createRole, deleteRole, permissionPage, roleById, roleOptionPage, rolePage, updateRole } from "./service";
+import { createPermissions, createRole, deleteRole, permissionPage, roleDetail, roleOptionPage, rolePage, updateRole } from "./service";
 
 /** The routes of /v1/roles and /v1/permissions, and the role options of /v1/users/roles. */
 export const rbacController = () =>
@@ -24,7 +24,7 @@ export const rbacController = () =>
       return role;
     }, { guard: "role.create" })
     .get("/v1/roles/:id", async ({ params }) => {
-      const role = await roleById(idParam(params.id, "role"));
+      const role = await roleDetail(idParam(params.id, "role"));
       if (!role) throw notFound("role");
       return role;
     }, { guard: "role.view" })

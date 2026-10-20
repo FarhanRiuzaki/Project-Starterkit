@@ -195,13 +195,13 @@ test.describe("client navigation and table changes", () => {
       await click();
       await expect(page.getByRole("heading", { level: 1, name: title })).toBeVisible();
     };
-    await go(() => menu.getByRole("link", { name: "Users" }).click(), "Users");
+    await go(() => menu.getByRole("link", { name: "Users", exact: true }).click(), "Users");
     await go(() => page.locator(`a[href="/users/${admin}"]`).first().click(), "Admin User");
     await go(() => menu.getByRole("link", { name: "Roles" }).click(), "Roles");
     await go(() => menu.getByRole("link", { name: "Activity log" }).click(), "Activity log");
     await go(() => menu.getByRole("link", { name: "Profile" }).click(), "Profile");
     await go(() => menu.getByRole("link", { name: "Dashboard" }).click(), "Dashboard");
-    await go(() => menu.getByRole("link", { name: "Users" }).click(), "Users");
+    await go(() => menu.getByRole("link", { name: "Users", exact: true }).click(), "Users");
     const m = await settle(page);
     const navShift = Math.round(m.shifts.reduce((n, x) => n + x.value, 0) * 10_000) / 10_000;
     save("client navigation", { intervals: m.intervals, gaps: m.gaps, shifts: m.shifts, shiftTotal: navShift, api });
@@ -230,7 +230,7 @@ test.describe("client navigation and table changes", () => {
     await menu.getByRole("link", { name: "Roles" }).click();
     await page.waitForTimeout(60); // the second click lands while the first page is still on its way
     const copyUp = await page.evaluate(() => !!document.querySelector("[data-frozen-holder]") || !!document.querySelector("[data-page-swap]"));
-    await menu.getByRole("link", { name: "Users" }).click();
+    await menu.getByRole("link", { name: "Users", exact: true }).click();
     await expect(page.getByRole("heading", { level: 1, name: "Users" })).toBeVisible();
     const m = await settle(page);
     save("chained navigation", { intervals: m.intervals, gaps: m.gaps, doubled: m.doubled, copyUp });
@@ -280,7 +280,7 @@ test.describe("client navigation and table changes", () => {
     await page.waitForTimeout(11_000); // past the 10 s staleTime of the cached users query
     const api: string[] = [];
     page.on("request", (r) => { if (new URL(r.url()).pathname.startsWith("/api/")) api.push(`${r.method()} ${r.url()}`); });
-    await menu.getByRole("link", { name: "Users" }).click();
+    await menu.getByRole("link", { name: "Users", exact: true }).click();
     await expect(page.getByRole("heading", { level: 1, name: "Users" })).toBeVisible();
     const m = await settle(page);
     save("revisit after stale", { api, intervals: m.intervals, gaps: m.gaps });
@@ -371,7 +371,7 @@ test.describe("client navigation and table changes", () => {
     const menu = page.getByRole("navigation", { name: "Menu" });
     await menu.getByRole("link", { name: "Roles" }).click();
     await page.locator("h1", { hasText: "Roles" }).waitFor({ state: "attached" }); // the Roles page arrived; its shape is held over it
-    await menu.getByRole("link", { name: "Users" }).click();
+    await menu.getByRole("link", { name: "Users", exact: true }).click();
     await expect(page.getByRole("heading", { level: 1, name: "Users" })).toBeVisible();
     const m = await settle(page);
     save("navigate during hold", { intervals: m.intervals, gaps: m.gaps, doubled: m.doubled });

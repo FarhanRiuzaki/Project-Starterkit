@@ -4,7 +4,9 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Dialog, DialogContent, DialogTitle } from "@starterkit/ui/ui/dialog";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/client/auth-context";
+import { usePrefs } from "@/lib/client/prefs-context";
 import { navFor } from "@/lib/shared/nav";
+import { viewHref } from "@/lib/shared/prefs";
 import { NavGlyph } from "./nav-icon";
 
 const PLACEHOLDER = "Search pages";
@@ -16,7 +18,8 @@ const PLACEHOLDER = "Search pages";
 export function PaletteDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
   const router = useRouter();
   const { perms } = useAuth();
-  const go = (href: string) => { onOpenChange(false); router.push(href); };
+  const { prefs } = usePrefs();
+  const go = (href: string) => { onOpenChange(false); router.push(viewHref(href, prefs)); };
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent phone="top" showCloseButton={false} className="top-24 translate-y-0 p-0 md:max-w-xl">

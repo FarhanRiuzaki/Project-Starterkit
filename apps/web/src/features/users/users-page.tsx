@@ -26,6 +26,8 @@ import { skipReason, USERS_KEY, protection, rankBlock, useLastSuperadminId, useR
 
 const STATUS_LABEL = { "": "Any", active: "Active", inactive: "Inactive" } as const;
 const STATUSES = USER_STATUSES.map((value) => ({ value, label: STATUS_LABEL[value] }));
+/** The table names the view it shows, as the sidebar's Users children do (the page bar already says "Users"). */
+const VIEW_TITLE: Record<(typeof USER_STATUSES)[number], string> = { "": "All users", active: "Active users", inactive: "Inactive users" };
 /**
  * The Deactivate / Activate row button is a desktop shortcut (from 1280 px). Below that (phone card, and the tablet
  * table, where it would push the name column into a sideways scroll) and on any touch screen it is an item of the
@@ -58,7 +60,7 @@ export function UsersPage() {
   if (selectedOn !== shown) { setSelectedOn(shown); setSelected(new Set()); }
   const [pending, setPending] = useState<Pending | null>(null);
   const [role, setRole] = useState("");
-  const [activating, setActivating] = useState<string | null>(null);
+  const [changing, setChanging] = useState<string | null>(null);
 
   const rows = t.rows;
   const canAct = can("user.edit") || can("user.delete");
@@ -67,16 +69,18 @@ export function UsersPage() {
   const onSearch = useCallback((q: string) => set({ q }), [set]);
   const onRole = useCallback((role: string) => set({ role }), [set]);
   const toggle = (id: string) => setSelected((s) => { const n = new Set(s); if (!n.delete(id)) n.add(id); return n; });
-  const columns = useMemo(() => userColumns(canAct ? { has: (id) => selected.has(id), toggle } : undefined), [canAct, selected]);
+  const allOn = selected.size > 0 && rows.every((u) => selected.has(u.id));
+  const toggleAll = useCallback(() => setSelected(allOn ? new Set() : new Set(rows.map((u) => u.id))), [allOn, rows]);
+  const columns = useMemo(() => userColumns(canAct ? { has: (id) => selected.has(id), toggle, all: { checked: allOn, count: rows.length, toggle: toggleAll } } : undefined),
+    [canAct, selected, allOn, rows.length, toggleAll]);
 
   const refresh = () => qc.invalidateQueries({ queryKey: USERS_KEY });
 
   async function confirm() {
     const p = pending!;
     if (p.kind === "one") {
-      if (p.action === "delete") await api(`/api/users/${p.user.id}`, { method: "DELETE" });
-      else await api(`/api/users/${p.user.id}/status`, { method: "POST", body: JSON.stringify({ active: false }) });
-      toast(p.action === "delete" ? `Deleted ${p.user.name}.` : `Deactivated ${p.user.name}. Their sessions ended.`);
+      await api(`/api/users/${p.user.id}`, { method: "DELETE" });
+      toast(`Deleted ${p.user.name}.`);
     } else {
       if (p.action === "assignRole" && !role) throw new Error("Pick a role: type its name and choose it from the list.");
       const r = await api<BulkResult>("/api/users/bulk", { method: "POST", body: JSON.stringify({ action: p.action, ids: p.ids, ...(p.action === "assignRole" ? { role } : {}) }) });
@@ -89,14 +93,16 @@ export function UsersPage() {
     await refresh();
   }
 
-  async function activate(u: UserRowDto) {
-    setActivating(u.id);
+  // One user: no confirmation, the result toast offers Undo (it can be reversed); a bulk deactivate still confirms.
+  async function setStatus(u: UserRowDto, active: boolean) {
+    setChanging(u.id);
     try {
-      await api(`/api/users/${u.id}/status`, { method: "POST", body: JSON.stringify({ active: true }) });
-      toast(`Activated ${u.name}.`);
+      await api(`/api/users/${u.id}/status`, { method: "POST", body: JSON.stringify({ active }) });
+      if (active) toast(`Activated ${u.name}.`);
+      else toast.undo(`Deactivated ${u.name}.`, () => void setStatus(u, true), { description: "Their sessions ended. Undo lets them sign in again." });
       await refresh();
     } catch (e) { toast.error(errorText(e)); }
-    finally { setActivating(null); }
+    finally { setChanging(null); }
   }
 
   const ids = [...selected];
@@ -106,24 +112,24 @@ export function UsersPage() {
       <PageHeader title="Users" description="Accounts that can sign in, their roles and status."
         actions={can("user.create") ? <Button asChild><Link href="/users/new">Create user</Link></Button> : undefined} />
       {t.staleError && <Notice tone="warn" live>Couldn&apos;t refresh the users; showing the ones loaded before. {errorText(t.staleError)}</Notice>}
-      <Toolbar>
-        <div className="w-full max-w-80 max-md:max-w-none"><QueryInput value={f.q} onChange={onSearch} keys={[]} label="Search users" placeholder="Search name, username or email" /></div>
-        <ToolbarFilters active={(f.role ? 1 : 0) + (f.status ? 1 : 0)}>
-          {roles.more
-            ? <RoleSearch label="Role" value={f.role} onChange={onRole} />
-            : <FilterMenu label="Role" value={f.role} options={[{ value: "", label: "Any" }, ...roles.names.map((r) => ({ value: r, label: r }))]} onChange={onRole} />}
-          <FilterMenu label="Status" value={f.status} options={STATUSES} onChange={(status) => set({ status })} />
-          {filtered && <Button variant="ghost" size="sm" onClick={() => set({ q: "", role: "", status: "" })}>Clear filters</Button>}
-        </ToolbarFilters>
-      </Toolbar>
-      <Panel flush icon={UsersIcon} title="Users" count={t.count} description="Select rows for bulk actions" legend={LEGEND}>
+      <Panel toolbar={<Toolbar>
+          <div className="w-full max-w-64 max-md:max-w-none"><QueryInput value={f.q} onChange={onSearch} keys={[]} label="Search users" placeholder="Search name, username or email" /></div>
+          <ToolbarFilters active={(f.role ? 1 : 0) + (f.status ? 1 : 0)}>
+            {roles.more
+              ? <RoleSearch label="Role" value={f.role} onChange={onRole} />
+              : <FilterMenu label="Role" value={f.role} options={[{ value: "", label: "Any" }, ...roles.names.map((r) => ({ value: r, label: r }))]} onChange={onRole} />}
+            <FilterMenu label="Status" value={f.status} options={STATUSES} onChange={(status) => set({ status })} />
+            {filtered && <Button variant="ghost" size="sm" onClick={() => set({ q: "", role: "", status: "" })}>Clear filters</Button>}
+          </ToolbarFilters>
+        </Toolbar>}
+        flush icon={UsersIcon} title={VIEW_TITLE[f.status]} count={t.count} description="Select rows for bulk actions" legend={LEGEND}>
         {canAct && rows.length > 0 && (
           // On a phone, with rows selected, the bar sticks under the top bar so the actions stay in reach while scrolling the cards.
+          // From 768 px it shows only with a selection (the header checkbox selects the page); a phone has no header row.
           <div role="region" aria-label="Bulk actions" className={cn("flex min-h-12 flex-wrap items-center gap-2 border-b border-line bg-card px-3 py-2",
-            selected.size > 0 && "max-md:sticky max-md:top-(--topbar-h) max-md:z-20")}>
+            selected.size > 0 ? "max-md:sticky max-md:top-(--topbar-h) max-md:z-20" : "md:hidden")}>
             <label className="flex items-center gap-2 text-body-sm text-fg-2">
-              <input type="checkbox" className="size-4 cursor-pointer accent-primary" checked={selected.size > 0 && rows.every((u) => selected.has(u.id))}
-                onChange={(e) => setSelected(e.target.checked ? new Set(rows.map((u) => u.id)) : new Set())} />
+              <input type="checkbox" className="size-4 cursor-pointer accent-primary" checked={allOn} onChange={toggleAll} />
               {selected.size > 0 ? `${selected.size} selected` : `Select all ${rows.length} on this page`}
             </label>
             {selected.size > 0 && <>
@@ -149,18 +155,19 @@ export function UsersPage() {
             // No touch caption in the row (it would stretch the row). Below 1280 px the Deactivate / Activate button
             // moves into the Actions menu, and on any touch screen the menu has it too: there each item shows its reason
             // under the label (Deactivate: `block`, Activate and Edit user: `rank`, Delete user: `block`).
-            const busy = activating === u.id;
+            const busy = changing === u.id;
             return <>
               {can("user.edit") && (u.isActive
-                ? <BlockedButton reason={block} caption={false} size="sm" variant="ghost" className={ROW_ONLY} wrapClassName={ROW_ONLY} onClick={() => setPending({ kind: "one", action: "deactivate", user: u })}>Deactivate</BlockedButton>
+                ? <BlockedButton reason={block} caption={false} size="sm" variant="ghost" className={cn(!busy && ROW_ONLY)} wrapClassName={ROW_ONLY} disabled={busy} aria-busy={busy || undefined} onClick={() => void setStatus(u, false)}>
+                  {busy && <Icon icon={SpinnerIcon} className="motion-safe:animate-spin" />}Deactivate</BlockedButton>
                 // While it runs the button stays on the card too: its spinner and aria-busy are the pending state.
-                : <BlockedButton reason={rank} caption={false} size="sm" variant="ghost" className={cn(!busy && ROW_ONLY)} wrapClassName={ROW_ONLY} disabled={busy} aria-busy={busy || undefined} onClick={() => void activate(u)}>
+                : <BlockedButton reason={rank} caption={false} size="sm" variant="ghost" className={cn(!busy && ROW_ONLY)} wrapClassName={ROW_ONLY} disabled={busy} aria-busy={busy || undefined} onClick={() => void setStatus(u, true)}>
                   {busy && <Icon icon={SpinnerIcon} className="motion-safe:animate-spin" />}Activate</BlockedButton>)}
               <ActionMenu label={`Actions for ${u.name}`} actions={[
                 { id: "open", label: "View user", onSelect: () => router.push(`/users/${u.id}`) },
                 ...(can("user.edit") ? [u.isActive
-                  ? { id: "status", label: "Deactivate user", className: MENU_ON_TOUCH, disabled: !!block, hint: block ?? undefined, onSelect: () => setPending({ kind: "one", action: "deactivate", user: u }) }
-                  : { id: "status", label: busy ? "Activating…" : "Activate user", className: MENU_ON_TOUCH, disabled: !!rank || busy, hint: rank ?? undefined, onSelect: () => void activate(u) }] : []),
+                  ? { id: "status", label: busy ? "Deactivating…" : "Deactivate user", className: MENU_ON_TOUCH, disabled: !!block || busy, hint: block ?? undefined, onSelect: () => void setStatus(u, false) }
+                  : { id: "status", label: busy ? "Activating…" : "Activate user", className: MENU_ON_TOUCH, disabled: !!rank || busy, hint: rank ?? undefined, onSelect: () => void setStatus(u, true) }] : []),
                 ...(can("user.edit") ? [{ id: "edit", label: "Edit user", disabled: !!rank, hint: rank ?? undefined, onSelect: () => router.push(`/users/${u.id}/edit`) }] : []),
                 ...(can("user.delete") ? [{ id: "delete", label: "Delete user", destructive: true, disabled: !!block, hint: block ?? undefined, onSelect: () => setPending({ kind: "one", action: "delete", user: u }) }] : []),
               ]} />

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { crumbs, isActive, NAV, navFor, pagePerm } from "./nav";
+import { activeChild, crumbs, isActive, isSubPage, NAV, navFor, pagePerm } from "./nav";
 import { PERMISSIONS } from "@starterkit/shared/permissions";
 
 const labels = (perms: Parameters<typeof navFor>[0]) => navFor(perms).flatMap((s) => s.items.map((i) => i.label));
@@ -33,11 +33,12 @@ describe("isActive / crumbs", () => {
     expect(isActive("/users/u-1", "/users")).toBe(true);
     expect(isActive("/usersx", "/users")).toBe(false);
   });
-  it("breadcrumb: nav page, then nothing for unknown", () => {
+  it("breadcrumb: the nav page the path belongs to, then nothing for unknown; a sub-page is one below its nav page", () => {
     const all = new Set(PERMISSIONS);
-    expect(crumbs("/audit/activity", all).map((c) => c.label)).toEqual(["Activity log"]);
-    expect(crumbs("/ds", all).map((c) => c.label)).toEqual(["Design system"]);
+    expect(crumbs("/audit/activity", all).map((c) => [c.label, c.href])).toEqual([["Activity log", "/audit/activity"]]);
+    expect(crumbs("/users/u-1", all).map((c) => c.label)).toEqual(["Users"]);
     expect(crumbs("/nope", all)).toEqual([]);
+    expect([isSubPage("/users"), isSubPage("/users/u-1"), isSubPage("/me/security"), isSubPage("/"), isSubPage("/nope")]).toEqual([false, true, true, false, false]);
   });
   it("breadcrumb: a page the viewer can't open doesn't name itself", () => {
     expect(crumbs("/roles", new Set(["user.view"]))).toEqual([]);
@@ -58,5 +59,18 @@ describe("pagePerm", () => {
     expect(pagePerm("/permissions")).toBe("permission.view");
     expect(pagePerm("/audit/auth")).toBe("audit.view");
     expect(pagePerm("/nope")).toBeNull();
+  });
+});
+
+describe("nav children", () => {
+  const users = NAV.find((n) => n.href === "/users")!;
+  it("Users lists all, active and inactive users as views of its own list", () => {
+    expect(users.children!.map((c) => [c.label, c.href])).toEqual([["All users", "/users"], ["Active users", "/users?status=active"], ["Inactive users", "/users?status=inactive"]]);
+  });
+  it("activeChild: the child whose status matches the URL, other parameters aside; none off the list page", () => {
+    expect(activeChild(users, "/users", new URLSearchParams(""))?.label).toBe("All users");
+    expect(activeChild(users, "/users", new URLSearchParams("status=inactive&sort=-createdAt&page=2"))?.label).toBe("Inactive users");
+    expect(activeChild(users, "/users", new URLSearchParams("role=Admin"))?.label).toBe("All users");
+    expect(activeChild(users, "/users/u-1", new URLSearchParams(""))).toBeNull();
   });
 });

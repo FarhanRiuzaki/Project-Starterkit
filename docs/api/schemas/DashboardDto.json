@@ -13,7 +13,24 @@
       "minimum": -9007199254740991,
       "maximum": 9007199254740991
     },
+    "newUsersPrev7d": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
     "failedLogins24h": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "failedLoginsPrev24h": {
       "anyOf": [
         {
           "type": "integer",
@@ -145,7 +162,9 @@
   "required": [
     "activeUsers",
     "newUsers7d",
+    "newUsersPrev7d",
     "failedLogins24h",
+    "failedLoginsPrev24h",
     "activeSessions",
     "loginsPerDay",
     "recent"

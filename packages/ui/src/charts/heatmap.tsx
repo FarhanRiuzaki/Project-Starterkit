@@ -69,7 +69,7 @@ export function HeatGrid({ label, rows, columns, values, format, unit = "", max:
   return (
     <ChartFrame label={label} table={{ columns: ["", ...cols], rows: rows.map((r, i) => [r, ...cols.map((_, j) => { const v = values[i]?.[j]; return v == null ? "–" : format(v); })]) }}>
       <div className="grid gap-3">
-        <div className="overflow-x-auto">
+        <div className="scroll-quiet overflow-x-auto">
           <div role="img" aria-label={`${label}. Use the table view for values.`} className={cn("grid gap-0.75", fluid ? "w-full" : "w-max")}
             style={{ gridTemplateColumns: fluid ? `minmax(auto, 12rem) repeat(${cols.length}, minmax(14px, 1fr))` : `auto repeat(${cols.length}, 14px)` }}>
             <span />

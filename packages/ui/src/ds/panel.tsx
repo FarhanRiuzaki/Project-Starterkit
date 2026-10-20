@@ -16,20 +16,28 @@ import { type LegendItem, StatusLegend } from "./status-legend";
  *   children and set `cards` so no outer card wraps them.
  * - `legend`: the statuses this card shows; an info button at the end of the header opens their `StatusLegend`
  *   (the only place a status legend is rendered).
+ * - `toolbar`: a list's search and filters (`Toolbar`) on the title row, right of "Users 51" (ui-standard §1 item 4);
+ *   it wraps under the title when the row is narrow, and the description moves to its own line under them.
  */
-export function Panel({ title, description, actions, children, flush, className, icon, count, footnote, variant = "tray", cards, bodyClassName, legend }: {
+export function Panel({ title, description, actions, children, flush, className, icon, count, footnote, variant = "tray", cards, bodyClassName, legend, toolbar }: {
   title?: ReactNode; description?: ReactNode; actions?: ReactNode; children: ReactNode; flush?: boolean; className?: string;
   icon?: IconData; count?: number | string; footnote?: ReactNode; variant?: "tray" | "flat"; cards?: boolean; bodyClassName?: string;
-  legend?: readonly LegendItem[];
+  legend?: readonly LegendItem[]; toolbar?: ReactNode;
 }) {
-  const header = (title || actions || legend) && (
+  const header = (title || actions || legend || toolbar) && (
     <header className={cn("flex min-h-11 flex-wrap items-center gap-x-2 gap-y-1", variant === "tray" ? "px-3 py-1.5" : "px-4 pt-3")}>
       {icon && <Icon icon={icon} className="size-4 shrink-0 text-fg-3" />}
       {title && <h2 className="text-title-2 text-fg">{title}</h2>}
       {count != null && <CountBadge inTray={variant === "tray"}>{count}</CountBadge>}
-      {/* Phone: the description takes its own line under the title row, without the middot. */}
-      {description && <p className="text-body-sm text-fg-3 max-md:order-last max-md:basis-full"><span aria-hidden="true" className="mr-2 text-fg-4 max-md:hidden">·</span>{description}</p>}
-      {(actions || legend) && <div className="ml-auto flex flex-wrap items-center gap-2">{actions}{legend && <StatusLegend items={legend} />}</div>}
+      {/* Phone: the description takes its own line under the title row, without the middot. Wider: it wraps inside
+          its own box (from 12rem) before it pushes the actions or the legend button onto a line of their own. */}
+      {description && (toolbar
+        ? <p className="order-4 basis-full text-body-sm text-fg-3">{description}</p>
+        : <p className="min-w-0 grow basis-48 text-body-sm text-fg-3 max-md:order-last max-md:basis-full"><span aria-hidden="true" className="mr-2 text-fg-4 max-md:hidden">·</span>{description}</p>)}
+      {/* With a toolbar: phone = title row with the actions, then the toolbar, then the description; wider = title,
+          toolbar, actions on one row, the description under it. */}
+      {toolbar && <div className="order-2 flex min-w-0 grow basis-96 max-md:basis-full *:w-full md:*:justify-end">{toolbar}</div>}
+      {(actions || legend) && <div className={cn("ml-auto flex flex-wrap items-center gap-2", toolbar && "order-1 md:order-3")}>{actions}{legend && <StatusLegend items={legend} />}</div>}
     </header>
   );
   const foot = footnote && <div className="px-3 pt-2 pb-1.5 text-caption text-fg-3">{footnote}</div>;

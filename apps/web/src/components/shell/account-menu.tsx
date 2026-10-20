@@ -46,7 +46,7 @@ export function AccountMenu({ compact, bar }: { compact?: boolean; bar?: boolean
       <DropdownMenuContent align={bar ? "end" : "start"} side={bar ? "bottom" : "top"} className="w-64">
         <DropdownMenuLabel className="grid gap-0.5 font-normal">
           <span className="text-body-sm font-medium text-fg">{user.name}</span>
-          <span className="truncate font-mono text-caption text-fg-3">{user.email}</span>
+          <span className="truncate text-caption text-fg-3">{user.email}</span>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild><Link href="/me"><Icon icon={IdentityIcon} className="size-4" />Profile</Link></DropdownMenuItem>

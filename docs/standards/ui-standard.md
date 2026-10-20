@@ -16,6 +16,11 @@ Every page works fully on a phone, a tablet and a desktop (design-system §0). P
 - Targets: drawn 28 px minimum, 32 px default; under a coarse pointer every control's hit area is at least 44 × 44 px
   without changing the drawn size (`base.css`); anything shown on hover is always shown on touch.
 - Inputs: 16 px text or more under a coarse pointer (no iOS zoom), from the `--text-input-touch` token.
+- Inner scroll areas (sidebar, phone menu, palette, matrix, wide tables, dialogs, menus, tab rows) use `scroll-quiet`
+  (`packages/ui/src/styles/base.css`): a 6 px rounded thumb, no arrow buttons, shown only while the area is hovered
+  or holds keyboard focus; the page keeps the native scrollbar. Where the box must stay exactly as wide as its
+  neighbours (the sidebar menu), `ScrollArea` hides the native bar (`scroll-none`) and draws a 4 px thumb that takes no
+  room, shown on hover, focus or while scrolling. `architecture.test.ts` fails an `overflow-*-auto` without one of them.
 - Decide per width in CSS (`max-md:` / `md:` / `xl:`), never with `matchMedia` in render: the server HTML is the
   first paint, so a JS width switch would flicker or shift.
 
@@ -40,12 +45,13 @@ through `next/font`.
 
 ## 1. Page anatomy (top to bottom, always in this order)
 
-1. **PageHeader** — breadcrumb (detail pages only: `Users / <name>`), title (noun), aggregate `StatusChip` if the
-   page has a health concept, `actions` slot right-aligned in this order: `TimeRangePicker` (if the page is
-   time-scoped) → one primary action or `ActionMenu`. Secondary actions go in `more` (`HeaderAction[]`: label, `href`
-   or `onSelect`, `reason` when blocked, `destructive`, `busy`): buttons after the primary from 768 px, one "More
-   actions" menu below. Title and description wrap. Description = one sentence: scope + freshness. No status
-   legend here: legends belong to the card that shows the statuses (item 5).
+1. **PageHeader** — title (noun; on a sub-page also the top bar breadcrumb's last crumb, design-system §4), aggregate
+   `StatusChip` if the page has a health concept, `actions` slot right-aligned in this order: `TimeRangePicker` (if the
+   page is time-scoped) → one primary action or `ActionMenu`. Secondary actions go in `more` (`HeaderAction[]`: label,
+   `href` or `onSelect`, `reason` when blocked, `destructive`, `busy`): buttons after the primary from 768 px, one
+   "More actions" menu below. Title and description wrap. Description = one sentence: scope + freshness. No status
+   legend here: legends belong to the card that shows the statuses (item 5). A list's panel names its view ("All users
+   50"), not the page again. Search is in the sidebar (⌘K), the theme in the account menu.
 2. **Page-level banners** — stale/partial-source `Notice` (one per page, aggregated), never inside panels.
 3. **StatTiles** — one KPI tray of 4 (or 3) tiles, the page's headline numbers; same order and units everywhere the
    same metric appears (e.g. "Active users" is always first). **Label = the metric only** ("Users",
@@ -53,8 +59,10 @@ through `next/font`.
    "Last 7 days", "Last 7 days · vs previous 7 days" (with a delta pill), or "Today, since 00:00 WIB"
    for today-counters. One icon per metric on every page, by meaning from `packages/ui/src/ui/icons.ts` (Hugeicons Stroke Rounded). A new
    meaning gets a new export there first; never import `@hugeicons/core-free-icons` elsewhere (architecture test).
-4. **Toolbar** — `QueryInput` (left, grows) · saved views / filters as chips · view `Segmented` (right) ·
-   export (right-most). One row; wraps when the content column is too narrow (below 1280, and on a phone).
+4. **Toolbar** — on the list panel's title row (`Panel toolbar={<Toolbar>…</Toolbar>}`): "Users 51" left, then
+   `QueryInput` · filters (`ToolbarFilters`) · view `Segmented` · export right-most; the panel description moves to
+   its own line under them. Wraps under the title when the row is too narrow; on a phone the search takes the row and
+   the filters sit in the "Filters" sheet. Never a separate row above the panel.
 5. **Panels** — `Panel` with title (noun phrase), optional description (sentence case), optional actions slot.
    Charts above tables. Below-the-fold charts in `LazyMount`. The **description is the scope** (period and
    granularity, one shape everywhere: "Last 24 hours · per hour, WIB" or "Last 7 days"); the **footnote is provenance** (`StaleNote`, source notes).
@@ -71,7 +79,8 @@ Detail pages add `Tabs` (line variant) directly under the header; the tab value 
 
 ## 2. Grid, spacing, sizing
 
-- Content max 1376px inside the sheet (padding 32 px horizontal, 24 top, 40 bottom). Rhythm tokens (spec §2.2):
+- Content fills the sheet's width, no max (padding 32 px horizontal, 24 top, 40 bottom): a collapsed sidebar or a wide
+  screen widens the grid instead of leaving empty margins. Rhythm tokens (spec §2.2):
   page sections `gap-section` (24), sibling panels/tiles `gap-gutter` (16; `--gap-grid` in tokens.css), tray padding `p-tray` (4), inside a card
   `gap-panel` (16), dense rows `gap-dense` (8).
 - Content padding: 32 px sides from 768 px, 16 px on a phone (the sheet is edge to edge there).
@@ -167,6 +176,28 @@ Detail pages add `Tabs` (line variant) directly under the header; the tab value 
 - Bundle: only the base layer is in a route's first load; each route stays ≤ 250 kB gz (`bun run budget`).
   Below-the-fold tables load lazily (`next/dynamic`) when a route would otherwise cross the budget.
 
+## 5b. Interaction standards (from Laws of UX, NN/g, WCAG 2.2, Airform)
+
+Each rule names its source and what enforces it. A new screen follows them without being asked; a new pattern of the
+same kind extends this list (and its check) first.
+
+| Rule | Source | Where / enforced by |
+|---|---|---|
+| A reversible action on one record (deactivate, and the like) runs at once and answers with `toast.undo(message, onUndo, { description })` (Undo for 8 s). Irreversible actions (delete) and bulk actions keep `ConfirmActionDialog` with their impact. | NN/g confirmation dialogs; Laws of UX: Peak-End | `packages/ui/src/ui/toast.ts`, `toast.test.ts`; `features/users/users-page.tsx`, `user-detail.tsx`; `tests/e2e/ux-patterns.spec.ts` |
+| Every password field is `PasswordInput`: masked by default, a "Show password" toggle, a Caps Lock note, masked again on submit; paste and password managers work. No raw `type="password"`. | NN/g password creation; web.dev sign-in forms; WCAG 3.3.8 | `packages/ui/src/ui/password-input.tsx` (+ test); `architecture.test.ts` "password fields are PasswordInput" |
+| A new-password field lists its requirements before the first keystroke and ticks them off while typing: `<PasswordChecks checks={passwordChecks(pw, again?)} />`, its id in the field's `aria-describedby`. Rules come from the contract (`lib/shared/password.ts` checks they agree). | NN/g password creation; Laws of UX: Goal-Gradient | `packages/ui/src/ds/password-checks.tsx`; `apps/web/src/lib/shared/password.ts` (+ test); `architecture.test.ts` |
+| A value the user can't change is an `Input readOnly` (inset fill, fg-2), never an input that looks editable; say why in the field note. | Laws of UX: Mental Model | `packages/ui/src/ui/input.tsx` |
+| A form with typed, unsaved changes asks before a link click drops them (`useLeaveGuard` + a "Leave without saving" `ConfirmActionDialog`). | NN/g heuristic 5 (error prevention) | `apps/web/src/lib/client/use-leave-guard.ts`; `user-form.tsx`, `profile-form.tsx`, `role-detail.tsx` |
+| A list page reopens as it was left: its last filters, sort and rows per page (not the page or the search) live in the prefs cookie, and the sidebar, phone menu, breadcrumb, palette and `G` shortcuts open that view. A new list page joins `VIEW_PAGES`. | Airform "design for the tenth visit"; Laws of UX: Working Memory | `apps/web/src/lib/shared/prefs.ts` (+ test); `use-table-query.ts`; `tests/e2e/ux-patterns.spec.ts` |
+| The breadcrumb names the parents and the open page (`Users / Rina Wulandari / Edit user`); every crumb but the last links back. A screen gets it by rendering `PageHeader` (and `trail` for a middle parent). | Laws of UX: Jakob's Law, Working Memory | `components/shell/top-bar.tsx`, `page-header.tsx`, `lib/client/crumb-trail.ts`, `lib/shared/nav.ts` (+ test); `ux-patterns.spec.ts` |
+| A nav item may list views of its page as `children` (Users → All / Active / Inactive users), opened under it on a guide line while the page is open. | Airform sidebar; Laws of UX: Chunking | `lib/shared/nav.ts` `activeChild` (+ test); `sidebar.tsx`, `mobile-nav.tsx` |
+| A list's search and filters sit on its panel's title row (`Panel toolbar`), as Airform's "All users 145" row. | Airform admin mockups; Laws of UX: Proximity | `packages/ui/src/ds/panel.tsx`; §1 item 4 |
+| A headline number has context: a count over a period shows its change against the period before (`StatTile delta`, `formatSignedNumber`), with `good` set by meaning (more failed sign-ins is bad, never green). | Airform "numbers need context" | `features/dashboard/dashboard-page.tsx`; `GET /v1/dashboard` |
+| A dashboard answers first, explains second, details last: KPI tray → charts → tables. | Airform "decide what goes at the top" | §1 page anatomy |
+| Records show words, not codes: activity actions through `actionLabel`, glossary terms only (copy guide). | NN/g heuristic 2 (match the real world) | `packages/shared/src/audit.ts` |
+| Siblings in a row share height; label/value rows look the same on one page. | Laws of UX: Common Region, Similarity | §2; `user-detail.tsx` |
+| Design with real data: long names, zero, a brand-new account, a bad day. Every data region keeps its five states (§3). | Airform "design with real data" | §3; `docs/standards/copy-guide.md` (empty states) |
+
 ## 6. Consistency checklist (run per page before merge)
 
 1. Header anatomy and actions order as §1?
@@ -181,3 +212,5 @@ Detail pages add `Tabs` (line variant) directly under the header; the tab value 
    axe 0 serious or critical, touch targets ≥ 44 px on the phone? (`bun run e2e`: `responsive.spec.ts` on the
    desktop, tablet and mobile projects; `a11y.spec.ts` on the same three.)
 9. Surfaces follow §0a (sheet → tray → card), siblings symmetric (§2), motion per §5a?
+10. Interaction standards of §5b (undo over confirm for one reversible action, PasswordInput and PasswordChecks,
+    read-only look, leave guard, remembered list view, numbers with context)?

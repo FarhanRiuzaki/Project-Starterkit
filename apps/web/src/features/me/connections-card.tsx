@@ -4,10 +4,11 @@ import { useQueryClient } from "@tanstack/react-query";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { BlockedButton, ConfirmActionDialog, Panel } from "@starterkit/ui/ds";
+import { BlockedButton, Panel } from "@starterkit/ui/ds";
 import { Button, buttonVariants } from "@starterkit/ui/ui/button";
 import { InternetIcon } from "@starterkit/ui/ui/icons";
 import { toast } from "@starterkit/ui/ui/toast";
+import { LazyConfirmActionDialog } from "@/components/lazy-confirm";
 import { api } from "@/lib/client/api";
 import type { ConnectionProvider, MeDto } from "@starterkit/shared/contracts/me";
 import { ME_KEY } from "./use-me";
@@ -76,7 +77,7 @@ export function ConnectionsCard({ user, providers }: { user: MeDto; providers: R
       {confirming && (
         <ReauthDialog user={user} provider={confirming} label={PROVIDERS.find((p) => p.id === confirming)!.label} onCancel={() => setConfirming(null)} />
       )}
-      <ConfirmActionDialog open={leaving !== null} onOpenChange={(o) => { if (!o) setLeaving(null); }} auditFields={false} reasons={[]}
+      <LazyConfirmActionDialog open={leaving !== null} onOpenChange={(o) => { if (!o) setLeaving(null); }} auditFields={false} reasons={[]}
         title={`Disconnect ${label}`} description={`You will no longer be able to sign in with ${label}.`}
         impact={["Your other sign-in methods keep working."]} actionLabel={`Disconnect ${label}`} destructive
         onConfirm={async () => {

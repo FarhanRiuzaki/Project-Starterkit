@@ -45,7 +45,7 @@ export const skipReason = (code: string): string => SKIP_REASON[code] ?? "couldn
  * Actor rank, as the server checks it (rules.ts checkTargetRank): the reason the viewer can't act on `u` at all (edit,
  * status, password reset, sessions, delete) because `u` holds a permission the viewer lacks; else null.
  */
-export function rankBlock(u: Pick<UserRowDto, "permissions">, perms: ReadonlySet<PermissionName>): string | null {
+export function rankBlock(u: Pick<UserRowDto, "permissions">, perms: ReadonlySet<string>): string | null {
   return u.permissions.some((p) => !perms.has(p)) ? "This user has permissions your role doesn't hold. Ask an administrator who has all of them." : null;
 }
 

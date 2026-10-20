@@ -6,7 +6,7 @@ import type { UserRowDto } from "@starterkit/shared/contracts/users";
 import { RoleSearch } from "./role-search";
 
 export type BulkAction = "activate" | "deactivate" | "delete" | "assignRole";
-export type Pending = { kind: "bulk"; action: BulkAction; ids: string[] } | { kind: "one"; action: "deactivate" | "delete"; user: UserRowDto };
+export type Pending = { kind: "bulk"; action: BulkAction; ids: string[] } | { kind: "one"; action: "delete"; user: UserRowDto };
 
 const VERB: Record<BulkAction, string> = { activate: "Activate", deactivate: "Deactivate", delete: "Delete", assignRole: "Assign role to" };
 const BULK_NOTE: Record<BulkAction, string> = {
@@ -27,7 +27,7 @@ export function UsersActionDialog({ pending, role, onRole, roles, onClose, onCon
 }) {
   const dialog = pending.kind === "bulk"
     ? { title: `${VERB[pending.action]} ${pending.ids.length} ${pending.ids.length === 1 ? "user" : "users"}`, description: BULK_NOTE[pending.action], label: LABEL[pending.action] }
-    : { title: `${pending.action === "delete" ? "Delete" : "Deactivate"} ${pending.user.name}`, description: pending.user.email, label: pending.action === "delete" ? "Delete user" : "Deactivate user" };
+    : { title: `Delete ${pending.user.name}`, description: pending.user.email, label: "Delete user" };
   const impact = pending.action === "delete" ? ["The account is removed and its sessions end.", "This can't be undone."]
     : pending.action === "deactivate" ? ["They are signed out and can't sign in until reactivated."]
     : pending.action === "assignRole" ? ["The role is added to each user's current roles."] : ["They can sign in again."];

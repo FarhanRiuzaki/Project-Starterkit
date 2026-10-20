@@ -14,7 +14,6 @@ import { api, errorText } from "@/lib/client/api";
 import { useAuth } from "@/lib/client/auth-context";
 import { useTableQuery } from "@/lib/client/use-table-query";
 import type { RoleDto } from "@starterkit/shared/contracts/rbac";
-import { PERMISSIONS } from "@starterkit/shared/permissions";
 import { ROLES } from "@/lib/shared/queries";
 import { assertRoleName, deleteBlock, RoleNameField } from "./role-name";
 import { rolePage, roleUrl, useAfterRbacChange } from "./use-rbac";
@@ -44,7 +43,7 @@ export function RolesPage() {
     { key: "name", header: "Role", icon: KeyIcon, sortable: true, mobile: "title", cell: (r) => (
       <span className="flex items-center gap-2"><Link href={rolePage(r.id)} className={LINK}>{r.name}</Link>{r.locked && <span className="text-caption text-fg-3">Locked</span>}</span>
     ) },
-    { key: "permissions", header: "Permissions", sortable: true, cell: (r) => `${formatNumber(r.permissions.length)} of ${formatNumber(PERMISSIONS.length)}` },
+    { key: "permissions", header: "Permissions", sortable: true, align: "right", cell: (r) => formatNumber(r.permissions.length) },
     { key: "users", header: "Users", sortable: true, cell: (r) => (can("user.view") && r.userCount > 0
       ? <Link href={`/users?role=${encodeURIComponent(r.name)}`} className="text-fg hover:underline">{plural(r.userCount, "user", "users")}</Link>
       : plural(r.userCount, "user", "users")) },
@@ -69,10 +68,10 @@ export function RolesPage() {
       <PageHeader title="Roles" description="Each role is a set of permissions. A user gets the permissions of every role they have."
         actions={can("role.create") ? <Button onClick={() => { setName(""); setCreating(true); }}>Create role</Button> : undefined} />
       {t.staleError && <Notice tone="warn" live>Couldn&apos;t refresh the roles; showing the ones loaded before. {errorText(t.staleError)}</Notice>}
-      <Toolbar>
-        <div className="w-full max-w-80 max-md:max-w-none"><QueryInput value={t.state.q} onChange={onSearch} keys={[]} label="Search roles" placeholder="Search role name" /></div>
-      </Toolbar>
-      <Panel flush icon={KeyIcon} title="Roles" count={t.count}>
+      <Panel toolbar={<Toolbar>
+          <div className="w-full max-w-64 max-md:max-w-none"><QueryInput value={t.state.q} onChange={onSearch} keys={[]} label="Search roles" placeholder="Search role name" /></div>
+        </Toolbar>}
+        flush icon={KeyIcon} title="All roles" count={t.count}>
         <DataTable label="Roles" columns={columns} rows={t.rows} rowKey={(r) => r.id} loading={t.loading}
           sort={t.sort} onSortChange={t.onSortChange} paging={t.paging}
           error={t.loadError ? { title: "Couldn't load roles", cause: errorText(t.loadError), onRetry: () => void t.query.refetch() } : null}

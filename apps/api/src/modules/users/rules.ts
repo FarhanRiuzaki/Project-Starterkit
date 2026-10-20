@@ -2,7 +2,6 @@
 // and a Superadmin count.
 import { randomInt } from "node:crypto";
 import type { BulkResult, ErrorCode } from "@starterkit/shared/contracts/common";
-import type { PermissionName } from "@starterkit/shared/permissions";
 
 /** The role whose last active holder must stay (locked: it can't be renamed). */
 export const SUPERADMIN = "Superadmin";
@@ -30,7 +29,7 @@ export async function checkUserChange(
  * Actor rank: an actor may act on another user (edit, status, password reset, sessions, delete, bulk) only when they
  * hold every permission that user has, so a `user.edit` holder can't take over an account that outranks them.
  */
-export function checkTargetRank(actorPerms: ReadonlySet<PermissionName>, targetPerms: Iterable<PermissionName>): ErrorCode | null {
+export function checkTargetRank(actorPerms: ReadonlySet<string>, targetPerms: Iterable<string>): ErrorCode | null {
   for (const p of targetPerms) if (!actorPerms.has(p)) return "forbidden";
   return null;
 }

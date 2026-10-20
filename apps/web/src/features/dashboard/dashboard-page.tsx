@@ -3,9 +3,9 @@
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { BarChart, CHART_HEIGHT, ChartLegend, legendItems } from "@starterkit/ui/charts";
-import { Avatar, type Column, DataTable, EmptyState, ErrorState, LazyMount, Notice, Panel, RelativeTime, StatTile, StatTiles, StatTileSkeletons, Truncate } from "@starterkit/ui/ds";
+import { Avatar, type Column, DataTable, type Delta, EmptyState, ErrorState, LazyMount, Notice, Panel, RelativeTime, StatTile, StatTiles, StatTileSkeletons, Truncate } from "@starterkit/ui/ds";
 import { Reveal } from "@starterkit/ui/motion";
-import { APP_TIME_ZONE_LABEL, appDayStart, formatDate, formatNumber } from "@starterkit/ui/lib/format";
+import { APP_TIME_ZONE_LABEL, appDayStart, formatDate, formatNumber, formatSignedNumber } from "@starterkit/ui/lib/format";
 import { Button } from "@starterkit/ui/ui/button";
 import { Skeleton } from "@starterkit/ui/ui/skeleton";
 import { ColumnChartIcon, FailedIcon, IdentityIcon, LogIcon, SessionsIcon, UsersIcon } from "@starterkit/ui/ui/icons";
@@ -17,7 +17,13 @@ import type { ActivityDto } from "@starterkit/shared/contracts/audit";
 import type { DashboardDto } from "@starterkit/shared/contracts/dashboard";
 import { DASHBOARD_KEY } from "@/lib/shared/queries";
 
-const SERIES = [{ label: "Successful" }, { label: "Failed", tone: "down" as const }];
+// Sign-in outcomes are events, not health: slot 1 / slot 2 (design-system §3.3, §5.8), never the Down mark.
+const SERIES = [{ label: "Successful", slot: 0 }, { label: "Failed", slot: 1 }];
+
+/** A count against the same span before it; `good` = the direction that is good news (more failed sign-ins is bad). */
+const change = (now: number, before: number, span: string, good: "up" | "down"): Delta => ({
+  text: `${formatSignedNumber(now - before)} vs previous ${span}`, direction: now > before ? "up" : now < before ? "down" : "flat", good,
+});
 
 const RECENT: Column<ActivityDto>[] = [
   { key: "at", header: "Time", cell: (r) => <RelativeTime at={Date.parse(r.at)} /> },
@@ -52,8 +58,12 @@ export function DashboardPage() {
             {d && (
               <StatTiles>
                 <StatTile icon={UsersIcon} label="Active users" {...tile(d.activeUsers)} caption="Accounts that can sign in" />
-                <StatTile icon={IdentityIcon} label="New users" {...tile(d.newUsers7d)} caption="Last 7 days" />
-                {d.failedLogins24h !== null && <StatTile icon={FailedIcon} label="Failed sign-ins" {...tile(d.failedLogins24h)} caption="Last 24 hours" />}
+                <StatTile icon={IdentityIcon} label="New users" {...tile(d.newUsers7d)} caption="Last 7 days · vs previous 7 days"
+                  delta={change(d.newUsers7d, d.newUsersPrev7d, "7 days", "up")} />
+                {d.failedLogins24h !== null && (
+                  <StatTile icon={FailedIcon} label="Failed sign-ins" {...tile(d.failedLogins24h)} caption="Last 24 hours · vs previous 24 hours"
+                    delta={change(d.failedLogins24h, d.failedLoginsPrev24h ?? 0, "24 hours", "down")} />
+                )}
                 <StatTile icon={SessionsIcon} label="Active sessions" {...tile(d.activeSessions)} caption="Signed in now" />
               </StatTiles>
             )}
