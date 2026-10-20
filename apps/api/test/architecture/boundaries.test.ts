@@ -26,7 +26,14 @@ const RAW_SQL_OK = ["src/db/migrate.ts"];
 const legacy = (f: string) => LEGACY.some((p) => (p.endsWith("/") ? f.startsWith(p) : f === p));
 const moduleOf = (f: string) => /^src\/modules\/([\w-]+)\//.exec(f)?.[1] ?? null;
 
-/** The module specifiers a file imports or re-exports, resolved against the file (bare packages stay as they are). */
+/** A specifier as a path from apps/api without extension or `/index`. */
+const tidy = (p: string) => p.replace(/\.ts$/, "").replace(/\/index$/, "");
+
+/**
+ * The module specifiers a file imports or re-exports: a relative one resolved against the file, a package or absolute
+ * one that reaches into this app's `src/modules` (`@starterkit/api/src/modules/…`, `/…/apps/api/src/modules/…`) mapped
+ * to `src/modules/…`; other packages stay as they are.
+ */
 function importsOf({ file, src }: File): string[] {
   const sf = ts.createSourceFile(file, src, ts.ScriptTarget.Latest, true);
   const specs: string[] = [];
@@ -36,7 +43,11 @@ function importsOf({ file, src }: File): string[] {
     ts.forEachChild(n, visit);
   };
   visit(sf);
-  return specs.map((s) => (s.startsWith(".") ? path.posix.normalize(path.posix.join(path.posix.dirname(file), s)).replace(/\.ts$/, "").replace(/\/index$/, "") : s));
+  return specs.map((s) => {
+    if (s.startsWith(".")) return tidy(path.posix.normalize(path.posix.join(path.posix.dirname(file), s)));
+    const inApp = /(?:^@starterkit\/api\/|\/apps\/api\/)(src\/.+)$/.exec(s);
+    return inApp ? tidy(path.posix.normalize(inApp[1]!)) : s;
+  });
 }
 
 /** (1) An import of another module's file other than its index; a schema.ts may import another module's schema.ts (foreign keys). */
@@ -77,7 +88,8 @@ function misplacedTests(files: File[]): string[] {
     .map((f) => `${f.file}: tests live in modules/<m>/tests/, kernel/tests/ or apps/api/test/, not beside the source`);
 }
 
-const STATEMENT = [/\bselect\b[\s\S]*?\bfrom\b/i, /\binsert\s+into\b/i, /\bupdate\s+"?\w+"?\s+(as\s+\w+\s+)?set\b/i, /\bdelete\s+from\b/i];
+/** SELECT…FROM, INSERT INTO, UPDATE <table> [[as] alias] SET <column> = (table plain, quoted or schema-qualified), DELETE FROM. */
+const STATEMENT = [/\bselect\b[\s\S]*?\bfrom\b/i, /\binsert\s+into\b/i, /\bupdate\s+(only\s+)?[\w."]+(\s+(as\s+)?\w+)?\s+set\s+[\w"]+\s*=/i, /\bdelete\s+from\b/i];
 
 /** (5) A string or template literal (placeholders as `?`) that spells a full SELECT…FROM / INSERT INTO / UPDATE…SET / DELETE FROM. */
 function rawSql(files: File[]): string[] {
@@ -136,11 +148,13 @@ describe("module boundaries: fixtures", () => {
       f("src/modules/oauth/schema.ts", `import { sessions } from "../auth/schema";`),
       f("src/db/seed/demo.ts", `import { users } from "../../modules/users/schema";`),
       f("test/helpers/x.ts", `const m = await import("../../src/modules/auth/limits");`),
+      f("src/db/seed/x.ts", `import { totp } from "@starterkit/api/src/modules/auth/totp.ts"; import { guard } from "@starterkit/api/src/modules/auth";`),
     ])).toEqual([
       `src/modules/users/service.ts → src/modules/auth/schema: import "src/modules/auth" (its index.ts), not its internals`,
       `src/modules/users/service.ts → src/modules/auth/sessions: import "src/modules/auth" (its index.ts), not its internals`,
       `src/db/seed/demo.ts → src/modules/users/schema: import "src/modules/users" (its index.ts), not its internals`,
       `test/helpers/x.ts → src/modules/auth/limits: import "src/modules/auth" (its index.ts), not its internals`,
+      `src/db/seed/x.ts → src/modules/auth/totp: import "src/modules/auth" (its index.ts), not its internals`,
     ]);
   });
 
@@ -181,6 +195,12 @@ describe("module boundaries: fixtures", () => {
         "const d = sql`delete from sessions where id = ${id}`;",
         "const e = sql`array(${q}) || ${x}`; const g = sql`now() - make_interval(mins => ${n})`; const h = sql`pg_advisory_xact_lock(${k})`;",
         "const msg = \"Update your profile, then sign in.\"; // select a row from the table",
+        "const i = sql`update users u set name = ${n}`;",
+        "const j = sql`UPDATE public.users SET name = ${n}`;",
+        "const k = sql`update \"users\" as u set name = ${n}`;",
+        "const l = sql`delete from public.sessions where id = ${id}`;",
+        "const m = sql`insert into public.activity (id) values (${id})`;",
+        "const o = \"Update the role set before you save.\";",
       ].join("\n")),
       f("src/db/migrate.ts", "await conn`select name from schema_migrations`;"),
       f("test/helpers/db.ts", "await client`select 1 from pg_tables`;"),
@@ -189,6 +209,7 @@ describe("module boundaries: fixtures", () => {
       "src/modules/a/service.ts:2: SQL statement written by hand; use the Drizzle builder",
       "src/modules/a/service.ts:3: SQL statement written by hand; use the Drizzle builder",
       "src/modules/a/service.ts:4: SQL statement written by hand; use the Drizzle builder",
+      ...[7, 8, 9, 10, 11].map((n) => `src/modules/a/service.ts:${n}: SQL statement written by hand; use the Drizzle builder`),
     ]);
   });
 });

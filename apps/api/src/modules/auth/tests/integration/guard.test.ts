@@ -59,14 +59,14 @@ describe("guard in the contract's check order", () => {
   // query 400 → guard 401/403 → body 400 → 404, on one Elysia route with every check.
   const Query = z.object({ dryRun: z.enum(["true", "false"]).optional() });
   const Body = z.object({ name: z.string().min(1) });
-  const app = api().use(guard).post("/v1/ordered/:id", (c) => {
-    const b = body(c, Body);
+  const app = api().use(guard).post("/v1/ordered/:id", async (c) => {
+    const b = await body(c, Body);
     const id = idParam(c.params.id, "thing");
     if (id !== KNOWN) throw notFound("thing");
     return { id, name: b.name, dryRun: c.query.dryRun ?? null };
   }, { query: Query, guard: "user.edit" });
   const KNOWN = Bun.randomUUIDv7();
-  const post = (path: string, o: { token?: string; body?: string } = {}) =>
+  const post = (path: string, o: { token?: string; body?: string | ReadableStream } = {}) =>
     request(app, path, {
       method: "POST",
       headers: { "X-Internal-Token": process.env.INTERNAL_API_TOKEN!, "Content-Type": "application/json", ...(o.token && { Authorization: `Bearer ${o.token}` }) },
@@ -88,5 +88,12 @@ describe("guard in the contract's check order", () => {
     expect(await status(await post(`/v1/ordered/${Bun.randomUUIDv7()}`, { token: admin }))).toEqual([404, "not_found"]);
     const ok = await post(`/v1/ordered/${KNOWN}?dryRun=true&dryRun=false`, { token: admin });
     expect(await ok.json()).toEqual({ id: KNOWN, name: "a", dryRun: "true" });
+  });
+
+  it("a body over 64 KB without Content-Length is counted after the guard: 401 without a session, 400 with one", async () => {
+    const big = () => new ReadableStream({ start(s) { s.enqueue(new TextEncoder().encode(JSON.stringify({ name: "y".repeat(70 * 1024) }))); s.close(); } });
+    expect(await status(await post(`/v1/ordered/${KNOWN}`, { body: big() }))).toEqual([401, "unauthenticated"]);
+    expect(await status(await post(`/v1/ordered/${KNOWN}`, { token: await signIn("viewer"), body: big() }))).toEqual([403, "forbidden"]);
+    expect(await status(await post(`/v1/ordered/${KNOWN}`, { token: await signIn("admin"), body: big() }))).toEqual([400, "bad_request"]);
   });
 });

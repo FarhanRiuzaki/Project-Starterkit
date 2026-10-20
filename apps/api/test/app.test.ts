@@ -2,6 +2,8 @@ import { describe, expect, it, spyOn } from "bun:test";
 import { z } from "zod";
 import { createApp } from "../src/app";
 import { log } from "../src/kernel/log";
+import { body } from "../src/kernel/parse";
+import { LEGACY_MOUNT_ROUTE } from "../src/kernel/plugins/context";
 import { request } from "./helpers/app";
 
 type ErrorJson = { error: { code: string; message: string } };
@@ -11,12 +13,14 @@ const TOKEN = process.env.INTERNAL_API_TOKEN!;
 const auth = { "X-Internal-Token": TOKEN };
 
 describe("app", () => {
-
-
   it("a /v1 request without X-Internal-Token is 401 unauthenticated", async () => {
     const res = await request(createApp(), "/v1/anything");
     expect(res.status).toBe(401);
     expect(await code(res)).toBe("unauthenticated");
+  });
+
+  it("the Hono routers are mounted on the route the access log leaves to them", () => {
+    expect(createApp().routes.filter((r) => r.path === LEGACY_MOUNT_ROUTE).map((r) => r.method)).toEqual(["ALL"]);
   });
 
   it("a wrong token of the same length is 401", async () => {
@@ -24,6 +28,19 @@ describe("app", () => {
     const res = await request(createApp(), "/v1/anything", { headers: { "X-Internal-Token": wrong } });
     expect(res.status).toBe(401);
     expect(await code(res)).toBe("unauthenticated");
+  });
+
+  it("the token is checked on the decoded path: an encoded, doubled or upper-case /v1 is 401 without it", async () => {
+    for (const p of ["/%761/auth/providers", "/v1%2fauth/providers", "/V1/auth/providers", "//v1/auth/providers", "/x/../v1/auth/providers", "/%zz"]) {
+      const res = await request(createApp(), p);
+      expect([p, res.status, await code(res)]).toEqual([p, 401, "unauthenticated"]);
+    }
+  });
+
+  it("without the token every path but the health checks is 401, an unknown one too (routes stay hidden)", async () => {
+    for (const p of ["/nope", "/", "/healthz/x", "/v2/users"]) expect([p, (await request(createApp(), p)).status]).toEqual([p, 401]);
+    expect((await request(createApp(), "/healthz")).status).toBe(200);
+    expect((await request(createApp(), "/healthz", { method: "POST" })).status).toBe(401);
   });
 
   it("unknown /v1 path is 404 not_found with no-store", async () => {
@@ -84,7 +101,7 @@ describe("app", () => {
   });
 
   it("a body over 64 KB is 400 bad_request", async () => {
-    const app = createApp().post("/v1/echo", ({ body }) => JSON.parse(body as string) as unknown);
+    const app = createApp().post("/v1/echo", (c) => body(c, z.unknown()));
     const big = JSON.stringify({ x: "y".repeat(70 * 1024) });
     const res = await request(app, "/v1/echo", { method: "POST", headers: { ...auth, "Content-Type": "application/json" }, body: big });
     expect(res.status).toBe(400);
@@ -92,6 +109,5 @@ describe("app", () => {
     const ok = await request(app, "/v1/echo", { method: "POST", headers: { ...auth, "Content-Type": "application/json" }, body: '{"a":1}' });
     expect(await ok.json()).toEqual({ a: 1 });
   });
-
 
 });

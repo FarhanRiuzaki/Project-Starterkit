@@ -1,18 +1,20 @@
 // The kernel plugins on an Elysia app without the Hono mount (the shape every route has after Task 18).
 import { describe, expect, it, spyOn } from "bun:test";
 import { Elysia } from "elysia";
+import { z } from "zod";
 import { request } from "../../../../test/helpers/app";
 import { log } from "../../log";
 import { bodyLimit } from "../../plugins/body-limit";
 import { context } from "../../plugins/context";
 import { errorHandler } from "../../plugins/error";
+import { body } from "../../parse";
 import { internalAuth } from "../../plugins/internal-auth";
 
 const TOKEN = { "X-Internal-Token": process.env.INTERNAL_API_TOKEN! };
 const kernelApp = () =>
   new Elysia().use(errorHandler).use(context).use(bodyLimit).use(internalAuth)
     .get("/v1/things/:id", ({ requestId, client }) => ({ requestId, client }))
-    .post("/v1/echo", ({ body }) => ({ length: (body as string).length }));
+    .post("/v1/echo", async (c) => ({ length: JSON.stringify(await body(c, z.unknown())).length }));
 
 describe("kernel plugins", () => {
   it("an unknown path is 404 not_found with the fixed copy and no-store; without the token it is 401 first", async () => {

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { SQL } from "bun";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { migrate } from "../../src/db/migrate";
@@ -31,6 +31,13 @@ describe("migrate", () => {
     // A Bun SQL query under expect().rejects never settles (Bun 1.4.3), so catch it.
     const err = await db`update activity set action = 'y'`.catch((e: Error) => e);
     expect(String(err)).toContain("audit rows are append-only");
+  });
+
+  it("no migration names the public schema (each one runs in the schema first on the search_path)", async () => {
+    const dir = join(import.meta.dir, "../../drizzle");
+    const named = [];
+    for (const f of (await readdir(dir)).filter((x) => x.endsWith(".sql"))) if ((await Bun.file(join(dir, f)).text()).includes('"public".')) named.push(f);
+    expect(named).toEqual([]);
   });
 
   it("a changed applied file throws", async () => {

@@ -266,7 +266,8 @@ apps/api/src/
 
 Aturan batas (dijaga tes arsitektur API):
 - Modul lain hanya mengimpor `modules/<m>` (berkas `index.ts`-nya), tidak pernah `service.ts`/`schema.ts`/`rules.ts`
-  milik modul lain.
+  milik modul lain. Satu pengecualian: `schema.ts` boleh mengimpor `schema.ts` modul lain hanya untuk foreign key
+  (lewat `index.ts` akan menarik service dan klien DB ke drizzle-kit serta membuat impor melingkar).
 - `kernel/` tidak mengimpor `modules/`.
 - Setiap tabel dimiliki tepat satu modul (`schema.ts`); modul lain membaca/menulisnya lewat API publik pemiliknya.
   Join yang butuh tabel lintas modul memakai tabel yang diekspor dari `index.ts` pemiliknya (hanya-baca untuk query).
