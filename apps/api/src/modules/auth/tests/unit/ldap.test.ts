@@ -9,7 +9,7 @@ const base = {
   INTERNAL_API_TOKEN: "t".repeat(40),
   DATA_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString("base64"),
 };
-const prod = { ...base, NODE_ENV: "production", MAIL_TRANSPORT: "smtp", SMTP_URL: "smtps://mail:465", MAIL_FROM: "a@b.c" };
+const prod = { ...base, NODE_ENV: "production", MAIL_TRANSPORT: "smtp", SMTP_URL: "smtps://mail:465", MAIL_FROM: "a@b.c", APP_URL: "https://app.example.com" };
 const ldap = { LDAP_URL: "ldap://dir.example:389", LDAP_BASE_DN: "dc=example,dc=com", LDAP_BIND_DN: "cn=app", LDAP_BIND_PASSWORD: "bind-secret-value" };
 
 /** The message of the error `loadConfig(env)` throws. */
@@ -50,20 +50,24 @@ describe("ldap", () => {
     expect(failure({ ...base, ...ldap, LDAP_USER_FILTER: "(uid=admin)" })).toContain("LDAP_USER_FILTER");
   });
 
-  it("a directory that never answers fails within the total timeout, closes the socket and logs no password", async () => {
+  it("a directory that never answers fails within the total timeout, closes the socket and logs no password or login", async () => {
     let closed = false;
     const server = Bun.listen({ hostname: "127.0.0.1", port: 0, socket: { data() {}, close() { closed = true; } } }); // accepts, never answers
     const warn = spyOn(log, "warn");
     try {
       const dir = directory(loadConfig({ ...base, ...ldap, LDAP_URL: `ldap://127.0.0.1:${server.port}` }), 300)!;
       const t0 = performance.now();
-      expect(await dir.verify("rina", "dir-secret-value")).toBe(false);
+      expect(await dir.verify("rina.typed-login", "dir-secret-value")).toBe(false);
       expect(performance.now() - t0).toBeLessThan(1000); // 3 operations, one 300 ms budget
       await Bun.sleep(50);
       expect(closed).toBe(true);
       const lines = JSON.stringify(warn.mock.calls);
       expect(warn).toHaveBeenCalledTimes(1);
-      expect((warn.mock.calls[0]![0] as unknown as { err: Error }).err).toBeInstanceOf(Error); // the total timer or the client's own per-step timeout, whichever fires first
+      // the total timer or the client's own per-step timeout, whichever fires first: its name (and code), nothing else
+      const err = (warn.mock.calls[0]![0] as unknown as { err: Record<string, unknown> }).err;
+      expect(err).toMatchObject({ name: expect.any(String) });
+      expect(Object.keys(err).every((k) => k === "name" || k === "code")).toBe(true);
+      expect(lines).not.toContain("rina.typed-login");
       expect(lines).not.toContain("dir-secret-value");
       expect(lines).not.toContain("bind-secret-value");
     } finally {

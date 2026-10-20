@@ -88,6 +88,12 @@ describe("loginGate", () => {
     expect(await loginGate(l, { step: "login", ip: "10.0.0.2", username: "admin" })).toBeNull();
   });
 
+  it("an unknown client IP (no TRUSTED_PROXY) has no per-IP bucket: callers don't share one; the breaker still trips", async () => {
+    const l = limits(); // per IP 2, breaker 5
+    for (const u of ["a", "b", "c", "d", "e"]) expect(await loginGate(l, { step: "login", ip: "unknown", username: u })).toBeNull();
+    expect(await loginGate(l, { step: "login", ip: "unknown", username: "f" })).toBe(60);
+  });
+
   it("a fleet-wide breaker stops an IP-rotating flood", async () => {
     const l = limits();
     for (let i = 0; i < 5; i++) expect(await loginGate(l, { step: "login", ip: `10.1.0.${i}`, username: null })).toBeNull();

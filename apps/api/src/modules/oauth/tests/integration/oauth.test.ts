@@ -67,12 +67,17 @@ describe("mock provider (OAUTH_MOCK)", () => {
   });
 
   it("the 21st start from one client within a minute is 429 with Retry-After, and stores no state", async () => {
-    for (let i = 0; i < 20; i++) expect((await start("google")).status).toBe(200);
-    const r = await start("google");
+    const fromIp = () => call("POST", "/v1/auth/oauth/google/start", { body: { mode: "login", bindingHash: bindingHash() }, headers: { "X-Client-Ip": "10.0.0.7" } }) as Promise<Res>;
+    for (let i = 0; i < 20; i++) expect((await fromIp()).status).toBe(200);
+    const r = await fromIp();
     expect(r.status).toBe(429);
     expect((await r.json()).error.code).toBe("rate_limited");
     expect(Number(r.headers.get("retry-after"))).toBeWithin(1, 61);
     expect(await count("oauth_states")).toBe(20);
+  });
+
+  it("an unknown client IP (no TRUSTED_PROXY) has no per-IP limit: the 21st start passes (the fleet-wide one still counts)", async () => {
+    for (let i = 0; i < 21; i++) expect((await start("google")).status).toBe(200);
   });
 
   it("start answers the mock authorize URL and stores the state hashed, bound to the browser, for 10 minutes", async () => {
@@ -205,6 +210,19 @@ describe("linking (mode link)", () => {
     expect((await callback("apple", { code: "mock", state: stateOf(second.url) })).status).toBe(401);
     expect(await count("oauth_states")).toBe(0);
     expect(await identitiesOf(await idOf("twofa"))).toHaveLength(0);
+  });
+
+  it("link needs the session to have proved the user within 10 minutes (403 forbidden, no state); POST /v1/me/reauth renews it", async () => {
+    const token = await signIn("admin");
+    await db.update(sessions).set({ reauthAt: sql`now() - interval '11 minutes'` }).where(eq(sessions.tokenHash, hashToken(token)));
+    const r = await start("google", { mode: "link" }, token);
+    expect(r.status).toBe(403);
+    expect((await r.json()).error).toEqual({ code: "forbidden", message: "Confirm your password to connect another account." });
+    expect(await count("oauth_states")).toBe(0);
+    expect((await start("google", { mode: "login" }, token)).status).toBe(200); // a sign-in needs no proof
+    expect((await call("POST", "/v1/me/reauth", { token, body: { password: "Password123!" } })).status).toBe(200);
+    expect((await mockFlow("google", { mode: "link" }, token)).status).toBe(200);
+    expect(await identitiesOf(await idOf("admin"))).toHaveLength(1);
   });
 
   it("a user deactivated before the callback links nothing", async () => {

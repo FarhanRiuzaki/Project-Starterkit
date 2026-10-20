@@ -1,12 +1,12 @@
 // The API against its contract, read from createApp() and from the source with the TypeScript compiler API:
 // (a) the routes are the README's endpoint table. For every /v1 route of a modules/*/controller.ts but the sign-in ones:
 // (b) the `guard` option runs before the handler (an in-handler permission check only where allowlisted, before any
-// service call); (c) a change records activity; (d) a list GET pages through pageQuery and a CSV branch is capped at
-// CSV_MAX_ROWS; (e) nothing answers 404 or reads data before the request body; (f) a handler that reads the query has a
-// `query` schema (validated before the guard); (g) the exemptions name real controllers. Calls are followed across
-// files, through module indexes, into the services a handler calls and everything they call (one call graph of src/);
-// src/ uses only the import forms that graph follows, and a function that records activity writes only through its
-// transaction.
+// service call); (c) a change records activity (only an allowlisted auth step doesn't); (d) a list GET pages through
+// pageQuery and a CSV branch is capped at CSV_MAX_ROWS; (e) nothing answers 404 or reads data before the request body;
+// (f) a handler that reads the query has a `query` schema (validated before the guard); (g) the exemptions name real
+// controllers. Calls are followed across files, through module indexes, into the services a handler calls and everything
+// they call (one call graph of src/); src/ uses only the import forms that graph follows, and a function that records
+// activity writes only through its transaction.
 import { describe, expect, it } from "bun:test";
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -226,7 +226,7 @@ function handlersOf(file: string, g: ReturnType<typeof graphOf>, useOk: string[]
   return { handlers, chain, uses };
 }
 
-type Allow = { nonList: Record<string, string>; gates: Record<string, string>; authFiles: string[]; use?: string[] };
+type Allow = { nonList: Record<string, string>; gates: Record<string, string>; authFiles: string[]; noActivity?: Record<string, string>; use?: string[] };
 
 /** GET routes that answer one record, a summary or the caller, not a list; every other GET pages through pageQuery. */
 const NON_LIST_GETS: Record<string, string> = {
@@ -242,9 +242,13 @@ const NON_LIST_GETS: Record<string, string> = {
 const IN_HANDLER_GATES: Record<string, string> = {
   "POST /v1/users/bulk": "delete needs user.delete, the other actions user.edit: the session is checked (401), the body read, then the permission (403)",
 };
+/** Non-GET routes that change no record of the activity log's kind (an auth step), so they record no entry. */
+const NO_ACTIVITY: Record<string, string> = {
+  "POST /v1/me/reauth": "proves the user again on this session (stamps reauth_at); an auth step, and the sign-in log has no event for it",
+};
 /** The sign-in controllers, by file: they answer before a session exists. A route elsewhere, even under /v1/auth, follows every rule. */
 const AUTH_ROUTE_FILES = ["modules/auth/controller.ts", "modules/oauth/controller.ts"];
-const REAL_ALLOW: Allow = { nonList: NON_LIST_GETS, gates: IN_HANDLER_GATES, authFiles: AUTH_ROUTE_FILES };
+const REAL_ALLOW: Allow = { nonList: NON_LIST_GETS, gates: IN_HANDLER_GATES, authFiles: AUTH_ROUTE_FILES, noActivity: NO_ACTIVITY };
 
 const CONTROLLER = /^modules\/[\w-]+\/controller\.ts$/;
 
@@ -284,7 +288,7 @@ function routeViolations(files: File[], allow: Allow = REAL_ALLOW): string[] {
         if (firstPos((c) => c.name === "perms.has") > service) out.push(`${id}: checks its permission after a service call`);
       }
       // (c) a change records activity
-      if (h.method !== "GET" && !reaches(recorders)) out.push(`${id}: no recordActivity (in the handler or a service it calls)`);
+      if (h.method !== "GET" && !(key in (allow.noActivity ?? {})) && !reaches(recorders)) out.push(`${id}: no recordActivity (in the handler or a service it calls)`);
       // (d) lists page; a CSV branch calls a capped …Csv function
       if (h.method === "GET" && !(key in allow.nonList) && !reaches(pagers)) out.push(`${id}: GET answers a list without pageQuery`);
       if (h.csv && !reaches(csvReach)) out.push(`${id}: format=csv branch without a …Csv function`);
@@ -311,6 +315,7 @@ function routeViolations(files: File[], allow: Allow = REAL_ALLOW): string[] {
   const gated = new Set(scanned.flatMap((s) => s.handlers.filter((h) => h.calls.some((c) => c.name === "forbidden")).map((h) => `${h.method} ${h.path}`)));
   // (g) and every allowlist: a stale entry fails
   for (const k of Object.keys(allow.nonList)) if (!seen.has(k) || !k.startsWith("GET ")) out.push(`${k}: listed as a non-list GET but has no such handler`);
+  for (const k of Object.keys(allow.noActivity ?? {})) if (!seen.has(k) || k.startsWith("GET ")) out.push(`${k}: listed as a change without activity but has no such handler`);
   for (const k of Object.keys(allow.gates)) if (!gated.has(k)) out.push(`${k}: listed as an in-handler permission check but has no such handler`);
   for (const u of useOk) if (!scanned.some((s) => !allow.authFiles.includes(s.file) && s.uses.includes(u))) out.push(`${u}: allowed in .use( but no checked controller uses it`);
   for (const f of allow.authFiles) {
@@ -456,6 +461,9 @@ export const xController = () => new Elysia().use(guard)${code};` });
   it("fixture (c): a change that never records activity, in the handler or any service it calls, is reported", () => {
     expect(run(`.delete("/v1/x/:id", ({ ctx }) => quiet(ctx), { guard: "x.delete" })`)).toEqual([`${X} DELETE /v1/x/:id: no recordActivity (in the handler or a service it calls)`]);
     expect(run(`.delete("/v1/x/:id", ({ ctx }) => save(ctx), { guard: "x.delete" })`)).toEqual([]); // save → write → recordActivity
+    expect(run(`.delete("/v1/x/:id", ({ ctx }) => quiet(ctx), { guard: "x.delete" })`, { ...NONE, noActivity: { "DELETE /v1/x/:id": "an auth step" } })).toEqual([]);
+    expect(run(`.get("/v1/x", () => thingPage({}), { guard: "x.view" })`, { ...NONE, noActivity: { "POST /v1/gone": "x" } }))
+      .toEqual(["POST /v1/gone: listed as a change without activity but has no such handler"]);
   });
 
   it("fixture (c): a function that records activity and also writes through db (outside the entry's transaction) is reported", () => {

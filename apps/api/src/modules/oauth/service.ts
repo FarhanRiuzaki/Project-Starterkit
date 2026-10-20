@@ -8,7 +8,7 @@ import { db, type Tx } from "../../kernel/db";
 import { ApiError, tooManyAttempts } from "../../kernel/errors";
 import type { Client } from "../../kernel/plugins/context";
 import { recordActivity } from "../audit";
-import { type AuthUser, completeSignIn, endSession, isLiveSession, logAuth, oauthStartLimits, retryText, userById } from "../auth";
+import { type AuthUser, completeSignIn, endSession, hitIp, isLiveSession, logAuth, oauthStartLimits, retryText, userById } from "../auth";
 import { authorizeUrl, identityOf, type OAuthCallbackBody, type OAuthStartBody, providerEnabled } from "./providers";
 import { oauthStates, userIdentities } from "./schema";
 
@@ -26,10 +26,13 @@ export function oauthProvider(name: string): ConnectionProvider {
  * Start a provider sign-in (`login`) or a link to the signed-in user `auth` (`link`): a state row (state stored hashed,
  * the browser binding's hash, PKCE verifier, nonce, who links, `next`, the browser's session; 10 minutes) and the URL
  * the browser goes to next. The browser's session (any mode) is stored so that ending it deletes the state, and a
- * sign-in ends it. 20 starts per client IP and 300 in all per minute, then 429.
+ * sign-in ends it. A link needs a session that proved the user within 10 minutes (else 403). 20 starts per client IP
+ * and 300 in all per minute, then 429.
  */
 export async function start(p: ConnectionProvider, b: z.infer<typeof OAuthStartBody>, auth: AuthUser | null, client: Client): Promise<{ url: string }> {
-  const waits = await Promise.all([oauthStartLimits.ip.hit(client.ip), oauthStartLimits.breaker.hit("all")]);
+  // A link adds a way to sign in: only a session that proved the user recently (sign-in or POST /v1/me/reauth).
+  if (b.mode === "link" && !auth!.reauthFresh) throw new ApiError("forbidden", "Confirm your password to connect another account.");
+  const waits = await Promise.all([hitIp(oauthStartLimits.ip, client.ip), oauthStartLimits.breaker.hit("all")]);
   const wait = Math.max(0, ...waits.map((w) => w ?? 0));
   if (wait > 0) throw tooManyAttempts(wait, retryText(wait));
   const s = { state: randomToken(), verifier: randomToken(), nonce: randomToken() };

@@ -71,6 +71,7 @@ function crossKeyProblems(e: Record<string, string>): string[] {
   }
   if (e.NODE_ENV === "production") {
     if (e.MAIL_TRANSPORT !== "smtp") out.push("MAIL_TRANSPORT (must be smtp in production)");
+    if (!e.APP_URL) out.push("APP_URL (required in production: the public origin the reset and invitation links point to)");
     if (e.OAUTH_MOCK === "true") out.push("OAUTH_MOCK (must be false in production)");
     if (e.LDAP_MOCK === "true") out.push("LDAP_MOCK (must be false in production)");
     if (/^ldap:\/\//i.test(e.LDAP_URL ?? "") && e.LDAP_STARTTLS !== "true") out.push("LDAP_URL (production needs ldaps:// or LDAP_STARTTLS=true)");

@@ -11,6 +11,7 @@
     "test:unit": "bun test tests/unit",
     "test:integration": "bun test tests/integration test/",
     "test:changed": "bun test",
+    "db:generate": "bun src/db/generate.ts",
     "db:migrate": "bun src/db/migrate.ts",
     "db:seed": "bun src/db/seed/cli.ts system",
     "db:seed:demo": "bun src/db/seed/cli.ts demo",

@@ -373,6 +373,29 @@ describe("GET/PATCH /v1/users/{id}", () => {
   });
 });
 
+describe("lock order: users rows → roles for share → actor permissions → Superadmin lock", () => {
+  it("a PATCH that was waiting on a role's share lock reads the actor's permissions after it (actor rank)", async () => {
+    // The PATCH names the actor's own role "Custom"; a role edit holding that row revokes audit.view from it. Read before
+    // the role lock, the actor would still hold audit.view and outrank Viewer.
+    const custom = await giveOnlyRole("admin", ["user.view", "user.edit", "audit.view"]);
+    const admin = await signIn("admin");
+    const v = await idOf("viewer");
+    const holder = await holdTx((tx) => tx.select({ one: sql`1` }).from(roles).where(eq(roles.id, custom)).for("update"));
+    try {
+      const pending = patch(v, { roles: ["Viewer", "Custom"] }, admin);
+      if (!(await lockWaiters(1, "%roles%"))) throw new Error("the PATCH never waited on the role");
+      await holder.commit((tx) => tx.delete(rolePermissions).where(and(eq(rolePermissions.roleId, custom), eq(rolePermissions.permission, "audit.view"))));
+      const r = await pending;
+      expect(r.status).toBe(403);
+      expect(await code(r)).toBe("forbidden");
+    } finally {
+      await holder.rollback().catch(() => {});
+    }
+    expect(await rolesOf(v)).toEqual(["Viewer"]);
+    expect(await acts()).toHaveLength(0);
+  });
+});
+
 describe("DELETE and status", () => {
   it("DELETE needs user.delete, protects self and the last superadmin, removes sessions", async () => {
     const admin = await signIn("admin");
@@ -768,6 +791,30 @@ describe("one deactivate path: PATCH isActive and POST /status", () => {
       ["user.update", { name: "Viewer User" }, { name: "Renamed Viewer" }],
       ["user.deactivate", { isActive: true }, { isActive: false }],
     ]);
+  });
+
+  it("deactivating (PATCH, /status, bulk) and an email change spend the user's reset and invitation links", async () => {
+    const admin = await signIn("admin");
+    const v = await idOf("viewer");
+    const links = async () => (await db.select({ one: sql`1` }).from(userTokens).where(eq(userTokens.userId, v))).length;
+    const relink = async (t: string) => {
+      expect((await setStatus(v, { active: true }, admin)).status).toBe(200);
+      await addToken(v, t);
+    };
+    await addToken(v, "link-1");
+    expect((await patch(v, { isActive: false }, admin)).status).toBe(200);
+    expect(await links()).toBe(0);
+    await relink("link-2");
+    expect((await setStatus(v, { active: false }, admin)).status).toBe(200);
+    expect(await links()).toBe(0);
+    await relink("link-3");
+    expect((await bulk({ action: "deactivate", ids: [v] }, admin)).status).toBe(200);
+    expect(await links()).toBe(0);
+    await relink("link-4");
+    expect((await patch(v, { name: "Renamed Viewer" }, admin)).status).toBe(200);
+    expect(await links()).toBe(1); // a name change keeps the link
+    expect((await patch(v, { email: "viewer.new@example.com" }, admin)).status).toBe(200);
+    expect(await links()).toBe(0);
   });
 
   it("a PATCH that changes nothing is 200 and writes no activity", async () => {

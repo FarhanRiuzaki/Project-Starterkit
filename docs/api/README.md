@@ -26,7 +26,8 @@ other schema describes the answer exactly (`additionalProperties: false`).
   `invalid_code` 400, `superadmin_locked` 409, `last_superadmin` 409, `self_action` 409, `role_in_use` 409,
   `ldap_password` 409, `already_enabled` 409, `only_sign_in_method` 409, `internal` 500. One code is sent with
   another status on purpose: `invalid_credentials` is 400 when a signed-in user's current password is wrong
-  (`PATCH /api/me`, `/api/me/password`, `DELETE /api/me/2fa`), so the browser doesn't take it for an ended session.
+  (`PATCH /api/me`, `/api/me/password`, `/api/me/reauth`, `DELETE /api/me/2fa`), so the browser doesn't take it for
+  an ended session.
 - Check order in every guarded handler: parse the body or query (400) → session, CSRF, permission (401/403) →
   existence (404) → rules (403/409) → change → activity entry. A query is checked before the session (the GET rows
   below); a body's 400 comes right after the guard. `apps/api/test/architecture/conformance.test.ts` fails when a handler
@@ -57,12 +58,17 @@ other schema describes the answer exactly (`additionalProperties: false`).
   Wrong answers share the backoff below. An account that signs in only through Google or Apple keeps the provider's
   email (409 `self_action`), can't turn 2FA on (the provider checks it, so a code would never be asked; 400), and turns
   2FA off with a recovery code instead of a password.
+- Connecting Google or Apple adds a way to sign in, so it needs a session that proved the user within the last 10
+  minutes (`MeDto.reauthFresh`): a sign-in counts, and so does `POST /api/me/reauth` (the password, the directory
+  password for LDAP users, or a recovery code for an account without a password). Otherwise the link start is 403
+  `forbidden` and the browser lands on `/me/security?oauth=reauth`. An account with neither a password nor 2FA has no
+  second proof: it signs in again (400 `bad_request` from `/api/me/reauth`).
 - A password change ends the user's other sessions and spends their open reset and invitation links; an admin reset
   and a reset by link end all of their sessions.
 - Sign-in steps (`login`, `2fa`) are limited per client IP (10 per minute), fleet-wide (300 per minute) and per
   username (5 per minute), with a soft backoff per username after 3 failures (1 s, 2 s, 4 s … up to 60 s, cleared
   after 15 quiet minutes or a success). A signed-in user's wrong current password or recovery code (`PATCH /api/me`,
-  `/api/me/password`, `DELETE /api/me/2fa`) backs off after 5 failures (one budget per user).
+  `/api/me/password`, `/api/me/reauth`, `DELETE /api/me/2fa`) backs off after 5 failures (one budget per user).
 - `POST /api/auth/forgot` is limited per client IP (10 per minute) and per email (3 per 15 minutes). A throttled
   request still answers 200 `{ ok: true }` and sends nothing, so the limit reveals nothing about which emails exist.
 - Every limiter and backoff is a PostgreSQL row (`rate_limits`, `login_backoff`, UNLOGGED tables) updated by one atomic
@@ -127,7 +133,7 @@ other schema describes the answer exactly (`additionalProperties: false`).
   delete or sign out a Superadmin. The rows of `GET /api/users` and `GET /api/users/{id}` carry `permissions` so the
   screen can block those actions up front.
 - Every POST/PATCH/PUT/DELETE outside `/api/auth/*` that changes something writes an activity entry; sign-in, sign-out
-  and 2FA steps write sign-in log entries.
+  and 2FA steps write sign-in log entries. `POST /api/me/reauth` is an auth step and writes neither.
 
 ### Activity log entries
 
@@ -191,7 +197,7 @@ generated from the action vocabulary (`ACTION_LABEL` in `packages/shared/src/aud
 
 ## Endpoints
 
-39 endpoints. Path parameters are in braces. "Signed in" = any live session, no permission. Errors list what the
+40 endpoints. Path parameters are in braces. "Signed in" = any live session, no permission. Errors list what the
 endpoint adds to the guard's 401/403 and the 400 for an invalid body or query.
 
 | Method | Path | Permission | Request | Answer | Errors |
@@ -201,7 +207,7 @@ endpoint adds to the guard's 401/403 and the 400 for an invalid body or query.
 | POST | `/api/auth/logout` | none, same-origin; `x-csrf-token` with a full session | none | [OkDto](schemas/OkDto.json) | `csrf` |
 | POST | `/api/auth/forgot` | none, same-origin | [ForgotPasswordBody](schemas/ForgotPasswordBody.json) | [OkDto](schemas/OkDto.json), the same for an unknown email and for a throttled request | none |
 | POST | `/api/auth/reset` | none, same-origin | [ResetPasswordBody](schemas/ResetPasswordBody.json) (the token is spent on first use; the user's sessions end; logs `password_reset`) | [OkDto](schemas/OkDto.json) | `invalid_code` (expired, used or LDAP user) |
-| GET | `/api/auth/oauth/{provider}` | none (navigation); a full session for `mode=link` | `provider` = [ConnectionProvider](schemas/ConnectionProvider.json) (else 404); query `mode` = `login` (default) or `link`, `next` | 303 to the provider's authorize page (or `mock-authorize` under `OAUTH_MOCK`), with the `sk_oauth` browser-binding cookie (10 minutes); `link` without a session: 303 to `/login?next=/me/security` | `not_found` (unknown provider, or not configured and no mock) |
+| GET | `/api/auth/oauth/{provider}` | none (navigation); for `mode=link` a full session that proved the user within 10 minutes | `provider` = [ConnectionProvider](schemas/ConnectionProvider.json) (else 404); query `mode` = `login` (default) or `link`, `next` | 303 to the provider's authorize page (or `mock-authorize` under `OAUTH_MOCK`), with the `sk_oauth` browser-binding cookie (10 minutes); `link` without a session: 303 to `/login?next=/me/security`; `link` without a recent proof: 303 to `/me/security?oauth=reauth` | `not_found` (unknown provider, or not configured and no mock) |
 | GET | `/api/auth/oauth/{provider}/callback` | the `sk_oauth` cookie of the browser that started it | query `code`, `state` (or `error`) from the provider | 200 page that moves on with `<meta http-equiv="refresh">`: sign-in → the session cookie, then `next` (internal, else `/`); link → `/me/security?connected={provider}` (logs `me.connect`; already linked: no entry). Failure → `/login?error=oauth` (`/login?error=inactive` for an inactive account) or `/me/security?oauth=failed` | none (every failure lands on a page); the state is spent on first use |
 | POST | `/api/auth/oauth/{provider}/callback` | as GET | form fields `code`, `state` (Apple posts its answer: `response_mode=form_post`) | as GET | as GET |
 | GET | `/api/auth/oauth/{provider}/mock-authorize` | `OAUTH_MOCK=true` in the web and the API (else 404) | query `state` | 303 to the callback with `code=mock` | `not_found` |
@@ -213,6 +219,7 @@ endpoint adds to the guard's 401/403 and the 400 for an invalid body or query.
 | DELETE | `/api/me/2fa` | signed in | [DisableTwoFactorBody](schemas/DisableTwoFactorBody.json) (`password`; `recoveryCode` for a Google or Apple only account) | [OkDto](schemas/OkDto.json) | `bad_request` (already off, wrong kind of proof), `invalid_credentials` (400), `invalid_code`, `rate_limited` |
 | DELETE | `/api/me/connections/{provider}` | signed in | `provider` = [ConnectionProvider](schemas/ConnectionProvider.json) | [MeDto](schemas/MeDto.json) | `only_sign_in_method` (the only way left to sign in) |
 | POST | `/api/me/password` | signed in | [ChangePasswordBody](schemas/ChangePasswordBody.json) (other sessions end; reset links are spent) | [OkDto](schemas/OkDto.json) | `ldap_password`, `invalid_credentials` (400), `rate_limited` |
+| POST | `/api/me/reauth` | signed in | [ReauthBody](schemas/ReauthBody.json) (`password`; `recoveryCode` for an account without a password, spent) | [OkDto](schemas/OkDto.json); this session counts as proved for 10 minutes (no activity entry) | `bad_request` (wrong kind of proof; no password and no 2FA: sign in again), `invalid_credentials` (400), `invalid_code`, `rate_limited` |
 | GET | `/api/me/sessions` | signed in | [SessionListQuery](schemas/SessionListQuery.json) | [SessionPage](schemas/SessionPage.json) | none |
 | DELETE | `/api/me/sessions/{id}` | signed in | none | [OkDto](schemas/OkDto.json) | `not_found` (also for another user's session), `self_action` (the current session) |
 | GET | `/api/permissions` | `permission.view` | [PermissionListQuery](schemas/PermissionListQuery.json) | [PermissionPage](schemas/PermissionPage.json) | none |

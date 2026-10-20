@@ -7,9 +7,10 @@ import { UserDto } from "./users";
 /**
  * GET /api/me (and the answers of PATCH /api/me and /api/me/connections): the user plus `hasPassword`. An account with
  * no password that isn't a directory user signs in only through a connected Google or Apple account: its email comes
- * from the provider, and it has no second factor to turn on.
+ * from the provider, and it has no second factor to turn on. `reauthFresh`: this session proved the user (sign-in or
+ * POST /api/me/reauth) within the last 10 minutes, which connecting Google or Apple needs.
  */
-export const MeDto = UserDto.extend({ hasPassword: z.boolean() });
+export const MeDto = UserDto.extend({ hasPassword: z.boolean(), reauthFresh: z.boolean() });
 export type MeDto = z.infer<typeof MeDto>;
 
 export const SessionDto = z.object({
@@ -54,6 +55,13 @@ export const DisableTwoFactorBody = z.object({
   recoveryCode: z.string().trim().min(6).max(32).optional(),
 }).refine((b) => (b.password === undefined) !== (b.recoveryCode === undefined), { message: "Send a password or a recovery code." });
 export type DisableTwoFactorBody = z.infer<typeof DisableTwoFactorBody>;
+
+/**
+ * POST /api/me/reauth, before connecting Google or Apple: exactly one proof, as for turning 2FA off (`password`, the
+ * directory password for LDAP users; `recoveryCode` for an account without a password, spent).
+ */
+export const ReauthBody = DisableTwoFactorBody;
+export type ReauthBody = DisableTwoFactorBody;
 
 export const ConnectionProvider = z.enum(["google", "apple"]);
 export type ConnectionProvider = z.infer<typeof ConnectionProvider>;

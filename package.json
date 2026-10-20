@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "bun run --filter '@starterkit/web' --filter '@starterkit/api' dev",
     "setup": "bun scripts/setup.ts",
+    "db:generate": "bun run --filter @starterkit/api db:generate",
     "db:migrate": "bun run --filter @starterkit/api db:migrate",
     "db:seed": "bun run --filter @starterkit/api db:seed",
     "db:seed:demo": "bun run --filter @starterkit/api db:seed:demo",

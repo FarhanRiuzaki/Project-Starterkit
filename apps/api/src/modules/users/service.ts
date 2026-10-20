@@ -1,8 +1,9 @@
 // The /v1/users* logic, and the writes on users and recovery_codes that other modules make (auth: sign-in, 2FA step,
 // reset; me: own profile, password and 2FA; each one statement, or one transaction step of the caller's `tx`).
 // Every check that compares the actor with another user runs inside the transaction: the target rows are locked first
-// (id order), then the roles they name are share-locked, then the Superadmin count takes its advisory lock, and the
-// actor's permissions are read after the locks (never the request's earlier ctx.perms).
+// (id order), then the roles the request names are share-locked (bulk share-locks its one role before the rows), then
+// the actor's permissions are read (never the request's earlier ctx.perms), and last the Superadmin count takes its
+// advisory lock.
 import {
   and, desc, eq, exists, getTableColumns, ilike, inArray, isNotNull, isNull, lt, ne, or, sql, type SQLWrapper,
 } from "drizzle-orm";
@@ -225,11 +226,17 @@ const userChange = (tx: Tx, ctx: Ctx, u: UserRowDto, change: UserChange) => chec
 const statusRule = async (tx: Tx, ctx: Ctx, u: UserRowDto, active: boolean): Promise<ErrorCode | null> =>
   active ? null : userChange(tx, ctx, u, { kind: "deactivate" });
 
-/** Sets it: deactivating ends the user's sessions; one entry, user.activate / user.deactivate with { isActive }. Unchanged = nothing. */
+/**
+ * Sets it: deactivating ends the user's sessions and spends their reset and invitation links; one entry, user.activate /
+ * user.deactivate with { isActive }. Unchanged = nothing.
+ */
 async function applyStatus(tx: InTx, ctx: Ctx, u: UserRowDto, active: boolean): Promise<void> {
   if (u.isActive === active) return;
   await updateUser(tx, u.id, { isActive: active });
-  if (!active) await endUserSessions(tx, u.id);
+  if (!active) {
+    await endUserSessions(tx, u.id);
+    await deleteUserTokens(tx, u.id);
+  }
   await recordActivity(tx, ctx, { action: active ? "user.activate" : "user.deactivate", target: { type: "user", id: u.id, label: u.name }, before: { isActive: !active }, after: { isActive: active } });
 }
 
@@ -327,8 +334,10 @@ const FIELDS = ["name", "username", "email", "roles"] as const;
  */
 export async function editUser(ctx: Ctx, id: string, b: UpdateUserBody): Promise<UserDto> {
   return db.transaction(async (tx) => {
-    const { u, actor } = await lockTarget(tx, ctx, id);
-    const rs = b.roles ? canonical(b.roles, await rolesByName(tx, b.roles)) : undefined;
+    const u = (await lockUsers(tx, [id])).get(id);
+    if (!u) throw notFound("user");
+    const rs = b.roles ? canonical(b.roles, await rolesByName(tx, b.roles)) : undefined; // share-locks the roles named
+    const actor = await actorOver(tx, ctx, u); // after the role locks: a role edit committed meanwhile counts
     if (rs === null) throw UNKNOWN_ROLE();
     if ((b.username !== undefined || b.email !== undefined) && (await duplicateOf(tx, b.username, b.email, id))) throw DUPLICATE();
     // Compared by id with the roles held now: a rename since `u` was read changes nothing here.
@@ -354,6 +363,7 @@ export async function editUser(ctx: Ctx, id: string, b: UpdateUserBody): Promise
       } catch (e) {
         throw isUniqueViolation(e) ? DUPLICATE() : e;
       }
+      if (email !== u.email) await deleteUserTokens(tx, id); // the links went to the old address
     }
     await revokeRoles(tx, id, removed.map((r) => r.id));
     await grantRoles(tx, id, added.map((r) => r.id));

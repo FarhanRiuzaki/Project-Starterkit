@@ -317,6 +317,18 @@ describe("password reset", () => {
     expect(answers.map((r) => r.status).sort()).toEqual([200, 400, 400]);
   });
 
+  it("an inactive user's link is invalid_code, spent, and sets no password", async () => {
+    const v = await idOf("viewer");
+    await db.update(users).set({ isActive: false }).where(eq(users.id, v));
+    await db.insert(userTokens).values({ tokenHash: hashToken("inactive-1"), userId: v, kind: "reset", expiresAt: sql`now() + interval '30 minutes'` });
+    const r = await post("reset", { token: "inactive-1", password: "New-password-2026" });
+    expect(r.status).toBe(400);
+    expect((await r.json()).error.code).toBe("invalid_code");
+    expect(await count("user_tokens")).toBe(0);
+    const [row] = await rows(db.select({ password_hash: users.passwordHash }).from(users).where(eq(users.id, v)));
+    expect(await verifyPassword(SEED_PASSWORD, row.password_hash)).toBe(true);
+  });
+
   it("an invitation token (72 h) sets the password and nothing else; a directory user's token is invalid_code", async () => {
     const invited = await idOf("viewer");
     await db.update(users).set({ passwordHash: null }).where(eq(users.id, invited));
@@ -464,14 +476,20 @@ describe("forgot-password throttle", () => {
     expect(sentMail()).toHaveLength(4);
   });
 
+  const EMAILS = ["admin", "viewer", "twofa", "google", "apple", "admin", "viewer", "twofa", "google", "apple", "superadmin"].map((u) => `${u}@example.com`);
+
   it("per client IP: the 11th request in a minute sends nothing, still 200", async () => {
-    for (const u of ["admin", "viewer", "twofa", "google", "apple", "admin", "viewer", "twofa", "google", "apple"]) {
-      expect((await post("forgot", { email: `${u}@example.com` })).status).toBe(200);
-    }
+    const ip = { headers: { "X-Client-Ip": "10.0.0.7" } };
+    for (const email of EMAILS.slice(0, 10)) expect((await post("forgot", { email }, ip)).status).toBe(200);
     expect(sentMail()).toHaveLength(10);
-    const r = await post("forgot", { email: "superadmin@example.com" });
+    const r = await post("forgot", { email: EMAILS[10] }, ip);
     expect(r.status).toBe(200);
     expect(sentMail()).toHaveLength(10);
+  });
+
+  it("an unknown client IP (no TRUSTED_PROXY) has no per-IP limit: the 11th request still sends; per email still counts", async () => {
+    for (const email of EMAILS) expect((await post("forgot", { email })).status).toBe(200);
+    expect(sentMail()).toHaveLength(11);
   });
 });
 

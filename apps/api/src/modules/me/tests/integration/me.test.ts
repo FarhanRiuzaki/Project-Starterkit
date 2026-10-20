@@ -407,6 +407,18 @@ describe("credential changes end other ways in", () => {
   });
 });
 
+describe("an email change spends the links mailed to the old address", () => {
+  it("a new email on PATCH /me spends the user's reset and invitation links; a name change keeps them", async () => {
+    const token = await signIn("admin");
+    const id = await idOf("admin");
+    await db.insert(userTokens).values({ tokenHash: hashToken("open-link"), userId: id, kind: "reset", expiresAt: sql`now() + interval '1 hour'` });
+    expect((await me("PATCH", "", token, { name: "Admin Renamed" })).status).toBe(200);
+    expect(await rowsOfUser(userTokens, id)).toHaveLength(1);
+    expect((await me("PATCH", "", token, { email: "new.admin@example.com", currentPassword: SEED_PASSWORD })).status).toBe(200);
+    expect(await rowsOfUser(userTokens, id)).toHaveLength(0);
+  });
+});
+
 describe("two-factor for accounts that sign in only through Google or Apple", () => {
   async function oauthOnly(twoFactor: boolean) {
     const token = await signIn("google");
@@ -443,6 +455,75 @@ describe("two-factor for accounts that sign in only through Google or Apple", ()
     const token = await signIn("twofa");
     expect((await me("DELETE", "/2fa", token, { recoveryCode: RECOVERY_CODES[0] })).status).toBe(400);
     expect((await me("DELETE", "/2fa", token, { password: SEED_PASSWORD, recoveryCode: RECOVERY_CODES[0] })).status).toBe(400);
+  });
+});
+
+describe("POST /api/me/reauth (before connecting Google or Apple)", () => {
+  const age = (token: string) => db.update(sessions).set({ reauthAt: sql`now() - interval '11 minutes'` }).where(eq(sessions.tokenHash, hashToken(token)));
+  const fresh = async (token: string) => ((await (await me("GET", "", token)).json()) as { reauthFresh: boolean }).reauthFresh;
+  const reauth = (token: string, body: unknown) => me("POST", "/reauth", token, body);
+
+  it("a new session counts as proved; after 10 minutes it doesn't; the password proves it again, with no activity entry", async () => {
+    const { token, other } = await signedIn("admin");
+    expect(await fresh(token)).toBe(true);
+    await db.update(sessions).set({ reauthAt: sql`now() - interval '11 minutes'` });
+    expect(await fresh(token)).toBe(false);
+    const n = (await acts()).length;
+    const r = await reauth(token, { password: SEED_PASSWORD });
+    expect(r.status).toBe(200);
+    expect(await r.json()).toEqual({ ok: true });
+    expect(await fresh(token)).toBe(true);
+    // only the calling session
+    expect((await rows(db.select({ fresh: sql`${sessions.reauthAt} > now() - interval '10 minutes'` }).from(sessions).where(eq(sessions.id, other))))[0].fresh).toBe(false);
+    expect((await acts()).length).toBe(n);
+  });
+
+  it("a wrong password is 400 invalid_credentials and proves nothing; it shares the budget: the 6th attempt is 429", async () => {
+    const token = await signIn("admin");
+    await age(token);
+    for (let i = 0; i < 5; i++) {
+      const r = await reauth(token, { password: "Wrong-password-1" });
+      expect(r.status).toBe(400);
+      expect(await code(r)).toBe("invalid_credentials");
+    }
+    const r = await reauth(token, { password: SEED_PASSWORD });
+    expect(r.status).toBe(429);
+    expect(r.headers.get("retry-after")).toBeTruthy();
+    expect((await me("POST", "/password", token, { current: SEED_PASSWORD, next: NEW_PW })).status).toBe(429);
+    expect(await fresh(token)).toBe(false);
+  });
+
+  it("an LDAP user proves it with the directory password", async () => {
+    const token = await signIn("ldap");
+    await age(token);
+    expect(await code(await reauth(token, { password: SEED_PASSWORD }))).toBe("invalid_credentials");
+    expect((await reauth(token, { password: LDAP_PASSWORD })).status).toBe(200);
+    expect(await fresh(token)).toBe(true);
+  });
+
+  it("an account without a password uses a recovery code (spent); without two-factor it has no second proof (400)", async () => {
+    const token = await signIn("google");
+    await noPassword("google");
+    await age(token);
+    const none = await reauth(token, { recoveryCode: RECOVERY_CODES[0] });
+    expect(none.status).toBe(400);
+    expect(((await none.json()) as { error: { message: string } }).error.message).toBe("Sign in again to connect another account.");
+    await copyTotp("google");
+    const google = await idOf("google");
+    const codes = await db.select({ codeHash: codesTable.codeHash }).from(codesTable).where(eq(codesTable.userId, await idOf("twofa")));
+    await db.insert(codesTable).values(codes.map((c) => ({ id: Bun.randomUUIDv7(), userId: google, codeHash: c.codeHash })));
+    expect((await reauth(token, { password: "anything" })).status).toBe(400);
+    expect(await code(await reauth(token, { recoveryCode: "zzzz-0000" }))).toBe("invalid_code");
+    expect((await reauth(token, { recoveryCode: RECOVERY_CODES[0] })).status).toBe(200);
+    expect(await fresh(token)).toBe(true);
+    expect(await code(await reauth(token, { recoveryCode: RECOVERY_CODES[0] }))).toBe("invalid_code"); // spent
+  });
+
+  it("needs a session (401); neither or both proofs is 400", async () => {
+    expect((await call("POST", "/v1/me/reauth", { body: { password: SEED_PASSWORD } })).status).toBe(401);
+    const token = await signIn("admin");
+    expect((await reauth(token, {})).status).toBe(400);
+    expect((await reauth(token, { password: SEED_PASSWORD, recoveryCode: RECOVERY_CODES[0] })).status).toBe(400);
   });
 });
 

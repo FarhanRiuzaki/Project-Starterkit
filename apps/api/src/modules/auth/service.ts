@@ -1,5 +1,4 @@
-// Sign-in (password, LDAP, second factor), sign-out, reset links and re-authentication. Port of
-// apps/web/src/lib/server/sign-in.ts.
+// Sign-in (password, LDAP, second factor), sign-out, reset links and re-authentication.
 import { and, eq, getTableColumns, isNotNull, lt, lte, not, or, type SQL, sql } from "drizzle-orm";
 import type { AuthLogDto } from "@starterkit/shared/contracts/audit";
 import type { AuthMethod, LoginBody, ResetPasswordBody, TwoFactorBody } from "@starterkit/shared/contracts/auth";
@@ -14,7 +13,7 @@ import type { Client } from "../../kernel/plugins/context";
 import { recordAuth } from "../audit";
 import { advanceTotpStep, markRecoveryCodeUsed, setPassword, stampSignIn, unusedRecoveryCodes, users } from "../users";
 import { directory } from "./ldap";
-import { forgotLimits, loginGate, loginLimits, passwordFails, retryText } from "./limits";
+import { forgotLimits, hitIp, loginGate, loginLimits, passwordFails, retryText } from "./limits";
 import { hashPassword, verifyPassword } from "./password";
 import { isTotpCode, twoFactorPath } from "./rules";
 import { authChallenges, loginBackoff, rateLimits, sessions, userTokens } from "./schema";
@@ -230,7 +229,7 @@ export async function logout(token: string | undefined, challenge: string | null
 export async function forgot(email: string, client: Client): Promise<void> {
   const key = email.toLowerCase();
   // Both limiters count every request (known email or not), so throttling reveals nothing either.
-  const waits = await Promise.all([forgotLimits.ip.hit(client.ip), forgotLimits.email.hit(key)]);
+  const waits = await Promise.all([hitIp(forgotLimits.ip, client.ip), forgotLimits.email.hit(key)]);
   if (waits.some((w) => w !== null)) return;
   const [u] = await db.select({ id: users.id, email: users.email }).from(users)
     .where(and(eq(sql`lower(${users.email})`, key), users.isActive, not(users.isLdap), isNotNull(users.passwordHash)));
@@ -250,13 +249,13 @@ export async function forgot(email: string, client: Client): Promise<void> {
 
 /**
  * Set a new password with a reset or invitation token. The token is spent on first use, even when expired or refused
- * (directory user); all of the user's sessions end.
+ * (directory user, inactive user); all of the user's sessions end.
  */
 export async function reset(b: ResetPasswordBody, client: Client): Promise<void> {
   const [t] = await db.delete(userTokens).where(eq(userTokens.tokenHash, hashToken(b.token)))
     .returning({ userId: userTokens.userId, live: sql<boolean>`${userTokens.expiresAt} > now()` });
-  const [u] = t ? await db.select({ id: users.id, email: users.email, isLdap: users.isLdap }).from(users).where(eq(users.id, t.userId)) : [];
-  if (!t?.live || !u || u.isLdap) throw new ApiError("invalid_code", BAD_LINK);
+  const [u] = t ? await db.select({ id: users.id, email: users.email, isLdap: users.isLdap, isActive: users.isActive }).from(users).where(eq(users.id, t.userId)) : [];
+  if (!t?.live || !u || u.isLdap || !u.isActive) throw new ApiError("invalid_code", BAD_LINK);
   const hash = await hashPassword(b.password);
   await db.transaction(async (tx) => {
     await setPassword(tx, u.id, hash);

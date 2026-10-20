@@ -51,7 +51,7 @@ describe("loadConfig", () => {
   });
 
   it("refuses OAUTH_MOCK=true in production", () => {
-    const prod = { ...base, NODE_ENV: "production", MAIL_TRANSPORT: "smtp", SMTP_URL: "smtps://mail:465", MAIL_FROM: "a@b.c" };
+    const prod = { ...base, NODE_ENV: "production", MAIL_TRANSPORT: "smtp", SMTP_URL: "smtps://mail:465", MAIL_FROM: "a@b.c", APP_URL: "https://app.example.com" };
     expect(loadConfig(prod).NODE_ENV).toBe("production");
     expect(failure({ ...prod, OAUTH_MOCK: "true" })).toContain("OAUTH_MOCK");
     expect(failure({ ...prod, LDAP_MOCK: "true" })).toContain("LDAP_MOCK");
@@ -63,7 +63,7 @@ describe("loadConfig", () => {
   });
 
   it("production refuses SMTP without TLS: smtps://, or smtp:// with requireTLS=true (STARTTLS)", () => {
-    const prod = { ...base, NODE_ENV: "production", MAIL_TRANSPORT: "smtp", MAIL_FROM: "a@b.c" };
+    const prod = { ...base, NODE_ENV: "production", MAIL_TRANSPORT: "smtp", MAIL_FROM: "a@b.c", APP_URL: "https://app.example.com" };
     for (const url of ["smtps://u:p@mail:465", "smtp://u:p@mail:587?requireTLS=true", "SMTPS://mail", "smtp://mail:587?name=x&requireTLS=true"]) {
       expect(loadConfig({ ...prod, SMTP_URL: url }).SMTP_URL).toBe(url);
     }
@@ -80,6 +80,13 @@ describe("loadConfig", () => {
     expect(loadDbConfig({ DATABASE_URL: base.DATABASE_URL })).toEqual({ DATABASE_URL: base.DATABASE_URL, DB_POOL_MAX: 10 });
     expect(loadDbConfig({ DATABASE_URL: base.DATABASE_URL, DB_POOL_MAX: "3", INTERNAL_API_TOKEN: "" })).toEqual({ DATABASE_URL: base.DATABASE_URL, DB_POOL_MAX: 3 });
     expect(() => loadDbConfig({ DATABASE_URL: "" })).toThrow("Invalid API configuration: DATABASE_URL (invalid_type)");
+  });
+
+  it("production requires APP_URL (the links in reset and invitation mail); elsewhere it defaults to the dev web", () => {
+    const prod = { ...base, NODE_ENV: "production", MAIL_TRANSPORT: "smtp", SMTP_URL: "smtps://mail:465", MAIL_FROM: "a@b.c" };
+    expect(failure(prod)).toContain("APP_URL (required in production");
+    expect(loadConfig({ ...prod, APP_URL: "https://app.example.com" }).APP_URL).toBe("https://app.example.com");
+    expect(loadConfig(base).APP_URL).toBe("http://localhost:3000");
   });
 
   it("production requires smtp", () => {

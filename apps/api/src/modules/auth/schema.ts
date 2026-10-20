@@ -15,6 +15,8 @@ export const sessions = pgTable("sessions", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  /** Last time this session proved the user (sign-in, POST /v1/me/reauth): linking Google or Apple needs it recent. */
+  reauthAt: timestamp("reauth_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   foreignKey({ name: "sessions_user_id_fkey", columns: [t.userId], foreignColumns: [users.id] }).onDelete("cascade"),
   check("sessions_method_check", METHOD_CHECK),

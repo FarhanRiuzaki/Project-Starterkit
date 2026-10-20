@@ -9,10 +9,10 @@ const row: UserRow = {
 };
 
 describe("toMe", () => {
-  it("answers the user with hasPassword and without the secret fields", () => {
-    const me = toMe(row);
-    expect(me).toMatchObject({ username: "admin", twoFactorEnabled: true, connected: ["google"], hasPassword: true });
+  it("answers the user with hasPassword, the session's reauthFresh and without the secret fields", () => {
+    const me = toMe(row, true);
+    expect(me).toMatchObject({ username: "admin", twoFactorEnabled: true, connected: ["google"], hasPassword: true, reauthFresh: true });
     expect(JSON.stringify(me)).not.toMatch(/argon2id|v1:secret|v1:pending|totpLastStep/);
-    expect(toMe({ ...row, passwordHash: null }).hasPassword).toBe(false);
+    expect(toMe({ ...row, passwordHash: null }, false)).toMatchObject({ hasPassword: false, reauthFresh: false });
   });
 });

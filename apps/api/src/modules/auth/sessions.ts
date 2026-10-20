@@ -20,8 +20,14 @@ export type UserRow = {
   lastLoginAt: string | null; createdAt: string; updatedAt: string;
 };
 
-/** The signed-in user of one request, read fresh from the database. */
-export type AuthUser = { user: UserRow; sid: string; perms: Set<PermissionName> };
+/**
+ * The signed-in user of one request, read fresh from the database. `reauthFresh`: the session proved the user (sign-in
+ * or POST /v1/me/reauth) within REAUTH_MINUTES; linking Google or Apple needs it.
+ */
+export type AuthUser = { user: UserRow; sid: string; perms: Set<PermissionName>; reauthFresh: boolean };
+
+/** How long a sign-in or a re-authentication counts as recent proof of the user. */
+export const REAUTH_MINUTES = 10;
 
 /** A `users` row plus its `roles` and `connected` arrays → UserRow. */
 export function toUserRow(r: typeof users.$inferSelect & { roles: string[]; connected: UserRow["connected"] }): UserRow {
@@ -93,6 +99,7 @@ export async function resolveSession(token: string): Promise<AuthUser | null> {
     sid: sessions.id,
     live: sql<boolean>`${sessionLive()}`,
     stale: sql<boolean>`${sessions.lastSeenAt} < ${MINUTE_AGO}`,
+    reauthFresh: sql<boolean>`${sessions.reauthAt} > now() - make_interval(mins => ${REAUTH_MINUTES})`,
     roles: rolesOf(users.id),
     connected: providersOf(users.id),
     perms: permsOf(users.id),
@@ -104,7 +111,12 @@ export async function resolveSession(token: string): Promise<AuthUser | null> {
   }
   if (!r.isActive) return null;
   if (r.stale) await db.update(sessions).set({ lastSeenAt: sql`now()` }).where(and(eq(sessions.id, r.sid), lt(sessions.lastSeenAt, MINUTE_AGO)));
-  return { user: toUserRow(r), sid: r.sid, perms: new Set(r.perms) };
+  return { user: toUserRow(r), sid: r.sid, perms: new Set(r.perms), reauthFresh: r.reauthFresh };
+}
+
+/** The session proved the user just now (POST /v1/me/reauth). */
+export async function stampReauth(sid: string): Promise<void> {
+  await db.update(sessions).set({ reauthAt: sql`now()` }).where(eq(sessions.id, sid));
 }
 
 /** Ends one session (sign-out, terminate), through `tx` when given. */

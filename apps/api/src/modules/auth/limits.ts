@@ -1,5 +1,5 @@
-// PostgreSQL port of apps/web/src/lib/server/ratelimit.ts: same numbers and semantics, shared by every API process.
-// Every time comes from the database clock (now()). Old rows are removed by the janitor, not here.
+// Rate limits and backoff in PostgreSQL, shared by every API process. Every time comes from the database clock (now()).
+// Old rows are removed by the janitor, not here.
 import { eq, or, isNull, lte, type SQL, sql } from "drizzle-orm";
 import { db } from "../../kernel/db";
 import { loginBackoff as b, rateLimits as r } from "./schema";
@@ -30,6 +30,13 @@ export class RateLimiter {
     return hit(`${this.name}:${key}`, this.limit, this.windowMs);
   }
 }
+
+/**
+ * A hit on a per-client-IP limiter, under `key` (default: the IP). None when the IP is "unknown" (the web runs without
+ * TRUSTED_PROXY, so no request carries one): every caller would share that one bucket and the per-IP limit would act
+ * site-wide. The fleet-wide breakers and the per-account limits still apply.
+ */
+export const hitIp = (l: RateLimiter, ip: string, key = ip): Promise<number | null> => (ip === "unknown" ? Promise.resolve(null) : l.hit(key));
 
 /**
  * Soft per-key backoff for failed attempts (instead of a hard lockout an attacker could trigger for a known username):
@@ -99,9 +106,9 @@ export class Backoff {
 export type LoginLimits = { ip: RateLimiter; breaker: RateLimiter; userCap: RateLimiter; user: Backoff };
 
 /**
- * Gate for a sign-in step: the soft per-username backoff, then per client IP (10/min), a fleet-wide breaker
- * (300/min), a hard per-username cap (5/min), and last the backoff's attempt reserved as a failure. Returns null when
- * allowed (the caller must then `succeed` or `release` the username), else seconds to wait.
+ * Gate for a sign-in step: the soft per-username backoff, then per client IP (10/min; none for an unknown IP, `hitIp`),
+ * a fleet-wide breaker (300/min), a hard per-username cap (5/min), and last the backoff's attempt reserved as a failure.
+ * Returns null when allowed (the caller must then `succeed` or `release` the username), else seconds to wait.
  */
 export async function loginGate(l: LoginLimits, o: { step: "login" | "otp"; ip: string; username: string | null }): Promise<number | null> {
   const user = o.username?.toLowerCase() ?? null;
@@ -109,7 +116,7 @@ export async function loginGate(l: LoginLimits, o: { step: "login" | "otp"; ip: 
     const wait = await l.user.retryAfterMs(user);
     if (wait > 0) return Math.ceil(wait / 1000);
   }
-  const limited = (await l.ip.hit(`${o.step}:${o.ip}`)) ?? (await l.breaker.hit(o.step)) ?? (user ? await l.userCap.hit(`${o.step}:${user}`) : null);
+  const limited = (await hitIp(l.ip, o.ip, `${o.step}:${o.ip}`)) ?? (await l.breaker.hit(o.step)) ?? (user ? await l.userCap.hit(`${o.step}:${user}`) : null);
   if (limited !== null) return limited;
   if (user) {
     const wait = await l.user.reserve(user); // a concurrent attempt may have used the last free one

@@ -4,7 +4,7 @@
 // what they decide on. Owns no table: users, auth and oauth make the writes through their public API.
 import { BRAND } from "@starterkit/shared/brand";
 import type {
-  ChangePasswordBody, ConnectionProvider, DisableTwoFactorBody, MeDto as MeDtoType, TwoFactorEnableBody, UpdateProfileBody,
+  ChangePasswordBody, ConnectionProvider, DisableTwoFactorBody, MeDto as MeDtoType, ReauthBody, TwoFactorEnableBody, UpdateProfileBody,
 } from "@starterkit/shared/contracts/me";
 import { MeDto } from "@starterkit/shared/contracts/me";
 import { decryptSecret, encryptSecret } from "../../kernel/crypto";
@@ -14,7 +14,7 @@ import { isUuid } from "../../kernel/parse";
 import { recordActivity } from "../audit";
 import {
   type Ctx, deleteUserTokens, endSession, endUserSessions, hashPassword, lockLiveSession, matchTotpStep, newRecoveryCodes, newTotpSecret,
-  oauthOnly, otpauthUrl, reauth, userById, type UserRow,
+  oauthOnly, otpauthUrl, reauth, stampReauth, userById, type UserRow,
 } from "../auth";
 import { otherIdentities, unlinkIdentity } from "../oauth";
 import { disableTotp, duplicateOf, enableTotp, lockUser, startTotp, updateUser } from "../users";
@@ -25,16 +25,16 @@ const target = (u: UserRow, name = u.name) => ({ type: "user", id: u.id, label: 
 const ALREADY_ON = "Two-factor authentication is already on. Turn it off first to set up a new device.";
 const WRONG_CODE = "That code didn't match. Enter the current code from your authenticator app.";
 
-/** The user as /v1/me answers it: parse drops the secret fields. */
-export const toMe = (u: UserRow): MeDtoType => MeDto.parse({ ...u, hasPassword: u.passwordHash !== null });
+/** The user as /v1/me answers it to a session (`reauthFresh`: it proved the user recently): parse drops the secret fields. */
+export const toMe = (u: UserRow, reauthFresh: boolean): MeDtoType => MeDto.parse({ ...u, hasPassword: u.passwordHash !== null, reauthFresh });
 
 /** The user read again after a change. */
-const freshMe = async (id: string): Promise<MeDtoType> => toMe((await userById(id))!);
+const freshMe = async (ctx: Ctx): Promise<MeDtoType> => toMe((await userById(ctx.user.id))!, ctx.reauthFresh);
 
 /**
  * Own name and email. The username can't change here. A new email (other than a change of letter case) is the sign-in
  * identity, so it needs `currentPassword`; an account that signs in only through Google or Apple keeps the provider's
- * email. Nothing changed = no activity entry.
+ * email. A new email spends the user's reset and invitation links. Nothing changed = no activity entry.
  */
 export async function updateProfile(ctx: Ctx, b: UpdateProfileBody): Promise<MeDtoType> {
   const u = ctx.user;
@@ -52,12 +52,13 @@ export async function updateProfile(ctx: Ctx, b: UpdateProfileBody): Promise<MeD
       if (name === cur.name && email === cur.email) return;
       if (email.toLowerCase() !== cur.email.toLowerCase() && (await duplicateOf(tx, undefined, email, u.id))) throw DUPLICATE();
       await updateUser(tx, u.id, { name, email });
+      if (email !== cur.email) await deleteUserTokens(tx, u.id); // the links went to the old address
       await recordActivity(tx, ctx, { action: "me.update", target: target(u, name), before: { name: cur.name, email: cur.email }, after: { name, email } });
     });
   } catch (e) {
     throw isUniqueViolation(e) ? DUPLICATE() : e;
   }
-  return freshMe(u.id);
+  return freshMe(ctx);
 }
 
 /** Change own password, then end this user's other sessions (the current one stays) and spend their reset links. */
@@ -135,7 +136,23 @@ export async function disconnect(ctx: Ctx, provider: ConnectionProvider): Promis
     // a provider that isn't linked changes nothing, so it leaves no entry
     if (await unlinkIdentity(tx, u.id, provider)) await recordActivity(tx, ctx, { action: "me.disconnect", target: target(u), before: { provider } });
   });
-  return freshMe(u.id);
+  return freshMe(ctx);
+}
+
+/**
+ * Prove the user again on this session before connecting Google or Apple: the account password (the directory password
+ * for LDAP users), or, for an account without a password, an unused recovery code (spent). One without either has no
+ * second proof and signs in again instead. An auth step, not a change: no activity entry, and the sign-in log has no
+ * event for it.
+ */
+export async function confirmIdentity(ctx: Ctx, b: ReauthBody): Promise<void> {
+  const u = ctx.user;
+  const only = oauthOnly(u);
+  if (only && !u.twoFactorEnabled) throw new ApiError("bad_request", "Sign in again to connect another account.");
+  const proof = only ? (b.recoveryCode === undefined ? null : { recoveryCode: b.recoveryCode }) : b.password === undefined ? null : { password: b.password };
+  if (!proof) throw new ApiError("bad_request", only ? "Enter one of your recovery codes." : "Enter your current password.");
+  await reauth(u, proof);
+  await stampReauth(ctx.sid);
 }
 
 /** End one of your own other sessions. Someone else's id, or an ended session, answers like an unknown one (404). */

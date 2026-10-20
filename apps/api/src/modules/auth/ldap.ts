@@ -1,5 +1,4 @@
 import { Client, Filter } from "ldapts";
-import { LDAP_PASSWORD } from "../../db/seed/demo";
 import { type Config, config } from "../../kernel/config";
 import { safeEqual } from "../../kernel/crypto";
 import { log } from "../../kernel/log";
@@ -14,6 +13,9 @@ export const userFilter = (template: string, username: string): string => {
   const value = Filter.escape(username);
   return template.replaceAll("{username}", () => value); // a function: `$&` in the value stays literal
 };
+
+/** Directory password of the mock directory's one account, `ldap` (LDAP_MOCK; the demo seed creates that user). */
+export const LDAP_PASSWORD = "LdapPass123!";
 
 /** Mock directory: only the demo account `ldap` with LDAP_PASSWORD. */
 const mock: Directory = { verify: async (username, password) => safeEqual(password, LDAP_PASSWORD) && username === "ldap" };
@@ -32,7 +34,8 @@ async function check(client: Client, c: Config, username: string, password: stri
 
 /**
  * `check` within `timeoutMs` in total (not per operation). Exactly one entry must match. Any error (timeout, no
- * entry, wrong password) is false and one warn line, never the password; the connection is always closed.
+ * entry, wrong password) is false and one warn line with the error's name and code, never the login or the password;
+ * the connection is always closed.
  */
 async function verifyLdap(c: Config, timeoutMs: number, username: string, password: string): Promise<boolean> {
   if (!password) return false; // an empty password is an anonymous bind, which many servers accept
@@ -44,7 +47,9 @@ async function verifyLdap(c: Config, timeoutMs: number, username: string, passwo
   try {
     return await Promise.race([check(client, c, username, password), timeout]);
   } catch (e) {
-    log.warn({ err: e instanceof Error ? e : { name: typeof e }, username }, "ldap sign-in failed");
+    // The error's name and code only: its message and the typed login can name a person or a DN.
+    const code = (e as { code?: unknown })?.code;
+    log.warn({ err: e instanceof Error ? { name: e.name, ...(code !== undefined && { code: String(code) }) } : { name: typeof e } }, "ldap sign-in failed");
     return false;
   } finally {
     clearTimeout(timer);

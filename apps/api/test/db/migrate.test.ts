@@ -22,8 +22,8 @@ afterEach(async () => {
 });
 
 describe("migrate", () => {
-  it("applies 0000 and 0001 once; a second run applies nothing", async () => {
-    expect(await migrate(db)).toEqual(["0000_init.sql", "0001_custom.sql"]);
+  it("applies every file once, in order; a second run applies nothing", async () => {
+    expect(await migrate(db)).toEqual(["0000_init.sql", "0001_custom.sql", "0002_session_reauth.sql"]);
     expect(await migrate(db)).toEqual([]);
     const [row] = await db`select count(*)::int as n from information_schema.tables where table_schema = ${schema} and table_name = 'users'`;
     expect(row.n).toBe(1);
@@ -85,9 +85,9 @@ describe("migrate", () => {
     const other = new SQL(url, { max: 2, connection: { search_path: `${schema}, public` } });
     try {
       const [a, b] = await Promise.all([migrate(db), migrate(other)]);
-      expect([...a, ...b]).toEqual(["0000_init.sql", "0001_custom.sql"]);
+      expect([...a, ...b]).toEqual(["0000_init.sql", "0001_custom.sql", "0002_session_reauth.sql"]);
       const rows = await db`select name from schema_migrations`;
-      expect(rows.map((r: { name: string }) => r.name).sort()).toEqual(["0000_init.sql", "0001_custom.sql"]);
+      expect(rows.map((r: { name: string }) => r.name).sort()).toEqual(["0000_init.sql", "0001_custom.sql", "0002_session_reauth.sql"]);
     } finally {
       await other.close();
     }
