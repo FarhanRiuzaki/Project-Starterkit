@@ -1,9 +1,14 @@
-import type { SQL } from "bun";
+import { eq, sql } from "drizzle-orm";
 import type { ActivityAction } from "@starterkit/shared/audit";
 import type { AuthLogDto } from "@starterkit/shared/contracts/audit";
-import { encryptSecret } from "../auth/crypto";
-import { hashPassword } from "../auth/password";
-import { log } from "../log";
+import { encryptSecret } from "../../kernel/crypto";
+import type { Tx } from "../../kernel/db";
+import { log } from "../../kernel/log";
+import { activity as activityTable, authLog as authLogTable } from "../../modules/audit";
+import { hashPassword } from "../../modules/auth";
+import { userIdentities } from "../../modules/oauth";
+import { roles, userRoles } from "../../modules/rbac";
+import { recoveryCodes, users as usersTable } from "../../modules/users";
 
 // Port of the web mock's seed (deleted in Task 9): same generator, seed and call order, so the same names and flags.
 export const SEED_PASSWORD = "Password123!";
@@ -51,13 +56,13 @@ let hashes: Promise<{ password: string; codes: string[] }> | undefined;
  * the directory, `twofa` has TOTP and recovery codes, `google`/`apple` are linked), 42 generated users, 200 activity
  * and 300 sign-in log entries. Refused in production; skipped when the demo accounts exist.
  */
-export async function seedDemo(db: SQL, env: Record<string, string | undefined> = process.env): Promise<void> {
+export async function seedDemo(db: Tx, env: Record<string, string | undefined> = process.env): Promise<void> {
   if (env.NODE_ENV === "production") throw new Error("Demo data is refused when NODE_ENV=production.");
-  if ((await db`select 1 from users where lower(email) = 'admin@example.com'`).length) {
+  if ((await db.select({ id: usersTable.id }).from(usersTable).where(eq(sql`lower(${usersTable.email})`, "admin@example.com")).limit(1)).length) {
     log.info("demo data exists: skipped");
     return;
   }
-  const roleIds = new Map<string, string>((await db`select name, id from roles`).map((r: { name: string; id: string }) => [r.name, r.id]));
+  const roleIds = new Map((await db.select({ name: roles.name, id: roles.id }).from(roles)).map((r) => [r.name, r.id]));
   if (!["Superadmin", "Admin", "Viewer"].every((r) => roleIds.has(r))) throw new Error("Run the system seed first (bun run db:seed).");
   const { password, codes } = await (hashes ??= Promise.all([hashPassword(SEED_PASSWORD), Promise.all(RECOVERY_CODES.map(hashPassword))])
     .then(([password, codes]) => ({ password, codes })));
@@ -94,8 +99,8 @@ export async function seedDemo(db: SQL, env: Record<string, string | undefined> 
     const when = at(now - Math.floor(rnd() * 30 * DAY));
     const role = action.startsWith("role");
     return {
-      id: Bun.randomUUIDv7(), at: when, actor_id: actor.id, actor_name: actor.name, action,
-      target_type: role ? "role" : "user", target_id: role ? roleIds.get("Viewer")! : target.id, target_label: role ? "Viewer" : target.name,
+      id: Bun.randomUUIDv7(), at: when, actorId: actor.id, actorName: actor.name, action,
+      targetType: role ? "role" : "user", targetId: role ? roleIds.get("Viewer")! : target.id, targetLabel: role ? "Viewer" : target.name,
       before: action === "user.update" ? { name: target.name } : null,
       after: action === "user.update" ? { name: `${target.name} (edited)` } : null,
     };
@@ -107,30 +112,25 @@ export async function seedDemo(db: SQL, env: Record<string, string | undefined> 
     const event = pick(events);
     const when = at(now - Math.floor(rnd() * 30 * DAY));
     return {
-      id: Bun.randomUUIDv7(), at: when, user_id: u.id, login: u.email, event, method: u.isLdap ? "ldap" : u.connected ?? "password",
+      id: Bun.randomUUIDv7(), at: when, userId: u.id, login: u.email, event, method: u.isLdap ? "ldap" : u.connected ?? "password",
       ip: `10.0.${Math.floor(rnd() * 8)}.${1 + Math.floor(rnd() * 250)}`, device: pick(DEVICES), location: pick(PLACES),
     };
   });
 
-  await db.begin(async (tx) => {
-    await tx`insert into users ${tx(users.map((u) => ({
-      id: u.id, name: u.name, username: u.username, email: u.email, is_active: u.isActive, is_ldap: u.isLdap,
-      password_hash: u.isLdap ? null : password, totp_secret: u.twoFactor ? encryptSecret(TOTP_SECRET) : null,
-      last_login_at: u.lastLoginAt, created_at: u.createdAt, updated_at: u.createdAt,
-    })))}`;
-    await tx`insert into user_roles ${tx(users.map((u) => ({ user_id: u.id, role_id: roleIds.get(u.role)! })))}`;
+  await db.transaction(async (tx) => {
+    await tx.insert(usersTable).values(users.map((u) => ({
+      id: u.id, name: u.name, username: u.username, email: u.email, isActive: u.isActive, isLdap: u.isLdap,
+      passwordHash: u.isLdap ? null : password, totpSecret: u.twoFactor ? encryptSecret(TOTP_SECRET) : null,
+      lastLoginAt: u.lastLoginAt, createdAt: u.createdAt, updatedAt: u.createdAt,
+    })));
+    await tx.insert(userRoles).values(users.map((u) => ({ userId: u.id, roleId: roleIds.get(u.role)! })));
     for (const u of users.filter((x) => x.twoFactor)) {
-      await tx`insert into recovery_codes ${tx(codes.map((code_hash) => ({ id: Bun.randomUUIDv7(), user_id: u.id, code_hash })))}`;
+      await tx.insert(recoveryCodes).values(codes.map((codeHash) => ({ id: Bun.randomUUIDv7(), userId: u.id, codeHash })));
     }
     for (const u of users.filter((x) => x.connected)) {
-      await tx`insert into user_identities (user_id, provider, subject, email) values (${u.id}, ${u.connected}, ${`mock-${u.connected}-demo`}, ${u.email})`;
+      await tx.insert(userIdentities).values({ userId: u.id, provider: u.connected!, subject: `mock-${u.connected}-demo`, email: u.email });
     }
-    // jsonb through text: a parameter typed jsonb would store a JSON string of the text instead of the object
-    for (const a of activity) {
-      await tx`insert into activity (id, at, actor_id, actor_name, action, target_type, target_id, target_label, before, after)
-        values (${a.id}, ${a.at}, ${a.actor_id}, ${a.actor_name}, ${a.action}, ${a.target_type}, ${a.target_id}, ${a.target_label},
-                ${a.before && JSON.stringify(a.before)}::text::jsonb, ${a.after && JSON.stringify(a.after)}::text::jsonb)`;
-    }
-    await tx`insert into auth_log ${tx(authLog)}`;
+    await tx.insert(activityTable).values(activity);
+    await tx.insert(authLogTable).values(authLog);
   });
 }

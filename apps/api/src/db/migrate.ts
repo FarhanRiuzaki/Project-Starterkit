@@ -1,7 +1,8 @@
 import { SQL } from "bun";
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
-import { log } from "../log";
+import { LOCKS } from "../kernel/locks";
+import { log } from "../kernel/log";
 
 /**
  * One connection as the schema owner (MIGRATION_DATABASE_URL, else DATABASE_URL), no statement timeout; the caller
@@ -13,9 +14,8 @@ export function migrationSql(): SQL {
   return new SQL(url, { max: 1 });
 }
 
-const DIR = join(import.meta.dir, "../../migrations");
-/** pg_advisory_lock key of the migration runner (any fixed bigint; one runner at a time per database). */
-const LOCK = 7_340_211_001n;
+/** drizzle-kit's output (generated from every modules/<m>/schema.ts, plus custom SQL); meta/ is drizzle-kit's own. */
+const DIR = join(import.meta.dir, "../../drizzle");
 
 /**
  * Applies the pending `NNNN_name.sql` files of `dir` in name order, each in its own transaction, under a session
@@ -27,12 +27,12 @@ export async function migrate(db?: SQL, dir = DIR): Promise<string[]> {
   try {
     const conn = await pool.reserve();
     try {
-      await conn`select pg_advisory_lock(${LOCK})`;
+      await conn`select pg_advisory_lock(${LOCKS.migrations})`;
       try {
         return await applyPending(conn, dir);
       } finally {
         // A failed unlock (a broken connection drops the lock anyway) must not hide the error above.
-        await conn`select pg_advisory_unlock(${LOCK})`.catch(() => {});
+        await conn`select pg_advisory_unlock(${LOCKS.migrations})`.catch(() => {});
       }
     } finally {
       conn.release();
@@ -63,6 +63,28 @@ async function applyPending(conn: SQL, dir: string): Promise<string[]> {
     log.info({ migration: m.name }, "migration applied");
   }
   return pending.map((m) => m.name);
+}
+
+/** Creates the database `url` names when it doesn't exist, connecting to the server's `postgres` database. */
+export async function createDatabase(url: string): Promise<boolean> {
+  const target = new URL(url);
+  const name = decodeURIComponent(target.pathname.slice(1));
+  target.pathname = "/postgres";
+  const server = new SQL(target.href, { max: 1 });
+  try {
+    const [found] = await server`select 1 from pg_database where datname = ${name}`;
+    if (found) return false;
+    await server.unsafe(`create database "${name.replaceAll('"', '""')}"`);
+    return true;
+  } finally {
+    await server.close();
+  }
+}
+
+/** Drops every object of the `public` schema (db:reset; the caller refuses production), then migrates it again. */
+export async function resetSchema(db: SQL): Promise<string[]> {
+  await db.unsafe("drop schema public cascade; create schema public;");
+  return migrate(db);
 }
 
 if (import.meta.main) {

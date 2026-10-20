@@ -44,7 +44,7 @@ export default defineConfig({
   webServer: [
     {
       // From the repo root: create the database when missing, drop + migrate + seed it, then serve.
-      command: `bun -e 'await (await import("./apps/api/src/db/create.ts")).createDatabase(process.env.DATABASE_URL)' && bun run --filter @starterkit/api db:reset && bun apps/api/src/index.ts`,
+      command: `bun -e 'await (await import("./apps/api/src/db/migrate.ts")).createDatabase(process.env.DATABASE_URL)' && bun run --filter @starterkit/api db:reset && bun apps/api/src/index.ts`,
       cwd: ROOT,
       url: `http://127.0.0.1:${API_PORT}/readyz`,
       reuseExistingServer: process.env.E2E_REUSE === "1",

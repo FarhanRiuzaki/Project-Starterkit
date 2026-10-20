@@ -1,8 +1,12 @@
-import type { SQL } from "bun";
+import { eq, sql } from "drizzle-orm";
+import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import { Password } from "@starterkit/shared/contracts/auth";
 import { PERMISSIONS, type PermissionName } from "@starterkit/shared/permissions";
-import { hashPassword } from "../auth/password";
-import { log } from "../log";
+import type { Tx } from "../../kernel/db";
+import { log } from "../../kernel/log";
+import { hashPassword } from "../../modules/auth";
+import { permissions, rolePermissions, roles, userRoles } from "../../modules/rbac";
+import { users } from "../../modules/users";
 
 /** The built-in roles, as the web mock's seed made them. */
 const ROLES: { name: string; locked: boolean; perms: readonly PermissionName[] }[] = [
@@ -31,24 +35,27 @@ function ownerOf(env: Record<string, string | undefined>) {
  * superadmin from SEED_SUPERADMIN_* when set. A user with that email already there is left as it is; another user
  * holding that username is an error.
  */
-export async function seedSystem(db: SQL, env: Record<string, string | undefined>): Promise<void> {
+export async function seedSystem(db: Tx, env: Record<string, string | undefined>): Promise<void> {
   const owner = ownerOf(env);
-  await db.begin(async (tx) => {
-    await tx`insert into permissions ${tx(PERMISSIONS.map((name, position) => ({ name, position })))} on conflict (name) do nothing`;
+  await db.transaction(async (tx) => {
+    await tx.insert(permissions).values(PERMISSIONS.map((name, position) => ({ name, position }))).onConflictDoNothing({ target: permissions.name });
     for (const r of ROLES) {
-      const [made] = await tx`insert into roles (id, name, locked) values (${Bun.randomUUIDv7()}, ${r.name}, ${r.locked})
-        on conflict ((lower(name))) do nothing returning id`;
-      if (made) await tx`insert into role_permissions ${tx(r.perms.map((permission) => ({ role_id: made.id, permission })))}`;
+      // The only possible conflict is the name (lower(name) index): the id is new.
+      const [made] = await tx.insert(roles).values({ id: Bun.randomUUIDv7(), name: r.name, locked: r.locked }).onConflictDoNothing().returning({ id: roles.id });
+      if (made) await tx.insert(rolePermissions).values(r.perms.map((permission) => ({ roleId: made.id, permission })));
     }
-    await tx`insert into role_permissions (role_id, permission)
-      select r.id, p.name from roles r cross join permissions p where r.name = 'Superadmin' on conflict do nothing`;
-    if (!owner || (await tx`select 1 from users where lower(email) = lower(${owner.email})`).length) return;
-    if ((await tx`select 1 from users where lower(username) = lower(${owner.username})`).length) {
+    await tx.insert(rolePermissions)
+      .select(tx.select({ roleId: roles.id, permission: permissions.name }).from(roles).crossJoin(permissions).where(eq(roles.name, "Superadmin")))
+      .onConflictDoNothing();
+    const taken = (column: AnyPgColumn, value: string) =>
+      tx.select({ id: users.id }).from(users).where(eq(sql`lower(${column})`, sql`lower(${value})`)).limit(1);
+    if (!owner || (await taken(users.email, owner.email)).length) return;
+    if ((await taken(users.username, owner.username)).length) {
       throw new Error("SEED_SUPERADMIN_USERNAME is already the username of another user (with another email). Choose another username.");
     }
     const id = Bun.randomUUIDv7();
-    await tx`insert into users (id, name, username, email, password_hash)
-      values (${id}, ${owner.name}, ${owner.username}, ${owner.email}, ${await hashPassword(owner.password)})`;
-    await tx`insert into user_roles (user_id, role_id) select ${id}, id from roles where name = 'Superadmin'`;
+    await tx.insert(users).values({ id, name: owner.name, username: owner.username, email: owner.email, passwordHash: await hashPassword(owner.password) });
+    const [superadmin] = await tx.select({ id: roles.id }).from(roles).where(eq(roles.name, "Superadmin"));
+    await tx.insert(userRoles).values({ userId: id, roleId: superadmin!.id });
   });
 }

@@ -4,7 +4,7 @@
 import { randomBytes } from "node:crypto";
 import { existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { createDatabase } from "../apps/api/src/db/create";
+import { createDatabase } from "../apps/api/src/db/migrate";
 
 const root = join(import.meta.dir, "..");
 const api = join(root, "apps/api");
