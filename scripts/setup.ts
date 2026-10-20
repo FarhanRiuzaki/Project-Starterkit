@@ -1,5 +1,6 @@
 // `bun run setup [--database-url <url>]`: env files (only when missing), the database (when missing), migrations, seeds.
-// SEED_SUPERADMIN_NAME/EMAIL/USERNAME/PASSWORD from the environment go into apps/api/.env; empty = fill in later.
+// SEED_SUPERADMIN_NAME/EMAIL/USERNAME/PASSWORD from the environment go into apps/api/.env; empty = fill in later. New
+// env files turn on the mock Google/Apple and directory sign-in (OAUTH_MOCK, LDAP_MOCK), never with NODE_ENV=production.
 // Prints file names and steps only, never a value.
 import { randomBytes } from "node:crypto";
 import { existsSync, writeFileSync } from "node:fs";
@@ -34,37 +35,57 @@ async function run(...cmd: string[]) {
   if ((await p.exited) !== 0) throw new Error(`"${cmd.join(" ")}" failed`);
 }
 
-const flag = process.argv.indexOf("--database-url");
-const urlArg = flag > 0 ? process.argv[flag + 1] : process.env.DATABASE_URL;
-const token = randomBytes(32).toString("base64url");
+/** The mock sign-in methods of a development checkout; none in production, where both apps refuse them. */
+const mocks = (env: Record<string, string | undefined>, keys: string[]): [string, string][] =>
+  env.NODE_ENV === "production" ? [] : keys.map((k) => [k, "true"]);
 
-if (existsSync(apiEnv)) {
-  console.log("apps/api/.env exists: kept as it is.");
-} else {
-  if (!urlArg) throw new Error("No database: pass --database-url postgresql://user:password@host:5432/name or set DATABASE_URL.");
-  writeSecret(apiEnv, "# Written by `bun run setup`. Never commit this file. Keys: apps/api/.env.example.\n" + lines([
-    ["DATABASE_URL", urlArg],
+/** A new apps/api/.env. */
+export function apiEnvText(databaseUrl: string, token: string, env: Record<string, string | undefined>): string {
+  return "# Written by `bun run setup`. Never commit this file. Keys: apps/api/.env.example.\n" + lines([
+    ["DATABASE_URL", databaseUrl],
     ["INTERNAL_API_TOKEN", token],
     ["DATA_ENCRYPTION_KEY", randomBytes(32).toString("base64")],
-  ]) + "# Superadmin that `bun run db:seed` creates; empty = none.\n" + lines(SEED_KEYS.map((k) => [k, process.env[k] ?? ""])));
-  console.log("apps/api/.env written.");
+    ...mocks(env, ["OAUTH_MOCK", "LDAP_MOCK"]),
+  ]) + "# Superadmin that `bun run db:seed` creates; empty = none.\n" + lines(SEED_KEYS.map((k) => [k, env[k] ?? ""]));
 }
 
-if (existsSync(webEnv)) {
-  console.log("apps/web/.env.local exists: kept as it is. Its INTERNAL_API_TOKEN must equal the one in apps/api/.env.");
-} else {
-  writeSecret(webEnv, "# Written by `bun run setup`. Never commit this file.\n" + lines([
+/** A new apps/web/.env.local. */
+export function webEnvText(token: string, env: Record<string, string | undefined>): string {
+  return "# Written by `bun run setup`. Never commit this file.\n" + lines([
     ["API_BASE_URL", "http://127.0.0.1:4000"],
-    ["INTERNAL_API_TOKEN", (await readEnv(apiEnv, "INTERNAL_API_TOKEN")) ?? token],
+    ["INTERNAL_API_TOKEN", token],
     ["SESSION_SECRET", randomBytes(32).toString("base64url")],
-  ]));
-  console.log("apps/web/.env.local written.");
+    ...mocks(env, ["OAUTH_MOCK"]),
+  ]);
 }
 
-const url = await readEnv(apiEnv, "DATABASE_URL");
-if (!url) throw new Error("apps/api/.env has no DATABASE_URL.");
-console.log((await createDatabase(url)) ? "Database created." : "Database exists.");
-await run("bun", "run", "db:migrate");
-await run("bun", "run", "db:seed");
-await run("bun", "run", "db:seed:demo");
-console.log("Setup done. Start web and API with `bun run dev`.");
+async function main() {
+  const flag = process.argv.indexOf("--database-url");
+  const urlArg = flag > 0 ? process.argv[flag + 1] : process.env.DATABASE_URL;
+  const token = randomBytes(32).toString("base64url");
+
+  if (existsSync(apiEnv)) {
+    console.log("apps/api/.env exists: kept as it is.");
+  } else {
+    if (!urlArg) throw new Error("No database: pass --database-url postgresql://user:password@host:5432/name or set DATABASE_URL.");
+    writeSecret(apiEnv, apiEnvText(urlArg, token, process.env));
+    console.log("apps/api/.env written.");
+  }
+
+  if (existsSync(webEnv)) {
+    console.log("apps/web/.env.local exists: kept as it is. Its INTERNAL_API_TOKEN must equal the one in apps/api/.env.");
+  } else {
+    writeSecret(webEnv, webEnvText((await readEnv(apiEnv, "INTERNAL_API_TOKEN")) ?? token, process.env));
+    console.log("apps/web/.env.local written.");
+  }
+
+  const url = await readEnv(apiEnv, "DATABASE_URL");
+  if (!url) throw new Error("apps/api/.env has no DATABASE_URL.");
+  console.log((await createDatabase(url)) ? "Database created." : "Database exists.");
+  await run("bun", "run", "db:migrate");
+  await run("bun", "run", "db:seed");
+  await run("bun", "run", "db:seed:demo");
+  console.log("Setup done. Start web and API with `bun run dev`.");
+}
+
+if (import.meta.main) await main();

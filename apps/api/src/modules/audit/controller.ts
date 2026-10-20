@@ -1,4 +1,4 @@
-// /v1/audit/*: port of apps/web/src/app/api/audit/**. Read-only, so nothing is recorded. Query 400 → guard 401/403 →
+// /v1/audit/*. Read-only, so nothing is recorded. Query 400 → guard 401/403 →
 // page, or with `format=csv` the whole filtered list (newest first, CSV_MAX_ROWS at most) instead of a page.
 import { Elysia } from "elysia";
 import { ActivityQuery, AuthLogQuery } from "@starterkit/shared/contracts/audit";

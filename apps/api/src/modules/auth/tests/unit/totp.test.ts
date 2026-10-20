@@ -1,5 +1,7 @@
 import { describe, expect, it } from "bun:test";
-import { newRecoveryCodes, newTotpSecret, otpauthUrl, totpCode, verifyTotp } from "../../totp";
+import { matchTotpStep, newRecoveryCodes, newTotpSecret, otpauthUrl, totpCode } from "../../totp";
+
+const verifyTotp = (secret: string, code: string, now: number) => matchTotpStep(secret, code, now) !== null;
 
 const SECRET = "JBSWY3DPEHPK3PXP";
 const NOW = 1_760_000_000_000; // a fixed instant, mid-step
@@ -10,7 +12,7 @@ describe("totp", () => {
     expect(totpCode("GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ", 59_000, 8)).toBe("94287082");
   });
 
-  it("verifyTotp accepts current and adjacent step, rejects others", () => {
+  it("matchTotpStep accepts the current and adjacent steps, rejects others", () => {
     const at = (ms: number) => totpCode(SECRET, NOW + ms);
     expect(verifyTotp(SECRET, at(0), NOW)).toBe(true);
     expect(verifyTotp(SECRET, at(-30_000), NOW)).toBe(true);
@@ -22,7 +24,7 @@ describe("totp", () => {
     expect(verifyTotp(SECRET, "abcdef", NOW)).toBe(false);
   });
 
-  it("newTotpSecret is random base32 (160 bits) and round-trips through verifyTotp", () => {
+  it("newTotpSecret is random base32 (160 bits) and round-trips through matchTotpStep", () => {
     const a = newTotpSecret();
     expect(a).toMatch(/^[A-Z2-7]{32}$/);
     expect(newTotpSecret()).not.toBe(a);

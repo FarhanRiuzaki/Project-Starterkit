@@ -1,15 +1,8 @@
 // `bun test` preload: points the API at the test database, creates it when missing and migrates it once.
 // Bun loads apps/api/.env first, so every value that could reach the dev database is overwritten here.
-/** The test database: TEST_DATABASE_URL, else DATABASE_URL with `_test` appended to the database name. */
-function testUrl(): string {
-  if (process.env.TEST_DATABASE_URL) return process.env.TEST_DATABASE_URL;
-  if (!process.env.DATABASE_URL) throw new Error("Set TEST_DATABASE_URL, or DATABASE_URL in apps/api/.env (bun run setup).");
-  const u = new URL(process.env.DATABASE_URL);
-  if (!u.pathname.endsWith("_test")) u.pathname += "_test";
-  return u.href;
-}
+import { testDatabaseUrl } from "./test-url";
 
-const url = testUrl();
+const url = testDatabaseUrl(process.env);
 Object.assign(process.env, {
   NODE_ENV: "test",
   DATABASE_URL: url,

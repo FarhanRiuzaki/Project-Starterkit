@@ -1,5 +1,5 @@
 import pino from "pino";
-import { formatLog, maskArgs, maskDeep, maskErr, REDACT } from "@starterkit/shared/log-redact";
+import { formatLog, maskArgs, maskErr, REDACT } from "@starterkit/shared/log-redact";
 
 /** JSON log to stdout with the web's redaction (`@starterkit/shared/log-redact`). Level from LOG_LEVEL. */
 export const log = pino({
@@ -14,6 +14,3 @@ export const log = pino({
     },
   },
 });
-
-/** A child logger; its bindings are masked (pino skips formatters.log for child bindings). */
-export const childLog = (bindings: Record<string, unknown>) => log.child(maskDeep(bindings) as pino.Bindings);

@@ -5,15 +5,14 @@ import { encryptSecret } from "../../kernel/crypto";
 import type { Tx } from "../../kernel/db";
 import { log } from "../../kernel/log";
 import { activity as activityTable, authLog as authLogTable } from "../../modules/audit";
-import { hashPassword } from "../../modules/auth";
+import { hashPassword, LDAP_PASSWORD } from "../../modules/auth";
 import { userIdentities } from "../../modules/oauth";
 import { roles, userRoles } from "../../modules/rbac";
 import { recoveryCodes, users as usersTable } from "../../modules/users";
 
-// Port of the web mock's seed (deleted in Task 9): same generator, seed and call order, so the same names and flags.
 export const SEED_PASSWORD = "Password123!";
-/** Directory password of the demo LDAP account (username `ldap`); the mock directory (modules/auth/ldap.ts) holds it. */
-export const LDAP_PASSWORD = "LdapPass123!";
+/** Directory password of the demo LDAP account (username `ldap`), held by the mock directory (modules/auth/ldap.ts). */
+export { LDAP_PASSWORD };
 /** Fixed base32 TOTP secret of twofa@example.com. */
 export const TOTP_SECRET = "JBSWY3DPEHPK3PXP";
 export const RECOVERY_CODES = ["aaaa-1111", "bbbb-2222", "cccc-3333", "dddd-4444", "eeee-5555", "ffff-6666", "gggg-7777", "hhhh-8888"];

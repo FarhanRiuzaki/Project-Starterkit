@@ -1,5 +1,5 @@
-// /v1/roles, /v1/permissions and /v1/users/roles: port of apps/web/src/app/api/{roles,permissions,users/roles}. Query 400
-// → guard 401/403 → body 400 → 404 → rules → change → activity (the last three in service.ts).
+// /v1/roles, /v1/permissions and /v1/users/roles. Query 400 → guard 401/403 → body 400 → 404 → rules → change →
+// activity (the last three in service.ts).
 import { Elysia } from "elysia";
 import { CreatePermissionsBody, CreateRoleBody, PermissionListQuery, RoleListQuery, RoleOptionQuery, UpdateRoleBody } from "@starterkit/shared/contracts/rbac";
 import { notFound } from "../../kernel/errors";

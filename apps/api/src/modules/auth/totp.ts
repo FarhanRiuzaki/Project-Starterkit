@@ -57,7 +57,7 @@ export function otpauthUrl(secret: string, account: string, issuer: string): str
   return `otpauth://totp/${encodeURIComponent(issuer)}:${encodeURIComponent(account)}?${q}`;
 }
 
-/** RFC 6238 code of `secret` at `now` (ms). Used by verifyTotp and by tests to produce a valid code. */
+/** RFC 6238 code of `secret` at `now` (ms). Used by tests to produce a valid code. */
 export function totpCode(secret: string, now = Date.now(), digits = 6): string {
   return hotp(base32Decode(secret), Math.floor(now / 1000 / STEP_S), digits);
 }
@@ -70,11 +70,6 @@ export function matchTotpStep(secret: string, code: string, now = Date.now()): n
   const hits = [-1, 0, 1].map((d) => safeEqual(hotp(key, step + d, 6), code)); // all three compared, no early exit
   const i = hits.indexOf(true);
   return i < 0 ? null : step + i - 1;
-}
-
-/** True when `code` is the 6-digit code of the current 30 s step or the one before or after. No replay check. */
-export function verifyTotp(secret: string, code: string, now = Date.now()): boolean {
-  return matchTotpStep(secret, code, now) !== null;
 }
 
 /** 8 recovery codes of 80 random bits: lowercase base32, `xxxx-xxxx-xxxx-xxxx`. Stored with hashPassword. */

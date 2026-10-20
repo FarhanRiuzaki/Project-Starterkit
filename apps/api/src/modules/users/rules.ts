@@ -1,5 +1,5 @@
-// User rules, moved from the web mock's rules.ts (deleted in Task 9). Effective permissions are SQL now (auth/sessions.ts
-// permsOf), so the rules take permission sets and a Superadmin count instead of the store.
+// User rules, pure: effective permissions come from SQL (auth/sessions.ts permsOf), so the rules take permission sets
+// and a Superadmin count.
 import { randomInt } from "node:crypto";
 import type { BulkResult, ErrorCode } from "@starterkit/shared/contracts/common";
 import type { PermissionName } from "@starterkit/shared/permissions";

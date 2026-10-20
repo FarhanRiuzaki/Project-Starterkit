@@ -9,7 +9,7 @@ export const LOCKS = {
   catalog: 50_001n,
   /** Changes that can lower the number of active Superadmins. */
   superadmin: 50_002n,
-  /** The clean-up job (Task 11): one instance at a time across API processes. */
+  /** The clean-up job: one instance at a time across API processes. */
   janitor: 50_003n,
 } as const;
 

@@ -6,11 +6,10 @@ import { log } from "./log";
 
 const INTERNAL = "The server hit an unexpected error. Try again; if it continues, contact your administrator.";
 
-/** Fixed copy per code (ported from apps/web/src/lib/server/api.ts); a route passes its own text where it has one. */
+/** Fixed copy per code; a route passes its own text where it has one. */
 const COPY: Partial<Record<ErrorCode, string>> = {
   unauthenticated: "Sign in to continue.",
   forbidden: "Your role doesn't allow this. Ask an administrator for access.",
-  csrf: "The security token is missing or expired. Reload the page and try again.",
   not_found: "This page doesn't exist or was deleted.",
   bad_request: "A request parameter has an unsupported value.",
   account_inactive: "This account is inactive. Ask an administrator to reactivate it.",
@@ -42,25 +41,27 @@ export const notFound = (noun: string) => new ApiError("not_found", `This ${noun
 /** 409 for ending the session that makes the request (the user signs out instead). */
 export const currentSession = () => new ApiError("self_action", "This is the session you're using. Sign out instead.");
 
-export const crossSite = () => new ApiError("forbidden", "The request didn't come from this app. Reload the page and try again.");
-
 /** 429 with Retry-After (seconds). */
 export const tooManyAttempts = (sec: number, text: string) => new ApiError("rate_limited", text, { "Retry-After": String(sec) });
 
 /**
- * An unexpected error: logged (name and masked message; a non-Error only by its type) and the fixed 500. A failed
- * Drizzle query is logged as the driver's error: its own message holds the SQL and every parameter (hashes, emails).
+ * What a log line may say about a thrown value: name and masked message (a non-Error only by its type). A failed
+ * Drizzle query is described by the driver's error: its own message holds the SQL and every parameter (hashes, emails).
  * A PostgreSQL error adds its SQLSTATE (`code`), constraint and table when present; never `detail` or `hint`, which
  * quote row values.
  */
-export function unexpected(err: unknown, requestId?: string): Response {
+export function errorDetail(err: unknown): Record<string, string | undefined> {
   const e = err instanceof DrizzleQueryError && err.cause ? err.cause : err;
   const pg = (e ?? {}) as { errno?: unknown; constraint?: unknown; table?: unknown };
   const text = (v: unknown) => (typeof v === "string" && v ? v : undefined);
-  const detail = e instanceof Error
+  return e instanceof Error
     ? { name: e.name, message: maskText(e.message), code: text(pg.errno), constraint: text(pg.constraint), table: text(pg.table) }
     : { name: typeof e };
-  log.error({ err: detail, requestId }, "api error");
+}
+
+/** An unexpected error: logged through `errorDetail` and the fixed 500. */
+export function unexpected(err: unknown, requestId?: string): Response {
+  log.error({ err: errorDetail(err), requestId }, "api error");
   return Response.json(errorBody("internal", INTERNAL), { status: 500, headers: { "Cache-Control": "no-store" } });
 }
 

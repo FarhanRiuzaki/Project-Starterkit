@@ -2,6 +2,7 @@
 import { sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/bun-sql";
 import { client } from "../kernel/db";
+import { errorDetail } from "../kernel/errors";
 import { LOCKS } from "../kernel/locks";
 import { log } from "../kernel/log";
 import { purgeAudit } from "../modules/audit";
@@ -33,15 +34,16 @@ export async function runJanitor(): Promise<Record<string, number> | null> {
 
 /**
  * Runs the janitor now and every 5 minutes (the timer never keeps the process alive; a tick while a run is in flight
- * is skipped). Returns the stop function: it clears the timer and resolves once the run in flight, if any, has ended,
+ * is skipped; a failure logs the error as `errorDetail` does, never the SQL or its parameters). `run` is for tests.
+ * Returns the stop function: it clears the timer and resolves once the run in flight, if any, has ended,
  * so the shutdown can close the pool after it.
  */
-export function startJanitor(): () => Promise<void> {
+export function startJanitor(run: () => Promise<unknown> = runJanitor): () => Promise<void> {
   let running: Promise<void> | null = null;
   const tick = () => {
-    running ??= runJanitor().then(
+    running ??= run().then(
       () => {},
-      (err: unknown) => log.error({ err }, "janitor failed"),
+      (err: unknown) => log.error({ err: errorDetail(err) }, "janitor failed"),
     ).finally(() => (running = null));
   };
   tick();

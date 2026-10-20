@@ -8,7 +8,7 @@ import { hashPassword } from "../../modules/auth";
 import { permissions, rolePermissions, roles, userRoles } from "../../modules/rbac";
 import { users } from "../../modules/users";
 
-/** The built-in roles, as the web mock's seed made them. */
+/** The built-in roles. */
 const ROLES: { name: string; locked: boolean; perms: readonly PermissionName[] }[] = [
   { name: "Superadmin", locked: true, perms: PERMISSIONS },
   { name: "Admin", locked: false, perms: PERMISSIONS.filter((p) => !p.startsWith("role.") && !p.startsWith("permission.")) },

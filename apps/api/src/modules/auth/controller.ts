@@ -1,4 +1,4 @@
-// /v1/auth/*: port of apps/web/src/app/api/auth/{login,2fa,logout,forgot,reset}. The web keeps the cookie, CSRF and
+// /v1/auth/{login,2fa,logout,forgot,reset,context}. The web keeps the cookie, CSRF and
 // same-origin checks; here a full sign-in answers `token` and a pending second factor answers `challenge`. These routes
 // answer before a session exists, so only `context` is guarded; the others read their body first.
 import { Elysia } from "elysia";

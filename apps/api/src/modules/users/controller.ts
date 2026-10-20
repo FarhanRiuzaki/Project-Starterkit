@@ -1,5 +1,5 @@
-// /v1/users*: port of apps/web/src/app/api/users/** and lib/server/users.ts (/v1/users/roles is the rbac module's). Query
-// 400 → guard 401/403 → body 400 → 404 → actor rank → rules → change → activity (from 404 on, in service.ts).
+// /v1/users* (/v1/users/roles is the rbac module's). Query 400 → guard 401/403 → body 400 → 404 → actor rank → rules →
+// change → activity (from 404 on, in service.ts).
 import { Elysia } from "elysia";
 import { SessionListQuery } from "@starterkit/shared/contracts/me";
 import { BulkUserBody, CreateUserBody, SetUserStatusBody, UpdateUserBody, UserListQuery } from "@starterkit/shared/contracts/users";

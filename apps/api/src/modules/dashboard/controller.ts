@@ -1,4 +1,4 @@
-// /v1/dashboard: port of apps/web/src/app/api/dashboard/route.ts. Any signed-in user (`guard: null`).
+// /v1/dashboard. Any signed-in user (`guard: null`).
 import { Elysia } from "elysia";
 import { guard } from "../auth";
 import { dashboard } from "./service";

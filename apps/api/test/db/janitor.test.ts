@@ -1,9 +1,10 @@
-import { beforeEach, describe, expect, it } from "bun:test";
-import { asc, count, sql } from "drizzle-orm";
+import { beforeEach, describe, expect, it, spyOn } from "bun:test";
+import { asc, count, DrizzleQueryError, sql } from "drizzle-orm";
 import { runJanitor, startJanitor } from "../../src/db/janitor";
 import { config } from "../../src/kernel/config";
 import { db } from "../../src/kernel/db";
 import { xactLock } from "../../src/kernel/locks";
+import { log } from "../../src/kernel/log";
 import { activity, authLog } from "../../src/modules/audit";
 import { authChallenges, loginBackoff, rateLimits, sessions, userTokens } from "../../src/modules/auth";
 import { oauthStates } from "../../src/modules/oauth";
@@ -127,5 +128,21 @@ describe("startJanitor", () => {
     }
     expect(stopped).toBe(true);
     expect((await left()).sessions).toHaveLength(1); // the run finished: both ended sessions are gone
+  });
+
+  it("a failed run logs the driver's error (name, SQLSTATE, constraint, table), never the SQL, its parameters or detail", async () => {
+    const cause = Object.assign(new Error("canceling statement due to statement timeout"), {
+      name: "PostgresError", errno: "57014", table: "sessions", detail: "Key (email)=(leaked@example.com)",
+    });
+    const err = new DrizzleQueryError('delete from "sessions" where "user_id" = $1', ["secret-param@example.com"], cause);
+    const spy = spyOn(log, "error");
+    try {
+      await startJanitor(() => Promise.reject(err))();
+      expect(spy.mock.calls[0]![0]).toMatchObject({ err: { name: "PostgresError", code: "57014", table: "sessions" } });
+      const logged = JSON.stringify(spy.mock.calls);
+      for (const leak of ["secret-param", "delete from", "leaked"]) expect(logged).not.toContain(leak);
+    } finally {
+      spy.mockRestore();
+    }
   });
 });

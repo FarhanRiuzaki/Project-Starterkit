@@ -1,5 +1,5 @@
 // The modulith's boundaries (refactor spec "Modular monolith"), read from the source with the TypeScript compiler API:
-// (1) a module is used only through its index.ts, (2) kernel/ never imports modules/, (3) every table has exactly one
+// (1) a module is used only through its index.ts, (2) kernel/ never imports modules/, and neither imports db/, (3) every table has exactly one
 // owning modules/<m>/schema.ts, (4) tests live only in tests/ folders or apps/api/test, (5) no hand-written SQL
 // statement in src/ outside the migration runner, (6) every module index and app.ts load alone in a fresh process and
 // build their controllers (the module indexes import each other: no export of another module may be used at load).
@@ -54,10 +54,16 @@ function deepImports(files: File[]): string[] {
   }));
 }
 
-/** (2) kernel/ importing anything under modules/. */
+/**
+ * (2) kernel/ importing anything under modules/; kernel/ or modules/ source importing db/ (the runner, janitor and seeds
+ * sit above both; tests may read the seed's values).
+ */
 function kernelImports(files: File[]): string[] {
-  return files.filter((f) => f.file.startsWith("src/kernel/"))
-    .flatMap((f) => importsOf(f).filter((to) => to.startsWith("src/modules")).map((to) => `${f.file} → ${to}: kernel/ never imports modules/`));
+  return files.flatMap((f) => importsOf(f).flatMap((to) => {
+    if (f.file.startsWith("src/kernel/") && to.startsWith("src/modules")) return [`${f.file} → ${to}: kernel/ never imports modules/`];
+    if (/^src\/(kernel|modules)\//.test(f.file) && !f.file.includes("/tests/") && to.startsWith("src/db")) return [`${f.file} → ${to}: kernel/ and modules/ never import db/`];
+    return [];
+  }));
 }
 
 /** (3) Tables declared outside a modules/<m>/schema.ts, declared twice, or present in the database without an owner. */
@@ -124,7 +130,7 @@ describe("module boundaries (apps/api)", () => {
     expect(deepImports(real)).toEqual([]);
   });
 
-  it("kernel/ never imports modules/", () => {
+  it("kernel/ never imports modules/, and neither imports db/", () => {
     expect(kernelImports(real)).toEqual([]);
   });
 
@@ -197,9 +203,11 @@ describe("module boundaries: fixtures", () => {
     ]);
   });
 
-  it("fixture: kernel importing a module fails", () => {
+  it("fixture: kernel importing a module, or a module importing db/, fails", () => {
     expect(kernelImports([f("src/kernel/plugins/x.ts", `import { guard } from "../../modules/auth";`), f("src/kernel/db.ts", `import { x } from "./config";`)]))
       .toEqual(["src/kernel/plugins/x.ts → src/modules/auth: kernel/ never imports modules/"]);
+    expect(kernelImports([f("src/modules/auth/ldap.ts", `import { PW } from "../../db/seed/demo";`), f("src/db/seed/demo.ts", `import { x } from "../../modules/auth";`)]))
+      .toEqual(["src/modules/auth/ldap.ts → src/db/seed/demo: kernel/ and modules/ never import db/"]);
   });
 
   it("fixture: a table declared twice, outside a schema.ts, or only in the database fails", () => {
