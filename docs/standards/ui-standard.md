@@ -99,10 +99,11 @@ Detail pages add `Tabs` (line variant) directly under the header; the tab value 
 
 - Tables (spec "Standar tabel & skalabilitas"): every list a user pages through is server-driven, for any number of
   rows. One pattern, no table builds its own paging:
-  - Server: the GET route parses `ListQuery` (extended with its `sortParam(KEYS)` and filters) before the guard
-    and answers `paginate(rows, q, SORTERS, defaultSort)` → `Page<T>`; `page` 1–1000 (deeper is 400: narrow the
-    filters), `pageSize` 15 | 25 | 50 | 100 (default 15), `totalCapped` when the backend stops counting
-    (shown "100,000+"). The architecture test fails a list GET without `paginate(`; the non-list allowlist is exact.
+  - Server: the API's GET route parses its `…ListQuery` (`ListQuery` extended with `sortParam(KEYS)` and filters)
+    before the guard and answers `pageQuery(…)` (`apps/api/src/kernel/pagination.ts`) → `Page<T>`; `page` 1–1000
+    (deeper is 400: narrow the filters), `pageSize` 15 | 25 | 50 | 100 (default 15), `totalCapped` when the count
+    stops at 100,000 (shown "100,000+"). `apps/api/test/architecture/conformance.test.ts` (d) fails a list GET without
+    `pageQuery`; the non-list allowlist is exact.
   - Client: `useTableQuery({ key, path, spec })` (spec = sort whitelist, default sort, filter parsers, `search`
     keys) → `DataTable` with `paging={t.paging}`, `sort`/`onSortChange` and `sortable` columns (header buttons with
     `aria-sort`); footer "Showing 1–15 of 312" + rows-per-page select + first / previous / numbers / next / last.
@@ -132,14 +133,14 @@ Detail pages add `Tabs` (line variant) directly under the header; the tab value 
   Never colored text alone. Every card that shows status passes its `legend` (§1 item 5).
 - Charts: from `@/components/charts` only; fixed categorical order per entity (never by rank); legend for ≥ 2
   series; tooltips on hover and focus; one y-axis; time axes on round ticks in WIB.
-- Numbers: through `lib/shared/format.ts` only.
+- Numbers: through `packages/ui/src/lib/format.ts` only.
 
 ## 5. Interaction
 
 - State that a user would share or bookmark (filters, tab, range, view, page) lives in the URL; tables through
   `useTableQuery` + `TableSpec` (one parser per key, each with its own fallback; `apps/web/src/lib/shared/table-state.ts`).
-  zod schemas live in `packages/shared/src/contracts/*` and are imported by route handlers; client code never imports zod
-  into a route's first load (≤ 250 kB gz, `bun run budget`).
+  zod schemas live in `packages/shared/src/contracts/*` and are imported by the API and the web's server code; client
+  code imports them as types only, so zod never reaches a route's first load (≤ 250 kB gz, `bun run budget`).
 - Disabled actions always explain why (tooltip / menu label; on touch the `BlockedButton` caption).
 - Keyboard: every action reachable; one tab stop per card; roving focus in segmented controls; focus moves to
   the region after pagination; ⌘K palette reaches every page.
@@ -178,5 +179,5 @@ Detail pages add `Tabs` (line variant) directly under the header; the tab value 
 7. Copy passes the copy guide checklist?
 8. Phone 390 (and 360), tablet 834, desktop 1440 / 1920, light + dark: no horizontal page scroll, no clipped labels,
    axe 0 serious or critical, touch targets ≥ 44 px on the phone? (`bun run e2e`: `responsive.spec.ts` on the
-   desktop, tablet and mobile projects; `a11y.spec.ts` on desktop and mobile.)
+   desktop, tablet and mobile projects; `a11y.spec.ts` on the same three.)
 9. Surfaces follow §0a (sheet → tray → card), siblings symmetric (§2), motion per §5a?
