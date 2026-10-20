@@ -1,10 +1,12 @@
 import { createApp } from "./app";
 import { config } from "./config";
 import { sql } from "./db/client";
+import { unexpected } from "./http/errors";
 import { log } from "./log";
 
 const { API_HOST, API_PORT } = config();
-const server = Bun.serve({ hostname: API_HOST, port: API_PORT, fetch: createApp().fetch });
+// `error`: the last resort for anything the app's own handlers let through (Bun's default page would show it).
+const server = Bun.serve({ hostname: API_HOST, port: API_PORT, fetch: createApp().fetch, error: (e) => unexpected(e) });
 log.info({ url: server.url.href }, "api listening");
 
 let stopping = false;

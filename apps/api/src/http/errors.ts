@@ -47,15 +47,16 @@ export const crossSite = () => new ApiError("forbidden", "The request didn't com
 /** 429 with Retry-After (seconds). */
 export const tooManyAttempts = (sec: number, text: string) => new ApiError("rate_limited", text, { "Retry-After": String(sec) });
 
-/** Hono onError: validation → 400, ApiError → itself, anything else → logged (name, masked message) and a fixed 500. */
+/** An unexpected error: logged (name and masked message; a non-Error only by its type) and the fixed 500. */
+export function unexpected(err: unknown, requestId?: string): Response {
+  const detail = err instanceof Error ? { name: err.name, message: maskText(err.message) } : { name: typeof err };
+  log.error({ err: detail, requestId }, "api error");
+  return Response.json(errorBody("internal", INTERNAL), { status: 500, headers: { "Cache-Control": "no-store" } });
+}
+
+/** Hono onError: validation → 400, ApiError → itself, anything else → `unexpected`. */
 export function onError(err: unknown, c: Context): Response {
-  let e: ApiError;
-  if (err instanceof ApiError) e = err;
-  else if (err instanceof $ZodError) e = new ApiError("bad_request");
-  else {
-    const detail = err instanceof Error ? { name: err.name, message: maskText(err.message) } : { name: typeof err };
-    log.error({ err: detail, requestId: c.get("requestId") }, "api error");
-    e = new ApiError("internal");
-  }
+  if (!(err instanceof ApiError) && !(err instanceof $ZodError)) return unexpected(err, c.get("requestId"));
+  const e = err instanceof ApiError ? err : new ApiError("bad_request");
   return c.json(errorBody(e.code, e.message), e.status as ContentfulStatusCode, { ...e.headers, "Cache-Control": "no-store" });
 }

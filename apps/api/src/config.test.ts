@@ -55,6 +55,11 @@ describe("loadConfig", () => {
     expect(failure({ ...prod, LDAP_MOCK: "true" })).toContain("LDAP_MOCK");
   });
 
+  it("names cross-key problems next to field problems", () => {
+    const msg = failure({ ...base, DATABASE_URL: undefined, NODE_ENV: "production", MAIL_TRANSPORT: "smtp", OAUTH_MOCK: "true" });
+    for (const key of ["DATABASE_URL", "OAUTH_MOCK", "SMTP_URL", "MAIL_FROM"]) expect(msg).toContain(key);
+  });
+
   it("production requires smtp", () => {
     expect(failure({ ...base, NODE_ENV: "production" })).toContain("MAIL_TRANSPORT");
     const msg = failure({ ...base, MAIL_TRANSPORT: "smtp" });

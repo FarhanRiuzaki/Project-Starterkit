@@ -4,7 +4,7 @@ import { bodyLimit as honoBodyLimit } from "hono/body-limit";
 import { routePath } from "hono/route";
 import { config } from "../config";
 import { log } from "../log";
-import { ApiError } from "./errors";
+import { ApiError, onError } from "./errors";
 
 /** Per-request values every handler can read (`c.var`). `client` is trusted only behind `internalAuth`. */
 export type AppEnv = { Variables: { requestId: string; client: { ip: string; ua: string } } };
@@ -21,7 +21,11 @@ export const requestContext: MiddlewareHandler<AppEnv> = async (c, next) => {
   const requestId = given && /^[\w-]{1,64}$/.test(given) ? given : Bun.randomUUIDv7();
   c.set("requestId", requestId);
   c.set("client", { ip: c.req.header("x-client-ip") || "unknown", ua: c.req.header("x-client-ua") ?? "" });
-  await next();
+  try {
+    await next();
+  } catch (e) {
+    c.res = onError(e, c); // Hono hands only Error instances to app.onError; a thrown string or object lands here
+  }
   c.header("Cache-Control", "no-store");
   const ms = Math.round(performance.now() - start);
   log.info({ method: c.req.method, route: routePath(c, -1), status: c.res.status, ms, requestId }, "request");

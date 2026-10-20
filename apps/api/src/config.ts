@@ -26,30 +26,40 @@ const Schema = z.object({
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info"),
   OAUTH_MOCK: flag,
   LDAP_MOCK: flag,
-}).superRefine((c, ctx) => {
-  const bad = (key: string, message: string) => ctx.addIssue({ code: "custom", path: [key], message });
-  if (c.MAIL_TRANSPORT === "smtp") {
-    if (!c.SMTP_URL) bad("SMTP_URL", "required when MAIL_TRANSPORT=smtp");
-    if (!c.MAIL_FROM) bad("MAIL_FROM", "required when MAIL_TRANSPORT=smtp");
-  }
-  if (c.NODE_ENV === "production") {
-    if (c.MAIL_TRANSPORT !== "smtp") bad("MAIL_TRANSPORT", "must be smtp in production");
-    if (c.OAUTH_MOCK) bad("OAUTH_MOCK", "must be false in production");
-    if (c.LDAP_MOCK) bad("LDAP_MOCK", "must be false in production");
-  }
 }).transform((c) => ({ ...c, MIGRATION_DATABASE_URL: c.MIGRATION_DATABASE_URL ?? c.DATABASE_URL }));
 
 export type Config = z.output<typeof Schema>;
+
+/**
+ * Rules across keys, on the raw env so they're reported even when a field is invalid (zod skips refinements of an
+ * object with field issues). Raw values are the enum strings; anything else is a field issue already.
+ */
+function crossKeyProblems(e: Record<string, string>): string[] {
+  const out: string[] = [];
+  if (e.MAIL_TRANSPORT === "smtp") {
+    if (!e.SMTP_URL) out.push("SMTP_URL (required when MAIL_TRANSPORT=smtp)");
+    if (!e.MAIL_FROM) out.push("MAIL_FROM (required when MAIL_TRANSPORT=smtp)");
+  }
+  if (e.NODE_ENV === "production") {
+    if (e.MAIL_TRANSPORT !== "smtp") out.push("MAIL_TRANSPORT (must be smtp in production)");
+    if (e.OAUTH_MOCK === "true") out.push("OAUTH_MOCK (must be false in production)");
+    if (e.LDAP_MOCK === "true") out.push("LDAP_MOCK (must be false in production)");
+  }
+  return out;
+}
 
 /**
  * Validated API settings from `env` (empty strings count as unset). A missing or invalid value throws one error that
  * names every bad key and why, never a value.
  */
 export function loadConfig(env: Record<string, string | undefined>): Config {
-  const set = Object.fromEntries(Object.entries(env).filter(([, v]) => v !== undefined && v !== ""));
+  const set = Object.fromEntries(Object.entries(env).filter(([, v]) => v !== undefined && v !== "")) as Record<string, string>;
   const r = Schema.safeParse(set);
-  if (r.success) return r.data;
-  const why = r.error.issues.map((i) => `${i.path.join(".")} (${i.code === "custom" ? i.message : i.code})`);
+  const why = [
+    ...(r.error?.issues.map((i) => `${i.path.join(".")} (${i.code === "custom" ? i.message : i.code})`) ?? []),
+    ...crossKeyProblems(set),
+  ];
+  if (r.success && !why.length) return r.data;
   throw new Error(`Invalid API configuration: ${[...new Set(why)].join(", ")}. See apps/api/.env.example.`);
 }
 

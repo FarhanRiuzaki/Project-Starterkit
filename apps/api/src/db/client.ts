@@ -13,5 +13,4 @@ export const sql = new SQL(config().DATABASE_URL, {
 /** The handle `sql.begin(async (tx) => …)` passes to its callback. */
 export type Tx = TransactionSQL;
 
-/** One connection as the schema owner (MIGRATION_DATABASE_URL), no statement timeout; the caller closes it. */
-export const migrationSql = () => new SQL(config().MIGRATION_DATABASE_URL, { max: 1 });
+export { migrationSql } from "./migrate";

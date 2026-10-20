@@ -1,5 +1,6 @@
 import { describe, expect, it, spyOn } from "bun:test";
 import { SQL } from "bun";
+import { z } from "zod";
 import { createApp } from "./app";
 import { log } from "./log";
 
@@ -69,6 +70,33 @@ describe("app", () => {
     }
   });
 
+  it("a thrown non-Error answers the same fixed 500 and never its value", async () => {
+    const app = createApp();
+    app.get("/v1/boom", () => {
+      throw "secret-string";
+    });
+    const spy = spyOn(log, "error");
+    try {
+      const res = await app.request("/v1/boom", { headers: auth });
+      expect(res.status).toBe(500);
+      expect(res.headers.get("Cache-Control")).toBe("no-store");
+      const text = await res.text();
+      expect((JSON.parse(text) as ErrorJson).error.code).toBe("internal");
+      expect(text + JSON.stringify(spy.mock.calls)).not.toContain("secret-string");
+      expect(spy).toHaveBeenCalledTimes(1);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it("a zod error answers 400 bad_request", async () => {
+    const app = createApp();
+    app.get("/v1/parse", (c) => c.json(z.string().parse(1)));
+    const res = await app.request("/v1/parse", { headers: auth });
+    expect(res.status).toBe(400);
+    expect(await code(res)).toBe("bad_request");
+  });
+
   it("a body over 64 KB is 400 bad_request", async () => {
     const app = createApp();
     app.post("/v1/echo", async (c) => c.json(await c.req.json()));
@@ -86,5 +114,13 @@ describe("app", () => {
     expect(res.status).toBe(503);
     expect(await res.json()).toEqual({ ok: false });
     await down.close();
+  });
+
+  it("db that never answers: readyz 503 after 2 s", async () => {
+    const hung = (() => new Promise(() => {})) as unknown as SQL;
+    const start = performance.now();
+    const res = await createApp({ db: hung }).request("/readyz");
+    expect(res.status).toBe(503);
+    expect(performance.now() - start).toBeGreaterThanOrEqual(1900);
   });
 });

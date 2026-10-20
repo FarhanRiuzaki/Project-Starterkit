@@ -2,7 +2,7 @@
 // SEED_SUPERADMIN_NAME/EMAIL/USERNAME/PASSWORD from the environment go into apps/api/.env; empty = fill in later.
 // Prints file names and steps only, never a value.
 import { randomBytes } from "node:crypto";
-import { existsSync } from "node:fs";
+import { existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createDatabase } from "../apps/api/src/db/create";
 
@@ -26,6 +26,9 @@ async function readEnv(file: string, key: string): Promise<string | undefined> {
   return m?.[1]?.trim().replace(/^"(.*)"$/, "$1").replace(/\\([$"])/g, "$1");
 }
 
+/** Env files hold secrets: owner read/write only. */
+const writeSecret = (file: string, text: string) => writeFileSync(file, text, { mode: 0o600 });
+
 async function run(...cmd: string[]) {
   const p = Bun.spawn(cmd, { cwd: api, stdio: ["inherit", "inherit", "inherit"] });
   if ((await p.exited) !== 0) throw new Error(`"${cmd.join(" ")}" failed`);
@@ -39,7 +42,7 @@ if (existsSync(apiEnv)) {
   console.log("apps/api/.env exists: kept as it is.");
 } else {
   if (!urlArg) throw new Error("No database: pass --database-url postgresql://user:password@host:5432/name or set DATABASE_URL.");
-  await Bun.write(apiEnv, "# Written by `bun run setup`. Never commit this file. Keys: apps/api/.env.example.\n" + lines([
+  writeSecret(apiEnv, "# Written by `bun run setup`. Never commit this file. Keys: apps/api/.env.example.\n" + lines([
     ["DATABASE_URL", urlArg],
     ["INTERNAL_API_TOKEN", token],
     ["DATA_ENCRYPTION_KEY", randomBytes(32).toString("base64")],
@@ -50,7 +53,7 @@ if (existsSync(apiEnv)) {
 if (existsSync(webEnv)) {
   console.log("apps/web/.env.local exists: kept as it is. Its INTERNAL_API_TOKEN must equal the one in apps/api/.env.");
 } else {
-  await Bun.write(webEnv, "# Written by `bun run setup`. Never commit this file.\n" + lines([
+  writeSecret(webEnv, "# Written by `bun run setup`. Never commit this file.\n" + lines([
     ["API_BASE_URL", "http://127.0.0.1:4000"],
     ["INTERNAL_API_TOKEN", (await readEnv(apiEnv, "INTERNAL_API_TOKEN")) ?? token],
     ["SESSION_SECRET", randomBytes(32).toString("base64url")],

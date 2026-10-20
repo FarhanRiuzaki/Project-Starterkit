@@ -62,6 +62,18 @@ describe("migrate", () => {
     }
   });
 
+  it("the CLI needs only a database URL, not the app secrets", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "no-env-")); // a cwd without .env, so Bun loads nothing
+    try {
+      const p = Bun.spawn(["bun", join(import.meta.dir, "migrate.ts")], {
+        cwd: dir, env: { PATH: process.env.PATH, DATABASE_URL: url, LOG_LEVEL: "silent" }, stderr: "pipe",
+      });
+      expect(await p.exited).toBe(0);
+    } finally {
+      await rm(dir, { recursive: true });
+    }
+  });
+
   it("two concurrent migrate() calls apply each file once", async () => {
     const other = new SQL(url, { max: 2, connection: { search_path: `${schema}, public` } });
     try {
