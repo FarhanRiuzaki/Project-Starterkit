@@ -317,3 +317,27 @@ into this shape. Task 13 documents "how to add a module" in AGENTS.md and README
 Module tests live in `modules/<m>/tests/{unit,integration}/`, kernel tests in `kernel/tests/unit/`, shared harness in
 `apps/api/test/helpers/`, cross-module tests (boundaries, conformance, no-raw-SQL) in `apps/api/test/architecture/`.
 The architecture test forbids a `*.test.ts` beside a source file. The production image (Task 11) excludes tests.
+
+## Responsive tasks (owner decision 2026-10-20)
+
+Spec: `docs/superpowers/specs/2026-10-20-responsive-design.md` (binding). Execution order is now:
+15 → 16 → 17 → 18 → 11 → 12 → 14 → 19 → 20 → 13.
+
+### Task 19: Responsive foundation — shell, overlays, touch, standards
+Files: `apps/web/src/components/shell/*` (mobile top bar + sidebar drawer), `packages/ui/src/ui/{dialog,…}` (bottom
+sheet below 768), `packages/ui/src/ds/page-header`-equivalent (More menu), touch-target utilities (`pointer: coarse` ≥ 44
+px), `packages/ui/src/styles/*`, `docs/standards/{design-system,ui-standard}.md`, `AGENTS.md` §7, `playwright.config.ts`
+(projects: mobile 390×844 touch, tablet 834×1112, desktop 1440×900), a shared E2E helper `expectNoHorizontalScroll`.
+- Tests first: unit tests for the drawer (focus trap, Escape, closes on navigation) and the sheet variant; E2E on all
+  three projects: every route has no horizontal scroll, the drawer reaches every nav item, axe passes light/dark.
+- Budget unchanged (drawer/sheet lazy through `deferred-overlay`).
+
+### Task 20: Responsive data surfaces
+Files: `packages/ui/src/ds/data-table*` (stacked rows mode, column `mobile: "title" | "meta" | "hidden"`, sort select,
+compact pagination), filter toolbar ("Filters" sheet), every feature table and detail page in `apps/web/src/features/*`,
+RBAC matrix (scroll in card, sticky column/header), charts (tick density), KPI tray, `/ds` gallery (mobile examples),
+`ds` snapshots for mobile.
+- Tests first: DataTable stacked-rows unit tests (title/meta/hidden, selection, row actions, sort select, compact
+  pagination keeps URL state); E2E on all three projects for users, roles, permissions, audit (paging, sort, filter,
+  bulk select, row actions, no-flicker), detail pages, `/me`.
+- Full `bun run check`, build, E2E (3 projects), budget.
