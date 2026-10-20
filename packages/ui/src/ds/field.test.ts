@@ -1,7 +1,7 @@
 import { createElement as h } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { Field } from "./field";
+import { Field, RequiredNote } from "./field";
 
 const html = (note: string | undefined, describedBy?: string) =>
   renderToStaticMarkup(h(Field, { id: "f", label: "Name", note, children: h("input", { id: "f", "aria-describedby": describedBy }) }));
@@ -29,5 +29,27 @@ describe("Field error", () => {
   it("without an error nothing is marked", () => {
     expect(withError(undefined)).not.toContain("aria-invalid");
     expect(withError(undefined)).not.toContain("f-error");
+  });
+});
+
+describe("Field required", () => {
+  const out = (required?: boolean) => renderToStaticMarkup(h(Field, { id: "f", label: "Email", required, children: h("input", { id: "f" }) }));
+  it("puts a red asterisk after the label, hidden from screen readers, and marks the control aria-required", () => {
+    expect(out(true)).toContain('Email<span aria-hidden="true" class="ml-0.5 text-destructive">*</span></label>');
+    expect(out(true)).toContain('aria-required="true"');
+  });
+  it("an optional field has neither", () => {
+    expect(out()).not.toContain("*");
+    expect(out()).not.toContain("aria-required");
+  });
+  it("RequiredNote says what the asterisk means, in words for a screen reader", () => {
+    expect(renderToStaticMarkup(h(RequiredNote))).toContain('<span class="sr-only">an asterisk</span>');
+  });
+});
+
+describe("Field optional", () => {
+  it("adds a muted (optional) to the label, read with it", () => {
+    const out = renderToStaticMarkup(h(Field, { id: "f", label: "Phone", optional: true, children: h("input", { id: "f" }) }));
+    expect(out).toContain('Phone<span class="font-normal text-fg-3"> (optional)</span></label>');
   });
 });

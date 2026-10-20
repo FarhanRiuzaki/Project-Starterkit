@@ -131,6 +131,13 @@ Detail pages add `Tabs` (line variant) directly under the header; the tab value 
   every toolbar filter but the search in `ToolbarFilters` with its active count (the phone's "Filters" sheet).
   A row button that a card drops (`max-md:hidden`, `className` + `wrapClassName` on a `BlockedButton`) gets a
   phone/touch item in the row's `ActionMenu` with its reason as the hint.
+- Column chooser (Carbon "Customize columns", Ant ProTable column settings, NN/g data tables): every list page's
+  toolbar ends with `ColumnsMenu` (`end` of `Toolbar`), fed by `useTableQuery`'s `hidden` / `setHidden` and passed to
+  `DataTable hidden`. The button says how many are hidden ("Columns · 2 hidden"); the menu lists every column but the
+  row checkbox, stays open while ticking, and ends with "Reset to default". The identity column (mobile `title`) and a
+  column marked `hideable: false` are listed ticked and disabled. The choice is per viewer and per page in the prefs
+  cookie (`cols:/users`), so the table renders without those columns on first paint; a hidden column also leaves the
+  phone card. Not on a record's short fixed lists.
 - Row actions (`DataTable` `rowActions`) are secondary shortcuts: they show on row hover, on keyboard focus anywhere in
   the row, while one of their menus is open and always on a touch screen (`pointer-coarse:`), and always stay in the DOM and the tab order (opacity only, never
   `hidden`). Their names say the target ("Revoke the session started …"), so a screen reader hears them in place.
@@ -196,6 +203,7 @@ same kind extends this list (and its check) first.
 | A dashboard answers first, explains second, details last: KPI tray → charts → tables. | Airform "decide what goes at the top" | §1 page anatomy |
 | Records show words, not codes: activity actions through `actionLabel`, glossary terms only (copy guide). | NN/g heuristic 2 (match the real world) | `packages/shared/src/audit.ts` |
 | Siblings in a row share height; label/value rows look the same on one page. | Laws of UX: Common Region, Similarity | §2; `user-detail.tsx` |
+| A form marks required fields with a red `*` (`Field required`, one `RequiredNote`), groups fields in `FormSection`s on a page (title and purpose left, fields right from 768 px) and keeps its buttons in a sticky `FormActions`; Submit is never disabled for invalid input. | Baymard, NN/g, W3C H90, Polaris, Carbon (design-system §5.16) | `packages/ui/src/ds/{field,form-layout}.tsx` (+ tests); /ds "Form layout"; `features/users/user-form.tsx`, `features/me/profile-form.tsx` |
 | A form validates through `useForm` (`lib/validate.ts` rules): errors after leaving a field or on submit, cleared when fixed; a failed submit shows `ErrorSummary` and focuses the first field; messages are instructions. A multi-step form is `FormWizard` (+ `ReviewList`); a choice among many is `Combobox`, among 2–6 `RadioGroup`; a file is `FileUpload` with the page's `upload`; task progress is `Progress`; a sequence of steps over time is `Timeline`. | W3C WAI, NN/g, GOV.UK, WAI-ARIA APG, Apple HIG (design-system §5.15) | `packages/ui/src/ds/{use-form,error-summary,form-wizard,combobox,radio-group,file-upload,progress,timeline,disclosure}.tsx` (+ tests); /ds "Forms and flows" |
 | Design with real data: long names, zero, a brand-new account, a bad day. Every data region keeps its five states (§3). | Airform "design with real data" | §3; `docs/standards/copy-guide.md` (empty states) |
 

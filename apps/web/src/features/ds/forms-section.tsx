@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import {
-  type ComboOption, Combobox, Disclosure, ErrorSummary, Field, FileUpload, FormWizard, Panel, Progress, RadioGroup, ReviewList, Timeline,
+  type ComboOption, Combobox, Disclosure, ErrorSummary, Field, FileUpload, FormActions, FormSection, FormWizard, Panel, Progress, RadioGroup,
+  RequiredNote, ReviewList, Timeline,
   type TimelineItem, type UploadFn, useForm,
 } from "@starterkit/ui/ds";
 import { rules } from "@starterkit/ui/lib/validate";
@@ -66,12 +67,13 @@ function ValidationDemo() {
   return (
     <form noValidate onSubmit={f.submit(() => toast("Saved sample profile."))} className="grid max-w-lg gap-4">
       <ErrorSummary errors={f.shown} idPrefix="ds-form" labels={{ name: "Name", email: "Email", bio: "Bio", plan: "Plan" }} />
-      <Field id={f.id("name")} label="Name" error={f.error("name")}><Input {...f.text("name")} autoComplete="off" /></Field>
-      <Field id={f.id("email")} label="Email" note="Errors show after you leave the field, and clear as soon as it's fixed." error={f.error("email")}>
+      <RequiredNote />
+      <Field id={f.id("name")} label="Name" required error={f.error("name")}><Input {...f.text("name")} autoComplete="off" /></Field>
+      <Field id={f.id("email")} label="Email" required note="Errors show after you leave the field, and clear as soon as it's fixed." error={f.error("email")}>
         <Input {...f.text("email")} type="email" autoComplete="off" />
       </Field>
       <Field id={f.id("bio")} label="Bio" error={f.error("bio")}><Textarea {...f.text("bio")} limit={160} /></Field>
-      <RadioGroup name={f.id("plan")} legend="Plan" variant="cards" options={PLANS} value={f.values.plan}
+      <RadioGroup name={f.id("plan")} legend="Plan" required variant="cards" options={PLANS} value={f.values.plan}
         onChange={(plan) => { f.set("plan", plan); f.blur("plan"); }} error={f.error("plan")} />
       <div className="flex items-center justify-between gap-4 rounded-lg border border-line bg-card px-3 py-2">
         <span id="ds-alerts" className="text-body text-fg">Email me when a new device signs in</span>
@@ -84,7 +86,7 @@ function ValidationDemo() {
 
 function WizardDemo() {
   const f = useForm({
-    initial: { name: "", email: "", city: "" },
+    initial: { name: "", email: "", city: "", note: "" },
     schema: { name: [rules.required("Enter a name.")], email: [rules.required("Enter an email address."), rules.email()], city: [rules.required("Choose a city.")] },
     idPrefix: "ds-wiz",
   });
@@ -96,11 +98,13 @@ function WizardDemo() {
       onSubmit={async () => { toast(`Invitation sent to ${f.values.email}.`); f.reset(); setCity(null); setStep(0); }}
       steps={[
         { id: "who", title: "Teammate", description: "Who you are inviting.", fields: ["name", "email"], content: <>
-          <Field id={f.id("name")} label="Name" error={f.error("name")}><Input {...f.text("name")} autoComplete="off" /></Field>
-          <Field id={f.id("email")} label="Email" error={f.error("email")}><Input {...f.text("email")} type="email" autoComplete="off" /></Field>
+          <RequiredNote />
+          <Field id={f.id("name")} label="Name" required error={f.error("name")}><Input {...f.text("name")} autoComplete="off" /></Field>
+          <Field id={f.id("email")} label="Email" required error={f.error("email")}><Input {...f.text("email")} type="email" autoComplete="off" /></Field>
+          <Field id={f.id("note")} label="Message" note="Optional. Shown in the invitation email."><Textarea {...f.text("note")} limit={300} rows={4} /></Field>
         </> },
         { id: "where", title: "Office", description: "Where they work, for the sign-in log.", fields: ["city"], content: (
-          <Field id={f.id("city")} label="City" error={f.error("city")}>
+          <Field id={f.id("city")} label="City" required error={f.error("city")}>
             <Combobox id={f.id("city")} label="City" placeholder="Search a city" options={CITIES} value={city}
               onChange={(c) => { setCity(c); f.set("city", c?.value ?? ""); }} onBlur={() => f.blur("city")} invalid={!!f.error("city")} />
           </Field>
@@ -109,6 +113,28 @@ function WizardDemo() {
           <ReviewList onChange={setStep} rows={[{ label: "Name", value: f.values.name, step: 0 }, { label: "Email", value: f.values.email, step: 0 }, { label: "City", value: city?.label ?? "", step: 1 }]} />
         ) },
       ]} />
+  );
+}
+
+function LayoutDemo() {
+  const [twoFactor, setTwoFactor] = useState(true);
+  return (
+    <form noValidate onSubmit={(e) => { e.preventDefault(); toast("Saved sample organization."); }}>
+      <FormSection title="Organization" description="The name people see in the sidebar and in emails. Required fields are marked with *.">
+        <Field id="ds-org-name" label="Organization name" required><Input id="ds-org-name" defaultValue="Northwind" autoComplete="off" /></Field>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field id="ds-org-city" label="City"><Input id="ds-org-city" autoComplete="off" /></Field>
+          <Field id="ds-org-code" label="Postal code"><Input id="ds-org-code" inputMode="numeric" autoComplete="off" className="max-w-32" /></Field>
+        </div>
+      </FormSection>
+      <FormSection title="Security" description="Applies to every member at their next sign-in.">
+        <div className="flex items-center justify-between gap-4">
+          <span className="text-body text-fg">Require two-factor authentication</span>
+          <Switch checked={twoFactor} onChange={setTwoFactor} label="Require two-factor authentication" />
+        </div>
+      </FormSection>
+      <FormActions><Button type="submit">Save organization</Button><Button type="button" variant="ghost">Cancel</Button></FormActions>
+    </form>
   );
 }
 
@@ -132,7 +158,8 @@ export function FormsSection() {
   return (
     <div className="grid grid-cols-12 gap-gutter">
       <Panel title="Form and validation" description="Errors after leaving a field or on submit; summary on top" className="col-span-12 md:col-span-6"><ValidationDemo /></Panel>
-      <Panel title="Wizard" description="Per-step validation, Back keeps answers, review with Change" className="col-span-12 md:col-span-6"><WizardDemo /></Panel>
+      <Panel title="Wizard" description="Steps on the right stay in view; per-step validation, Back keeps answers, review with Change" cards className="col-span-12"><WizardDemo /></Panel>
+      <Panel title="Form layout" description="Sections: title and purpose on the left, fields on the right; buttons stay in reach" className="col-span-12"><LayoutDemo /></Panel>
       <Panel title="Combobox" description="Single, multiple with chips and create, server search" className="col-span-12 md:col-span-6"><ComboDemo /></Panel>
       <Panel title="File upload" description="Drop, paste or choose; checked before sending; a file named fail… fails" className="col-span-12 md:col-span-6">
         <FileUpload label="Attachments" upload={fakeUpload} accept={["image/*", ".pdf"]} acceptLabel="an image or a PDF" maxSize={5 * 1024 * 1024} maxFiles={4} />

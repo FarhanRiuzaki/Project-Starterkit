@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { type ReactNode, useCallback, useId, useState } from "react";
-import { BlockedButton, type Column, DataTable, type LegendItem, Notice, Panel, QueryInput, RelativeTime, TimeRangePicker, Toolbar, ToolbarFilters } from "@starterkit/ui/ds";
+import { BlockedButton, type Column, ColumnsMenu, DataTable, type LegendItem, Notice, Panel, QueryInput, RelativeTime, TimeRangePicker, Toolbar, ToolbarFilters } from "@starterkit/ui/ds";
 import { APP_TIME_ZONE_LABEL, appDayStart, formatDateTimeLong, formatDate, formatNumber } from "@starterkit/ui/lib/format";
 import { Button } from "@starterkit/ui/ui/button";
 import { Icon, type IconData } from "@starterkit/ui/ui/icon";
@@ -128,6 +128,7 @@ export function AuditTable<T extends { id: string; at: string }, F extends Audit
         actions={<TimeRangePicker value={custom ? null : f.range} ranges={AUDIT_RANGES} onChange={(range) => set({ range, from: "", to: "" } as Partial<TableState<F>>)} />} />
       {t.staleError && <Notice tone="warn" live>Couldn&apos;t refresh the {noun}; showing the ones loaded before. {errorText(t.staleError)}</Notice>}
       <Panel toolbar={<Toolbar end={<>
+          <ColumnsMenu columns={columns} hidden={t.hidden} onChange={t.setHidden} />
           <BlockedButton variant="secondary" reason={t.total === 0 ? `No ${noun} match, so there is nothing to export.` : null}
             aria-disabled={exporting || undefined} onClick={() => { if (!exporting) void exportCsv(); }}>
             <Icon icon={ExportIcon} />{exporting ? "Exporting…" : "Export CSV"}
@@ -145,7 +146,7 @@ export function AuditTable<T extends { id: string; at: string }, F extends Audit
         flush icon={icon} title="All entries" legend={legend} count={t.count}
         description={`${custom ? rangeText(custom) : RANGE_LABEL[f.range]} · times in ${APP_TIME_ZONE_LABEL}`}
         footnote={`Export CSV saves every matching entry, newest first, up to ${formatNumber(CSV_MAX_ROWS)} rows.`}>
-        <DataTable label={title} rowHeight="identity" columns={columns} rows={t.rows} rowKey={(r) => r.id} loading={t.loading}
+        <DataTable label={title} rowHeight="identity" columns={columns} hidden={t.hidden} rows={t.rows} rowKey={(r) => r.id} loading={t.loading}
           sort={t.sort} onSortChange={t.onSortChange} paging={t.paging}
           error={t.loadError ? { title: `Couldn't load ${noun}`, cause: errorText(t.loadError), onRetry: () => void t.query.refetch() } : null}
           empty={narrowed.length > 0

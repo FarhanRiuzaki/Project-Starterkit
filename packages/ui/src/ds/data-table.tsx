@@ -25,7 +25,12 @@ export type Column<T> = {
    * row checkbox). Without one: the first column without a role is the title when none says so, the others `meta`.
    */
   mobile?: MobileRole;
+  /** `false`: the viewer can't hide it (ColumnsMenu). The phone card's title and lead never can. */
+  hideable?: boolean;
 };
+
+/** Whether ColumnsMenu may hide this column: not the identity (mobile title), not the row checkbox (lead), not `hideable: false`. */
+export const canHide = <T,>(c: Column<T>, role: MobileRole) => c.hideable !== false && role !== "title" && role !== "lead";
 
 export type MobileRole = "title" | "meta" | "hidden" | "lead";
 
@@ -95,6 +100,8 @@ type Props<T> = {
   highlightScope?: string;
   /** Skeleton rows while loading (default 8; `server` paging uses its page size): match the loaded row count, no layout shift. */
   skeletonRows?: number;
+  /** Column keys the viewer hid (ColumnsMenu); a column that can't be hidden (`canHide`) stays. */
+  hidden?: readonly string[];
 };
 
 /**
@@ -113,9 +120,12 @@ type Props<T> = {
  * difference. The table semantics stay (explicit ARIA roles, which survive the phone's display change), so a screen
  * reader meets the same rows and cells on every width; on the card each meta value is preceded by its header.
  */
-export function DataTable<T>({ columns, rows, rowKey, label, loading, error, empty, sort, onSortChange, rowActions, paging, isSelected, rowHeight = "default", highlightNew = false, highlightScope, skeletonRows }: Props<T>) {
+export function DataTable<T>({ columns: all, rows, rowKey, label, loading, error, empty, sort, onSortChange, rowActions, paging, isSelected, rowHeight = "default", highlightNew = false, highlightScope, skeletonRows, hidden }: Props<T>) {
   const fresh = useNewKeys(rows.map(rowKey), { enabled: highlightNew, scope: highlightScope });
-  const roles = mobileRoles(columns);
+  const allRoles = mobileRoles(all);
+  const keep = all.map((c, i) => !hidden?.includes(c.key) || !canHide(c, allRoles[i]!));
+  const columns = all.filter((_, i) => keep[i]);
+  const roles = allRoles.filter((_, i) => keep[i]);
   const sortId = useId();
   const topRef = useRef<HTMLDivElement>(null);
   // Fokus ke atas tabel hanya bila halaman benar-benar berganti ke target (kedaluwarsa 3 dtk bila diabaikan).

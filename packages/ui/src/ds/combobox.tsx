@@ -9,6 +9,8 @@ export type ComboOption = { value: string; label: string; description?: string; 
 type Load = (query: string, signal: AbortSignal) => Promise<ComboOption[]>;
 type Common = {
   id?: string; label: string; placeholder?: string; disabled?: boolean; invalid?: boolean; describedBy?: string; className?: string;
+  /** Set by a wrapping Field (its note, error and required): passed to the input with `describedBy` / `invalid`. */
+  "aria-describedby"?: string; "aria-invalid"?: boolean | "true" | "false"; "aria-required"?: boolean | "true" | "false";
   /** Local options, filtered by label as the user types; or `loadOptions` for a server search. */
   options?: readonly ComboOption[];
   /** Server search (debounced 250 ms, the previous request aborted): `(query, signal) => options`. */
@@ -52,7 +54,9 @@ export function nextEnabled(list: readonly { disabled?: boolean }[], from: numbe
  * for a short fixed list without search.
  */
 export function Combobox(props: Single | Multiple) {
-  const { label, placeholder, disabled, invalid, describedBy, className, options, loadOptions, onCreate, emptyText = "No matches. Try another word." } = props;
+  const invalid = props.invalid || props["aria-invalid"] === true || props["aria-invalid"] === "true";
+  const describedBy = [props.describedBy, props["aria-describedby"]].filter(Boolean).join(" ") || undefined;
+  const { label, placeholder, disabled, className, options, loadOptions, onCreate, emptyText = "No matches. Try another word." } = props;
   const auto = useId();
   const id = props.id ?? auto;
   const listId = `${id}-list`;
@@ -181,7 +185,7 @@ export function Combobox(props: Single | Multiple) {
           </span>
         ))}
         <input ref={inputRef} id={id} role="combobox" aria-label={label} aria-expanded={open} aria-controls={listId} aria-autocomplete="list"
-          aria-activedescendant={open && active >= 0 ? `${id}-opt-${active}` : undefined} aria-invalid={invalid || undefined} aria-describedby={describedBy}
+          aria-activedescendant={open && active >= 0 ? `${id}-opt-${active}` : undefined} aria-invalid={invalid || undefined} aria-describedby={describedBy} aria-required={props["aria-required"]}
           disabled={disabled} autoComplete="off" placeholder={multiple && chosen.length ? undefined : placeholder} value={text}
           onChange={(e) => { setText(e.target.value); setTyping(true); if (!open) show(true); else setActive(0); }}
           onFocus={() => { if (!open) show(true); }} onKeyDown={onKeyDown}

@@ -516,8 +516,9 @@ Sources: WAI-ARIA APG (combobox, disclosure), GOV.UK Design System (error summar
 file upload, question pages, check answers), NN/g (wizards, form errors, progress indicators, toggle switches,
 checkboxes vs radios), Apple HIG (toggles, progress indicators, text fields, combo boxes, disclosure controls).
 - **Validation** (`lib/validate.ts` rules + `useForm` + `ErrorSummary` + `Field error`): a field's error shows once
-  the user has left it or tried to submit, and clears as soon as it is fixed (W3C WAI, NN/g; GOV.UK validates on
-  submit only: our choice is the blur). A failed submit lists every error in "There is a problem" (links to the
+  the user has changed it and left it, or tried to submit, and clears as soon as it is fixed (Baymard, NN/g, W3C WAI;
+  GOV.UK validates on submit only: our choice is the blur). Tabbing past an empty required field says nothing; its
+  "Enter a name." waits for the submit (NN/g: an error before the user had a chance is hostile). A failed submit lists every error in "There is a problem" (links to the
   fields, role=alert) and focuses the first field. Messages are instructions ("Enter an email address like
   name@example.com."), never "invalid" or "required". zod stays server-side.
 - **RadioGroup**: 2–6 choices, native radios in a fieldset with a legend (arrow keys, "1 of 3"); `cards` for options
@@ -526,8 +527,12 @@ checkboxes vs radios), Apple HIG (toggles, progress indicators, text fields, com
   named × each; Backspace on an empty field removes the last); local `options` or `loadOptions` (250 ms debounce, the
   previous request aborted, Searching… / Couldn't load + Try again / No matches); `onCreate` adds "Create “text”".
   ↓ opens and moves, Enter picks, Esc closes then clears. The result count is announced.
-- **FormWizard** + **ReviewList**: every step in the StepIndicator plus "Step 2 of 4"; Continue validates the step's
-  fields and focuses the next step's heading; Back keeps the answers; the last button names the action ("Send
+- **FormWizard** + **ReviewList**: for 3 or more linear steps (Carbon). The form is a card; from 1280 px the steps are
+  a vertical list on its right, sticky while a long step scrolls, each with its description (Carbon prefers vertical
+  "for easier reading"); below that one row above the card, and on a phone only the current step's name plus "Step 2
+  of 4" (Material step text). A step already reached is a button; a step not reached is not (NN/g: no step before
+  the ones preceding it are done); going forward from the list still validates this step. Back before Continue,
+  sticky at the bottom (FormActions). Continue validates the step's fields and focuses the next step's heading; Back keeps the answers; the last button names the action ("Send
   invitation"); the review lists every answer ("Not provided" when empty) with a Change button that reopens its step.
   Each step mounts fresh (keyed), so a control is never reused for the next step's field.
 - **FileUpload**: dashed drop zone (`--tray`, primary on drag) with a "choose files" button opening the native picker;
@@ -541,6 +546,30 @@ checkboxes vs radios), Apple HIG (toggles, progress indicators, text fields, com
   box. For approvals, tracking and a record's history.
 - **Disclosure**: native `<details>` (no script, find-in-page reaches it), 44 px summary with a turning chevron,
   the shared block-size transition. Stack them for an accordion.
+
+### 5.16 Form layout and required fields (`ds/form-layout.tsx`, `ds/field.tsx`; gallery: /ds "Form layout")
+Sources: Baymard (multi-column forms, required/optional marking, field width, inline validation), NN/g (required
+fields, web form design, form white space, placeholders, wizards, OK/Cancel order), GOV.UK (question pages, text
+input, button, validation, error summary), IBM Carbon (forms pattern, progress indicator), Atlassian (form usage),
+Shopify Polaris (annotated layout, contextual save bar), Apple HIG (layout, text fields, buttons, sheets), W3C (WCAG
+2.2 3.3.2, 1.3.5, 3.3.7; technique H90; forms tutorial grouping).
+
+| Rule | Why (source) |
+|---|---|
+| A required field has a red `*` after its label (`Field required`, `RadioGroup required`; `aria-hidden`, the control gets `aria-required`) and the form says once, above the first field, "Required fields are marked with *" (`RequiredNote`). | NN/g required fields; W3C H90 (asterisk inside the label, explained at the start); Atlassian |
+| An optional field in a form that has required ones says "(optional)" (`Field optional`). | Baymard: mark both; with optional-only marking 32% missed a required field |
+| Sign-in forms and a form of one field carry no markers. | NN/g required fields (login exception); one field is required by being there |
+| One column of fields. Two or three share a row only when they are one thing (city + postal code, first + last name, expiry + CVC). | Baymard multi-column forms |
+| Field width follows the expected input: variable text at the column's width (`max-w-xl`, 576 px); a fixed-length value narrower (postal code `max-w-32`, a code `max-w-40`). | Baymard field width; NN/g; GOV.UK text input widths |
+| Labels above fields, hint text under the field; a placeholder never replaces a label or a hint. | NN/g placeholders, form white space; GOV.UK text input |
+| A form with two groups or more on a settings or create/edit page is `FormSection`s: from 768 px the group's title and a 1–3 sentence purpose on the left third, the fields on the right; stacked on a phone; hairline between groups. A dialog or a short form stays one column. | Polaris annotated layout; Carbon form sections; GOV.UK two-thirds column |
+| Page forms sit in a Panel card padded 16, 24 from 768 px; the buttons are `FormActions`, the last row of the card, sticky to the bottom of the window while the form is taller than it. Never pinned to the top. | Carbon (pinned footer, not top) |
+| Button order: on a page form the primary first, then Cancel (ghost), left-aligned under the fields; in a wizard Back then Continue (they map to the direction); in a dialog Cancel then the action on the trailing edge (DialogFooter). A destructive action is never the primary button of a page form: it goes through ConfirmActionDialog. | GOV.UK, Carbon, Atlassian (page forms left); Apple, Carbon dialogs (trailing); NN/g: consistency over either order |
+| Never disable Submit because the form is invalid: it validates and shows what to fix. Disabled only while pending, or with nothing changed on an edit form with the reason beside it ("Change a field to save."). | Atlassian, GOV.UK (never disable); Carbon (never on long forms) |
+| Radio and checkbox groups are a `fieldset` with a `legend`; a radio's description is its `aria-describedby`, not part of its name. | W3C forms tutorial (grouping) |
+| Personal fields carry the right `autocomplete` (`name`, `email`, `current-password`, `new-password`, `one-time-code`); an admin form about someone else uses `off`. `inputMode="numeric"` instead of `type="number"`; `spellCheck={false}` on usernames and emails. | WCAG 1.3.5; GOV.UK text input |
+| Unsaved edits ask before leaving (`useLeaveGuard` + ConfirmActionDialog "Leave without saving"). | Polaris contextual save bar; MDN beforeunload |
+| Ask nothing twice in a flow: a wizard's review shows what was given, and a later step reuses earlier answers. | WCAG 3.3.7 Redundant Entry |
 
 ---
 

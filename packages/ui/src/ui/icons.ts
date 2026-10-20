@@ -20,6 +20,7 @@ export {
   UserListIcon as AllUsersIcon, // Nav child: all users
   UserCheck01Icon as ActiveUserIcon, // Nav child: active users
   UserBlock01Icon as InactiveUserIcon, // Nav child: inactive users
+  LayoutThreeColumnIcon as ColumnsIcon, // A table's column chooser (ColumnsMenu)
 
   // Metrics
   CpuIcon,

@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useCallback, useState } from "react";
-import { type Column, DataTable, Field, FilterMenu, Notice, Panel, QueryInput, Toolbar, ToolbarFilters } from "@starterkit/ui/ds";
+import { type Column, ColumnsMenu, DataTable, Field, FilterMenu, Notice, Panel, QueryInput, Toolbar, ToolbarFilters } from "@starterkit/ui/ds";
 import { plural } from "@starterkit/ui/lib/format";
 import { Button } from "@starterkit/ui/ui/button";
 import { SecureIcon } from "@starterkit/ui/ui/icons";
@@ -70,7 +70,7 @@ export function PermissionsPage() {
       <PageHeader title="Permissions" description="Everything a role can allow. Roles decide who has each permission."
         actions={can("permission.create") ? <Button onClick={() => { setActions(""); setAdding(true); }}>Add permissions</Button> : undefined} />
       {t.staleError && <Notice tone="warn" live>Couldn&apos;t refresh the permissions; showing the ones loaded before. {errorText(t.staleError)}</Notice>}
-      <Panel toolbar={<Toolbar>
+      <Panel toolbar={<Toolbar end={<ColumnsMenu columns={COLUMNS} hidden={t.hidden} onChange={t.setHidden} />}>
           <div className="w-full max-w-64 max-md:max-w-none"><QueryInput value={f.q} onChange={onSearch} keys={[]} label="Search permissions" placeholder="Search permission name" /></div>
           <ToolbarFilters active={f.module ? 1 : 0}>
             <FilterMenu label="Module" value={f.module} options={MODULE_OPTIONS} onChange={(module) => set({ module })} />
@@ -78,7 +78,7 @@ export function PermissionsPage() {
           </ToolbarFilters>
         </Toolbar>}
         flush icon={SecureIcon} title="All permissions" count={t.count} description="Grant them to roles on each role's page">
-        <DataTable label="Permissions" columns={COLUMNS} rows={t.rows} rowKey={(p) => p.id} loading={t.loading}
+        <DataTable label="Permissions" columns={COLUMNS} hidden={t.hidden} rows={t.rows} rowKey={(p) => p.id} loading={t.loading}
           sort={t.sort} onSortChange={t.onSortChange} paging={t.paging}
           error={t.loadError ? { title: "Couldn't load permissions", cause: errorText(t.loadError), onRetry: () => void t.query.refetch() } : null}
           empty={filtered
@@ -91,12 +91,12 @@ export function PermissionsPage() {
           impact={["The new names appear in this list, and Superadmin holds them at once.", "Give them to other roles on each role's page: each one gets its own column in the matrix."]}
           actionLabel="Add permissions" onConfirm={add}
           lead={<>
-            <Field id="perm-module" label="Module">
+            <Field id="perm-module" label="Module" required>
               <Select id="perm-module" value={module} onChange={(e) => setModule(e.target.value)}>
                 {MODULES.map((m) => <option key={m.key} value={m.key}>{permissionLabel(m.key)}</option>)}
               </Select>
             </Field>
-            <Field id="perm-actions" label="Actions" note="Separate several with commas. Names already in the list are skipped.">
+            <Field id="perm-actions" label="Actions" required note="Separate several with commas. Names already in the list are skipped.">
               <Input id="perm-actions" value={actions} maxLength={300} autoComplete="off" className="font-mono" onChange={(e) => setActions(e.target.value)} />
             </Field>
           </>} />

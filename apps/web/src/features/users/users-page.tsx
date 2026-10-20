@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
-import { ActionMenu, BlockedButton, DataTable, FilterMenu, Notice, Panel, QueryInput, Toolbar, ToolbarFilters } from "@starterkit/ui/ds";
+import { ActionMenu, BlockedButton, ColumnsMenu, DataTable, FilterMenu, Notice, Panel, QueryInput, Toolbar, ToolbarFilters } from "@starterkit/ui/ds";
 import { cn } from "@starterkit/ui/lib/cn";
 import { HEALTH } from "@starterkit/ui/lib/status";
 import { Button } from "@starterkit/ui/ui/button";
@@ -112,7 +112,7 @@ export function UsersPage() {
       <PageHeader title="Users" description="Accounts that can sign in, their roles and status."
         actions={can("user.create") ? <Button asChild><Link href="/users/new">Create user</Link></Button> : undefined} />
       {t.staleError && <Notice tone="warn" live>Couldn&apos;t refresh the users; showing the ones loaded before. {errorText(t.staleError)}</Notice>}
-      <Panel toolbar={<Toolbar>
+      <Panel toolbar={<Toolbar end={<ColumnsMenu columns={columns} hidden={t.hidden} onChange={t.setHidden} />}>
           <div className="w-full max-w-64 max-md:max-w-none"><QueryInput value={f.q} onChange={onSearch} keys={[]} label="Search users" placeholder="Search name, username or email" /></div>
           <ToolbarFilters active={(f.role ? 1 : 0) + (f.status ? 1 : 0)}>
             {roles.more
@@ -143,7 +143,7 @@ export function UsersPage() {
             </>}
           </div>
         )}
-        <DataTable label="Users" rowHeight="identity" columns={columns} rows={rows} rowKey={(u) => u.id} loading={t.loading}
+        <DataTable label="Users" rowHeight="identity" columns={columns} hidden={t.hidden} rows={rows} rowKey={(u) => u.id} loading={t.loading}
           isSelected={(u) => selected.has(u.id)} sort={t.sort} onSortChange={t.onSortChange} paging={t.paging}
           error={t.loadError ? { title: "Couldn't load users", cause: errorText(t.loadError), onRetry: () => void t.query.refetch() } : null}
           empty={filtered

@@ -66,3 +66,26 @@ describe("FormWizard", () => {
     expect(onSubmit).toHaveBeenCalledWith({ name: "Rina", email: "rina@example.com" });
   });
 });
+
+describe("FormWizard step list", () => {
+  const stepButton = (name: string) => [...document.querySelectorAll("nav li button")].find((b) => b.textContent?.startsWith(name)) as HTMLButtonElement | undefined;
+  it("lists every step in a nav beside the form; a reached step is a button, one not reached is not", async () => {
+    await mount();
+    expect(document.querySelector("nav")!.getAttribute("aria-label")).toBe("New user: steps");
+    expect(document.querySelector('nav li[aria-current="step"]')!.textContent).toContain("Name");
+    expect(stepButton("Email")).toBeUndefined();
+    await type("w-name", "Rina"); await submit();
+    expect(stepButton("Name")).toBeTruthy();
+    await act(async () => stepButton("Name")!.click());
+    expect(heading()).toBe("Name");
+  });
+  it("going forward from the list validates this step first", async () => {
+    await mount();
+    await type("w-name", "Rina"); await submit();
+    await act(async () => button("Back").click());
+    await type("w-name", "");
+    await act(async () => stepButton("Email")!.click());
+    expect(heading()).toBe("Name");
+    expect(document.getElementById("w-name-error")!.textContent).toBe("Enter a name.");
+  });
+});

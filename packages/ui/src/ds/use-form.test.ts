@@ -44,6 +44,14 @@ describe("useForm", () => {
     expect(document.getElementById("t-email-error")).toBeNull();
   });
 
+  it("leaving an empty required field untouched says nothing; its error waits for the submit", async () => {
+    await mount();
+    await act(async () => { input("t-name").dispatchEvent(new FocusEvent("focusout", { bubbles: true })); });
+    expect(document.getElementById("t-name-error")).toBeNull();
+    await act(async () => { document.querySelector("form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })); });
+    expect(document.getElementById("t-name-error")!.textContent).toBe("Enter a name.");
+  });
+
   it("a failed submit shows every error, a summary that is announced, focuses the first field, and doesn't call onValid", async () => {
     const onValid = await mount();
     await act(async () => { document.querySelector("form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })); });

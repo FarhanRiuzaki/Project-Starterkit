@@ -51,3 +51,16 @@ describe("DataTable on a phone: the sort select and the compact pagination are r
     expect(onPageSizeChange).toHaveBeenCalledWith(25);
   });
 });
+
+describe("DataTable hidden columns (ColumnsMenu)", () => {
+  const headers = () => [...document.querySelectorAll("thead th")].map((th) => th.textContent);
+  it("drops a hidden column from the header and the rows; the identity (mobile title) column can't be hidden", async () => {
+    await mount({ hidden: ["at", "name"] });
+    expect(headers()).toEqual(["Name"]);
+    expect(document.querySelectorAll("tbody tr:first-child td")).toHaveLength(1);
+  });
+  it("a column with hideable: false stays", async () => {
+    await mount({ hidden: ["at"], columns: [{ key: "name", header: "Name", cell: (r: S) => r.id }, { key: "at", header: "Created", hideable: false, cell: (r: S) => r.id }] });
+    expect(headers()).toEqual(["Name", "Created"]);
+  });
+});
