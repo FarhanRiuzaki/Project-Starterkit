@@ -18,3 +18,9 @@ export const db = drizzle({ client });
 
 /** What a query runs through: `db` or a `db.transaction` callback's handle; a transaction sees its own locks. */
 export type Tx = PgDatabase<BunSQLQueryResultHKT>;
+
+/**
+ * The handle inside a `db.transaction` callback (it has `rollback`, the pool does not): a write that must commit or roll
+ * back with the change it describes (activity) takes this, so passing `db` fails typecheck.
+ */
+export type InTx = Parameters<Parameters<typeof db.transaction>[0]>[0];

@@ -14,7 +14,7 @@ import {
 import type { PermissionName } from "@starterkit/shared/permissions";
 import { config } from "../../kernel/config";
 import { randomToken } from "../../kernel/crypto";
-import { db, type Tx } from "../../kernel/db";
+import { db, type InTx, type Tx } from "../../kernel/db";
 import { ApiError, currentSession, notFound } from "../../kernel/errors";
 import { xactLock } from "../../kernel/locks";
 import { sendMail } from "../../kernel/mailer";
@@ -226,7 +226,7 @@ const statusRule = async (tx: Tx, ctx: Ctx, u: UserRowDto, active: boolean): Pro
   active ? null : userChange(tx, ctx, u, { kind: "deactivate" });
 
 /** Sets it: deactivating ends the user's sessions; one entry, user.activate / user.deactivate with { isActive }. Unchanged = nothing. */
-async function applyStatus(tx: Tx, ctx: Ctx, u: UserRowDto, active: boolean): Promise<void> {
+async function applyStatus(tx: InTx, ctx: Ctx, u: UserRowDto, active: boolean): Promise<void> {
   if (u.isActive === active) return;
   await updateUser(tx, u.id, { isActive: active });
   if (!active) await endUserSessions(tx, u.id);
@@ -234,7 +234,7 @@ async function applyStatus(tx: Tx, ctx: Ctx, u: UserRowDto, active: boolean): Pr
 }
 
 /** Deletes the user; sessions, identities, links and role grants go with the row (foreign keys). Activity keeps its names. */
-async function deleteUser(tx: Tx, ctx: Ctx, u: UserRowDto): Promise<void> {
+async function deleteUser(tx: InTx, ctx: Ctx, u: UserRowDto): Promise<void> {
   await tx.delete(users).where(eq(users.id, u.id));
   await recordActivity(tx, ctx, { action: "user.delete", target: { type: "user", id: u.id, label: u.name }, before: UserDto.parse(u) });
 }

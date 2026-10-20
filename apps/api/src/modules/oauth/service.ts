@@ -45,6 +45,19 @@ export async function start(p: ConnectionProvider, b: z.infer<typeof OAuthStartB
 const identity = (p: ConnectionProvider, subject: string) => and(eq(userIdentities.provider, p), eq(userIdentities.subject, subject));
 
 /**
+ * Spends the state of `stateHash` (single use: deleted on first sight, live or not, outside any later transaction) and
+ * answers its row with whether it was still live.
+ */
+async function spendState(stateHash: Buffer) {
+  const [s] = await db.delete(oauthStates).where(eq(oauthStates.stateHash, stateHash)).returning({
+    provider: oauthStates.provider, mode: oauthStates.mode, userId: oauthStates.userId, sessionId: oauthStates.sessionId,
+    bindingHash: oauthStates.bindingHash, codeVerifier: oauthStates.codeVerifier, nonce: oauthStates.nonce, next: oauthStates.next,
+    live: sql<boolean>`${oauthStates.expiresAt} > now()`,
+  });
+  return s;
+}
+
+/**
  * Finish a provider round trip. The state is spent on first use (also when expired, for another provider or with
  * another browser's binding: all 401). Login: only an identity already linked signs in (no new users, no match by
  * email); the provider counts as the second factor; the browser's earlier session ends; answers `{ next, token }`.
@@ -52,11 +65,7 @@ const identity = (p: ConnectionProvider, subject: string) => and(eq(userIdentiti
  * linked = no entry; linked to someone else = 409); answers `{ next }`.
  */
 export async function callback(p: ConnectionProvider, b: z.infer<typeof OAuthCallbackBody>, client: Client): Promise<{ next: string; token?: string }> {
-  const [s] = await db.delete(oauthStates).where(eq(oauthStates.stateHash, hashToken(b.state))).returning({
-    provider: oauthStates.provider, mode: oauthStates.mode, userId: oauthStates.userId, sessionId: oauthStates.sessionId,
-    bindingHash: oauthStates.bindingHash, codeVerifier: oauthStates.codeVerifier, nonce: oauthStates.nonce, next: oauthStates.next,
-    live: sql<boolean>`${oauthStates.expiresAt} > now()`,
-  });
+  const s = await spendState(hashToken(b.state));
   if (!s?.live || s.provider !== p || !safeEqual(hashToken(b.binding).toString("hex"), Buffer.from(s.bindingHash).toString("hex"))) {
     throw new ApiError("unauthenticated", OAUTH_EXPIRED);
   }

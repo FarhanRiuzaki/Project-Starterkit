@@ -5,7 +5,7 @@
 // build their controllers (the module indexes import each other: no export of another module may be used at load).
 // Each rule has a fixture that proves it fails.
 import { describe, expect, it } from "bun:test";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import ts from "typescript";
@@ -106,9 +106,9 @@ function rawSql(files: File[]): string[] {
  * `createApp`): exit 0, or the error. Module indexes may import each other; one that uses another module's export at
  * load (not inside a function) fails here with a ReferenceError, whichever index loads first.
  */
-function loadsAlone(file: string): { ok: boolean; out: string } {
+function loadsAlone(file: string, build = true): { ok: boolean; out: string } {
   const code = `const m = await import(${JSON.stringify(file)});
-for (const [k, v] of Object.entries(m)) if (/Controller$/.test(k) || k === "createApp") v();
+${build ? `for (const [k, v] of Object.entries(m)) if (/Controller$/.test(k) || k === "createApp") v();` : ""}
 process.exit(0);`;
   const r = Bun.spawnSync(["bun", "-e", code], { cwd: ROOT, env: process.env, stderr: "pipe", stdout: "pipe" });
   return { ok: r.exitCode === 0, out: r.stderr.toString() };
@@ -152,14 +152,32 @@ describe("module boundaries (apps/api)", () => {
 describe("module boundaries: fixtures", () => {
   it("fixture: two indexes that import each other load; one that uses the other's export at load fails", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "isolation-"));
-    writeFileSync(path.join(dir, "a.ts"), `import { b } from "./b"; export const a = 1; export const aController = () => b();`);
-    writeFileSync(path.join(dir, "b.ts"), `import { a } from "./a"; export const b = () => a;`);
-    writeFileSync(path.join(dir, "c.ts"), `import { d } from "./d"; export const c = 1; export const cController = () => d;`);
-    writeFileSync(path.join(dir, "d.ts"), `import { c } from "./c"; export const d = c + 1;`);
-    expect(loadsAlone(path.join(dir, "a.ts")).ok).toBe(true);
-    const bad = loadsAlone(path.join(dir, "c.ts"));
-    expect(bad.ok).toBe(false);
-    expect(bad.out).toContain("ReferenceError");
+    try {
+      writeFileSync(path.join(dir, "a.ts"), `import { b } from "./b"; export const a = 1; export const aController = () => b();`);
+      writeFileSync(path.join(dir, "b.ts"), `import { a } from "./a"; export const b = () => a;`);
+      writeFileSync(path.join(dir, "c.ts"), `import { d } from "./d"; export const c = 1; export const cController = () => d;`);
+      writeFileSync(path.join(dir, "d.ts"), `import { c } from "./c"; export const d = c + 1;`);
+      expect(loadsAlone(path.join(dir, "a.ts")).ok).toBe(true);
+      const bad = loadsAlone(path.join(dir, "c.ts"));
+      expect(bad.ok).toBe(false);
+      expect(bad.out).toContain("ReferenceError");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("fixture: an index that imports cleanly but whose controller factory hits an uninitialized binding fails (the factory call matters)", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "isolation-"));
+    try {
+      // The factory reads `plugin` before its declaration runs: nothing happens at import, the call throws.
+      writeFileSync(path.join(dir, "e.ts"), `export const eController = () => { const app = [plugin]; const plugin = 1; return app; };`);
+      expect(loadsAlone(path.join(dir, "e.ts"), false).ok).toBe(true);
+      const bad = loadsAlone(path.join(dir, "e.ts"));
+      expect(bad.ok).toBe(false);
+      expect(bad.out).toContain("ReferenceError");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it("fixture: a deep import into another module fails; its index, its own files and schema-to-schema pass", () => {

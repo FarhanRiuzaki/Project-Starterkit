@@ -14,6 +14,14 @@ const ctxOf = async (login: string): Promise<Ctx> => ({ ...(await resolveSession
 const last = async <T extends typeof activity | typeof authLog>(table: T) => (await db.select().from(table as typeof activity).orderBy(desc(table.at), desc(table.id)).limit(1))[0]!;
 
 describe("audit", () => {
+  it("recordActivity takes a transaction handle only: passing the pool fails typecheck (an entry commits with its change)", async () => {
+    const ctx = await ctxOf("viewer");
+    const outsideTx = () =>
+      // @ts-expect-error -- `db` is the pool, not an InTx; `bun run typecheck` fails if this line ever compiles
+      recordActivity(db, ctx, { action: "user.update", target: { type: "user", id: ctx.user.id, label: ctx.user.name } });
+    expect(outsideTx).toBeInstanceOf(Function); // never called: the check is the type error above
+  });
+
   it("recordActivity stores the actor and a credential-free snapshot", async () => {
     const ctx = await ctxOf("twofa"); // has a password hash, a TOTP secret and recovery codes
     const user = ctx.user;

@@ -4,7 +4,9 @@
 // service call); (c) a change records activity; (d) a list GET pages through pageQuery and a CSV branch is capped at
 // CSV_MAX_ROWS; (e) nothing answers 404 or reads data before the request body; (f) a handler that reads the query has a
 // `query` schema (validated before the guard); (g) the exemptions name real controllers. Calls are followed across
-// files, through module indexes, into the services a handler calls and everything they call (one call graph of src/).
+// files, through module indexes, into the services a handler calls and everything they call (one call graph of src/);
+// src/ uses only the import forms that graph follows, and a function that records activity writes only through its
+// transaction.
 import { describe, expect, it } from "bun:test";
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -158,6 +160,8 @@ const ROUTE_METHODS = ["get", "post", "patch", "put", "delete"];
 const CHAIN_OK = new Set(["use", ...ROUTE_METHODS]);
 /** Route options the scan knows the place of: Elysia validates `query`, then runs the `guard` macro's resolve, then the handler. */
 const HOOK_OK = new Set(["query", "guard"]);
+/** The plugins a checked controller may `.use(…)`: exactly what the real tree uses (a stale entry fails). Any other plugin could add a hook that runs before the guard. */
+const USE_OK = ["modules/auth/guard.ts#guard"];
 
 /** `e` is a method chain on `new Elysia(…)`. */
 const onElysia = (e: ts.Expression): boolean =>
@@ -168,13 +172,19 @@ const onElysia = (e: ts.Expression): boolean =>
  * The routes of a controller with the calls inside each handler, each at the point it runs (the end of the call, so
  * `save(await body(c, B))` reads the body first), resolved to their declarations; and the chain methods it may not use.
  */
-function handlersOf(file: string, g: ReturnType<typeof graphOf>): { handlers: Handler[]; chain: string[] } {
+function handlersOf(file: string, g: ReturnType<typeof graphOf>, useOk: string[] = USE_OK): { handlers: Handler[]; chain: string[]; uses: string[] } {
   const sf = g.sfs.get(file)!;
-  const handlers: Handler[] = [], chain: string[] = [];
+  const handlers: Handler[] = [], chain: string[] = [], uses: string[] = [];
   const visit = (n: ts.Node) => {
     if (ts.isCallExpression(n) && ts.isPropertyAccessExpression(n.expression) && onElysia(n.expression.expression)) {
       const method = n.expression.name.text;
       if (!CHAIN_OK.has(method)) chain.push(`${file}: .${method}( on a controller runs code the scan can't order against the guard`);
+      if (method === "use") {
+        const arg = n.arguments[0];
+        const id = arg && ts.isIdentifier(arg) ? g.resolve(file, arg.text) : null;
+        if (id) uses.push(id);
+        if (!id || !useOk.includes(id)) chain.push(`${file}: .use(${arg?.getText(sf) ?? ""}) mounts a plugin other than ${useOk.join(", ")}; its hooks could run before the guard`);
+      }
       const [p, fn, hook] = n.arguments;
       if (ROUTE_METHODS.includes(method) && p && ts.isStringLiteral(p)) {
         const options = hook && ts.isObjectLiteralExpression(hook) ? [...hook.properties] : [];
@@ -187,8 +197,11 @@ function handlersOf(file: string, g: ReturnType<typeof graphOf>): { handlers: Ha
         };
         if (fn && (ts.isArrowFunction(fn) || ts.isFunctionExpression(fn))) {
           const param = fn.parameters[0]?.name;
-          h.readsQuery = !!param && (ts.isObjectBindingPattern(param) ? param.elements.some((e) => (e.propertyName ?? e.name).getText(sf) === "query")
-            : contains(fn.body, (m) => ts.isPropertyAccessExpression(m) && m.name.text === "query" && m.expression.getText(sf) === param.getText(sf)));
+          const bindsQuery = (b: ts.ObjectBindingPattern) => b.elements.some((e) => (e.propertyName ?? e.name).getText(sf) === "query");
+          // `({ query })`, `c.query`, or `const { query } = c` in the body
+          h.readsQuery = !!param && (ts.isObjectBindingPattern(param) ? bindsQuery(param)
+            : contains(fn.body, (m) => (ts.isPropertyAccessExpression(m) && m.name.text === "query" && m.expression.getText(sf) === param.getText(sf))
+              || (ts.isVariableDeclaration(m) && ts.isObjectBindingPattern(m.name) && m.initializer?.getText(sf) === param.getText(sf) && bindsQuery(m.name))));
           const inner = (m: ts.Node) => {
             if (ts.isCallExpression(m) || ts.isTaggedTemplateExpression(m)) {
               const callee = ts.isCallExpression(m) ? m.expression : m.tag;
@@ -210,10 +223,10 @@ function handlersOf(file: string, g: ReturnType<typeof graphOf>): { handlers: Ha
     ts.forEachChild(n, visit);
   };
   visit(sf);
-  return { handlers, chain };
+  return { handlers, chain, uses };
 }
 
-type Allow = { nonList: Record<string, string>; gates: Record<string, string>; authFiles: string[] };
+type Allow = { nonList: Record<string, string>; gates: Record<string, string>; authFiles: string[]; use?: string[] };
 
 /** GET routes that answer one record, a summary or the caller, not a list; every other GET pages through pageQuery. */
 const NON_LIST_GETS: Record<string, string> = {
@@ -244,7 +257,8 @@ function routeViolations(files: File[], allow: Allow = REAL_ALLOW): string[] {
   const pagers = g.reaching(["kernel/pagination.ts#pageQuery"]);
   const csvFns = g.named((id) => /#\w*Csv$/.test(id));
   const csvReach = g.reaching(csvFns);
-  const scanned = files.filter((f) => CONTROLLER.test(f.file)).map((f) => ({ file: f.file, ...handlersOf(f.file, g) }));
+  const useOk = allow.use ?? USE_OK;
+  const scanned = files.filter((f) => CONTROLLER.test(f.file)).map((f) => ({ file: f.file, ...handlersOf(f.file, g, useOk) }));
   const out: string[] = [];
   const seen = new Set<string>();
   for (const { file, handlers, chain } of scanned) {
@@ -283,6 +297,14 @@ function routeViolations(files: File[], allow: Allow = REAL_ALLOW): string[] {
       if (h.readsQuery && !h.options.includes("query")) out.push(`${id}: reads the query without a query schema option (a bad query must answer 400 before 401)`);
     }
   }
+  // (c) an entry commits with its change: a function that records activity writes only through its transaction handle
+  const dbWrite = (n: ts.Node, file: string) => contains(n, (m) => ts.isCallExpression(m) && ts.isPropertyAccessExpression(m.expression)
+    && ["insert", "update", "delete"].includes(m.expression.name.text) && ts.isIdentifier(m.expression.expression)
+    && g.resolve(file, m.expression.expression.text) === "kernel/db.ts#db");
+  for (const id of g.named((d, n) => contains(n, (m) => ts.isCallExpression(m) && ts.isIdentifier(m.expression)
+    && g.resolve(d.slice(0, d.indexOf("#")), m.expression.text) === "modules/audit/record.ts#recordActivity"))) {
+    if (dbWrite(g.decls.get(id)!, id.slice(0, id.indexOf("#")))) out.push(`${id}: records activity but writes through db, outside the transaction the entry is in`);
+  }
   for (const id of csvFns) {
     if (!/\.limit\(\s*CSV_MAX_ROWS\s*\)/.test(g.decls.get(id)!.getText())) out.push(`${id.split("#")[1]}: CSV query without .limit(CSV_MAX_ROWS)`);
   }
@@ -290,13 +312,58 @@ function routeViolations(files: File[], allow: Allow = REAL_ALLOW): string[] {
   // (g) and every allowlist: a stale entry fails
   for (const k of Object.keys(allow.nonList)) if (!seen.has(k) || !k.startsWith("GET ")) out.push(`${k}: listed as a non-list GET but has no such handler`);
   for (const k of Object.keys(allow.gates)) if (!gated.has(k)) out.push(`${k}: listed as an in-handler permission check but has no such handler`);
+  for (const u of useOk) if (!scanned.some((s) => !allow.authFiles.includes(s.file) && s.uses.includes(u))) out.push(`${u}: allowed in .use( but no checked controller uses it`);
   for (const f of allow.authFiles) {
     if (!scanned.some((s) => s.file === f && s.handlers.length)) out.push(`${f}: listed as a sign-in controller but has no routes`);
   }
   return out;
 }
 
+/**
+ * Import forms the call graph does not follow, so they would hide a call from every rule: a namespace or default import
+ * of a relative module, `export *`, and `import()`. src/ uses named imports and re-exports only.
+ */
+function graphGaps(files: File[]): string[] {
+  return files.flatMap(({ file, src }) => {
+    const sf = ts.createSourceFile(file, src, ts.ScriptTarget.Latest, true);
+    const at = (n: ts.Node) => `${file}:${sf.getLineAndCharacterOfPosition(n.getStart(sf)).line + 1}`;
+    const out: string[] = [];
+    const visit = (n: ts.Node) => {
+      if (ts.isImportDeclaration(n) && ts.isStringLiteral(n.moduleSpecifier) && n.moduleSpecifier.text.startsWith(".") && n.importClause) {
+        if (n.importClause.name) out.push(`${at(n)}: default import of a relative module; use a named import (the call graph follows names only)`);
+        if (n.importClause.namedBindings && ts.isNamespaceImport(n.importClause.namedBindings)) out.push(`${at(n)}: namespace import of a relative module; use named imports (the call graph follows names only)`);
+      }
+      if (ts.isExportDeclaration(n) && n.moduleSpecifier && !n.exportClause) out.push(`${at(n)}: export * hides what a module exports; name each export`);
+      if (ts.isCallExpression(n) && n.expression.kind === ts.SyntaxKind.ImportKeyword) out.push(`${at(n)}: dynamic import() is not followed by the call graph; import it statically`);
+      ts.forEachChild(n, visit);
+    };
+    visit(sf);
+    return out;
+  });
+}
+
 const real: File[] = [...new Bun.Glob("**/*.ts").scanSync(SRC)].filter((f) => !f.endsWith(".test.ts")).map((f) => ({ file: f, src: readFileSync(path.join(SRC, f), "utf8") }));
+
+describe("call graph coverage (src/)", () => {
+  it("src/ imports only by name, so the call graph sees every call", () => {
+    expect(graphGaps(real)).toEqual([]);
+  });
+
+  it("fixture: a namespace import, a default import, export * and import() are reported; named imports and a package default pass", () => {
+    expect(graphGaps([{ file: "modules/x/service.ts", src: [
+      `import * as Q from "./queries";`,
+      `import helper from "../y/helper";`,
+      `export * from "./rules";`,
+      `const m = await import("../oauth");`,
+      `import pino from "pino"; import { a } from "./a"; export { b } from "./b"; import type { C } from "./c";`,
+    ].join("\n") }])).toEqual([
+      "modules/x/service.ts:1: namespace import of a relative module; use named imports (the call graph follows names only)",
+      "modules/x/service.ts:2: default import of a relative module; use a named import (the call graph follows names only)",
+      "modules/x/service.ts:3: export * hides what a module exports; name each export",
+      "modules/x/service.ts:4: dynamic import() is not followed by the call graph; import it statically",
+    ]);
+  });
+});
 
 describe("route handlers (src/modules/*/controller.ts)", () => {
   it("every handler outside the sign-in controllers follows the contract's order, pages its lists and records its changes", () => {
@@ -320,6 +387,8 @@ export function idParam(id, noun) { if (!id) throw notFound(noun); return id; }`
     { file: "kernel/pagination.ts", src: `import { db } from "./db"; export async function pageQuery(o) { return db.select(); }` },
     { file: "modules/audit/record.ts", src: "export async function recordActivity(tx, ctx, e) { await tx.insert(t); }" },
     { file: "modules/audit/index.ts", src: `export { recordActivity } from "./record";` },
+    { file: "modules/auth/guard.ts", src: "export const guard = new Elysia().macro({});" },
+    { file: "modules/auth/index.ts", src: `export { guard } from "./guard";` },
     { file: "modules/y/service.ts", src: `import { db } from "../../kernel/db"; export const lookup = (id) => db.select().where(id);` },
     { file: "modules/y/index.ts", src: `export { lookup } from "./service";` },
   ];
@@ -359,6 +428,16 @@ export const xController = () => new Elysia().use(guard)${code};` });
     expect(run(`.get("/v1/x", handler, { guard: "x.view" })`)).toEqual([`${X} GET /v1/x: handler is not an inline function (the scan can't read it)`]);
   });
 
+  it("fixture (b): .use( takes only the listed plugins (the auth guard), and a listed plugin no controller uses is stale", () => {
+    const loader = { file: "modules/x/loader.ts", src: `export const loader = new Elysia().derive(() => ({ row: 1 }));` };
+    const withLoader = (code: string) => routeViolations([...KERNEL, SERVICE, loader,
+      { ...controller(code), src: `import { loader } from "./loader";\n${controller(code).src}` }], NONE);
+    expect(withLoader(`.use(loader).get("/v1/x", () => thingPage({}), { guard: "x.view" })`))
+      .toEqual([`${X}: .use(loader) mounts a plugin other than modules/auth/guard.ts#guard; its hooks could run before the guard`]);
+    expect(run(`.get("/v1/x", () => thingPage({}), { guard: "x.view" })`, { ...NONE, use: ["modules/auth/guard.ts#guard", "kernel/plugins/context.ts#context"] }))
+      .toEqual(["kernel/plugins/context.ts#context: allowed in .use( but no checked controller uses it"]);
+  });
+
   it("fixture (b): an in-handler permission check passes only when allowlisted, with { guard: null }, before any service call", () => {
     const bulk = (opts: string, order: "gate-first" | "service-first") => `.post("/v1/x/bulk", async (c) => {
       const b = await body(c, B);
@@ -377,6 +456,14 @@ export const xController = () => new Elysia().use(guard)${code};` });
   it("fixture (c): a change that never records activity, in the handler or any service it calls, is reported", () => {
     expect(run(`.delete("/v1/x/:id", ({ ctx }) => quiet(ctx), { guard: "x.delete" })`)).toEqual([`${X} DELETE /v1/x/:id: no recordActivity (in the handler or a service it calls)`]);
     expect(run(`.delete("/v1/x/:id", ({ ctx }) => save(ctx), { guard: "x.delete" })`)).toEqual([]); // save → write → recordActivity
+  });
+
+  it("fixture (c): a function that records activity and also writes through db (outside the entry's transaction) is reported", () => {
+    const leaky = { file: "modules/x/leaky.ts", src: `import { db } from "../../kernel/db"; import { recordActivity } from "../audit";
+export async function rename(ctx, id) { await db.update(t).set({ id }); await db.transaction((tx) => recordActivity(tx, ctx, e)); }
+export async function tidy(ctx) { await db.transaction(async (tx) => { await tx.delete(t); await recordActivity(tx, ctx, e); }); }` };
+    expect(run(`.get("/v1/x", () => thingPage({}), { guard: "x.view" })`, NONE, leaky))
+      .toEqual(["modules/x/leaky.ts#rename: records activity but writes through db, outside the transaction the entry is in"]);
   });
 
   it("fixture (d): a list GET without pageQuery, a stale non-list entry, a CSV branch without a capped …Csv function", () => {
@@ -412,14 +499,17 @@ export const xController = () => new Elysia().use(guard)${code};` });
       .toEqual([`${X} GET /v1/x: reads the query without a query schema option (a bad query must answer 400 before 401)`]);
     expect(run(`.get("/v1/x", (c) => thingPage(Q.parse(c.query)), { guard: "x.view" })`))
       .toEqual([`${X} GET /v1/x: reads the query without a query schema option (a bad query must answer 400 before 401)`]);
+    expect(run(`.get("/v1/x", (c) => { const { query } = c; return thingPage(query); }, { guard: "x.view" })`))
+      .toEqual([`${X} GET /v1/x: reads the query without a query schema option (a bad query must answer 400 before 401)`]);
+    expect(run(`.get("/v1/x", (c) => { const { query: q } = c; return thingPage(q); }, { query: Q, guard: "x.view" })`)).toEqual([]);
   });
 
   it("fixture (g): only the listed sign-in controllers are exempt, and a stale entry fails", () => {
     const signIn = (file: string) => controller(`.post("/v1/auth/x", async (c) => quiet(await body(c, B)))`, file);
-    expect(routeViolations([...KERNEL, SERVICE, signIn("modules/x/controller.ts")], { ...NONE, authFiles: ["modules/x/controller.ts"] })).toEqual([]);
+    expect(routeViolations([...KERNEL, SERVICE, signIn("modules/x/controller.ts")], { ...NONE, authFiles: ["modules/x/controller.ts"], use: [] })).toEqual([]);
     expect(routeViolations([...KERNEL, SERVICE, signIn("modules/x/controller.ts")], NONE))
       .toEqual([`${X} POST /v1/auth/x: no guard option`, `${X} POST /v1/auth/x: no recordActivity (in the handler or a service it calls)`]);
-    expect(routeViolations([...KERNEL, SERVICE, controller("")], { ...NONE, authFiles: ["modules/x/controller.ts", "modules/gone/controller.ts"] })).toEqual([
+    expect(routeViolations([...KERNEL, SERVICE, controller("")], { ...NONE, authFiles: ["modules/x/controller.ts", "modules/gone/controller.ts"], use: [] })).toEqual([
       "modules/x/controller.ts: listed as a sign-in controller but has no routes",
       "modules/gone/controller.ts: listed as a sign-in controller but has no routes",
     ]);
