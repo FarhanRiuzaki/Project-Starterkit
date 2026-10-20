@@ -1,28 +1,39 @@
 // Port of apps/web/src/app/api/me/me-routes.test.ts against /v1/me*, test for test with the same names.
-// Connecting (the OAuth link flow) is tested in auth/oauth.test.ts.
+// Connecting (the OAuth link flow) is tested in modules/oauth/tests/integration/oauth.test.ts.
 // Not ported: wrong csrf token (the web checks CSRF, Task 9). Time moves by editing rows, the database clock decides.
 // Added: "PATCH /me with the same values writes no activity", "recovery codes are 8 distinct 19-char codes and each works once at /v1/auth/2fa".
 import { beforeEach, describe, expect, it } from "bun:test";
 import type { Page } from "@starterkit/shared/contracts/common";
-import { call, resetData } from "../../test/helpers/app";
-import { orm, sql } from "../db/client";
-import { LDAP_PASSWORD, RECOVERY_CODES, SEED_PASSWORD } from "../db/seed/demo";
-import { decryptSecret, hashToken } from "../kernel/crypto";
-import { createSession, totpCode } from "../modules/auth";
+import { asc, eq, sql } from "drizzle-orm";
+import { call, resetData } from "../../../../../test/helpers/app";
+import { rows, sqlColumns } from "../../../../../test/helpers/db";
+import { LDAP_PASSWORD, RECOVERY_CODES, SEED_PASSWORD } from "../../../../db/seed/demo";
+import { decryptSecret, hashToken } from "../../../../kernel/crypto";
+import { db } from "../../../../kernel/db";
+import { activity } from "../../../audit";
+import { createSession, sessions, totpCode, userTokens } from "../../../auth";
+import { userIdentities } from "../../../oauth";
+import { recoveryCodes as codesTable, users } from "../../../users"; // tests name their answers `recoveryCodes`
 
 const NEW_PW = "Another-Pass-456!";
 const code = async (r: Response) => ((await r.json()) as { error: { code: string } }).error.code;
-const idOf = async (username: string): Promise<string> => (await sql`select id from users where username = ${username}`)[0].id;
-const sidOf = async (token: string): Promise<string> => (await sql`select id from sessions where token_hash = ${hashToken(token)}`)[0].id;
+const idOf = async (username: string): Promise<string> => (await rows(db.select({ id: users.id }).from(users).where(eq(users.username, username))))[0].id;
+const sidOf = async (token: string): Promise<string> => (await rows(db.select({ id: sessions.id }).from(sessions).where(eq(sessions.tokenHash, hashToken(token)))))[0].id;
 const addSession = async (userId: string): Promise<string> =>
-  (await sql.begin((tx) => createSession(orm(tx), { userId, method: "password", client: { ip: "10.0.0.9", ua: "bun test" } }))).id;
-const hasSession = async (id: string) => (await sql`select 1 from sessions where id = ${id}`).length === 1;
-const userRow = async (username: string) => (await sql`select * from users where username = ${username}`)[0];
+  (await db.transaction((tx) => createSession(tx, { userId, method: "password", client: { ip: "10.0.0.9", ua: "bun test" } }))).id;
+const hasSession = async (id: string) => (await db.select({ id: sessions.id }).from(sessions).where(eq(sessions.id, id))).length === 1;
+const userRow = async (username: string) => (await rows(db.select(sqlColumns(users)).from(users).where(eq(users.username, username))))[0];
 const acts = async (): Promise<{ action: string; targetType: string; before: unknown; after: unknown }[]> =>
-  sql`select action, target_type as "targetType", before, after from activity order by at, id`;
+  db.select({ action: activity.action, targetType: activity.targetType, before: activity.before, after: activity.after }).from(activity).orderBy(asc(activity.at), asc(activity.id));
+/** `select 1 from <table> where user_id = …`. */
+const rowsOfUser = (t: typeof codesTable | typeof userIdentities | typeof userTokens, userId: string) => db.select({ one: sql`1` }).from(t).where(eq(t.userId, userId));
+/** The TOTP secret of twofa@example.com copied to `username` (2FA on, same codes). */
+const copyTotp = (username: string) =>
+  db.update(users).set({ totpSecret: sql`(${db.select({ s: users.totpSecret }).from(users).where(eq(users.username, "twofa"))})` }).where(eq(users.username, username));
+const noPassword = (username: string) => db.update(users).set({ passwordHash: null }).where(eq(users.username, username));
 /** A session token for a demo account, straight through createSession (the directory user has no stored password). */
 const signIn = async (username: string): Promise<string> =>
-  (await sql.begin(async (tx) => createSession(orm(tx), { userId: await idOf(username), method: "password", client: { ip: "127.0.0.1", ua: "bun test" } }))).token;
+  (await db.transaction(async (tx) => createSession(tx, { userId: await idOf(username), method: "password", client: { ip: "127.0.0.1", ua: "bun test" } }))).token;
 const me = (method: string, path: string, token: string, body?: unknown) => call(method, `/v1/me${path}`, { token, body });
 const login = (pw: string, login = "admin") => call("POST", "/v1/auth/login", { body: { method: "password", login, password: pw } });
 
@@ -141,7 +152,7 @@ describe("/api/me/2fa", () => {
     expect(decryptSecret(row.totp_secret)).toBe(secret);
     expect(row.pending_totp_secret).toBeNull();
     expect(row.totp_last_step).not.toBeNull(); // replay guard
-    const stored = await sql`select code_hash, used_at from recovery_codes where user_id = ${row.id}`;
+    const stored = await db.select({ code_hash: codesTable.codeHash, used_at: codesTable.usedAt }).from(codesTable).where(eq(codesTable.userId, row.id));
     expect(stored).toHaveLength(8);
     expect(stored.every((r: { code_hash: string; used_at: unknown }) => r.code_hash.startsWith("$argon2id$") && r.used_at === null)).toBe(true);
 
@@ -196,13 +207,13 @@ describe("/api/me/2fa", () => {
     expect((await me("DELETE", "/2fa", token, { password: SEED_PASSWORD })).status).toBe(200);
     const row = await userRow("twofa");
     expect(row).toMatchObject({ totp_secret: null, pending_totp_secret: null });
-    expect(await sql`select 1 from recovery_codes where user_id = ${row.id}`).toHaveLength(0);
+    expect(await rowsOfUser(codesTable, row.id)).toHaveLength(0);
     expect((await acts()).at(-1)).toMatchObject({ action: "me.2fa_disable" });
   });
 
   it("an LDAP user disables 2FA with the directory password", async () => {
     const token = await signIn("ldap");
-    await sql`update users set totp_secret = (select totp_secret from users where username = 'twofa') where username = 'ldap'`;
+    await copyTotp("ldap");
     expect((await me("DELETE", "/2fa", token, { password: SEED_PASSWORD })).status).toBe(400);
     expect((await me("DELETE", "/2fa", token, { password: LDAP_PASSWORD })).status).toBe(200);
     expect((await userRow("ldap")).totp_secret).toBeNull();
@@ -229,11 +240,11 @@ describe("/api/me/connections/[provider]", () => {
 
   it("refuses to disconnect the only way to sign in; an unknown provider is 400", async () => {
     const token = await signIn("google");
-    await sql`update users set password_hash = null where username = 'google'`;
+    await noPassword("google");
     const r = await me("DELETE", "/connections/google", token);
     expect(r.status).toBe(409);
     expect(await code(r)).toBe("only_sign_in_method");
-    expect(await sql`select 1 from user_identities where user_id = ${await idOf("google")}`).toHaveLength(1);
+    expect(await rowsOfUser(userIdentities, await idOf("google"))).toHaveLength(1);
     expect((await me("DELETE", "/connections/github", token)).status).toBe(400);
   });
 });
@@ -253,9 +264,10 @@ describe("/api/me/sessions", () => {
     const { token } = await signedIn("admin");
     const uid = await idOf("admin");
     for (let i = 0; i < 20; i++) {
-      await sql`insert into sessions (id, token_hash, user_id, method, device, ip, last_seen_at, expires_at)
-        values (${Bun.randomUUIDv7()}, ${hashToken(`t${i}`)}, ${uid}, 'password', ${`Device ${String(i).padStart(2, "0")}`}, '10.0.0.1',
-                now() - make_interval(mins => ${20 - i}), now() + interval '1 hour')`;
+      await db.insert(sessions).values({
+        id: Bun.randomUUIDv7(), tokenHash: hashToken(`t${i}`), userId: uid, method: "password", device: `Device ${String(i).padStart(2, "0")}`, ip: "10.0.0.1",
+        lastSeenAt: sql`now() - make_interval(mins => ${20 - i})`, expiresAt: sql`now() + interval '1 hour'`,
+      });
     }
     const get = async (qs: string) => (await (await me("GET", `/sessions?${qs}`, token)).json()) as Page<{ id: string; device: string }>;
     const first = await get("");
@@ -348,7 +360,7 @@ describe("PATCH /api/me: changing the email needs the current credential", () =>
 
   it("an account that signs in only through Google or Apple can't change its email (409 self_action)", async () => {
     const token = await signIn("google");
-    await sql`update users set password_hash = null where username = 'google'`;
+    await noPassword("google");
     const r = await me("PATCH", "", token, { email: "other@example.com", currentPassword: "anything" });
     expect(r.status).toBe(409);
     expect(((await r.json()) as { error: { code: string; message: string } }).error).toMatchObject({ code: "self_action", message: expect.stringMatching(/Google or Apple/) });
@@ -377,7 +389,7 @@ describe("password guess throttle under concurrency", () => {
 
 describe("product name", () => {
   it("me/routes.ts reads BRAND and has no product-name literal", async () => {
-    const src = await Bun.file(new URL("./routes.ts", import.meta.url)).text();
+    const src = await Bun.file(new URL("../../service.ts", import.meta.url)).text();
     expect(src).toMatch(/import \{ BRAND \} from "@starterkit\/shared\/brand"/);
     expect(src).not.toMatch(/\bStarterkit\b/);
   });
@@ -387,20 +399,21 @@ describe("credential changes end other ways in", () => {
   it("changing the password also spends the user's reset and invitation links", async () => {
     const token = await signIn("admin");
     const id = await idOf("admin");
-    await sql`insert into user_tokens (token_hash, user_id, kind, expires_at) values (${hashToken("open-link")}, ${id}, 'reset', now() + interval '1 hour')`;
+    await db.insert(userTokens).values({ tokenHash: hashToken("open-link"), userId: id, kind: "reset", expiresAt: sql`now() + interval '1 hour'` });
     expect((await me("POST", "/password", token, { current: SEED_PASSWORD, next: NEW_PW })).status).toBe(200);
-    expect(await sql`select 1 from user_tokens where user_id = ${id}`).toHaveLength(0);
+    expect(await rowsOfUser(userTokens, id)).toHaveLength(0);
   });
 });
 
 describe("two-factor for accounts that sign in only through Google or Apple", () => {
   async function oauthOnly(twoFactor: boolean) {
     const token = await signIn("google");
-    await sql`update users set password_hash = null where username = 'google'`;
+    await noPassword("google");
     if (twoFactor) {
-      await sql`update users set totp_secret = (select totp_secret from users where username = 'twofa') where username = 'google'`;
-      await sql`insert into recovery_codes (id, user_id, code_hash)
-        select gen_random_uuid(), (select id from users where username = 'google'), code_hash from recovery_codes where user_id = (select id from users where username = 'twofa')`;
+      await copyTotp("google");
+      const google = await idOf("google");
+      const codes = await db.select({ codeHash: codesTable.codeHash }).from(codesTable).where(eq(codesTable.userId, await idOf("twofa")));
+      await db.insert(codesTable).values(codes.map((c) => ({ id: Bun.randomUUIDv7(), userId: google, codeHash: c.codeHash })));
     }
     return token;
   }
@@ -421,7 +434,7 @@ describe("two-factor for accounts that sign in only through Google or Apple", ()
     expect((await me("DELETE", "/2fa", token, { recoveryCode: RECOVERY_CODES[0] })).status).toBe(200);
     const row = await userRow("google");
     expect(row.totp_secret).toBeNull();
-    expect(await sql`select 1 from recovery_codes where user_id = ${row.id}`).toHaveLength(0);
+    expect(await rowsOfUser(codesTable, row.id)).toHaveLength(0);
   });
 
   it("a password user can't use a recovery code instead of the password", async () => {
@@ -434,7 +447,7 @@ describe("two-factor for accounts that sign in only through Google or Apple", ()
 describe("LDAP 2FA-disable throttle", () => {
   it("5 wrong directory passwords, then 429 even with the right one", async () => {
     const token = await signIn("ldap");
-    await sql`update users set totp_secret = (select totp_secret from users where username = 'twofa') where username = 'ldap'`;
+    await copyTotp("ldap");
     for (let i = 0; i < 5; i++) expect((await me("DELETE", "/2fa", token, { password: "Wrong-dir-pass" })).status).toBe(400);
     expect((await me("DELETE", "/2fa", token, { password: LDAP_PASSWORD })).status).toBe(429);
     expect((await userRow("ldap")).totp_secret).not.toBeNull();
@@ -447,8 +460,9 @@ describe("ended sessions leave the lists", () => {
     const uid = await idOf("admin");
     const add = async (seen: string, exp: string) => {
       const id = Bun.randomUUIDv7();
-      await sql`insert into sessions (id, token_hash, user_id, method, device, ip, last_seen_at, expires_at)
-        values (${id}, ${hashToken(id)}, ${uid}, 'password', 'x', '10.0.0.1', now() - ${seen}::interval, now() + ${exp}::interval)`;
+      await db.insert(sessions).values({
+        id, tokenHash: hashToken(id), userId: uid, method: "password", device: "x", ip: "10.0.0.1", lastSeenAt: sql`now() - ${seen}::interval`, expiresAt: sql`now() + ${exp}::interval`,
+      });
       return id;
     };
     const expired = await add("0 minutes", "-1 second");

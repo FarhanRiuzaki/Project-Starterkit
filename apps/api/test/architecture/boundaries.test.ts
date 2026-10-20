@@ -14,11 +14,11 @@ const ROOT = path.join(import.meta.dir, "../..");
 
 /**
  * Not yet moved to the module layout (Hono routers, their queries and tests, the raw-SQL shims they use): exempt from
- * every rule until Tasks 16–18 move them. A stale entry (no such path) fails.
+ * every rule until Tasks 17–18 move them. A stale entry (no such path) fails.
  */
 const LEGACY = [
-  "src/auth/", "src/audit/", "src/dashboard/", "src/me/", "src/rbac/", "src/users/", "src/http/",
-  "src/db/client.ts", "src/db/page.ts", "src/conformance.test.ts",
+  "src/audit/", "src/dashboard/", "src/rbac/", "src/users/", "src/http/",
+  "src/db/client.ts", "src/db/fragments.ts", "src/db/page.ts", "src/conformance.test.ts",
 ];
 /** The migration runner applies SQL files and creates databases: the only place that writes SQL by hand. */
 const RAW_SQL_OK = ["src/db/migrate.ts"];

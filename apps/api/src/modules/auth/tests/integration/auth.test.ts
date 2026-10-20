@@ -2,17 +2,22 @@
 // or `challenge` (pending 2FA) in the answer body; same origin and CSRF are the web's checks (Task 9). Time moves by
 // editing rows, since the database clock decides.
 import { beforeEach, describe, expect, it, spyOn } from "bun:test";
+import { and, desc, eq, gt, isNull, like, sql } from "drizzle-orm";
 import { PERMISSIONS } from "@starterkit/shared/permissions";
-import { call, resetData, signIn } from "../../test/helpers/app";
-import { sql } from "../db/client";
-import { LDAP_PASSWORD, SEED_PASSWORD, TOTP_SECRET } from "../db/seed/demo";
-import { config } from "../kernel/config";
-import { hashToken } from "../kernel/crypto";
-import { log } from "../kernel/log";
-import { clearMail, sentMail } from "../kernel/mailer";
-import { resolveSession, retryText, totpCode, verifyPassword } from "../modules/auth";
-import * as ldap from "./ldap";
-import { findUser, reauth } from "./sign-in";
+import { call, resetData, signIn } from "../../../../../test/helpers/app";
+import { rows, sqlColumns } from "../../../../../test/helpers/db";
+import { LDAP_PASSWORD, SEED_PASSWORD, TOTP_SECRET } from "../../../../db/seed/demo";
+import { config } from "../../../../kernel/config";
+import { hashToken } from "../../../../kernel/crypto";
+import { db } from "../../../../kernel/db";
+import { log } from "../../../../kernel/log";
+import { clearMail, sentMail } from "../../../../kernel/mailer";
+import { authLog } from "../../../audit";
+import { recoveryCodes, users } from "../../../users";
+import { resolveSession, retryText, totpCode, verifyPassword } from "../..";
+import * as ldap from "../../ldap";
+import { authChallenges, loginBackoff, rateLimits, sessions, userTokens } from "../../schema";
+import { findUser, reauth } from "../../service";
 
 const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36";
 
@@ -27,19 +32,21 @@ const signInWith = (login: string, password = SEED_PASSWORD, extra: Record<strin
 /** Step 1 of the 2FA account: the challenge. */
 const challengeOf = async (login = "twofa@example.com") => (await (await signInWith(login)).json()).challenge;
 const context = (token?: string) => call("GET", "/v1/auth/context", { token }) as Promise<Res>;
-const idOf = async (username: string): Promise<string> => (await sql`select id from users where username = ${username}`)[0].id;
-const sessionOf = async (token: string) => (await sql`select * from sessions where token_hash = ${hashToken(token)}`)[0];
-const count = async (table: "sessions" | "auth_log" | "auth_challenges" | "user_tokens") => (await sql`select count(*)::int as n from ${sql(table)}`)[0].n as number;
+const idOf = async (username: string): Promise<string> => (await rows(db.select({ id: users.id }).from(users).where(eq(users.username, username))))[0].id;
+const sessionOf = async (token: string) => (await rows(db.select(sqlColumns(sessions)).from(sessions).where(eq(sessions.tokenHash, hashToken(token)))))[0];
+const TABLES = { sessions, auth_log: authLog, auth_challenges: authChallenges, user_tokens: userTokens };
+const count = async (table: "sessions" | "auth_log" | "auth_challenges" | "user_tokens") => db.$count(TABLES[table]);
 const lastAuth = async () =>
-  (await sql`select event, method, login, user_id as "userId", ip, device, at from auth_log order by at desc, id desc limit 1`)[0];
+  (await rows(db.select({ event: authLog.event, method: authLog.method, login: authLog.login, userId: authLog.userId, ip: authLog.ip, device: authLog.device, at: authLog.at })
+    .from(authLog).orderBy(desc(authLog.at), desc(authLog.id)).limit(1)))[0];
 /** The reset token in the last mail sent. */
 const mailedToken = () => {
   const link = sentMail().at(-1)?.text.match(/https?:\/\/\S+/)?.[0];
   return link ? new URL(link).searchParams.get("token") : null;
 };
 /** Every soft-backoff wait has passed. */
-const waitOver = () => sql`update login_backoff set blocked_until = now() - interval '1 millisecond'`;
-const freshLimits = () => sql`truncate rate_limits, login_backoff`;
+const waitOver = () => db.update(loginBackoff).set({ blockedUntil: sql`now() - interval '1 millisecond'` });
+const freshLimits = () => Promise.all([db.delete(rateLimits), db.delete(loginBackoff)]);
 
 beforeEach(async () => {
   await resetData();
@@ -63,13 +70,14 @@ describe("POST /v1/auth/login", () => {
   });
 
   it("password and LDAP users get a full session with a store record, device and lastLoginAt", async () => {
-    const [before] = await sql`select last_login_at from users where username = 'admin'`;
+    const lastLogin = () => rows(db.select({ last_login_at: users.lastLoginAt }).from(users).where(eq(users.username, "admin")));
+    const [before] = await lastLogin();
     const r = await signInWith("ADMIN@example.com");
     expect(r.status).toBe(200);
     const { next, token } = await r.json();
     expect(next).toBe("/");
     expect(await sessionOf(token)).toMatchObject({ user_id: await idOf("admin"), device: "Chrome on macOS", ip: "unknown", method: "password" });
-    const [after] = await sql`select last_login_at from users where username = 'admin'`;
+    const [after] = await lastLogin();
     expect(after.last_login_at.getTime()).toBeGreaterThan(before.last_login_at.getTime());
     expect((await context(token)).status).toBe(200);
 
@@ -170,7 +178,8 @@ describe("two-factor sign-in", () => {
     expect(r.status).toBe(200);
     const body = await r.json();
     expect<unknown>(body).toEqual({ next: "/login/2fa", challenge: expect.any(String) });
-    const [row] = await sql`select user_id, method, expires_at - created_at as ttl from auth_challenges where token_hash = ${hashToken(body.challenge)}`;
+    const [row] = await rows(db.select({ user_id: authChallenges.userId, method: authChallenges.method, ttl: sql`${authChallenges.expiresAt} - ${authChallenges.createdAt}` })
+      .from(authChallenges).where(eq(authChallenges.tokenHash, hashToken(body.challenge))));
     expect(row).toMatchObject({ user_id: await idOf("twofa"), method: "password" });
     expect(row.ttl).toBe("00:10:00");
     expect(await count("sessions")).toBe(0);
@@ -190,7 +199,7 @@ describe("two-factor sign-in", () => {
     expect(await count("auth_challenges")).toBe(0); // deleted on success
     expect((await context(token)).status).toBe(200);
 
-    const unused = async () => (await sql`select count(*)::int as n from recovery_codes where used_at is null`)[0].n as number;
+    const unused = async () => db.$count(recoveryCodes, isNull(recoveryCodes.usedAt));
     const codesBefore = await unused();
     expect((await post("2fa", { code: "AAAA-1111" }, { challenge: await challengeOf() })).status).toBe(200);
     expect(await unused()).toBe(codesBefore - 1);
@@ -255,7 +264,7 @@ describe("password reset", () => {
   it("reset token works once and expires after 30 minutes", async () => {
     await post("forgot", { email: "admin@example.com" });
     const token = mailedToken()!;
-    const [row] = await sql`select token_hash, kind, extract(epoch from expires_at - now())::float8 as left from user_tokens`;
+    const [row] = await rows(db.select({ token_hash: userTokens.tokenHash, kind: userTokens.kind, left: sql`extract(epoch from ${userTokens.expiresAt} - now())::float8` }).from(userTokens));
     expect(row.token_hash).toEqual(hashToken(token)); // stored hashed
     expect(row.kind).toBe("reset");
     expect(row.left).toBeWithin(30 * 60 - 5, 30 * 60 + 1);
@@ -270,7 +279,7 @@ describe("password reset", () => {
 
     await post("forgot", { email: "viewer@example.com" });
     const late = mailedToken()!;
-    await sql`update user_tokens set expires_at = now() - interval '1 millisecond'`;
+    await db.update(userTokens).set({ expiresAt: sql`now() - interval '1 millisecond'` });
     const expired = await post("reset", { token: late, password: "New-password-2026" });
     expect(expired.status).toBe(400);
     expect((await expired.json()).error.code).toBe("invalid_code");
@@ -286,7 +295,7 @@ describe("password reset", () => {
   });
 
   it("forgot for an unknown, an LDAP and a throttled email sends no mail and answers the same body", async () => {
-    await sql`update users set password_hash = null where username = 'google'`; // Google-only: no password to reset
+    await db.update(users).set({ passwordHash: null }).where(eq(users.username, "google")); // Google-only: no password to reset
     const ask = (email: string, ip = "10.0.0.1") => post("forgot", { email }, { headers: { "X-Client-Ip": ip } });
     for (let i = 0; i < 3; i++) await ask("admin@example.com", `10.0.1.${i}`);
     expect(sentMail()).toHaveLength(3);
@@ -310,15 +319,15 @@ describe("password reset", () => {
 
   it("an invitation token (72 h) sets the password and nothing else; a directory user's token is invalid_code", async () => {
     const invited = await idOf("viewer");
-    await sql`update users set password_hash = null where id = ${invited}`;
-    const [before] = await sql`select is_active, updated_at from users where id = ${invited}`;
-    await sql`insert into user_tokens (token_hash, user_id, kind, expires_at) values (${hashToken("invite-1")}, ${invited}, 'invite', now() + interval '72 hours')`;
+    await db.update(users).set({ passwordHash: null }).where(eq(users.id, invited));
+    const [before] = await rows(db.select({ is_active: users.isActive, updated_at: users.updatedAt }).from(users).where(eq(users.id, invited)));
+    await db.insert(userTokens).values({ tokenHash: hashToken("invite-1"), userId: invited, kind: "invite", expiresAt: sql`now() + interval '72 hours'` });
     expect((await post("reset", { token: "invite-1", password: "New-password-2026" })).status).toBe(200);
-    const [after] = await sql`select is_active, updated_at, password_hash from users where id = ${invited}`;
+    const [after] = await rows(db.select({ is_active: users.isActive, updated_at: users.updatedAt, password_hash: users.passwordHash }).from(users).where(eq(users.id, invited)));
     expect(await verifyPassword("New-password-2026", after.password_hash)).toBe(true);
     expect({ is_active: after.is_active, updated_at: after.updated_at }).toEqual(before);
 
-    await sql`insert into user_tokens (token_hash, user_id, kind, expires_at) values (${hashToken("ldap-1")}, ${await idOf("ldap")}, 'reset', now() + interval '30 minutes')`;
+    await db.insert(userTokens).values({ tokenHash: hashToken("ldap-1"), userId: await idOf("ldap"), kind: "reset", expiresAt: sql`now() + interval '30 minutes'` });
     const r = await post("reset", { token: "ldap-1", password: "New-password-2026" });
     expect(r.status).toBe(400);
     expect((await r.json()).error.code).toBe("invalid_code");
@@ -404,7 +413,7 @@ describe("fix round 1", () => {
 
   it("a pending 2FA sign-in older than 10 minutes is 401 and cleared", async () => {
     const challenge = await challengeOf();
-    await sql`update auth_challenges set expires_at = now() - interval '1 millisecond'`;
+    await db.update(authChallenges).set({ expiresAt: sql`now() - interval '1 millisecond'` });
     const r = await post("2fa", { code: totpCode(TOTP_SECRET) }, { challenge });
     expect(r.status).toBe(401);
     expect((await r.json()).error.code).toBe("unauthenticated");
@@ -417,7 +426,7 @@ describe("sign-in log events and login field", () => {
     const twofa = await idOf("twofa");
     const challenge = await challengeOf("twofa"); // typed as the username
     expect(await lastAuth()).toMatchObject({ event: "password_ok", method: "password", login: "twofa@example.com", userId: twofa });
-    expect(await sql`select 1 from auth_log where user_id = ${twofa} and event = 'login_success' and at > now() - interval '1 minute'`).toEqual([]);
+    expect(await db.select({ one: sql`1` }).from(authLog).where(and(eq(authLog.userId, twofa), eq(authLog.event, "login_success"), gt(authLog.at, sql`now() - interval '1 minute'`)))).toEqual([]);
     await post("2fa", { code: totpCode(TOTP_SECRET) }, { challenge });
     expect(await lastAuth()).toMatchObject({ event: "2fa_success", login: "twofa@example.com" });
   });
@@ -450,7 +459,7 @@ describe("forgot-password throttle", () => {
     }
     expect(new Set(bodies).size).toBe(1);
     expect(sentMail()).toHaveLength(3);
-    await sql`update rate_limits set window_start = window_start - interval '15 minutes 1 millisecond' where key like 'forgot-email:%'`;
+    await db.update(rateLimits).set({ windowStart: sql`${rateLimits.windowStart} - interval '15 minutes 1 millisecond'` }).where(like(rateLimits.key, "forgot-email:%"));
     await post("forgot", { email: "admin@example.com" });
     expect(sentMail()).toHaveLength(4);
   });

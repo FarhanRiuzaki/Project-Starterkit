@@ -1,0 +1,35 @@
+// /v1/me*: port of apps/web/src/app/api/me/**. Every route is any signed-in user's (`guard: null`): query 400 →
+// session 401 → body 400 → 404 → rules → change → activity (the last three in service.ts).
+import { Elysia } from "elysia";
+import {
+  ChangePasswordBody, ConnectionProvider, DisableTwoFactorBody, SessionListQuery, TwoFactorEnableBody, UpdateProfileBody,
+} from "@starterkit/shared/contracts/me";
+import { body } from "../../kernel/parse";
+import { guard, sessionPage } from "../auth";
+import { changePassword, disableTwoFactor, disconnect, enableTwoFactor, endOwnSession, startTwoFactor, toMe, updateProfile } from "./service";
+
+const OK = { ok: true } as const;
+
+/** The routes of /v1/me. */
+export const meController = () =>
+  new Elysia()
+    .use(guard)
+    .get("/v1/me", ({ ctx }) => toMe(ctx.user), { guard: null })
+    .patch("/v1/me", async (c) => updateProfile(c.ctx, await body(c, UpdateProfileBody)), { guard: null })
+    .post("/v1/me/password", async (c) => {
+      await changePassword(c.ctx, await body(c, ChangePasswordBody));
+      return OK;
+    }, { guard: null })
+    .post("/v1/me/2fa", ({ ctx }) => startTwoFactor(ctx), { guard: null })
+    .put("/v1/me/2fa", async (c) => enableTwoFactor(c.ctx, await body(c, TwoFactorEnableBody)), { guard: null })
+    .delete("/v1/me/2fa", async (c) => {
+      await disableTwoFactor(c.ctx, await body(c, DisableTwoFactorBody));
+      return OK;
+    }, { guard: null })
+    .delete("/v1/me/connections/:provider", ({ ctx, params }) => disconnect(ctx, ConnectionProvider.parse(params.provider)), { guard: null })
+    /** One page of the caller's own sessions, newest activity first unless `sort` says otherwise. */
+    .get("/v1/me/sessions", ({ ctx, query }) => sessionPage(ctx.user.id, query, ctx.sid), { query: SessionListQuery, guard: null })
+    .delete("/v1/me/sessions/:id", async ({ ctx, params }) => {
+      await endOwnSession(ctx, params.id);
+      return OK;
+    }, { guard: null });

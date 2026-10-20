@@ -6,10 +6,10 @@ import { createRemoteJWKSet, type JWTVerifyGetKey, jwtVerify } from "jose";
 import { z } from "zod";
 import type { ConnectionProvider } from "@starterkit/shared/contracts/me";
 import { maskText } from "@starterkit/shared/log-redact";
-import { APPLE_KEYS, type Config, config, GOOGLE_KEYS } from "../kernel/config";
-import { safeEqual } from "../kernel/crypto";
-import { ApiError } from "../kernel/errors";
-import { log } from "../kernel/log";
+import { APPLE_KEYS, type Config, config, GOOGLE_KEYS } from "../../kernel/config";
+import { safeEqual } from "../../kernel/crypto";
+import { ApiError } from "../../kernel/errors";
+import { log } from "../../kernel/log";
 
 /** `POST /v1/auth/oauth/{provider}/start`: `bindingHash` = SHA-256 (base64url) of the browser's binding cookie. */
 export const OAuthStartBody = z.object({

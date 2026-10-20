@@ -3,7 +3,7 @@ import type { Page } from "@starterkit/shared/contracts/common";
 import type { SessionDto, SessionListQuery } from "@starterkit/shared/contracts/me";
 import { type ActivityBrief, UserDto, type UserListQuery, type UserRowDto } from "@starterkit/shared/contracts/users";
 import type { PermissionName } from "@starterkit/shared/permissions";
-import { permsOf, sessionLive, toUserRow } from "../auth/sessions";
+import { permsOf, sessionLive, toUserRow } from "../db/fragments";
 import { sql, type Tx } from "../db/client";
 import { type Fragment, likeEscape, pageQuery, sortSql } from "../db/page";
 import { LOCKS } from "../kernel/locks";

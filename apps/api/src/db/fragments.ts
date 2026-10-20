@@ -1,7 +1,7 @@
-// Transitional: raw-SQL fragments of the session queries for the Hono routes until Tasks 16–17; the Drizzle versions
-// (and everything else about sessions) live in modules/auth.
+// Transitional: raw-SQL fragments of the session queries for the Hono users and dashboard routes until Tasks 17–18; the
+// Drizzle versions (and everything else about sessions) live in modules/auth.
 import type { UserRow } from "../modules/auth";
-import { sql } from "../db/client";
+import { sql } from "./client";
 import { config } from "../kernel/config";
 
 /** `users.*` plus the `roles` and `connected` arrays, as the driver returns them. */

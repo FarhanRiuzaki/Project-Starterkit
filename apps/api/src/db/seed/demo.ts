@@ -12,7 +12,7 @@ import { recoveryCodes, users as usersTable } from "../../modules/users";
 
 // Port of the web mock's seed (deleted in Task 9): same generator, seed and call order, so the same names and flags.
 export const SEED_PASSWORD = "Password123!";
-/** Directory password of the demo LDAP account (username `ldap`); the mock directory (auth/ldap.ts) holds it. */
+/** Directory password of the demo LDAP account (username `ldap`); the mock directory (modules/auth/ldap.ts) holds it. */
 export const LDAP_PASSWORD = "LdapPass123!";
 /** Fixed base32 TOTP secret of twofa@example.com. */
 export const TOTP_SECRET = "JBSWY3DPEHPK3PXP";

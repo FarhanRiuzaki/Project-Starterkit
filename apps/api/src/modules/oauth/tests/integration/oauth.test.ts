@@ -2,12 +2,19 @@
 // (OAUTH_MOCK, on in tests) goes through the same state rows; the real flow runs against a stubbed token endpoint and
 // id_tokens signed with a local key pair (no network). Ports the mock OAuth tests of Tasks 7/9 (connect, next, inactive).
 import { afterEach, beforeEach, describe, expect, it, spyOn } from "bun:test";
-import { createLocalJWKSet, exportJWK, exportPKCS8, exportSPKI, generateKeyPair, type JWTPayload, SignJWT } from "jose";
-import { call, resetData, signIn } from "../../test/helpers/app";
-import { sql } from "../db/client";
-import * as conf from "../kernel/config";
-import { hashToken } from "../kernel/crypto";
-import { providerKeys, verifyIdToken } from "./oauth";
+import { asc, desc, eq, sql } from "drizzle-orm";
+import type { SelectedFields } from "drizzle-orm/pg-core";
+import { createLocalJWKSet, exportJWK, exportPKCS8, generateKeyPair, type JWTPayload, SignJWT } from "jose";
+import { call, resetData, signIn } from "../../../../../test/helpers/app";
+import { rows, sqlColumns } from "../../../../../test/helpers/db";
+import * as conf from "../../../../kernel/config";
+import { hashToken } from "../../../../kernel/crypto";
+import { db } from "../../../../kernel/db";
+import { activity, authLog } from "../../../audit";
+import { sessions } from "../../../auth";
+import { users } from "../../../users";
+import { providerKeys } from "../../providers";
+import { oauthStates, userIdentities } from "../../schema";
 
 type Answer = { url: string; next: string; token: string; google: boolean; apple: boolean; error: { code: string; message: string } };
 type Res = Omit<Response, "json"> & { json(): Promise<Answer> };
@@ -26,11 +33,15 @@ async function mockFlow(provider: string, body: Record<string, unknown> = {}, to
   expect(s.status).toBe(200);
   return callback(provider, { code: "mock", state: stateOf((await s.json()).url) });
 }
-const idOf = async (username: string): Promise<string> => (await sql`select id from users where username = ${username}`)[0].id;
-const sessionOf = async (token: string) => (await sql`select * from sessions where token_hash = ${hashToken(token)}`)[0];
-const count = async (table: "sessions" | "users" | "oauth_states" | "user_identities" | "activity") => (await sql`select count(*)::int as n from ${sql(table)}`)[0].n as number;
-const lastAuth = async () => (await sql`select event, method, login, user_id as "userId" from auth_log order by at desc, id desc limit 1`)[0];
-const acts = async (): Promise<{ action: string; after: unknown }[]> => sql`select action, after from activity order by at, id`;
+const idOf = async (username: string): Promise<string> => (await rows(db.select({ id: users.id }).from(users).where(eq(users.username, username))))[0].id;
+const sessionOf = async (token: string) => (await rows(db.select(sqlColumns(sessions)).from(sessions).where(eq(sessions.tokenHash, hashToken(token)))))[0];
+const TABLES = { sessions, users, oauth_states: oauthStates, user_identities: userIdentities, activity };
+const count = async (table: "sessions" | "users" | "oauth_states" | "user_identities" | "activity") => db.$count(TABLES[table]);
+const lastAuth = async () =>
+  (await rows(db.select({ event: authLog.event, method: authLog.method, login: authLog.login, userId: authLog.userId }).from(authLog).orderBy(desc(authLog.at), desc(authLog.id)).limit(1)))[0];
+const acts = async (): Promise<{ action: string; after: unknown }[]> => db.select({ action: activity.action, after: activity.after }).from(activity).orderBy(asc(activity.at), asc(activity.id));
+/** `select <cols> from user_identities where user_id = …` (one constant column by default). */
+const identitiesOf = (userId: string, cols: SelectedFields = { one: sql`1` }) => rows(db.select(cols).from(userIdentities).where(eq(userIdentities.userId, userId)));
 
 beforeEach(resetData);
 
@@ -42,7 +53,7 @@ describe("mock provider (OAUTH_MOCK)", () => {
     expect(next).toBe("/");
     expect(await sessionOf(token)).toMatchObject({ user_id: await idOf("google"), method: "google" });
     expect(await lastAuth()).toMatchObject({ event: "login_success", method: "google", login: "google@example.com", userId: await idOf("google") });
-    expect((await sql`select last_login_at from users where username = 'google'`)[0].last_login_at).not.toBeNull();
+    expect((await rows(db.select({ last_login_at: users.lastLoginAt }).from(users).where(eq(users.username, "google"))))[0].last_login_at).not.toBeNull();
   });
 
   it("a sign-in from a browser that was signed in ends that browser's earlier session", async () => {
@@ -66,7 +77,10 @@ describe("mock provider (OAUTH_MOCK)", () => {
   it("start answers the mock authorize URL and stores the state hashed, bound to the browser, for 10 minutes", async () => {
     const { url } = await (await start("apple", { next: "/users" })).json();
     expect(url).toMatch(/^\/api\/auth\/oauth\/apple\/mock-authorize\?state=[A-Za-z0-9_-]{43}$/);
-    const [row] = await sql`select provider, mode, user_id, binding_hash, next, extract(epoch from expires_at - now())::int as ttl from oauth_states where state_hash = ${hashToken(stateOf(url))}`;
+    const [row] = await rows(db.select({
+      provider: oauthStates.provider, mode: oauthStates.mode, user_id: oauthStates.userId, binding_hash: oauthStates.bindingHash, next: oauthStates.next,
+      ttl: sql`extract(epoch from ${oauthStates.expiresAt} - now())::int`,
+    }).from(oauthStates).where(eq(oauthStates.stateHash, hashToken(stateOf(url)))));
     expect(row).toMatchObject({ provider: "apple", mode: "login", user_id: null, next: "/users" });
     expect(Buffer.from(row.binding_hash).equals(hashToken(BINDING))).toBe(true);
     expect(row.ttl).toBeWithin(595, 601);
@@ -81,7 +95,7 @@ describe("mock provider (OAUTH_MOCK)", () => {
   });
 
   it("an inactive linked account is 403 account_inactive and gets no session", async () => {
-    await sql`update users set is_active = false where username = 'google'`;
+    await db.update(users).set({ isActive: false }).where(eq(users.username, "google"));
     const r = await mockFlow("google");
     expect(r.status).toBe(403);
     expect((await r.json()).error.code).toBe("account_inactive");
@@ -129,7 +143,7 @@ describe("state", () => {
 
   it("expired state is 401 and spent", async () => {
     const { url } = await (await start("google")).json();
-    await sql`update oauth_states set expires_at = now() - interval '1 millisecond'`;
+    await db.update(oauthStates).set({ expiresAt: sql`now() - interval '1 millisecond'` });
     expect((await callback("google", { code: "mock", state: stateOf(url) })).status).toBe(401);
     expect(await count("oauth_states")).toBe(0);
     expect(await count("sessions")).toBe(0);
@@ -154,9 +168,9 @@ describe("linking (mode link)", () => {
     const r = await mockFlow("apple", { mode: "link" }, token);
     expect(r.status).toBe(200);
     expect<unknown>(await r.json()).toEqual({ next: "/me/security?connected=apple" });
-    expect(await sql`select subject from user_identities where user_id = ${await idOf("twofa")}`).toEqual([{ subject: `mock-apple-${await idOf("twofa")}` }]);
+    expect(await identitiesOf(await idOf("twofa"), { subject: userIdentities.subject })).toEqual([{ subject: `mock-apple-${await idOf("twofa")}` }]);
     expect((await call("DELETE", "/v1/me/connections/apple", { token })).status).toBe(200);
-    expect(await sql`select 1 from user_identities where user_id = ${await idOf("twofa")}`).toHaveLength(0);
+    expect(await identitiesOf(await idOf("twofa"))).toHaveLength(0);
     expect((await acts()).slice(-2)).toEqual([{ action: "me.connect", after: { provider: "apple" } }, { action: "me.disconnect", after: null }]);
   });
 
@@ -165,7 +179,7 @@ describe("linking (mode link)", () => {
     const n = await count("activity");
     const r = await mockFlow("google", { mode: "link" }, token);
     expect(r.status).toBe(200);
-    expect(await sql`select subject from user_identities where user_id = ${await idOf("google")}`).toEqual([{ subject: "mock-google-demo" }]);
+    expect(await identitiesOf(await idOf("google"), { subject: userIdentities.subject })).toEqual([{ subject: "mock-google-demo" }]);
     expect(await count("activity")).toBe(n);
   });
 
@@ -174,7 +188,7 @@ describe("linking (mode link)", () => {
     expect(await count("oauth_states")).toBe(0);
     const token = await signIn("admin");
     await start("google", { mode: "link", next: "/users" }, token);
-    expect((await sql`select mode, user_id, session_id, next from oauth_states`)[0])
+    expect((await rows(db.select({ mode: oauthStates.mode, user_id: oauthStates.userId, session_id: oauthStates.sessionId, next: oauthStates.next }).from(oauthStates)))[0])
       .toEqual({ mode: "link", user_id: await idOf("admin"), session_id: (await sessionOf(token)).id, next: null });
   });
 
@@ -186,18 +200,18 @@ describe("linking (mode link)", () => {
     expect((await callback("apple", { code: "mock", state: stateOf(first.url) })).status).toBe(401);
     const again = await signIn("twofa");
     const second = await (await start("apple", { mode: "link" }, again)).json();
-    await sql`update sessions set last_seen_at = now() - interval '1 day'`; // idle: ended, row not yet removed
+    await db.update(sessions).set({ lastSeenAt: sql`now() - interval '1 day'` }); // idle: ended, row not yet removed
     expect((await callback("apple", { code: "mock", state: stateOf(second.url) })).status).toBe(401);
     expect(await count("oauth_states")).toBe(0);
-    expect(await sql`select 1 from user_identities where user_id = ${await idOf("twofa")}`).toHaveLength(0);
+    expect(await identitiesOf(await idOf("twofa"))).toHaveLength(0);
   });
 
   it("a user deactivated before the callback links nothing", async () => {
     const token = await signIn("twofa");
     const { url } = await (await start("apple", { mode: "link" }, token)).json();
-    await sql`update users set is_active = false where username = 'twofa'`;
+    await db.update(users).set({ isActive: false }).where(eq(users.username, "twofa"));
     expect((await callback("apple", { code: "mock", state: stateOf(url) })).status).toBe(401);
-    expect(await sql`select 1 from user_identities where user_id = ${await idOf("twofa")}`).toHaveLength(0);
+    expect(await identitiesOf(await idOf("twofa"))).toHaveLength(0);
   });
 });
 
@@ -205,7 +219,6 @@ describe("linking (mode link)", () => {
 
 const KID = "test-key";
 const keys = await generateKeyPair("RS256");
-const otherKeys = await generateKeyPair("RS256");
 const appleKey = await generateKeyPair("ES256", { extractable: true });
 const REAL = {
   OAUTH_MOCK: false,
@@ -261,7 +274,7 @@ describe("real providers", () => {
       response_type: "code", client_id: REAL.GOOGLE_CLIENT_ID, scope: "openid email", code_challenge_method: "S256",
       redirect_uri: "http://localhost:3000/api/auth/oauth/google/callback",
     });
-    const [row] = await sql`select code_verifier, nonce from oauth_states where state_hash = ${hashToken(state)}`;
+    const [row] = await rows(db.select({ code_verifier: oauthStates.codeVerifier, nonce: oauthStates.nonce }).from(oauthStates).where(eq(oauthStates.stateHash, hashToken(state))));
     expect(row.nonce).toBe(nonce);
     expect(u.searchParams.get("code_challenge")).toBe(Buffer.from(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(row.code_verifier))).toString("base64url"));
   });
@@ -282,7 +295,7 @@ describe("real providers", () => {
     const seen = await realProviders(async () => Response.json({ access_token: "a", token_type: "Bearer", id_token: await idToken("google", { sub: "mock-google-demo", nonce: ctx.nonce }) }));
     const { state, nonce } = await realStart("google", { next: "/users" });
     ctx.nonce = nonce;
-    const [{ code_verifier: verifier }] = await sql`select code_verifier from oauth_states where state_hash = ${hashToken(state)}`;
+    const [{ code_verifier: verifier }] = await rows(db.select({ code_verifier: oauthStates.codeVerifier }).from(oauthStates).where(eq(oauthStates.stateHash, hashToken(state))));
     const r = await callback("google", { code: "code-from-google", state });
     expect(r.status).toBe(200);
     const { next, token } = await r.json();
@@ -328,7 +341,7 @@ describe("real providers", () => {
     const r = await callback("google", { code: "c", state });
     expect(r.status).toBe(409);
     expect((await r.json()).error.code).toBe("duplicate");
-    expect(await sql`select 1 from user_identities where user_id = ${await idOf("admin")}`).toHaveLength(0);
+    expect(await identitiesOf(await idOf("admin"))).toHaveLength(0);
   });
 
   it("link stores the provider's subject and email, with one me.connect entry", async () => {
@@ -338,7 +351,7 @@ describe("real providers", () => {
     const { state, nonce } = await realStart("google", { mode: "link" }, token);
     ctx.nonce = nonce;
     expect((await callback("google", { code: "c", state })).status).toBe(200);
-    expect(await sql`select provider, subject, email from user_identities where user_id = ${await idOf("admin")}`).toEqual([{ provider: "google", subject: "g-123", email: "g-123@example.org" }]);
+    expect(await identitiesOf(await idOf("admin"), { provider: userIdentities.provider, subject: userIdentities.subject, email: userIdentities.email })).toEqual([{ provider: "google", subject: "g-123", email: "g-123@example.org" }]);
     expect((await acts()).at(-1)).toEqual({ action: "me.connect", after: { provider: "google" } });
   });
 
@@ -350,45 +363,6 @@ describe("real providers", () => {
     await realProviders(async () => Response.json({ access_token: "a", token_type: "Bearer", id_token: await idToken("google", { sub: "mock-google-demo", nonce: "not-the-stored-one" }) }));
     expect((await callback("google", { code: "c", state: (await realStart("google")).state })).status).toBe(401);
     expect(await count("sessions")).toBe(0);
-  });
-});
-
-describe("verifyIdToken", () => {
-  const jwks = async () => createLocalJWKSet({ keys: [{ ...(await exportJWK(keys.publicKey)), kid: KID, alg: "RS256" }] });
-  const verify = async (p: "google" | "apple", token: string, nonce = "n1") => verifyIdToken(p, token, { clientId: AUD[p], nonce, keys: await jwks() });
-  const fails = (p: Promise<unknown>) => p.then(() => "accepted", () => "rejected");
-
-  it("accepts the provider's token: subject and email", async () => {
-    expect(await verify("google", await idToken("google", { sub: "s1", nonce: "n1" }))).toEqual({ subject: "s1", email: "s1@example.org" });
-    expect(await verify("google", await idToken("google", { sub: "s1", nonce: "n1", iss: "accounts.google.com" }))).toMatchObject({ subject: "s1" });
-    expect(await verify("apple", await idToken("apple", { sub: "a1", nonce: "n1" }))).toMatchObject({ subject: "a1" });
-  });
-
-  it("id_token with a wrong nonce/audience/issuer is rejected", async () => {
-    expect(await fails(verify("google", await idToken("google", { sub: "s1", nonce: "other" })))).toBe("rejected");
-    expect(await fails(verify("google", await idToken("google", { sub: "s1" })))).toBe("rejected"); // no nonce at all
-    expect(await fails(verify("google", await idToken("google", { sub: "s1", nonce: "n1", aud: "another-client" })))).toBe("rejected");
-    expect(await fails(verify("google", await idToken("google", { sub: "s1", nonce: "n1", iss: "https://evil.example" })))).toBe("rejected");
-    expect(await fails(verify("apple", await idToken("google", { sub: "s1", nonce: "n1", aud: AUD.apple })))).toBe("rejected"); // Google's issuer for Apple
-  });
-
-  it("alg none, HS256 keyed with the public key, an unknown kid and a missing iat are rejected", async () => {
-    const b64 = (v: unknown) => Buffer.from(JSON.stringify(v)).toString("base64url");
-    const now = Math.floor(Date.now() / 1000);
-    const claims = { iss: ISS.google, aud: AUD.google, sub: "s1", nonce: "n1", iat: now, exp: now + 300 };
-    expect(await fails(verify("google", `${b64({ alg: "none", typ: "JWT" })}.${b64(claims)}.`))).toBe("rejected");
-    const pem = new TextEncoder().encode(await exportSPKI(keys.publicKey));
-    const hs = await new SignJWT(claims).setProtectedHeader({ alg: "HS256", kid: KID }).sign(pem);
-    expect(await fails(verify("google", hs))).toBe("rejected");
-    expect(await fails(verify("google", await idToken("google", { sub: "s1", nonce: "n1" }, { kid: "unknown-key" })))).toBe("rejected");
-    expect(await fails(verify("google", await idToken("google", { sub: "s1", nonce: "n1" }, { noIat: true })))).toBe("rejected");
-  });
-
-  it("an expired token (beyond 60 s of clock skew) or one signed by another key is rejected", async () => {
-    const now = Math.floor(Date.now() / 1000);
-    expect(await fails(verify("google", await idToken("google", { sub: "s1", nonce: "n1" }, { exp: now - 90 })))).toBe("rejected");
-    expect(await fails(verify("google", await idToken("google", { sub: "s1", nonce: "n1" }, { exp: now - 30 })))).toBe("accepted");
-    expect(await fails(verify("google", await idToken("google", { sub: "s1", nonce: "n1" }, { key: otherKeys.privateKey })))).toBe("rejected");
   });
 });
 

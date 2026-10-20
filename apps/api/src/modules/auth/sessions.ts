@@ -1,9 +1,12 @@
 import { and, eq, getTableColumns, gt, gte, lt, ne, type SQL, sql, type SQLWrapper } from "drizzle-orm";
 import type { AuthMethod } from "@starterkit/shared/contracts/auth";
+import type { Page } from "@starterkit/shared/contracts/common";
+import type { SessionDto, SessionListQuery } from "@starterkit/shared/contracts/me";
 import type { PermissionName } from "@starterkit/shared/permissions";
 import { config } from "../../kernel/config";
 import { hashToken, randomToken } from "../../kernel/crypto";
 import { db, type Tx } from "../../kernel/db";
+import { one, pageQuery, sortSql } from "../../kernel/pagination";
 import { userIdentities } from "../oauth";
 import { rolePermissions, roles, userRoles } from "../rbac";
 import { users } from "../users";
@@ -104,12 +107,42 @@ export async function resolveSession(token: string): Promise<AuthUser | null> {
   return { user: toUserRow(r), sid: r.sid, perms: new Set(r.perms) };
 }
 
-/** Ends one session (sign-out, terminate). */
-export async function endSession(id: string): Promise<void> {
-  await db.delete(sessions).where(eq(sessions.id, id));
+/** Ends one session (sign-out, terminate), through `tx` when given. */
+export async function endSession(id: string, tx: Tx = db): Promise<void> {
+  await tx.delete(sessions).where(eq(sessions.id, id));
 }
 
 /** Ends every session of a user, except `exceptSessionId` when given (password change keeps the current one). */
 export async function endUserSessions(tx: Tx, userId: string, exceptSessionId?: string): Promise<void> {
   await tx.delete(sessions).where(and(eq(sessions.userId, userId), exceptSessionId ? ne(sessions.id, exceptSessionId) : undefined));
+}
+
+/** Session `id` is `userId`'s and has not ended. */
+export async function isLiveSession(id: string, userId: string): Promise<boolean> {
+  const rows = await db.select({ id: sessions.id }).from(sessions).where(and(eq(sessions.id, id), eq(sessions.userId, userId), sessionLive()));
+  return rows.length === 1;
+}
+
+/** Locks session `id` for the transaction when it is `userId`'s and has not ended; its device, else undefined. */
+export async function lockLiveSession(tx: Tx, userId: string, id: string): Promise<{ device: string } | undefined> {
+  const [s] = await tx.select({ device: sessions.device }).from(sessions)
+    .where(and(eq(sessions.id, id), eq(sessions.userId, userId), sessionLive())).for("update");
+  return s;
+}
+
+const SESSION_SORTS = { lastSeenAt: sessions.lastSeenAt, device: sql`lower(${sessions.device})` };
+
+/**
+ * One page of a user's live sessions (GET /v1/me/sessions), newest activity first by default; `currentSid` is
+ * marked. Ended sessions are left out, as the mock's prune-then-list.
+ */
+export function sessionPage(userId: string, q: SessionListQuery, currentSid: string): Promise<Page<SessionDto>> {
+  const where = and(eq(sessions.userId, userId), sessionLive());
+  return pageQuery({
+    rows: db.select({ id: sessions.id, device: sessions.device, ip: sessions.ip, lastSeenAt: sessions.lastSeenAt }).from(sessions).where(where).$dynamic(),
+    count: db.select(one).from(sessions).where(where).$dynamic(),
+    orderBy: sortSql(q.sort, SESSION_SORTS, "-lastSeenAt", sessions.id),
+    query: q,
+    map: (s) => ({ id: s.id, device: s.device, ip: s.ip, lastSeenAt: s.lastSeenAt.toISOString(), current: s.id === currentSid }),
+  });
 }

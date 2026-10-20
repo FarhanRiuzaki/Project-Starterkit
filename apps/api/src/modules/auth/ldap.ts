@@ -1,8 +1,8 @@
 import { Client, Filter } from "ldapts";
-import { LDAP_PASSWORD } from "../db/seed/demo";
-import { type Config, config } from "../kernel/config";
-import { safeEqual } from "../kernel/crypto";
-import { log } from "../kernel/log";
+import { LDAP_PASSWORD } from "../../db/seed/demo";
+import { type Config, config } from "../../kernel/config";
+import { safeEqual } from "../../kernel/crypto";
+import { log } from "../../kernel/log";
 
 /** The directory behind LDAP sign-in: true when `password` is the directory password of `username`. */
 export type Directory = { verify(username: string, password: string): Promise<boolean> };

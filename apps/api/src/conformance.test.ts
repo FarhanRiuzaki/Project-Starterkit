@@ -1,6 +1,7 @@
 // What the web's static route checks (apps/web/src/test/architecture.test.ts, api-contract.test.ts) enforced for the
 // mock, enforced for the API: (a) the routes of createApp() are the README's endpoint table, (b) every handler in
-// src/**/routes.ts follows the contract's order. Handlers are read with the TypeScript compiler API, not regexes.
+// src/**/routes.ts (Hono) and src/modules/*/controller.ts (Elysia) follows the contract's order. Handlers are read with
+// the TypeScript compiler API, not regexes.
 import { describe, expect, it } from "bun:test";
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -102,8 +103,40 @@ const resolveSpec = (from: string, spec: string): string => path.posix.normalize
 const rootName = (e: ts.Expression): string | null =>
   ts.isIdentifier(e) ? e.text : ts.isPropertyAccessExpression(e) ? rootName(e.expression) : null;
 
-/** The Hono handlers registered in a routes file: `<router>.<method>("<path>", …, handler)` with the calls inside each, in source order. */
-function handlersOf(file: string, src: string, dataModules: Set<string>): Handler[] {
+/** The functions a file declares at the top level (function declarations and `const` initializers). */
+const declsOf = (sf: ts.SourceFile): { name: string; node: ts.Node }[] =>
+  sf.statements.flatMap((s): { name: string; node: ts.Node }[] => (ts.isFunctionDeclaration(s) && s.name ? [{ name: s.name.text, node: s }]
+    : ts.isVariableStatement(s) ? s.declarationList.declarations.flatMap((d) => (ts.isIdentifier(d.name) && d.initializer ? [{ name: d.name.text, node: d.initializer }] : [])) : []));
+
+/** `n` calls one of `names` (by identifier) anywhere inside. */
+const callsAny = (n: ts.Node, names: Set<string>): boolean =>
+  (ts.isCallExpression(n) && ts.isIdentifier(n.expression) && names.has(n.expression.text)) || ts.forEachChild(n, (c) => callsAny(c, names) || undefined) === true;
+
+/** The functions of a file that record activity, directly or through another of its functions (a module's service.ts). */
+function recordersOf(file: string, src: string): Set<string> {
+  const sf = ts.createSourceFile(file, src, ts.ScriptTarget.Latest, true);
+  const recorders = new Set(["recordActivity"]);
+  const decls = declsOf(sf);
+  for (let grown = true; grown;) {
+    grown = false;
+    for (const d of decls) if (!recorders.has(d.name) && callsAny(d.node, recorders)) grown = !!recorders.add(d.name);
+  }
+  return recorders;
+}
+
+/** `e` is a method chain on `new Elysia(…)` (a controller's routes). */
+const onElysia = (e: ts.Expression, sf: ts.SourceFile): boolean =>
+  ts.isCallExpression(e) && ts.isPropertyAccessExpression(e.expression) ? onElysia(e.expression.expression, sf)
+    : ts.isPropertyAccessExpression(e) ? onElysia(e.expression, sf) : ts.isNewExpression(e) && e.expression.getText(sf) === "Elysia";
+
+/**
+ * The handlers registered in a routes file, with the calls inside each in source order: Hono `<router>.<method>("<path>",
+ * …, handler)` (path under /v1), and Elysia `new Elysia()….<method>("/v1/<path>", handler, { query, guard })`, whose
+ * `query` schema and `guard` option run before the handler, in that order, so they count as calls just before it. Routes
+ * outside /v1 (health checks) are not the contract's. `recordersFrom`: functions of the module's service that record
+ * activity.
+ */
+function handlersOf(file: string, src: string, dataModules: Set<string>, recordersFrom: Set<string> = new Set()): Handler[] {
   const sf = ts.createSourceFile(file, src, ts.ScriptTarget.Latest, true);
   const data = new Set(["sql", "pageQuery", "recordActivity"]);
   for (const s of sf.statements) {
@@ -114,11 +147,8 @@ function handlersOf(file: string, src: string, dataModules: Set<string>): Handle
     }
   }
   // Routers (`const x = new Hono…`) and the file's own helpers that record activity (directly or through another helper).
-  const routers = new Set<string>(), recorders = new Set(["recordActivity"]);
-  const calls = (n: ts.Node, names: Set<string>): boolean =>
-    (ts.isCallExpression(n) && ts.isIdentifier(n.expression) && names.has(n.expression.text)) || ts.forEachChild(n, (c) => calls(c, names) || undefined) === true;
-  const decls: { name: string; node: ts.Node }[] = sf.statements.flatMap((s): { name: string; node: ts.Node }[] => (ts.isFunctionDeclaration(s) && s.name ? [{ name: s.name.text, node: s }]
-    : ts.isVariableStatement(s) ? s.declarationList.declarations.flatMap((d) => (ts.isIdentifier(d.name) && d.initializer ? [{ name: d.name.text, node: d.initializer }] : [])) : []));
+  const routers = new Set<string>(), recorders = new Set(["recordActivity", ...recordersFrom]);
+  const decls = declsOf(sf);
   for (const d of decls) if (ts.isNewExpression(d.node) && d.node.expression.getText(sf) === "Hono") routers.add(d.name);
   // A call or tagged template whose root name is in `names`.
   const touches = (n: ts.Node, names: Set<string>): boolean =>
@@ -126,19 +156,25 @@ function handlersOf(file: string, src: string, dataModules: Set<string>): Handle
   for (let grown = true; grown;) {
     grown = false;
     for (const d of decls) {
-      if (!recorders.has(d.name) && calls(d.node, recorders)) grown = !!recorders.add(d.name);
+      if (!recorders.has(d.name) && callsAny(d.node, recorders)) grown = !!recorders.add(d.name);
       if (!data.has(d.name) && touches(d.node, data)) grown = !!data.add(d.name); // a local helper that queries is data too
     }
   }
   const out: Handler[] = [];
   const visit = (n: ts.Node) => {
-    if (ts.isCallExpression(n) && ts.isPropertyAccessExpression(n.expression) && ts.isIdentifier(n.expression.expression) && routers.has(n.expression.expression.text)
-      && HONO_METHODS.includes(n.expression.name.text)) {
+    const hono = ts.isCallExpression(n) && ts.isPropertyAccessExpression(n.expression) && ts.isIdentifier(n.expression.expression) && routers.has(n.expression.expression.text);
+    const elysia = ts.isCallExpression(n) && ts.isPropertyAccessExpression(n.expression) && onElysia(n.expression.expression, sf);
+    if (ts.isCallExpression(n) && ts.isPropertyAccessExpression(n.expression) && (hono || elysia) && HONO_METHODS.includes(n.expression.name.text)) {
       const [p, ...rest] = n.arguments;
-      const fn = rest.at(-1);
-      if (p && ts.isStringLiteral(p) && fn && (ts.isArrowFunction(fn) || ts.isFunctionExpression(fn))) {
+      const fn = hono ? rest.at(-1) : rest[0];
+      const hook = elysia && rest[1] && ts.isObjectLiteralExpression(rest[1]) ? rest[1] : null;
+      const path = p && ts.isStringLiteral(p) ? (hono ? p.text : /^\/v1(\/|$)/.test(p.text) ? p.text.slice(3) : null) : null;
+      if (path !== null && fn && (ts.isArrowFunction(fn) || ts.isFunctionExpression(fn))) {
         const found: Call[] = [];
         let csv = false;
+        const option = (name: string) => hook?.properties.some((o) => ts.isPropertyAssignment(o) && o.name.getText(sf) === name);
+        if (option("query")) found.push({ name: "query", pos: fn.getStart(sf) - 2 });
+        if (option("guard")) found.push({ name: "guard", pos: fn.getStart(sf) - 1 });
         const inner = (m: ts.Node) => {
           const at = m.getStart(sf);
           if (ts.isCallExpression(m) || ts.isTaggedTemplateExpression(m)) {
@@ -153,7 +189,7 @@ function handlersOf(file: string, src: string, dataModules: Set<string>): Handle
           ts.forEachChild(m, inner);
         };
         inner(fn);
-        out.push({ file, method: n.expression.name.text.toUpperCase(), path: p.text, calls: found.sort((a, b) => a.pos - b.pos), csv });
+        out.push({ file, method: n.expression.name.text.toUpperCase(), path, calls: found.sort((a, b) => a.pos - b.pos), csv });
       }
     }
     ts.forEachChild(n, visit);
@@ -162,10 +198,13 @@ function handlersOf(file: string, src: string, dataModules: Set<string>): Handle
   return out;
 }
 
-/** Exported functions/consts of query files that call `pageQuery(` (pagers) and the ones named `…Csv` with whether they LIMIT to CSV_MAX_ROWS. */
+/**
+ * Exported functions/consts of the files that are not routes (query files, module services) that call `pageQuery(`
+ * (pagers) and the ones named `…Csv` with whether they LIMIT to CSV_MAX_ROWS.
+ */
 function exportsOf(files: { file: string; src: string }[]): { pagers: string[]; csv: Record<string, boolean> } {
   const pagers: string[] = [], csv: Record<string, boolean> = {};
-  for (const { file, src } of files.filter((f) => /\/queries\.ts$/.test(f.file))) {
+  for (const { file, src } of files.filter((f) => !ROUTE_FILE.test(f.file))) {
     const sf = ts.createSourceFile(file, src, ts.ScriptTarget.Latest, true);
     for (const s of sf.statements) {
       const names = ts.isFunctionDeclaration(s) && s.name ? [s.name.text] : ts.isVariableStatement(s) ? s.declarationList.declarations.flatMap((d) => (ts.isIdentifier(d.name) ? [d.name.text] : [])) : [];
@@ -180,11 +219,14 @@ function exportsOf(files: { file: string; src: string }[]): { pagers: string[]; 
   return { pagers, csv };
 }
 
+/** Files that register routes: the Hono routers and the Elysia module controllers. */
+const ROUTE_FILE = /(^|\/)(routes|controller)\.ts$/;
+
 const first = (h: Handler, name: string) => h.calls.find((c) => c.name === name)?.pos ?? -1;
 const NOT_FOUND = ["idParam", "notFound"];
 
 /**
- * Rules for every handler of a routes file outside auth/ (auth/ answers before a session exists):
+ * Rules for every handler of a routes file or module controller outside auth/ and /v1/auth (they answer before a session exists):
  * guard( first (before any data call); non-GET records activity; a list GET pages with pageQuery( (the JSON branch of a
  * `format=csv` route counts: its CSV branch must call a `…Csv` function that LIMITs to CSV_MAX_ROWS); query( before
  * guard( (400 before 401); body( before idParam( / a 404 (400 before 404).
@@ -192,7 +234,13 @@ const NOT_FOUND = ["idParam", "notFound"];
 function routeViolations(files: { file: string; src: string }[], nonList: Record<string, string> = NON_LIST_GETS): string[] {
   const { pagers, csv } = exportsOf(files);
   const mods = dataModulesOf(files);
-  const hs = files.filter((f) => /\/routes\.ts$/.test(f.file) && !/(^|\/)auth\//.test(f.file)).flatMap((f) => handlersOf(f.file, f.src, mods));
+  const recordersOfService = (controller: string) => {
+    const service = files.find((f) => f.file === controller.replace(/controller\.ts$/, "service.ts"));
+    return service ? recordersOf(service.file, service.src) : new Set<string>();
+  };
+  const hs = files.filter((f) => ROUTE_FILE.test(f.file) && !/(^|\/)auth\//.test(f.file))
+    .flatMap((f) => handlersOf(f.file, f.src, mods, f.file.endsWith("controller.ts") ? recordersOfService(f.file) : undefined))
+    .filter((h) => !h.path.startsWith("/auth/")); // /v1/auth/* answers before a session exists, wherever its module lives
   const paging = new Set(["pageQuery", ...pagers]);
   const csvFns = new Set(Object.keys(csv));
   const gets = new Set<string>();
@@ -227,7 +275,7 @@ describe("route handlers (src/**/routes.ts)", () => {
   });
 
   it("the scan sees every route the app registers (so a handler the parser misses can't hide)", () => {
-    const seen = real.filter((f) => /(^|\/)routes\.ts$/.test(f.file)).flatMap((f) => handlersOf(f.file, f.src, dataModulesOf(real)).map((h) => `${h.method} /v1${h.path}`)).sort();
+    const seen = real.filter((f) => ROUTE_FILE.test(f.file)).flatMap((f) => handlersOf(f.file, f.src, dataModulesOf(real)).map((h) => `${h.method} /v1${h.path}`)).sort();
     expect(seen).toEqual(registered(appRoutes()).map((r) => r.replace(/\{(\w+)\}/g, ":$1")).filter((r) => !/ \/(healthz|readyz)$/.test(r)).sort());
   });
 
@@ -266,7 +314,7 @@ r.patch("/a/:id", async (c) => { const ctx = await guard(c, "x.edit"); const b =
     expect([...dataModulesOf([f("x/routes.ts", `import { recordActivity } from "../modules/audit"; import type { Ctx } from "../modules/auth";`)])].sort())
       .toEqual(["db/client", "kernel/db", "modules/audit"]);
     const real2 = [...dataModulesOf(real)];
-    expect(real2).toEqual(expect.arrayContaining(["db/client", "db/page", "users/queries", "rbac/queries", "audit/queries", "auth/sessions", "modules/audit", "modules/auth"]));
+    expect(real2).toEqual(expect.arrayContaining(["db/client", "db/page", "users/queries", "rbac/queries", "audit/queries", "db/fragments", "modules/audit", "modules/auth"]));
   });
   it("fixture: a mutation without recordActivity( is reported", () => {
     expect(run(`r.delete("/a/:id", async (c) => { await guard(c, "x.delete"); await sql\`delete from a\`; return c.json(1); });`)).toEqual(["x/routes.ts DELETE /a/:id: no recordActivity("]);
@@ -297,6 +345,25 @@ r.patch("/a/:id", async (c) => { const ctx = await guard(c, "x.edit"); const b =
     expect(run(post(`if (!x) throw new ApiError("not_found"); const b = await body(c, B);`))).toEqual(bad);
     expect(run(post(`const id = idParam(c, "id", "a");`))).toEqual([]);
     expect(run(post(`const b = await body(c, B); const id = idParam(c, "id", "a");`))).toEqual([]);
+  });
+  it("fixture: an Elysia controller's query and guard options run before its handler, its service's recorders count, /v1/auth is exempt", () => {
+    const service = { file: "modules/x/service.ts", src: `import { recordActivity } from "../audit"; import { db } from "../../kernel/db";
+export async function save(ctx, b) { await db.transaction(async (tx) => { await recordActivity(tx, ctx, e); }); }
+export async function quiet(ctx) { await db.delete(t); }
+export const thingPage = (q) => pageQuery({ q });` };
+    const controller = (code: string) => ({ file: "modules/x/controller.ts", src: `import { Elysia } from "elysia"; import { body } from "../../kernel/parse";
+import { guard } from "../auth"; import { quiet, save, thingPage } from "./service";
+export const xController = () => new Elysia().use(guard)${code};` });
+    const check = (code: string) => routeViolations([controller(code), service], {});
+    expect(check(`.get("/v1/x", ({ query }) => thingPage(query), { query: Q, guard: "x.view" })
+  .patch("/v1/x/:id", async (c) => save(c.ctx, await body(c, B)), { guard: "x.edit" })
+  .post("/v1/auth/x", async (c) => quiet(c))
+  .get("/healthz", () => ({ ok: true }))`)).toEqual([]);
+    expect(check(`.get("/v1/x", ({ query }) => thingPage(query), { query: Q })`)).toEqual(["modules/x/controller.ts GET /x: no guard("]);
+    expect(check(`.delete("/v1/x/:id", ({ ctx }) => quiet(ctx), { guard: "x.delete" })`)).toEqual(["modules/x/controller.ts DELETE /x/:id: no recordActivity("]);
+    expect(check(`.get("/v1/x", () => thing(), { guard: null })`)).toEqual(["modules/x/controller.ts GET /x: GET answers a list without pageQuery("]);
+    expect(handlersOf("modules/x/controller.ts", controller(`.get("/v1/x", () => 1, { guard: null, query: Q })`).src, new Set()).map((h) => h.calls.map((c) => c.name)))
+      .toEqual([["query", "guard"]]);
   });
   it("fixture: auth/ routes are exempt, a non-handler call named like a route method is ignored", () => {
     expect(routeViolations([{ file: "auth/routes.ts", src: `r.post("/login", async (c) => { await sql\`select 1\`; return c.json(1); });` }], {})).toEqual([]);

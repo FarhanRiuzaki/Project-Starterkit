@@ -7,7 +7,7 @@ import type { ErrorCode } from "@starterkit/shared/contracts/common";
 import { SessionListQuery } from "@starterkit/shared/contracts/me";
 import { BulkUserBody, CreateUserBody, MAX_USER_ROLES, SetUserStatusBody, UpdateUserBody, UserDto, UserListQuery, type UserRowDto } from "@starterkit/shared/contracts/users";
 import type { PermissionName } from "@starterkit/shared/permissions";
-import { sessionLive } from "../auth/sessions";
+import { sessionLive } from "../db/fragments";
 import { orm, sql, type Tx } from "../db/client";
 import { type Ctx, guard } from "../http/guard";
 import type { AppEnv } from "../http/middleware";

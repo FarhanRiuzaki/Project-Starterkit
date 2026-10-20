@@ -2,7 +2,7 @@ import { FULL_SIGN_INS } from "@starterkit/shared/audit";
 import { DASHBOARD_DAYS, type DashboardDto } from "@starterkit/shared/contracts/dashboard";
 import { appDate, appDayStart, APP_TIME_ZONE, shiftDate } from "@starterkit/ui/lib/format";
 import { recentActivity } from "../audit/queries";
-import { sessionLive } from "../auth/sessions";
+import { sessionLive } from "../db/fragments";
 import { sql } from "../db/client";
 import type { Ctx } from "../modules/auth";
 

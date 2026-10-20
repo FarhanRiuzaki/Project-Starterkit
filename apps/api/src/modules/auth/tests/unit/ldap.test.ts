@@ -1,8 +1,8 @@
 import { describe, expect, it, spyOn } from "bun:test";
-import { LDAP_PASSWORD } from "../db/seed/demo";
-import { loadConfig } from "../kernel/config";
-import { log } from "../kernel/log";
-import { directory, userFilter } from "./ldap";
+import { LDAP_PASSWORD } from "../../../../db/seed/demo";
+import { loadConfig } from "../../../../kernel/config";
+import { log } from "../../../../kernel/log";
+import { directory, userFilter } from "../../ldap";
 
 const base = {
   DATABASE_URL: "postgresql://app:pw@localhost:5432/app",
