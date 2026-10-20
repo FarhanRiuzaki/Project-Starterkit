@@ -39,11 +39,18 @@ export function closeViews(before: Perms, after: Perms, allowed?: Perms): Set<Pe
     const view = `${m.key}.view` as PermissionName;
     const others = rowCells(m.key).filter((p) => p !== view);
     if (!others.some((p) => out.has(p))) continue;
-    if (before.has(view) && !out.has(view)) { for (const p of others) if (may(p)) out.delete(p); }
-    else if (may(view)) out.add(view);
+    if (before.has(view) && !out.has(view)) {
+      for (const p of others) if (may(p)) out.delete(p);
+      // An action the actor can't remove stays on, and the server keeps the view with it: so the view stays.
+      if (others.some((p) => out.has(p))) out.add(view);
+    } else if (may(view)) out.add(view);
   }
   return out;
 }
+
+/** A module's view can't be switched off by the actor while an action they don't hold is on (closeViews keeps it). */
+export const viewLocked = (value: Perms, module: Module, allowed?: Perms): boolean =>
+  !!allowed && rowCells(module).some((p) => !p.endsWith(".view") && value.has(p) && !allowed.has(p));
 
 /** Header checkbox state for a group: true (all), false (none or empty group), "mixed" (some). */
 export function cellState(s: Perms, cells: readonly PermissionName[]): boolean | "mixed" {

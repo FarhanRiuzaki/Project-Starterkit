@@ -3,10 +3,11 @@
 import { type FocusEvent, type KeyboardEvent, useLayoutEffect, useRef, useState } from "react";
 import { Checkbox } from "@starterkit/ui/ds";
 import { MODULES, PERMISSIONS, type PermissionName, permissionLabel } from "@starterkit/shared/permissions";
-import { ACTIONS, cellState, columnCells, type Edit, rowCells, toggleAll, toggleCell, toggleColumn, toggleRow } from "./matrix";
+import { ACTIONS, cellState, columnCells, type Edit, rowCells, toggleAll, toggleCell, toggleColumn, toggleRow, viewLocked } from "./matrix";
 
 const TH = "h-10 border-b border-line px-2 text-left align-middle text-label font-medium whitespace-nowrap text-fg-2";
 const TD = "h-10 border-b border-line px-2 align-middle";
+const VIEW_KEPT = "View stays on while another action in this module is on that your role doesn't hold. Ask an administrator who holds it.";
 const NOT_HELD = "Your role doesn't hold this permission, so you can't grant or remove it.";
 
 const BOX = '[role="checkbox"]';
@@ -103,7 +104,7 @@ export function PermissionMatrix({ label, value, onChange, allowed }: {
                 return (
                   <td key={a} className={TD}>
                     {m.actions.includes(a)
-                      ? <Checkbox label={`${permissionLabel(a)} ${m.key}`} checked={value.has(p)} readOnly={!onChange} reason={onChange && !held ? NOT_HELD : undefined}
+                      ? <Checkbox label={`${permissionLabel(a)} ${m.key}`} checked={value.has(p)} readOnly={!onChange} reason={onChange ? (!held ? NOT_HELD : a === "view" && viewLocked(value, m.key, allowed) ? VIEW_KEPT : undefined) : undefined}
                           onToggle={() => set((v) => toggleCell(v, p))} />
                       : <span className="inline-grid size-7 place-items-center text-fg-4"><span aria-hidden="true">–</span><span className="sr-only">No {a} permission for this module</span></span>}
                   </td>

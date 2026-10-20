@@ -3,7 +3,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useState } from "react";
-import { BlockedButton, Failure, Field, Panel } from "@starterkit/ui/ds";
+import { BlockedButton, Failure, Field, Notice, Panel } from "@starterkit/ui/ds";
 import { Button } from "@starterkit/ui/ui/button";
 import { Icon } from "@starterkit/ui/ui/icon";
 import { SpinnerIcon, UsersIcon } from "@starterkit/ui/ui/icons";
@@ -87,6 +87,7 @@ function UserForm({ user }: { user?: UserDetailDto }) {
 
   return (
     <Panel icon={UsersIcon} title={user ? "Edit user" : "New user"} description={user ? "Name, sign-in names, roles and status" : "They sign in with the method you choose below"}>
+      {blocked && <div className="mb-4"><Notice>{blocked}</Notice></div>}
       <form onSubmit={save} className="grid max-w-md gap-4">
         <fieldset disabled={!!blocked} className="contents">
         <Field id="u-name" label="Name"><Input id="u-name" value={name} maxLength={100} required onChange={(e) => setName(e.target.value)} autoComplete="off" /></Field>

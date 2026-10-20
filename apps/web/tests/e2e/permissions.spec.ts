@@ -53,5 +53,15 @@ test("admin: a Superadmin's edit page is read-only with the blocked Save", async
   await expect(page.locator("#u-name")).toBeDisabled();
   const save = page.getByRole("button", { name: "Save user" });
   await expect(save).toHaveAttribute("aria-disabled", "true");
-  await expect(save).toHaveAccessibleDescription("This user has permissions your role doesn't hold. Ask an administrator who has all of them.");
+  const reason = "This user has permissions your role doesn't hold. Ask an administrator who has all of them.";
+  await expect(save).toHaveAccessibleDescription(reason);
+  await expect(page.getByText(reason, { exact: true }).first()).toBeVisible();
+  await expect(page.getByRole("checkbox", { name: "Viewer" })).toBeDisabled();
+  // Clicking the blocked Save sends nothing and stays on the page.
+  const writes: string[] = [];
+  page.on("request", (r) => { if (r.method() !== "GET") writes.push(`${r.method()} ${r.url()}`); });
+  await save.click({ force: true });
+  await page.waitForTimeout(500);
+  expect(writes).toEqual([]);
+  await expect(page).toHaveURL(/\/users\/[^/]+\/edit$/);
 });

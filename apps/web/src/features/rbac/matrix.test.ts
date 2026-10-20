@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { PERMISSIONS, type PermissionName } from "@starterkit/shared/permissions";
-import { ACTIONS, applyEdit, closeViews, cellState, columnCells, diff, type Draft, rebase, rowCells, toggleAll, toggleCell, toggleColumn, toggleRow, withDraft } from "./matrix";
+import { ACTIONS, applyEdit, closeViews, viewLocked, cellState, columnCells, diff, type Draft, rebase, rowCells, toggleAll, toggleCell, toggleColumn, toggleRow, withDraft } from "./matrix";
 
 const set = (...p: PermissionName[]) => new Set<PermissionName>(p);
 const sorted = (s: ReadonlySet<PermissionName>) => [...s].sort();
@@ -103,7 +103,13 @@ describe("permission matrix", () => {
     expect(applyEdit(set(), null, (v) => toggleCell(v, "user.edit"), allowed)).toEqual({ added: ["user.edit"], removed: [] });
     // view off (held) removes only the other actions the actor holds; user.delete stays
     const held = set("user.view", "user.edit");
-    expect(sorted(closeViews(set("user.view", "user.edit", "user.delete"), set("user.edit", "user.delete"), held))).toEqual(["user.delete"]);
+    // user.delete stays on (not held), so the view stays too: the server's withViews would re-add it anyway
+    expect(sorted(closeViews(set("user.view", "user.edit", "user.delete"), set("user.edit", "user.delete"), held))).toEqual(["user.delete", "user.view"]);
+    expect(sorted(closeViews(set("user.view", "user.edit"), set("user.edit"), held))).toEqual([]);
+    // the view cell is locked while an action the actor lacks is on
+    expect(viewLocked(set("user.view", "user.delete"), "user", held)).toBe(true);
+    expect(viewLocked(set("user.view", "user.edit"), "user", held)).toBe(false);
+    expect(viewLocked(set("user.view", "user.delete"), "user")).toBe(false);
   });
 
   it("rebase: a draft made against an older set shows and sends only what still changes something", () => {

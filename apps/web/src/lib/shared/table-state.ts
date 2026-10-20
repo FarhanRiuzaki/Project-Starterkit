@@ -98,7 +98,7 @@ export const sortState = (sort: string): SortState => (sort.startsWith("-") ? { 
 export const toSortParam = (s: SortState): string => (s.dir === "desc" ? `-${s.key}` : s.key);
 
 /** The query result a server table reads (React Query's fields). */
-export type TableResult<T> = { data?: Page<T>; isPending: boolean; isPlaceholderData: boolean; isFetching: boolean; error: unknown };
+export type TableResult<T> = { data?: Page<T>; isPending: boolean; isPlaceholderData: boolean; isFetching: boolean; error: unknown; fetchStatus?: string };
 
 /**
  * What a server table shows for one query result at URL page `page` (useTableQuery's view; pure so it is tested):
@@ -117,7 +117,8 @@ export function tableView<T>(r: TableResult<T>, page: number) {
     totalCapped: !!data?.totalCapped,
     count: data ? `${formatNumber(data.total)}${data.totalCapped ? "+" : ""}` : undefined,
     busy: r.isPlaceholderData && r.isFetching,
-    loading: r.isPending || pastEnd,
+    // A disabled query with nothing cached is idle, not loading: no permanent skeleton.
+    loading: (r.isPending && r.fetchStatus !== "idle") || pastEnd,
     loadError: r.error && (!data || r.isPlaceholderData) ? r.error : null,
     staleError: r.error && data && !r.isPlaceholderData ? r.error : null,
   };
