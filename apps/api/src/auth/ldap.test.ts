@@ -1,5 +1,6 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it, spyOn } from "bun:test";
 import { loadConfig } from "../config";
+import { log } from "../log";
 import { LDAP_PASSWORD } from "../seed/demo";
 import { directory, userFilter } from "./ldap";
 
@@ -47,5 +48,27 @@ describe("ldap", () => {
     expect(failure({ ...base, LDAP_URL: "http://dir.example" })).toContain("LDAP_URL");
     expect(failure({ ...base, ...ldap, LDAP_BASE_DN: undefined })).toContain("LDAP_BASE_DN");
     expect(failure({ ...base, ...ldap, LDAP_USER_FILTER: "(uid=admin)" })).toContain("LDAP_USER_FILTER");
+  });
+
+  it("a directory that never answers fails within the total timeout, closes the socket and logs no password", async () => {
+    let closed = false;
+    const server = Bun.listen({ hostname: "127.0.0.1", port: 0, socket: { data() {}, close() { closed = true; } } }); // accepts, never answers
+    const warn = spyOn(log, "warn");
+    try {
+      const dir = directory(loadConfig({ ...base, ...ldap, LDAP_URL: `ldap://127.0.0.1:${server.port}` }), 300)!;
+      const t0 = performance.now();
+      expect(await dir.verify("rina", "dir-secret-value")).toBe(false);
+      expect(performance.now() - t0).toBeLessThan(1000); // 3 operations, one 300 ms budget
+      await Bun.sleep(50);
+      expect(closed).toBe(true);
+      const lines = JSON.stringify(warn.mock.calls);
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect((warn.mock.calls[0]![0] as unknown as { err: Error }).err.message).toBe("no answer within 300 ms");
+      expect(lines).not.toContain("dir-secret-value");
+      expect(lines).not.toContain("bind-secret-value");
+    } finally {
+      warn.mockRestore();
+      server.stop(true);
+    }
   });
 });

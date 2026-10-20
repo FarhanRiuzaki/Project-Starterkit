@@ -10,6 +10,7 @@ import { sql } from "../db/client";
 import { clearMail, sentMail } from "../mail/mailer";
 import { LDAP_PASSWORD, SEED_PASSWORD, TOTP_SECRET } from "../seed/demo";
 import { hashToken } from "./crypto";
+import * as ldap from "./ldap";
 import { retryText } from "./limits";
 import { verifyPassword } from "./password";
 import { resolveSession } from "./sessions";
@@ -108,6 +109,61 @@ describe("POST /v1/auth/login", () => {
     } finally {
       spy.mockRestore();
     }
+  });
+});
+
+describe("fix round 1 (review)", () => {
+  it("method ldap costs one directory check for an unknown login, a password user and an LDAP user", async () => {
+    const spy = spyOn(ldap.directory()!, "verify"); // LDAP_MOCK=true: one shared mock directory
+    try {
+      const statuses = [];
+      for (const login of [" nobody ", "admin@example.com", "LDAP"]) statuses.push((await post("login", { method: "ldap", login, password: LDAP_PASSWORD })).status);
+      expect(statuses).toEqual([401, 401, 200]);
+      expect(spy.mock.calls.map((c) => c[0])).toEqual(["nobody", "admin@example.com", "ldap"]);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it("method ldap without a directory runs one dummy argon2 verify", async () => {
+    const dir = spyOn(ldap, "directory").mockReturnValue(null);
+    const verify = spyOn(Bun.password, "verify");
+    try {
+      expect((await post("login", { method: "ldap", login: "ldap", password: LDAP_PASSWORD })).status).toBe(401);
+      expect(verify).toHaveBeenCalledTimes(1);
+    } finally {
+      dir.mockRestore();
+      verify.mockRestore();
+    }
+  });
+
+  it("a wrong 6-digit code runs no recovery-code verify", async () => {
+    const challenge = await challengeOf();
+    const now = Date.now();
+    const valid = new Set([-30_000, 0, 30_000].map((d) => totpCode(TOTP_SECRET, now + d)));
+    const wrong = ["000000", "111111", "222222", "333333"].find((c) => !valid.has(c))!;
+    const spy = spyOn(Bun.password, "verify");
+    try {
+      const r = await post("2fa", { code: wrong }, { challenge });
+      expect(r.status).toBe(400);
+      expect(spy).toHaveBeenCalledTimes(0);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it("one recovery code on two challenges in parallel: one 200, one 400", async () => {
+    const [a, b] = [await challengeOf(), await challengeOf()];
+    const answers = await Promise.all([a, b].map((challenge) => post("2fa", { code: "cccc-3333" }, { challenge })));
+    expect(answers.map((r) => r.status).sort()).toEqual([200, 400]);
+    expect(await count("sessions")).toBe(1);
+  });
+
+  it("two parallel finishes of one challenge give one session", async () => {
+    const challenge = await challengeOf();
+    const answers = await Promise.all(["dddd-4444", "eeee-5555"].map((code) => post("2fa", { code }, { challenge })));
+    expect(answers.map((r) => r.status).sort()).toEqual([200, 401]);
+    expect(await count("sessions")).toBe(1);
   });
 });
 

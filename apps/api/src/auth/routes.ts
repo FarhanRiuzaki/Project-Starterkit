@@ -25,10 +25,16 @@ const EXPIRED = "The sign-in expired. Start again with your email and password."
 const BAD_CODE = "That code didn't match. Enter the current code from your authenticator app or an unused recovery code.";
 const BAD_LINK = "This reset link expired or was already used. Request a new link.";
 
-/** Password users by argon2 hash (one verify for unknown logins too); LDAP users only by the LDAP method, against the directory. */
-async function credentialOk(user: UserRow | null, method: "password" | "ldap", password: string): Promise<boolean> {
-  if (method === "ldap") return !!user?.isLdap && ((await directory()?.verify(user.username, password)) ?? false);
-  return verifyPassword(password, user && !user.isLdap ? user.passwordHash : null);
+/**
+ * Password users by argon2 hash; LDAP users only by the LDAP method, against the directory. Every login costs the same
+ * work whatever it matched: one argon2 verify (a null hash when no password user matched), or one directory check
+ * (the typed login when no LDAP user matched; one dummy argon2 verify when no directory is configured).
+ */
+async function credentialOk(user: UserRow | null, login: string, method: "password" | "ldap", password: string): Promise<boolean> {
+  if (method === "password") return verifyPassword(password, user && !user.isLdap ? user.passwordHash : null);
+  const dir = directory();
+  const ok = dir ? await dir.verify(user?.isLdap ? user.username : login.trim(), password) : await verifyPassword(password, null);
+  return ok && !!user?.isLdap;
 }
 
 /** A TOTP code newer than the one that last completed a sign-in for this user (replay guard, one conditional UPDATE). */
@@ -58,7 +64,7 @@ authRoutes.post("/auth/login", async (c) => {
     await fail();
     throw tooManyAttempts(wait, retryText(wait));
   }
-  const ok = await credentialOk(user, b.method, b.password);
+  const ok = await credentialOk(user, b.login, b.method, b.password);
   if (!ok || !user) {
     await fail();
     throw new ApiError("invalid_credentials", BAD_LOGIN);
@@ -108,7 +114,9 @@ authRoutes.post("/auth/2fa", async (c) => {
     await fail();
     throw tooManyAttempts(wait, retryText(wait));
   }
-  if (!(await totpOk(user, b.code)) && !(await spendRecoveryCode(user.id, b.code))) {
+  // Six digits are a TOTP code only; anything else a recovery code only (a wrong TOTP costs no argon2 verify).
+  const ok = /^\d{6}$/.test(b.code) ? await totpOk(user, b.code) : await spendRecoveryCode(user.id, b.code);
+  if (!ok) {
     await fail();
     throw new ApiError("invalid_code", BAD_CODE);
   }
@@ -120,6 +128,7 @@ authRoutes.post("/auth/2fa", async (c) => {
   }
   const token = await sql.begin(async (tx) => {
     // Deleted in the same transaction: of two concurrent finishes of one challenge, only one gets a session.
+    // ponytail: the loser has already spent its code (TOTP step or recovery code); fine for one user racing themself.
     if (!(await tx`delete from auth_challenges where id = ${p.id} returning 1`).length) throw new ApiError("unauthenticated", EXPIRED);
     const t = await completeSignIn(tx, user, p.method, client);
     await logAuth(tx, client, "2fa_success", p.method, user.email, user.id);
@@ -157,6 +166,7 @@ authRoutes.post("/auth/forgot", async (c) => {
   if (u) {
     const token = randomToken();
     // One live link per user: this one replaces the earlier one.
+    // ponytail: a known email costs this one extra round trip over an unknown one (same body); queue the write if it matters.
     await sql`insert into user_tokens (token_hash, user_id, kind, expires_at) values (${hashToken(token)}, ${u.id}, 'reset', now() + interval '30 minutes')
       on conflict (user_id) do update set token_hash = excluded.token_hash, kind = excluded.kind, expires_at = excluded.expires_at`;
     sendMail({

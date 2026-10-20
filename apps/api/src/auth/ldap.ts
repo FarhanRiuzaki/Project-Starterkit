@@ -18,34 +18,43 @@ export const userFilter = (template: string, username: string): string => {
 /** Mock directory: only the demo account `ldap` with LDAP_PASSWORD. */
 const mock: Directory = { verify: async (username, password) => safeEqual(password, LDAP_PASSWORD) && username === "ldap" };
 
+/** Search the entry of `username` as LDAP_BIND_DN (StartTLS first when set), then bind as it. Throws on any failure. */
+async function check(client: Client, c: Config, username: string, password: string): Promise<true> {
+  if (c.LDAP_STARTTLS && /^ldap:/i.test(c.LDAP_URL!)) await client.startTLS();
+  if (c.LDAP_BIND_DN) await client.bind(c.LDAP_BIND_DN, c.LDAP_BIND_PASSWORD ?? "");
+  const { searchEntries } = await client.search(c.LDAP_BASE_DN!, {
+    scope: "sub", filter: userFilter(c.LDAP_USER_FILTER, username), attributes: ["dn"], sizeLimit: 2,
+  });
+  if (searchEntries.length !== 1) throw new Error(`${searchEntries.length} entries match`);
+  await client.bind(searchEntries[0]!.dn, password);
+  return true;
+}
+
 /**
- * Search the entry of `username` as LDAP_BIND_DN (StartTLS first when set), then bind as that entry with `password`.
- * Exactly one entry must match. Any error (timeout, no entry, wrong password) is false and one warn line, never the
- * password.
+ * `check` within `timeoutMs` in total (not per operation). Exactly one entry must match. Any error (timeout, no
+ * entry, wrong password) is false and one warn line, never the password; the connection is always closed.
  */
-async function verifyLdap(c: Config, username: string, password: string): Promise<boolean> {
+async function verifyLdap(c: Config, timeoutMs: number, username: string, password: string): Promise<boolean> {
   if (!password) return false; // an empty password is an anonymous bind, which many servers accept
-  const client = new Client({ url: c.LDAP_URL!, timeout: TIMEOUT_MS, connectTimeout: TIMEOUT_MS });
+  const client = new Client({ url: c.LDAP_URL!, timeout: timeoutMs, connectTimeout: timeoutMs });
+  let timer: Timer | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`no answer within ${timeoutMs} ms`)), timeoutMs);
+  });
   try {
-    if (c.LDAP_STARTTLS && /^ldap:/i.test(c.LDAP_URL!)) await client.startTLS();
-    if (c.LDAP_BIND_DN) await client.bind(c.LDAP_BIND_DN, c.LDAP_BIND_PASSWORD ?? "");
-    const { searchEntries } = await client.search(c.LDAP_BASE_DN!, {
-      scope: "sub", filter: userFilter(c.LDAP_USER_FILTER, username), attributes: ["dn"], sizeLimit: 2,
-    });
-    if (searchEntries.length !== 1) throw new Error(`${searchEntries.length} entries match`);
-    await client.bind(searchEntries[0]!.dn, password);
-    return true;
+    return await Promise.race([check(client, c, username, password), timeout]);
   } catch (e) {
     log.warn({ err: e instanceof Error ? e : { name: typeof e }, username }, "ldap sign-in failed");
     return false;
   } finally {
-    await client.unbind().catch(() => {});
+    clearTimeout(timer);
+    await client.unbind().catch(() => {}); // also ends a check still waiting after a timeout
   }
 }
 
-/** LDAP_MOCK → the mock directory; LDAP_URL → the real one; neither → null (LDAP sign-in fails). */
-export function directory(c: Config = config()): Directory | null {
+/** LDAP_MOCK → the mock directory; LDAP_URL → the real one (`timeoutMs` per sign-in); neither → null (LDAP sign-in fails). */
+export function directory(c: Config = config(), timeoutMs = TIMEOUT_MS): Directory | null {
   if (c.LDAP_MOCK) return mock;
-  if (c.LDAP_URL) return { verify: (username, password) => verifyLdap(c, username, password) };
+  if (c.LDAP_URL) return { verify: (username, password) => verifyLdap(c, timeoutMs, username, password) };
   return null;
 }
