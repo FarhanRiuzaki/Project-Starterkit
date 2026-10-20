@@ -4,6 +4,7 @@ import { authRoutes } from "./auth/routes";
 import { sql } from "./db/client";
 import { ApiError, onError } from "./http/errors";
 import { type AppEnv, bodyLimit, internalAuth, requestContext } from "./http/middleware";
+import { rbacRoutes } from "./rbac/routes";
 
 /** `select 1` answers within 2 s. */
 async function dbReady(db: SQL): Promise<boolean> {
@@ -25,6 +26,7 @@ export function createApp(deps: { db?: SQL } = {}) {
   app.get("/readyz", async (c) => ((await dbReady(db)) ? c.json({ ok: true }) : c.json({ ok: false }, 503)));
   // Module routers, all under /v1. Mount rbac before users (Task 5/6): `/users/roles` must not reach `/users/:id`.
   app.route("/v1", authRoutes);
+  app.route("/v1", rbacRoutes); // owns /users/roles: keep it before the users router (Task 6), whose /users/:id would capture it
   app.notFound(() => {
     throw new ApiError("not_found");
   });
