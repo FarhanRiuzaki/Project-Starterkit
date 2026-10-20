@@ -1,12 +1,13 @@
 import { createApp } from "./app";
-import { config } from "./config";
-import { sql } from "./db/client";
-import { unexpected } from "./http/errors";
-import { log } from "./log";
+import { config } from "./kernel/config";
+import { client } from "./kernel/db";
+import { unexpected } from "./kernel/errors";
+import { log } from "./kernel/log";
 
 const { API_HOST, API_PORT } = config();
+const app = createApp();
 // `error`: the last resort for anything the app's own handlers let through (Bun's default page would show it).
-const server = Bun.serve({ hostname: API_HOST, port: API_PORT, fetch: createApp().fetch, error: (e) => unexpected(e) });
+const server = Bun.serve({ hostname: API_HOST, port: API_PORT, fetch: (r) => app.handle(r), error: (e) => unexpected(e) });
 log.info({ url: server.url.href }, "api listening");
 
 let stopping = false;
@@ -16,7 +17,7 @@ async function shutdown(signal: string) {
   stopping = true;
   log.info({ signal }, "shutting down");
   await Promise.race([server.stop(), Bun.sleep(10_000).then(() => server.stop(true))]);
-  await sql.close();
+  await client.close();
   process.exit(0);
 }
 process.on("SIGTERM", () => void shutdown("SIGTERM"));

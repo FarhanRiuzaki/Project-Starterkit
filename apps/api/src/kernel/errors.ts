@@ -1,9 +1,7 @@
-import type { Context } from "hono";
-import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { $ZodError } from "zod/v4/core";
 import { type ErrorCode, ERROR_STATUS } from "@starterkit/shared/contracts/common";
 import { maskText } from "@starterkit/shared/log-redact";
-import { log } from "../log";
+import { log } from "./log";
 
 const INTERNAL = "The server hit an unexpected error. Try again; if it continues, contact your administrator.";
 
@@ -55,9 +53,9 @@ export function unexpected(err: unknown, requestId?: string): Response {
   return Response.json(errorBody("internal", INTERNAL), { status: 500, headers: { "Cache-Control": "no-store" } });
 }
 
-/** Hono onError: validation → 400, ApiError → itself, anything else → `unexpected`. */
-export function onError(err: unknown, c: Context): Response {
-  if (!(err instanceof ApiError) && !(err instanceof $ZodError)) return unexpected(err, c.get("requestId"));
+/** The answer to a thrown value: a zod error → 400, ApiError → itself, anything else → `unexpected`. Always no-store. */
+export function errorResponse(err: unknown, requestId?: string): Response {
+  if (!(err instanceof ApiError) && !(err instanceof $ZodError)) return unexpected(err, requestId);
   const e = err instanceof ApiError ? err : new ApiError("bad_request");
-  return c.json(errorBody(e.code, e.message), e.status as ContentfulStatusCode, { ...e.headers, "Cache-Control": "no-store" });
+  return Response.json(errorBody(e.code, e.message), { status: e.status, headers: { ...e.headers, "Cache-Control": "no-store" } });
 }

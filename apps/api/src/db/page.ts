@@ -1,12 +1,14 @@
+// Transitional: the raw-SQL pager of the Hono list routes (users, rbac, audit) until Tasks 17–18; new code uses
+// kernel/pagination.ts.
 import type { SQL } from "bun";
 import type { Page } from "@starterkit/shared/contracts/common";
+import { COUNT_CAP } from "../kernel/pagination";
 import { sql } from "./client";
+
+export { COUNT_CAP, likeEscape } from "../kernel/pagination";
 
 /** A piece of SQL built with sql`…` (parameters stay parameters) to splice into another query. */
 export type Fragment = SQL.Query<unknown>;
-
-/** Rows counted at most; a longer list answers `total: COUNT_CAP, totalCapped: true`. */
-export const COUNT_CAP = 100_000;
 
 /**
  * One page of `select <select> <from> order by <orderBy>` and its total, both queries at once. The total stops at
@@ -37,6 +39,3 @@ export function sortSql(sort: string | undefined, columns: Record<string, string
   const dir = desc ? "desc" : "asc";
   return sql.unsafe(`${expr} ${dir}, id ${dir}`);
 }
-
-/** `q` for LIKE/ILIKE '%…%' with its wildcards taken literally. */
-export const likeEscape = (q: string): string => q.replace(/[\\%_]/g, "\\$&");

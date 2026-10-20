@@ -1,43 +1,46 @@
-import type { SQL } from "bun";
+import { Elysia } from "elysia";
 import { Hono } from "hono";
 import { auditRoutes } from "./audit/routes";
 import { authRoutes } from "./auth/routes";
 import { dashboardRoutes } from "./dashboard/routes";
-import { sql } from "./db/client";
-import { ApiError, onError } from "./http/errors";
-import { type AppEnv, bodyLimit, internalAuth, requestContext } from "./http/middleware";
+import { bodyLimit as honoBodyLimit, type AppEnv, onError, requestContext } from "./http/middleware";
+import { ApiError } from "./kernel/errors";
+import { bodyLimit } from "./kernel/plugins/body-limit";
+import { context } from "./kernel/plugins/context";
+import { errorHandler } from "./kernel/plugins/error";
+import { internalAuth } from "./kernel/plugins/internal-auth";
 import { meRoutes } from "./me/routes";
+import { type AppDeps, modules } from "./modules";
 import { rbacRoutes } from "./rbac/routes";
 import { usersRoutes } from "./users/routes";
 
-/** `select 1` answers within 2 s. */
-async function dbReady(db: SQL): Promise<boolean> {
-  try {
-    await Promise.race([db`select 1`, Bun.sleep(2000).then(() => Promise.reject(new Error("readyz timeout")))]);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-/** The API: middleware, health routes and the `/v1` module routers. Tests inject `db` for readyz. */
-export function createApp(deps: { db?: SQL } = {}) {
-  const db = deps.db ?? sql;
-  const app = new Hono<AppEnv>();
-  app.use(requestContext, bodyLimit);
-  app.use("/v1/*", internalAuth);
-  app.get("/healthz", (c) => c.json({ ok: true }));
-  app.get("/readyz", async (c) => ((await dbReady(db)) ? c.json({ ok: true }) : c.json({ ok: false }, 503)));
-  // Module routers, all under /v1. Mount rbac before users: `/users/roles` must not reach `/users/:id`.
-  app.route("/v1", authRoutes);
-  app.route("/v1", rbacRoutes); // owns /users/roles: keep it before the users router, whose /users/:id would capture it
-  app.route("/v1", usersRoutes);
-  app.route("/v1", meRoutes);
-  app.route("/v1", auditRoutes);
-  app.route("/v1", dashboardRoutes);
-  app.notFound(() => {
+/**
+ * Transitional: the Hono routers not yet moved to modules (Tasks 16–18), as one app with their own paths (/v1/…).
+ * Mount rbac before users: `/users/roles` must not reach `/users/:id`.
+ */
+export const legacy = new Hono<AppEnv>()
+  .use(requestContext, honoBodyLimit)
+  .route("/v1", authRoutes)
+  .route("/v1", rbacRoutes) // owns /users/roles: keep it before the users router, whose /users/:id would capture it
+  .route("/v1", usersRoutes)
+  .route("/v1", meRoutes)
+  .route("/v1", auditRoutes)
+  .route("/v1", dashboardRoutes)
+  .notFound(() => {
     throw new ApiError("not_found");
-  });
-  app.onError(onError);
-  return app;
+  })
+  .onError(onError);
+
+/**
+ * The API: kernel plugins (error mapping, request context, body limit, internal token on /v1), the modules of the
+ * registry, then the Hono routers for every path no module answers. Tests inject `db` for readyz.
+ */
+export function createApp(deps: AppDeps = {}) {
+  return new Elysia()
+    .use(errorHandler)
+    .use(context)
+    .use(bodyLimit)
+    .use(internalAuth)
+    .use(modules(deps))
+    .mount(legacy.fetch);
 }

@@ -1,5 +1,5 @@
-import { config } from "../config";
-import { log } from "../log";
+import { config } from "./config";
+import { log } from "./log";
 
 export type Mail = { to: string; subject: string; text: string };
 

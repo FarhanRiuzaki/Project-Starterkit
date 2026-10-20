@@ -1,6 +1,10 @@
+// Transitional: request parsing for the Hono routes until Task 18; Elysia handlers use kernel/parse.ts.
 import type { Context } from "hono";
 import type { ZodType } from "zod";
-import { ApiError, notFound } from "./errors";
+import { ApiError, notFound } from "../kernel/errors";
+import { isUuid } from "../kernel/parse";
+
+export { isUuid } from "../kernel/parse";
 
 /** The query string through `schema` (first value per key); a miss throws the ZodError that answers 400. */
 export function query<T>(c: Context, schema: ZodType<T>): T {
@@ -15,10 +19,6 @@ export async function body<T>(c: Context, schema: ZodType<T>): Promise<T> {
   });
   return schema.parse(data);
 }
-
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-/** `s` is a UUID (safe to compare with a uuid column). */
-export const isUuid = (s: string): boolean => UUID.test(s);
 
 /** Path parameter `name` as a UUID; anything else is 404 `not_found` for `noun` (never a failed uuid cast). */
 export function idParam(c: Context, name: string, noun: string): string {
