@@ -2,7 +2,6 @@ import { z } from "zod";
 import { USER_SORTS } from "../paging";
 import { ListQuery, sortParam } from "./common";
 import { Password } from "./password";
-import { PERMISSIONS, type PermissionName } from "../permissions";
 
 export const UserDto = z.object({
   id: z.string(),
@@ -73,7 +72,8 @@ export type ActivityBrief = z.infer<typeof ActivityBrief>;
  * A row of GET /api/users: the user plus their effective permissions (the union of their roles), so a screen can
  * block actions on a user who holds a permission the viewer lacks (actor rank) before the server refuses them.
  */
-export const UserRowDto = UserDto.extend({ permissions: z.array(z.enum(PERMISSIONS as [PermissionName, ...PermissionName[]])) });
+/** `permissions`: the catalog names the user holds through their roles (the app's and any added to the catalog). */
+export const UserRowDto = UserDto.extend({ permissions: z.array(z.string()) });
 export type UserRowDto = z.infer<typeof UserRowDto>;
 
 /**

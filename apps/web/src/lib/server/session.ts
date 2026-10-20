@@ -57,7 +57,8 @@ export const authContext = cache(async (): Promise<{ user: UserDto; perms: Permi
     return null;
   }
   if (!data) throw new Error(`auth context answered ${status}`);
-  return { user: data.user, perms: data.permissions };
+  // Names added to the catalog come along (role pages need them to tell what the viewer may grant); code checks only its own.
+  return { user: data.user, perms: data.permissions as PermissionName[] };
 });
 
 /**

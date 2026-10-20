@@ -137,7 +137,9 @@ export function UserDetail({ id }: { id: string }) {
         </Panel></StaggerItem>
         <StaggerItem index={2} className="grid md:col-span-2"><Panel icon={KeyIcon} title="Effective permissions" description="Combined from all roles, by module">
           <Rows items={MODULES.map((m) => {
-            const have = m.actions.filter((a) => granted.has(`${m.key}.${a}`));
+            // The app's actions in order, then any added to the catalog that this user holds (user.export).
+            const added = u.permissions.filter((p) => p.startsWith(`${m.key}.`)).map((p) => p.slice(m.key.length + 1)).filter((a) => !(m.actions as string[]).includes(a));
+            const have = [...m.actions.filter((a) => granted.has(`${m.key}.${a}`)), ...added];
             return { label: permissionLabel(m.key), value: have.length ? have.map(permissionLabel).join(", ") : "No access" };
           })} />
         </Panel></StaggerItem>

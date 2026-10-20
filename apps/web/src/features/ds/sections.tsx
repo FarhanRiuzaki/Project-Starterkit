@@ -51,7 +51,7 @@ export function GallerySections() {
   const [server, setServer] = useState({ page: 1, pageSize: 15, sort: { key: "name", dir: "asc" as SortDir } });
   const [dialog, setDialog] = useState(false);
   const [secret, setSecret] = useState(false);
-  const [perms, setPerms] = useState<ReadonlySet<PermissionName>>(() => new Set(MATRIX_START));
+  const [perms, setPerms] = useState<ReadonlySet<string>>(() => new Set(MATRIX_START));
 
   const columns: Column<Row>[] = [
     { key: "name", header: "User", icon: UsersIcon, sortable: true,
@@ -70,16 +70,17 @@ export function GallerySections() {
   return (
     <>
       <SectionTitle>Toolbar and data table</SectionTitle>
-      <Toolbar>
-        <div className="w-full max-w-80 max-md:max-w-none"><QueryInput value={query} onChange={setQuery} keys={["status", "city"]} label="Search users" placeholder="status:degraded city:oslo" /></div>
-        <ToolbarFilters active={(status !== "all" ? 1 : 0) + (role ? 1 : 0)}>
-          <Segmented label="Status" value={status} onChange={setStatus} options={STATUS_OPTIONS} />
-          <FilterMenu label="Role" value={role} options={ROLES} onChange={setRole} />
-        </ToolbarFilters>
-        {chip && <FilterChip removeLabel="Remove filter role:viewer" onRemove={() => setChip(false)}>role:viewer</FilterChip>}
-      </Toolbar>
+      {/* The list's toolbar sits on the panel's title row (ui-standard §1 item 4). */}
       <Panel flush icon={UsersIcon} title="Users" count="12,345" legend={LEGEND}
-        description="Server-paged: page, page size and sort are requests; selection, row actions; the info button explains the statuses">
+        description="Server-paged: page, page size and sort are requests; selection, row actions; the info button explains the statuses"
+        toolbar={<Toolbar>
+          <div className="w-full max-w-64 max-md:max-w-none"><QueryInput value={query} onChange={setQuery} keys={["status", "city"]} label="Search users" placeholder="status:degraded city:oslo" /></div>
+          <ToolbarFilters active={(status !== "all" ? 1 : 0) + (role ? 1 : 0)}>
+            <Segmented label="Status" value={status} onChange={setStatus} options={STATUS_OPTIONS} />
+            <FilterMenu label="Role" value={role} options={ROLES} onChange={setRole} />
+          </ToolbarFilters>
+          {chip && <FilterChip removeLabel="Remove filter role:viewer" onRemove={() => setChip(false)}>role:viewer</FilterChip>}
+        </Toolbar>}>
         <DataTable label="Sample users" rowHeight="identity" columns={columns} rows={rows.slice(0, server.pageSize)} rowKey={(r) => r.id}
           isSelected={(r) => r.id === "row-2"} empty={EMPTY} sort={server.sort} onSortChange={(sort) => setServer((s) => ({ ...s, page: 1, sort }))}
           paging={{ mode: "server", page: server.page, pageSize: server.pageSize, total: 12_345, maxPage: 1000, pageSizes: [15, 25, 50, 100],
@@ -118,7 +119,7 @@ export function GallerySections() {
               <Button variant="link">Forgot password?</Button>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
-              <div className="grid gap-1.5"><label htmlFor="ds-email" className="text-label text-fg-2">Email</label><Input id="ds-email" defaultValue="alex@example.com" className="font-mono" /><span className="text-body-sm text-fg-3">Used to sign in and to reset the password.</span></div>
+              <div className="grid gap-1.5"><label htmlFor="ds-email" className="text-label text-fg-2">Email</label><Input id="ds-email" defaultValue="alex@example.com" /><span className="text-body-sm text-fg-3">Used to sign in and to reset the password.</span></div>
               <div className="grid gap-1.5"><label htmlFor="ds-otp" className="text-label text-fg-2">One-time code</label><Input id="ds-otp" defaultValue="12a4" aria-invalid="true" aria-describedby="ds-otp-e" /><span id="ds-otp-e" className="text-body-sm text-down-ink">Enter the 6-digit code from your authenticator app.</span></div>
               <Field id="ds-role" label="Role name" note="Field wires this note to the input for screen readers."><Input id="ds-role" defaultValue="Auditor" /></Field>
               <div className="grid gap-2">

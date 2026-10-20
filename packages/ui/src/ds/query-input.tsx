@@ -36,7 +36,7 @@ export function QueryInput({ id, value, onChange, keys, label, placeholder }: {
     <div className="grid min-w-0 gap-2">
       <div className="relative">
         <Icon icon={SearchIcon} className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-fg-3" />
-        <Input id={id} aria-label={id ? undefined : label} value={draft} maxLength={200} onChange={(e) => setDraft(e.target.value)} placeholder={placeholder} className="pl-8.5 font-mono text-body-sm text-ellipsis" />
+        <Input id={id} aria-label={id ? undefined : label} value={draft} maxLength={200} onChange={(e) => setDraft(e.target.value)} placeholder={placeholder} className="pl-8.5 text-body-sm text-ellipsis" />
       </div>
       {Object.keys(q.filters).length > 0 && (
         <div className="flex flex-wrap gap-1.5">

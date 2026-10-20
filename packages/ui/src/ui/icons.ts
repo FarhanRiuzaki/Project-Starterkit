@@ -17,6 +17,9 @@ export {
   Notification03Icon as AlertsIcon, // Alerts & SLOs, "No alerts firing"
   Task01Icon as LogIcon, // Logs and history lists
   UserMultiple02Icon as UsersIcon, // People (tiles, panels, column headers)
+  UserListIcon as AllUsersIcon, // Nav child: all users
+  UserCheck01Icon as ActiveUserIcon, // Nav child: active users
+  UserBlock01Icon as InactiveUserIcon, // Nav child: inactive users
 
   // Metrics
   CpuIcon,

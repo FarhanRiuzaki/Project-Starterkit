@@ -4,10 +4,10 @@
 import { and, type Column, eq, ilike, inArray, like, type SQL, sql } from "drizzle-orm";
 import type { Page } from "@starterkit/shared/contracts/common";
 import {
-  CATALOG_MAX, type CreatePermissionsResult, type CreateRoleBody, PERMISSION_ROLES_SHOWN, type PermissionDto, type PermissionListQuery, type RoleDto,
+  CATALOG_MAX, type CreatePermissionsResult, type CreateRoleBody, PERMISSION_ROLES_SHOWN, type PermissionDto, type PermissionListQuery, type RoleDetailDto, type RoleDto,
   type RoleListQuery, type RoleOption, type RoleOptionQuery, type UpdateRoleBody,
 } from "@starterkit/shared/contracts/rbac";
-import { type PermissionName, withViews } from "@starterkit/shared/permissions";
+import { withViews } from "@starterkit/shared/permissions";
 import { db, type Tx } from "../../kernel/db";
 import { ApiError, notFound } from "../../kernel/errors";
 import { xactLock } from "../../kernel/locks";
@@ -35,12 +35,12 @@ function roleSelect(tx: Tx) {
   const uc = tx.select({ roleId: userRoles.roleId, n: sql<number>`count(*)::int`.as("holders") }).from(userRoles).groupBy(userRoles.roleId).as("uc");
   const rp = tx.select({
     roleId: rolePermissions.roleId,
-    perms: sql<PermissionName[]>`array_agg(${rolePermissions.permission} order by ${permissions.position})`.as("perms"),
+    perms: sql<string[]>`array_agg(${rolePermissions.permission} order by ${permissions.position})`.as("perms"),
     n: sql<number>`count(*)::int`.as("perm_count"),
   }).from(rolePermissions).innerJoin(permissions, eq(permissions.name, rolePermissions.permission)).groupBy(rolePermissions.roleId).as("rp");
   const userCount = sql<number>`coalesce(${uc.n}, 0)`;
   return {
-    rows: tx.select({ id: roles.id, name: roles.name, locked: roles.locked, permissions: sql<PermissionName[]>`coalesce(${rp.perms}, '{}')`, userCount })
+    rows: tx.select({ id: roles.id, name: roles.name, locked: roles.locked, permissions: sql<string[]>`coalesce(${rp.perms}, '{}')`, userCount })
       .from(roles).leftJoin(uc, eq(uc.roleId, roles.id)).leftJoin(rp, eq(rp.roleId, roles.id)).$dynamic(),
     sorts: { name: sql`lower(${roles.name})`, permissions: sql`coalesce(${rp.n}, 0)`, users: userCount },
   };
@@ -63,6 +63,15 @@ export function roleOptionPage(q: RoleOptionQuery): Promise<Page<RoleOption>> {
     query: q,
     map: (r) => r,
   });
+}
+
+/** The whole catalog (at most CATALOG_MAX names) in catalog order. */
+const catalogNames = async (tx: Tx): Promise<string[]> => (await tx.select({ name: permissions.name }).from(permissions).orderBy(permissions.position)).map((x) => x.name);
+
+/** One role with the whole catalog (its page's matrix), through `tx` when given; null = no such role. */
+export async function roleDetail(id: string, tx: Tx = db): Promise<RoleDetailDto | null> {
+  const r = await roleById(id, tx);
+  return r && { ...r, catalog: await catalogNames(tx) };
 }
 
 /** One role, through `tx` when given; null = no such role. */
@@ -91,10 +100,19 @@ export function permissionPage(q: PermissionListQuery): Promise<Page<PermissionD
   });
 }
 
+/** 400 unless every name in `names` is in the catalog (the app's names and those added through POST /v1/permissions). */
+async function inCatalog(tx: Tx, names: readonly string[]): Promise<void> {
+  if (!names.length) return;
+  const known = new Set((await tx.select({ name: permissions.name }).from(permissions).where(inArray(permissions.name, [...names]))).map((x) => x.name));
+  const unknown = names.filter((n) => !known.has(n));
+  if (unknown.length) throw new ApiError("bad_request", `${unknown.join(", ")} ${unknown.length === 1 ? "isn't" : "aren't"} in the permission list. Add ${unknown.length === 1 ? "it" : "them"} on the Permissions page first.`);
+}
+
 /** New role, empty unless `permissions` is given (plus each module's view they imply); it may carry only permissions the actor holds. */
 export async function createRole(ctx: Ctx, b: CreateRoleBody): Promise<RoleDto> {
   const perms = inCatalogOrder([...withViews(b.permissions)]);
   return db.transaction(async (tx) => {
+    await inCatalog(tx, perms);
     // The actor's permissions are read now, not taken from the request's start: a revoke committed since must count.
     if (checkPermissionGrant(await actorPermissions(tx, ctx.user.id), perms)) {
       throw new ApiError("forbidden", "Your role doesn't hold every permission you picked. Leave those out, or ask an administrator who has them.");
@@ -124,21 +142,22 @@ async function lockRole(tx: Tx, id: string): Promise<{ id: string; name: string;
  * view the change implies, must be one the actor holds. A rename (letter case included) moves the holders by itself
  * (user_roles points at the id). Nothing to change → the role, no activity entry.
  */
-export async function updateRole(ctx: Ctx, id: string, b: UpdateRoleBody): Promise<RoleDto> {
+export async function updateRole(ctx: Ctx, id: string, b: UpdateRoleBody): Promise<RoleDetailDto> {
   return db.transaction(async (tx) => {
     // The row lock queues PATCHes of one role, so the view rule sees the set the previous one left; the changes
     // themselves are INSERT … ON CONFLICT DO NOTHING / DELETE of just the difference, never a rewrite of the set.
     const r = await lockRole(tx, id);
     const stop = checkRoleChange(r, "edit", 0);
     if (stop) throw new ApiError(stop);
-    const current = (await tx.select({ p: rolePermissions.permission }).from(rolePermissions).where(eq(rolePermissions.roleId, id))).map((x) => x.p as PermissionName);
+    const current = (await tx.select({ p: rolePermissions.permission }).from(rolePermissions).where(eq(rolePermissions.roleId, id))).map((x) => x.p);
     // Read after the lock: a PATCH of the actor's own role that committed first is seen here.
     const { name = r.name, add = [], remove = [] } = b;
+    await inCatalog(tx, add);
     const { toAdd, toRemove } = permissionDelta(current, add, remove);
     if (checkPermissionGrant(await actorPermissions(tx, ctx.user.id), [...add, ...remove, ...toAdd])) {
       throw new ApiError("forbidden", "You can only add or remove permissions your own role holds. Ask an administrator who has them.");
     }
-    if (name === r.name && !toAdd.length && !toRemove.length) return (await roleById(id, tx))!;
+    if (name === r.name && !toAdd.length && !toRemove.length) return (await roleDetail(id, tx))!;
     if (name !== r.name) {
       try {
         await tx.update(roles).set({ name }).where(eq(roles.id, id));
@@ -146,7 +165,7 @@ export async function updateRole(ctx: Ctx, id: string, b: UpdateRoleBody): Promi
         throw isUniqueViolation(e) ? DUPLICATE() : e;
       }
     }
-    const done = (xs: { p: string }[]) => inCatalogOrder(xs.map((x) => x.p as PermissionName));
+    const done = (xs: { p: string }[]) => inCatalogOrder(xs.map((x) => x.p));
     const added = toAdd.length
       ? done(await tx.insert(rolePermissions).values(toAdd.map((permission) => ({ roleId: id, permission }))).onConflictDoNothing().returning({ p: rolePermissions.permission }))
       : [];
@@ -154,7 +173,7 @@ export async function updateRole(ctx: Ctx, id: string, b: UpdateRoleBody): Promi
       ? done(await tx.delete(rolePermissions).where(and(eq(rolePermissions.roleId, id), inArray(rolePermissions.permission, toRemove))).returning({ p: rolePermissions.permission }))
       : [];
     await recordActivity(tx, ctx, { action: "role.update", target: { type: "role", id, label: name }, before: { name: r.name }, after: { name, added, removed } });
-    return (await roleById(id, tx))!;
+    return (await roleDetail(id, tx))!;
   });
 }
 
@@ -173,8 +192,9 @@ export async function deleteRole(ctx: Ctx, id: string): Promise<void> {
 }
 
 /**
- * Adds `<module>.<action>` names (deduplicated) to the catalog; names already in it are skipped. Roles can't hold an
- * added name yet (role bodies accept PermissionName only).
+ * Adds `<module>.<action>` names (deduplicated) to the catalog; names already in it are skipped. The locked role
+ * (Superadmin, which holds every permission) gets each added name at once, so it can be granted to other roles (no one
+ * hands out a permission they don't hold).
  */
 // ponytail: one advisory lock serializes every catalog write; fine for an admin-only action that is rare.
 export async function createPermissions(ctx: Ctx, names: string[]): Promise<CreatePermissionsResult> {
@@ -191,13 +211,17 @@ export async function createPermissions(ctx: Ctx, names: string[]): Promise<Crea
     }
     const created = names.filter((x) => made.has(x));
     if (created.length) {
+      const holders = await tx.select({ id: roles.id }).from(roles).where(eq(roles.locked, true));
+      if (holders.length) {
+        await tx.insert(rolePermissions).values(holders.flatMap((r) => created.map((permission) => ({ roleId: r.id, permission })))).onConflictDoNothing();
+      }
       await recordActivity(tx, ctx, { action: "permission.create", target: { type: "permission", id: created.join(","), label: created.join(", ") }, after: { created } });
     }
     return { created, skipped: names.filter((x) => !made.has(x)) };
   });
 }
 
-export type RoleRef = { id: string; name: string; permissions: PermissionName[] };
+export type RoleRef = { id: string; name: string; permissions: string[] };
 
 /**
  * Roles matching `where` with their permissions, A–Z. The rows are share-locked first, in a statement of their own: a
@@ -208,7 +232,7 @@ async function lockedRoles(tx: Tx, where: SQL): Promise<RoleRef[]> {
   await tx.select(one).from(roles).where(where).for("share");
   return tx.select({
     id: roles.id, name: roles.name,
-    permissions: sql<PermissionName[]>`array(${tx.select({ p: rolePermissions.permission }).from(rolePermissions).where(eq(rolePermissions.roleId, roles.id))})`,
+    permissions: sql<string[]>`array(${tx.select({ p: rolePermissions.permission }).from(rolePermissions).where(eq(rolePermissions.roleId, roles.id))})`,
   }).from(roles).where(where).orderBy(roles.name);
 }
 

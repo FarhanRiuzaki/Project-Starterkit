@@ -17,7 +17,8 @@ import type { ActivityDto } from "@starterkit/shared/contracts/audit";
 import type { DashboardDto } from "@starterkit/shared/contracts/dashboard";
 import { DASHBOARD_KEY } from "@/lib/shared/queries";
 
-const SERIES = [{ label: "Successful" }, { label: "Failed", tone: "down" as const }];
+// Sign-in outcomes are events, not health: slot 1 / slot 2 (design-system §3.3, §5.8), never the Down mark.
+const SERIES = [{ label: "Successful", slot: 0 }, { label: "Failed", slot: 1 }];
 
 /** A count against the same span before it; `good` = the direction that is good news (more failed sign-ins is bad). */
 const change = (now: number, before: number, span: string, good: "up" | "down"): Delta => ({

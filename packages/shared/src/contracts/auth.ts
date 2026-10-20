@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { PERMISSIONS, type PermissionName } from "../permissions";
 import { Password } from "./password";
 import { UserDto } from "./users";
 
@@ -31,5 +30,6 @@ export const ResetPasswordBody = z.object({ token: z.string().min(1).max(256), p
 export type ResetPasswordBody = z.infer<typeof ResetPasswordBody>;
 
 /** GET /v1/auth/context (API-internal, for the web's page guards): the signed-in user and their permissions in catalog order. */
-export const AuthContextDto = z.object({ user: UserDto, permissions: z.array(z.enum(PERMISSIONS as [PermissionName, ...PermissionName[]])) });
+/** `permissions`: every catalog name the user holds (the app's in catalog order, then added ones A–Z). */
+export const AuthContextDto = z.object({ user: UserDto, permissions: z.array(z.string()) });
 export type AuthContextDto = z.infer<typeof AuthContextDto>;

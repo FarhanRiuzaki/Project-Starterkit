@@ -1,9 +1,9 @@
 "use client";
 
-import { type FocusEvent, type KeyboardEvent, type MouseEvent, useLayoutEffect, useRef, useState } from "react";
+import { type FocusEvent, type KeyboardEvent, type MouseEvent, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Checkbox } from "@starterkit/ui/ds";
-import { MODULES, PERMISSIONS, type PermissionName, permissionLabel } from "@starterkit/shared/permissions";
-import { ACTIONS, cellState, columnCells, type Edit, rowCells, toggleAll, toggleCell, toggleColumn, toggleRow, viewLocked } from "@/lib/shared/matrix";
+import { MODULES, permissionLabel } from "@starterkit/shared/permissions";
+import { cellState, type Edit, matrixFor } from "@/lib/shared/matrix";
 
 /**
  * Header row and module column stay in view while the matrix scrolls inside its card (sticky on their own fill,
@@ -72,11 +72,13 @@ function useGridKeys() {
  * toggle reaches `onChange` as an edit of the current set (not a finished set), so fast toggles compose. Without
  * `onChange` the matrix is read-only: still focusable and readable, nothing toggles. `allowed` (the actor's own
  * permissions) mirrors the no-escalation rule: other cells are read-only with the reason, and headers skip them.
- * A grid (role="grid") with one tab stop and arrow-key movement (useGridKeys).
+ * A grid (role="grid") with one tab stop and arrow-key movement (useGridKeys). `catalog`: every name a role can hold
+ * (the app's and any added to the catalog; default the app's), so an added action gets its column.
  */
-export function PermissionMatrix({ label, value, onChange, allowed }: {
-  label: string; value: ReadonlySet<PermissionName>; onChange?: (edit: Edit) => void; allowed?: ReadonlySet<PermissionName>;
+export function PermissionMatrix({ label, value, onChange, allowed, catalog }: {
+  label: string; value: ReadonlySet<string>; onChange?: (edit: Edit) => void; allowed?: ReadonlySet<string>; catalog?: readonly string[];
 }) {
+  const mx = useMemo(() => matrixFor(catalog), [catalog]);
   // Touch path for a read-only cell's reason (its tooltip needs hover): a press shows it under the matrix; any change
   // to the set (a press on a cell that toggles) clears it.
   const [note, setNote] = useState("");
@@ -88,8 +90,8 @@ export function PermissionMatrix({ label, value, onChange, allowed }: {
     if (box && reason) setNote(`${box.getAttribute("aria-label")}: ${reason}`);
   };
   /** A header is read-only when the matrix is, or when the actor may change none of its cells. */
-  const fixed = (cells: readonly PermissionName[]) => !onChange || (!!allowed && !cells.some((c) => allowed.has(c)));
-  const header = (cells: PermissionName[], text: string, toggle: Edit) => (
+  const fixed = (cells: readonly string[]) => !onChange || (!!allowed && !cells.some((c) => allowed.has(c)));
+  const header = (cells: string[], text: string, toggle: Edit) => (
     <Checkbox label={text} checked={cellState(value, cells)} readOnly={fixed(cells)} onToggle={() => set(toggle)} />
   );
   return (
@@ -101,11 +103,11 @@ export function PermissionMatrix({ label, value, onChange, allowed }: {
         <thead className="bg-tray">
           <tr>
             <th scope="col" className={`${TH} ${CORNER}`}>
-              <span className="flex items-center gap-1">{header([...PERMISSIONS], "Every permission", (v) => toggleAll(v, allowed))}Module</span>
+              <span className="flex items-center gap-1">{header([...mx.names], "Every permission", (v) => mx.toggleAll(v, allowed))}Module</span>
             </th>
-            {ACTIONS.map((a) => (
+            {mx.ACTIONS.map((a) => (
               <th key={a} scope="col" className={TH}>
-                <span className="flex items-center gap-1">{header(columnCells(a), `${permissionLabel(a)} in every module`, (v) => toggleColumn(v, a, allowed))}{permissionLabel(a)}</span>
+                <span className="flex items-center gap-1">{header(mx.columnCells(a), `${permissionLabel(a)} in every module`, (v) => mx.toggleColumn(v, a, allowed))}{permissionLabel(a)}</span>
               </th>
             ))}
           </tr>
@@ -114,16 +116,16 @@ export function PermissionMatrix({ label, value, onChange, allowed }: {
           {MODULES.map((m) => (
             <tr key={m.key}>
               <th scope="row" className={`${TD} ${ROW_HEAD} text-left font-medium text-fg`}>
-                <span className="flex items-center gap-1">{header(rowCells(m.key), `Every action in ${permissionLabel(m.key)}`, (v) => toggleRow(v, m.key, allowed))}{permissionLabel(m.key)}</span>
+                <span className="flex items-center gap-1">{header(mx.rowCells(m.key), `Every action in ${permissionLabel(m.key)}`, (v) => mx.toggleRow(v, m.key, allowed))}{permissionLabel(m.key)}</span>
               </th>
-              {ACTIONS.map((a) => {
-                const p = `${m.key}.${a}` as PermissionName;
+              {mx.ACTIONS.map((a) => {
+                const p = `${m.key}.${a}`;
                 const held = !allowed || allowed.has(p);
                 return (
                   <td key={a} className={TD}>
-                    {m.actions.includes(a)
-                      ? <Checkbox label={`${permissionLabel(a)} ${m.key}`} checked={value.has(p)} readOnly={!onChange} reason={onChange ? (!held ? NOT_HELD : a === "view" && viewLocked(value, m.key, allowed) ? VIEW_KEPT : undefined) : undefined}
-                          onToggle={() => set((v) => toggleCell(v, p))} />
+                    {mx.has(m.key, a)
+                      ? <Checkbox label={`${permissionLabel(a)} ${m.key}`} checked={value.has(p)} readOnly={!onChange} reason={onChange ? (!held ? NOT_HELD : a === "view" && mx.viewLocked(value, m.key, allowed) ? VIEW_KEPT : undefined) : undefined}
+                          onToggle={() => set((v) => mx.toggleCell(v, p))} />
                       : <span className="inline-grid size-7 place-items-center text-fg-4"><span aria-hidden="true">–</span><span className="sr-only">No {a} permission for this module</span></span>}
                   </td>
                 );

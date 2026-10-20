@@ -9,43 +9,19 @@
       "maxLength": 40
     },
     "add": {
-      "maxItems": 11,
+      "maxItems": 500,
       "type": "array",
       "items": {
         "type": "string",
-        "enum": [
-          "user.view",
-          "user.create",
-          "user.edit",
-          "user.delete",
-          "role.view",
-          "role.create",
-          "role.edit",
-          "role.delete",
-          "permission.view",
-          "permission.create",
-          "audit.view"
-        ]
+        "pattern": "^[a-z]+\\.[a-z][a-z0-9_]{0,31}$"
       }
     },
     "remove": {
-      "maxItems": 11,
+      "maxItems": 500,
       "type": "array",
       "items": {
         "type": "string",
-        "enum": [
-          "user.view",
-          "user.create",
-          "user.edit",
-          "user.delete",
-          "role.view",
-          "role.create",
-          "role.edit",
-          "role.delete",
-          "permission.view",
-          "permission.create",
-          "audit.view"
-        ]
+        "pattern": "^[a-z]+\\.[a-z][a-z0-9_]{0,31}$"
       }
     }
   },

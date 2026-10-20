@@ -1,7 +1,7 @@
 import { hashKey, type QueryKey, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { api, retryUnlessNotFound } from "@/lib/client/api";
-import type { RoleDto } from "@starterkit/shared/contracts/rbac";
+import type { RoleDetailDto } from "@starterkit/shared/contracts/rbac";
 import { RBAC_KEY, roleKey, roleUrl } from "@/lib/shared/queries";
 
 /** One place that encodes a role id: its API URL and query key (lib/shared/queries), and its page. */
@@ -10,7 +10,7 @@ export const rolePage = (id: string) => `/roles/${encodeURIComponent(id)}`;
 
 /** A 404 is final (no retry); `enabled: false` once the role is deleted from its own page. */
 export const useRole = (id: string, enabled = true) => useQuery({
-  queryKey: roleKey(id), queryFn: () => api<RoleDto>(roleUrl(id)), enabled, retry: retryUnlessNotFound,
+  queryKey: roleKey(id), queryFn: () => api<RoleDetailDto>(roleUrl(id)), enabled, retry: retryUnlessNotFound,
 });
 
 /**

@@ -176,5 +176,5 @@ export function EditUser({ id }: { id: string }) {
   if (isNotFound(q.error)) return <DetailNotFound title={EDIT.title} noun="user" list={{ href: "/users", label: "Users" }} />;
   if (q.error && !q.data) return <div className="grid gap-section"><PageHeader {...EDIT} /><Panel><Failure title="Couldn't load this user" error={q.error} source={BRAND.name} onRetry={() => void q.refetch()} /></Panel></div>;
   if (!q.data || skeleton) return <LoadingShape sections={EDIT_USER_SHAPE} shown={skeleton} />;
-  return <div className="grid gap-section"><PageHeader {...EDIT} /><UserForm key={q.data.id} user={q.data} /></div>;
+  return <div className="grid gap-section"><PageHeader {...EDIT} trail={[{ label: q.data.name, href: `/users/${q.data.id}` }]} /><UserForm key={q.data.id} user={q.data} /></div>;
 }

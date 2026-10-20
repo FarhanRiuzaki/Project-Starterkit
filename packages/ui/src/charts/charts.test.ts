@@ -6,6 +6,8 @@ import { describe, expect, it } from "vitest";
 import { ChartLegend } from "./chart-frame";
 import { legendItems, seriesColor } from "./chart-theme";
 import { DistributionBar } from "./distribution-bar";
+import { HBarChart } from "./hbar-chart";
+import { TooltipProvider } from "../ui/tooltip";
 import { orThrow } from "./lazy";
 
 const DIR = import.meta.dirname;
@@ -114,5 +116,18 @@ describe("lazy chart chunk", () => {
     const err = new Error("Loading chunk 42 failed");
     const Failed = await orThrow(Promise.reject(err));
     expect(() => renderToStaticMarkup(createElement(Failed))).toThrow(err);
+  });
+});
+
+describe("bar texture (design-system §6.3: every bar is striped)", () => {
+  it("horizontal top-N bars carry the stripe texture over their fill", () => {
+    const out = renderToStaticMarkup(createElement(TooltipProvider, null,
+      createElement(HBarChart, { label: "Top", items: [{ label: "a", value: 3 }, { label: "b", value: 1 }], format: String })));
+    expect(out.match(/class="chart-hbar chart-stripes /g)).toHaveLength(2);
+  });
+  it("columns: the stripe path is drawn for every bar, not only the partial series", () => {
+    const src = readFileSync(path.join(import.meta.dirname, "bar-chart.tsx"), "utf8");
+    expect(src).toMatch(/\n\s*<path d=\{d\} fill=\{`url\(#\$\{id\}-stripes\)`\}/);
+    expect(src).not.toMatch(/x\.striped && <path d=\{d\} fill=\{`url/);
   });
 });

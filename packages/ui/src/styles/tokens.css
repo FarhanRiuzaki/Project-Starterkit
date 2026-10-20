@@ -18,8 +18,8 @@
   --grid: #ececee;
   /* ink */
   --fg: #151518;
-  --fg-2: #55555c;
-  --fg-3: #6e6e77;
+  --fg-2: #4a5263; /* cool grey (Airform's ink family): 7.84:1 card, 6.95:1 stopped-soft */
+  --fg-3: #636b7c; /* 5.35:1 card, 4.74:1 stopped-soft */
   --fg-4: #a1a1aa;
   /* logo only (brand kit): letters and the sun; amber is never a UI colour */
   --brand-ink: #0d1530;

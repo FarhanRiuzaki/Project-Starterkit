@@ -1,14 +1,22 @@
 import type { PermissionName } from "@starterkit/shared/permissions";
 
-export type NavIcon = "dashboard" | "users" | "roles" | "permissions" | "activity" | "signin" | "ds" | "profile";
+export type NavIcon = "dashboard" | "users" | "roles" | "permissions" | "activity" | "signin" | "ds" | "profile" | "users-all" | "users-active" | "users-inactive";
 export type NavGroup = "main" | "access" | "audit" | "personal";
-/** `shortcut` is "" for an item without one; `perm` null = every signed-in user. */
-export type NavItem = { href: string; label: string; icon: NavIcon; shortcut: string; group: NavGroup; perm: PermissionName | null };
+/**
+ * `shortcut` is "" for an item without one; `perm` null = every signed-in user. `children`: views of the item's own
+ * page (same path, a filter in the query), listed under it in the sidebar while the page is open.
+ */
+export type NavItem = { href: string; label: string; icon: NavIcon; shortcut: string; group: NavGroup; perm: PermissionName | null; children?: readonly NavChild[] };
+export type NavChild = { href: string; label: string; icon: NavIcon };
 export type NavSection = { id: NavGroup; label: string; items: NavItem[] };
 
 export const NAV: readonly NavItem[] = [
   { href: "/", label: "Dashboard", icon: "dashboard", shortcut: "G D", group: "main", perm: null },
-  { href: "/users", label: "Users", icon: "users", shortcut: "G U", group: "access", perm: "user.view" },
+  { href: "/users", label: "Users", icon: "users", shortcut: "G U", group: "access", perm: "user.view", children: [
+    { href: "/users", label: "All users", icon: "users-all" },
+    { href: "/users?status=active", label: "Active users", icon: "users-active" },
+    { href: "/users?status=inactive", label: "Inactive users", icon: "users-inactive" },
+  ] },
   { href: "/roles", label: "Roles", icon: "roles", shortcut: "G R", group: "access", perm: "role.view" },
   { href: "/permissions", label: "Permissions", icon: "permissions", shortcut: "G P", group: "access", perm: "permission.view" },
   { href: "/audit/activity", label: "Activity log", icon: "activity", shortcut: "G A", group: "audit", perm: "audit.view" },
@@ -36,18 +44,32 @@ export function isActive(pathname: string, href: string, exact = false): boolean
 
 export type Crumb = { label: string; href?: string; icon?: NavIcon };
 
+/**
+ * The child of `item` the URL shows, or null off its page: the one whose query matches on every key its siblings
+ * filter by (other parameters such as the sort aside; a child without the key matches its absence).
+ */
+export function activeChild(item: NavItem, pathname: string, sp: URLSearchParams): NavChild | null {
+  if (!item.children || clean(pathname) !== item.href) return null;
+  const q = (c: NavChild) => new URLSearchParams(c.href.split("?")[1] ?? "");
+  const keys = [...new Set(item.children.flatMap((c) => [...q(c).keys()]))];
+  return item.children.find((c) => keys.every((k) => (q(c).get(k) ?? "") === (sp.get(k) ?? ""))) ?? null;
+}
+
 const clean = (pathname: string) => (pathname.split(/[?#]/)[0] ?? "/").replace(/\/+$/, "") || "/";
 /** The nav page a path belongs to (longest href wins, so /audit/auth is not /audit). */
 const navItemOf = (p: string) => [...NAV].sort((a, b) => b.href.length - a.href.length).find((n) => isActive(p, n.href));
 
 /**
  * Top bar breadcrumb: the nav page the path belongs to, only when the viewer may open it, so a page the role can't
- * open ("Page not found") doesn't name itself in the breadcrumb.
+ * open ("Page not found") doesn't name itself in the breadcrumb. A sub-page adds its own crumbs (PageHeader's trail).
  */
 export function crumbs(pathname: string, perms: ReadonlySet<PermissionName>): Crumb[] {
   const top = navItemOf(clean(pathname));
   return top && (top.perm === null || perms.has(top.perm)) ? [{ label: top.label, href: top.href, icon: top.icon }] : [];
 }
+
+/** True on a page below its nav page (/users/<id>, /me/security): the nav crumb links back, the page's own trail follows. */
+export const isSubPage = (pathname: string) => { const p = clean(pathname); const top = navItemOf(p); return !!top && top.href !== p; };
 
 /**
  * The permission a signed-in page needs, by path: its nav page's, with the finer rules of sub-pages (/users/new needs

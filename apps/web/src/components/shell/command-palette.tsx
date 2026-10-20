@@ -10,6 +10,8 @@ import { viewHref } from "@/lib/shared/prefs";
 import { matchSequence } from "@/lib/shared/shortcuts";
 
 export const OPEN_PALETTE = "sk:open-palette";
+/** Opens the palette from a button (the sidebar's search field, the phone bar's search icon). */
+export const openPalette = () => window.dispatchEvent(new CustomEvent(OPEN_PALETTE));
 const editable = (t: EventTarget | null) => t instanceof HTMLElement && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
 /** cmdk + the dialog load on the first ⌘K / search click, not with the page. */
 const PaletteDialog = dynamic(() => import("./palette-dialog").then((m) => m.PaletteDialog), { ssr: false });

@@ -127,22 +127,22 @@ export function AuditTable<T extends { id: string; at: string }, F extends Audit
       <PageHeader title={title} description={description}
         actions={<TimeRangePicker value={custom ? null : f.range} ranges={AUDIT_RANGES} onChange={(range) => set({ range, from: "", to: "" } as Partial<TableState<F>>)} />} />
       {t.staleError && <Notice tone="warn" live>Couldn&apos;t refresh the {noun}; showing the ones loaded before. {errorText(t.staleError)}</Notice>}
-      <Toolbar end={<>
-        <BlockedButton variant="secondary" reason={t.total === 0 ? `No ${noun} match, so there is nothing to export.` : null}
-          aria-disabled={exporting || undefined} onClick={() => { if (!exporting) void exportCsv(); }}>
-          <Icon icon={ExportIcon} />{exporting ? "Exporting…" : "Export CSV"}
-        </BlockedButton>
-      </>}>
-        <div className="w-full max-w-80 max-md:max-w-none"><QueryInput value={f.user} onChange={onUser} keys={[]} label="Search by user" placeholder="Search by user name or email" /></div>
-        {/* Phone: in the Filters sheet; its count = the log's own filters + a custom date range. */}
-        <ToolbarFilters active={narrowed.filter(([k]) => k !== "user").length + (custom ? 1 : 0)}>
-          {filters(f, set)}
-          {narrowed.length > 0 && <Button variant="ghost" size="sm" onClick={clear}>Clear filters</Button>}
-          {/* Keyed by the preset: picking another one drops a half-filled custom pair and its hint. */}
-          <CustomRange key={f.range} from={f.from} to={f.to} onCommit={(from, to) => set({ from, to } as Partial<TableState<F>>)} />
-        </ToolbarFilters>
-      </Toolbar>
-      <Panel flush icon={icon} title={title} legend={legend} count={t.count}
+      <Panel toolbar={<Toolbar end={<>
+          <BlockedButton variant="secondary" reason={t.total === 0 ? `No ${noun} match, so there is nothing to export.` : null}
+            aria-disabled={exporting || undefined} onClick={() => { if (!exporting) void exportCsv(); }}>
+            <Icon icon={ExportIcon} />{exporting ? "Exporting…" : "Export CSV"}
+          </BlockedButton>
+        </>}>
+          <div className="w-full max-w-64 max-md:max-w-none"><QueryInput value={f.user} onChange={onUser} keys={[]} label="Search by user" placeholder="Search by user name or email" /></div>
+          {/* Phone: in the Filters sheet; its count = the log's own filters + a custom date range. */}
+          <ToolbarFilters active={narrowed.filter(([k]) => k !== "user").length + (custom ? 1 : 0)}>
+            {filters(f, set)}
+            {narrowed.length > 0 && <Button variant="ghost" size="sm" onClick={clear}>Clear filters</Button>}
+            {/* Keyed by the preset: picking another one drops a half-filled custom pair and its hint. */}
+            <CustomRange key={f.range} from={f.from} to={f.to} onCommit={(from, to) => set({ from, to } as Partial<TableState<F>>)} />
+          </ToolbarFilters>
+        </Toolbar>}
+        flush icon={icon} title="All entries" legend={legend} count={t.count}
         description={`${custom ? rangeText(custom) : RANGE_LABEL[f.range]} · times in ${APP_TIME_ZONE_LABEL}`}
         footnote={`Export CSV saves every matching entry, newest first, up to ${formatNumber(CSV_MAX_ROWS)} rows.`}>
         <DataTable label={title} rowHeight="identity" columns={columns} rows={t.rows} rowKey={(r) => r.id} loading={t.loading}

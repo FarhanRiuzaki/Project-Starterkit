@@ -2,7 +2,7 @@
 // Not ported: the csrf-token case (the web checks CSRF, Task 9). Role ids are UUIDs now: `idOf` looks them up by name.
 import { beforeEach, describe, expect, it } from "bun:test";
 import type { Page } from "@starterkit/shared/contracts/common";
-import type { PermissionDto, RoleDto } from "@starterkit/shared/contracts/rbac";
+import type { PermissionDto, RoleDetailDto, RoleDto } from "@starterkit/shared/contracts/rbac";
 import { PERMISSIONS, type PermissionName } from "@starterkit/shared/permissions";
 import { and, asc, eq, sql } from "drizzle-orm";
 import { call, resetData, signIn } from "../../../../../test/helpers/app";
@@ -358,11 +358,52 @@ describe("/v1/permissions", () => {
     expect((await addPerms({ names: ["audit.export"] }, await signIn("admin"))).status).toBe(403);
     const r = await addPerms({ names: ["audit.export", "user.view", "audit.export"] });
     expect(await r.json()).toEqual({ created: ["audit.export"], skipped: ["user.view"] });
-    expect((await perms()).find((p) => p.name === "audit.export")).toEqual({ id: "audit.export", name: "audit.export", roles: [], roleCount: 0 });
+    // Superadmin holds every permission: a new name joins it at once (so it can be granted onward, see below).
+    expect((await perms()).find((p) => p.name === "audit.export")).toEqual({ id: "audit.export", name: "audit.export", roles: ["Superadmin"], roleCount: 1 });
     expect((await perms()).at(-1)!.name).toBe("audit.export"); // new names go after the current last
     const entries = await acts("permission.create");
     expect(entries).toHaveLength(1);
     expect(entries[0]).toMatchObject({ targetId: "audit.export", targetLabel: "audit.export", after: { created: ["audit.export"] } });
+  });
+});
+
+describe("names added to the catalog can be granted", () => {
+  it("a new name is held by Superadmin at once and can be granted to a role, which then lists it", async () => {
+    expect((await addPerms({ names: ["user.export"] })).status).toBe(200);
+    expect(await permsOf(await idOf("Superadmin"))).toContain("user.export");
+    const r = await patch("Admin", { add: ["user.export"] });
+    expect(r.status).toBe(200);
+    expect(((await r.json()) as RoleDto).permissions).toContain("user.export");
+    expect(await permsOf(await idOf("Admin"))).toContain("user.export");
+    const created = await call("POST", "/v1/roles", { token: sa, body: { name: "Exporter", permissions: ["user.export"] } });
+    expect(created.status).toBe(201);
+    expect(((await created.json()) as RoleDto).permissions).toEqual(["user.view", "user.export"]); // its module's view comes with it
+  });
+
+  it("a role's page reads the whole catalog with it (GET and PATCH /v1/roles/{id}), the added names after the app's", async () => {
+    await addPerms({ names: ["user.export"] });
+    const got = (await (await get(`/v1/roles/${await idOf("Viewer")}`, sa)).json()) as RoleDetailDto;
+    expect(got.catalog).toEqual([...PERMISSIONS, "user.export"]);
+    const patched = (await (await patch("Viewer", { add: ["user.export"] })).json()) as RoleDetailDto;
+    expect(patched.catalog).toEqual([...PERMISSIONS, "user.export"]);
+    expect(patched.permissions).toContain("user.export");
+  });
+
+  it("a well-formed name that isn't in the catalog is 400 and changes nothing", async () => {
+    const r = await patch("Admin", { add: ["user.export"] });
+    expect(r.status).toBe(400);
+    expect(await code(r)).toBe("bad_request");
+    expect(await permsOf(await idOf("Admin"))).not.toContain("user.export");
+    expect((await call("POST", "/v1/roles", { token: sa, body: { name: "Exporter", permissions: ["user.export"] } })).status).toBe(400);
+    expect(await roleNames()).not.toContain("Exporter");
+  });
+
+  it("no escalation: an actor whose role lacks the new name can't grant it", async () => {
+    await addPerms({ names: ["user.export"] });
+    await giveOnlyRole("admin", ["role.view", "role.edit", "user.view"]);
+    const r = await patch("Viewer", { add: ["user.export"] }, await signIn("admin"));
+    expect(r.status).toBe(403);
+    expect(await permsOf(await idOf("Viewer"))).not.toContain("user.export");
   });
 });
 

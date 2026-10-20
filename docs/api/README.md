@@ -111,7 +111,9 @@ other schema describes the answer exactly (`additionalProperties: false`).
 - [UpdateRoleBody](schemas/UpdateRoleBody.json): `add` and `remove` apply to the role's current permissions and may
   not share a name. Nothing to change → 200 with the role, no activity entry.
 - [CreatePermissionsBody](schemas/CreatePermissionsBody.json): the part before the dot is a module of the catalog
-  (`packages/shared/src/permissions.ts`); the catalog holds at most 500 names (more is 400).
+  (`packages/shared/src/permissions.ts`); the catalog holds at most 500 names (more is 400). Superadmin holds an added
+  name at once; any role can then be given it (`PATCH /api/roles/{id}` `add`; the escalation rule applies). A role body
+  takes catalog names only: a well-formed name that isn't in the catalog is 400 `bad_request`.
 - No privilege escalation: a role's permissions can be added or removed, and a role can be given to or taken from a
   user, only by an actor who holds every permission involved (403 `forbidden`).
 - A module's `view` comes with its other actions: a role that holds `user.create`, `user.edit` or `user.delete` also
@@ -230,8 +232,8 @@ endpoint adds to the guard's 401/403 and the 400 for an invalid body or query.
 | POST | `/api/permissions` | `permission.create` | [CreatePermissionsBody](schemas/CreatePermissionsBody.json) | [CreatePermissionsResult](schemas/CreatePermissionsResult.json) (names already there are skipped) | `bad_request` (catalog full) |
 | GET | `/api/roles` | `role.view` | [RoleListQuery](schemas/RoleListQuery.json) | [RolePage](schemas/RolePage.json) | none |
 | POST | `/api/roles` | `role.create` | [CreateRoleBody](schemas/CreateRoleBody.json) | 201 [RoleDto](schemas/RoleDto.json) | `forbidden` (escalation), `duplicate` |
-| GET | `/api/roles/{id}` | `role.view` | none | [RoleDto](schemas/RoleDto.json) | `not_found` |
-| PATCH | `/api/roles/{id}` | `role.edit` | [UpdateRoleBody](schemas/UpdateRoleBody.json) (a rename moves the holders) | [RoleDto](schemas/RoleDto.json) | `not_found`, `superadmin_locked`, `forbidden` (escalation), `duplicate` |
+| GET | `/api/roles/{id}` | `role.view` | none | [RoleDetailDto](schemas/RoleDetailDto.json) (the role plus the whole catalog, for its matrix) | `not_found` |
+| PATCH | `/api/roles/{id}` | `role.edit` | [UpdateRoleBody](schemas/UpdateRoleBody.json) (a rename moves the holders) | [RoleDetailDto](schemas/RoleDetailDto.json) | `not_found`, `bad_request` (a name not in the catalog), `superadmin_locked`, `forbidden` (escalation), `duplicate` |
 | DELETE | `/api/roles/{id}` | `role.delete` | none | [OkDto](schemas/OkDto.json) | `not_found`, `superadmin_locked`, `role_in_use` |
 | GET | `/api/users` | `user.view` | [UserListQuery](schemas/UserListQuery.json) | [UserPage](schemas/UserPage.json) (rows are [UserRowDto](schemas/UserRowDto.json): the user plus effective `permissions`) | none |
 | POST | `/api/users` | `user.create` | [CreateUserBody](schemas/CreateUserBody.json) | 201 [UserDto](schemas/UserDto.json) | `bad_request` (unknown role), `forbidden` (escalation), `duplicate` |

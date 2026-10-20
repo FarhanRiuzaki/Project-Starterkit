@@ -70,14 +70,14 @@ export function PermissionsPage() {
       <PageHeader title="Permissions" description="Everything a role can allow. Roles decide who has each permission."
         actions={can("permission.create") ? <Button onClick={() => { setActions(""); setAdding(true); }}>Add permissions</Button> : undefined} />
       {t.staleError && <Notice tone="warn" live>Couldn&apos;t refresh the permissions; showing the ones loaded before. {errorText(t.staleError)}</Notice>}
-      <Toolbar>
-        <div className="w-full max-w-80 max-md:max-w-none"><QueryInput value={f.q} onChange={onSearch} keys={[]} label="Search permissions" placeholder="Search permission name" /></div>
-        <ToolbarFilters active={f.module ? 1 : 0}>
-          <FilterMenu label="Module" value={f.module} options={MODULE_OPTIONS} onChange={(module) => set({ module })} />
-          {filtered && <Button variant="ghost" size="sm" onClick={() => set({ q: "", module: "" })}>Clear filters</Button>}
-        </ToolbarFilters>
-      </Toolbar>
-      <Panel flush icon={SecureIcon} title="Permissions" count={t.count} description="Grant them to roles on each role's page">
+      <Panel toolbar={<Toolbar>
+          <div className="w-full max-w-64 max-md:max-w-none"><QueryInput value={f.q} onChange={onSearch} keys={[]} label="Search permissions" placeholder="Search permission name" /></div>
+          <ToolbarFilters active={f.module ? 1 : 0}>
+            <FilterMenu label="Module" value={f.module} options={MODULE_OPTIONS} onChange={(module) => set({ module })} />
+            {filtered && <Button variant="ghost" size="sm" onClick={() => set({ q: "", module: "" })}>Clear filters</Button>}
+          </ToolbarFilters>
+        </Toolbar>}
+        flush icon={SecureIcon} title="All permissions" count={t.count} description="Grant them to roles on each role's page">
         <DataTable label="Permissions" columns={COLUMNS} rows={t.rows} rowKey={(p) => p.id} loading={t.loading}
           sort={t.sort} onSortChange={t.onSortChange} paging={t.paging}
           error={t.loadError ? { title: "Couldn't load permissions", cause: errorText(t.loadError), onRetry: () => void t.query.refetch() } : null}
@@ -88,7 +88,7 @@ export function PermissionsPage() {
       {adding && (
         <ConfirmActionDialog open onOpenChange={(o) => { if (!o) setAdding(false); }} auditFields={false} reasons={[]} title="Add permissions"
           description="Each name is the module and an action, for example audit.export."
-          impact={["The new names appear in this list.", "Roles can't hold them yet: the matrix shows the actions this app defines."]}
+          impact={["The new names appear in this list, and Superadmin holds them at once.", "Give them to other roles on each role's page: each one gets its own column in the matrix."]}
           actionLabel="Add permissions" onConfirm={add}
           lead={<>
             <Field id="perm-module" label="Module">

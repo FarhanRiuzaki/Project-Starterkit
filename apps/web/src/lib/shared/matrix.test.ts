@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { PERMISSIONS, type PermissionName } from "@starterkit/shared/permissions";
-import { ACTIONS, applyEdit, closeViews, viewLocked, cellState, columnCells, diff, type Draft, rebase, rowCells, toggleAll, toggleCell, toggleColumn, toggleRow, withDraft } from "./matrix";
+import { PERMISSIONS } from "@starterkit/shared/permissions";
+import { ACTIONS, applyEdit, matrixFor, closeViews, viewLocked, cellState, columnCells, diff, type Draft, rebase, rowCells, toggleAll, toggleCell, toggleColumn, toggleRow, withDraft } from "./matrix";
 
-const set = (...p: PermissionName[]) => new Set<PermissionName>(p);
-const sorted = (s: ReadonlySet<PermissionName>) => [...s].sort();
+const set = (...p: string[]) => new Set<string>(p);
+const sorted = (s: ReadonlySet<string>) => [...s].sort();
 
 describe("permission matrix", () => {
   it("columns are every action in MODULES order; cells skip combinations the catalog lacks", () => {
@@ -30,7 +30,7 @@ describe("permission matrix", () => {
   it("the create column never touches audit (no audit.create) and clears when all its cells are on", () => {
     const on = toggleColumn(set("audit.view"), "create");
     expect(sorted(on)).toEqual(["audit.view", "permission.create", "role.create", "user.create"]);
-    expect(on.has("audit.create" as PermissionName)).toBe(false);
+    expect(on.has("audit.create")).toBe(false);
     expect(sorted(toggleColumn(on, "create"))).toEqual(["audit.view"]);
   });
 
@@ -67,8 +67,8 @@ describe("permission matrix", () => {
   it("draft edits compose: three toggles queued in one tick all apply (functional updates, no stale closure)", () => {
     const saved = set("user.view", "audit.view");
     // what React does with setDraft(prev => applyEdit(saved, prev, f)) called three times before a render
-    const queue = [(v: ReadonlySet<PermissionName>) => toggleCell(v, "role.view"), (v: ReadonlySet<PermissionName>) => toggleCell(v, "role.edit"),
-      (v: ReadonlySet<PermissionName>) => toggleCell(v, "audit.view")];
+    const queue = [(v: ReadonlySet<string>) => toggleCell(v, "role.view"), (v: ReadonlySet<string>) => toggleCell(v, "role.edit"),
+      (v: ReadonlySet<string>) => toggleCell(v, "audit.view")];
     const draft = queue.reduce<Draft | null>((d, f) => applyEdit(saved, d, f), null);
     expect(draft).toEqual({ added: ["role.view", "role.edit"], removed: ["audit.view"] });
     expect(sorted(withDraft(saved, draft))).toEqual(["role.edit", "role.view", "user.view"]);
@@ -117,5 +117,22 @@ describe("permission matrix", () => {
     // meanwhile someone else added role.view and removed audit.view
     expect(rebase(set("user.view", "role.view"), draft)).toEqual({ added: ["role.edit"], removed: [] });
     expect(rebase(set("user.view"), null)).toEqual({ added: [], removed: [] });
+  });
+});
+
+describe("permission matrix over a catalog with added names", () => {
+  const m = matrixFor([...PERMISSIONS, "user.export", "audit.export"]);
+  it("an added action becomes a column after the app's; its cells are only the modules that have it", () => {
+    expect(m.ACTIONS).toEqual(["view", "create", "edit", "delete", "export"]);
+    expect(m.columnCells("export")).toEqual(["user.export", "audit.export"]);
+    expect(m.rowCells("user")).toEqual(["user.view", "user.create", "user.edit", "user.delete", "user.export"]);
+    expect(m.has("role", "export")).toBe(false);
+  });
+  it("ticking an added action brings its module's view; a draft names it", () => {
+    const d = m.applyEdit(new Set(), null, (v) => m.toggleCell(v, "audit.export"));
+    expect(d).toEqual({ added: ["audit.view", "audit.export"], removed: [] });
+  });
+  it("toggleAll covers the added names too, but only those the actor holds", () => {
+    expect([...m.toggleAll(new Set(), new Set(["user.view", "user.export"]))].sort()).toEqual(["user.export", "user.view"]);
   });
 });

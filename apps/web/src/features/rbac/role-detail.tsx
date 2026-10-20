@@ -4,7 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Failure, Notice, Panel } from "@starterkit/ui/ds";
 import { useDelayedFlag } from "@starterkit/ui/motion";
 import { formatNumber, plural } from "@starterkit/ui/lib/format";
@@ -16,11 +16,10 @@ import { LoadingShape } from "@/components/route-skeleton";
 import { PageHeader } from "@/components/shell/page-header";
 import { api, isNotFound } from "@/lib/client/api";
 import { useAuth } from "@/lib/client/auth-context";
-import type { RoleDto } from "@starterkit/shared/contracts/rbac";
-import { PERMISSIONS, type PermissionName } from "@starterkit/shared/permissions";
+import type { RoleDetailDto, RoleDto } from "@starterkit/shared/contracts/rbac";
 import { BRAND } from "@starterkit/shared/brand";
 import { useLeaveGuard } from "@/lib/client/use-leave-guard";
-import { applyEdit, type Draft, rebase, withDraft } from "@/lib/shared/matrix";
+import { type Draft, matrixFor, withDraft } from "@/lib/shared/matrix";
 import { PermissionMatrix } from "@/components/permission-matrix";
 import { assertRoleName, deleteBlock, RoleNameField } from "./role-name";
 import { roleKey, roleUrl, useAfterRbacChange, useRole } from "./use-rbac";
@@ -37,7 +36,7 @@ const ConfirmActionDialog = dynamic(() => loadDialog().then((m) => m.ConfirmActi
 const preloadDialog = () => void loadDialog();
 
 
-const list = (ps: readonly PermissionName[]) => ps.join(", ");
+const list = (ps: readonly string[]) => ps.join(", ");
 
 export function RoleDetail({ id }: { id: string }) {
   const { can, perms } = useAuth();
@@ -53,7 +52,9 @@ export function RoleDetail({ id }: { id: string }) {
   const [dialog, setDialog] = useState<Dialog>(null);
   const [name, setName] = useState("");
   // Labels and Save use the draft rebased on the current set: a refetch that already holds part of it shrinks it.
-  const effective = q.data ? rebase(new Set(q.data.permissions), draft) : { added: [], removed: [] };
+  // The matrix over this catalog: the app's permissions and any added on the Permissions page.
+  const mx = useMemo(() => matrixFor(q.data?.catalog), [q.data?.catalog]);
+  const effective = q.data ? mx.rebase(new Set(q.data.permissions), draft) : { added: [], removed: [] };
   const guard = useLeaveGuard(effective.added.length + effective.removed.length > 0);
   useEffect(() => () => { if (deleted) qc.removeQueries({ queryKey: roleKey(id) }); }, [deleted, id, qc]);
 
@@ -74,7 +75,7 @@ export function RoleDetail({ id }: { id: string }) {
   const editBlock = r.locked ? "The Superadmin role can't be renamed." : null;
 
   async function save() {
-    const next = await api<RoleDto>(roleUrl(id), { method: "PATCH", body: JSON.stringify({ add: added, remove: removed }) });
+    const next = await api<RoleDetailDto>(roleUrl(id), { method: "PATCH", body: JSON.stringify({ add: added, remove: removed }) });
     qc.setQueryData(roleKey(id), next);
     setDraft(null);
     toast(`Saved permissions for ${next.name}.`);
@@ -82,7 +83,7 @@ export function RoleDetail({ id }: { id: string }) {
   }
   async function rename() {
     assertRoleName(name);
-    const next = await api<RoleDto>(roleUrl(id), { method: "PATCH", body: JSON.stringify({ name: name.trim() }) });
+    const next = await api<RoleDetailDto>(roleUrl(id), { method: "PATCH", body: JSON.stringify({ name: name.trim() }) });
     qc.setQueryData(roleKey(id), next);
     toast(`Renamed to ${next.name}.`);
     await changed();
@@ -98,7 +99,7 @@ export function RoleDetail({ id }: { id: string }) {
   return (
     <div className="grid gap-section" onPointerDown={preloadDialog} onFocus={preloadDialog}>
       <PageHeader title={r.name}
-        description={`${plural(r.userCount, "user", "users")} · ${formatNumber(r.permissions.length)} of ${formatNumber(PERMISSIONS.length)} permissions${r.locked ? " · Locked" : ""}`}
+        description={`${plural(r.userCount, "user", "users")} · ${formatNumber(r.permissions.length)} of ${formatNumber(r.catalog.length)} permissions${r.locked ? " · Locked" : ""}`}
         actions={can("user.view") && r.userCount > 0 && <Button asChild variant="secondary"><Link href={`/users?role=${encodeURIComponent(r.name)}`}>View users</Link></Button>}
         more={[
           ...(can("role.edit") ? [{ label: "Rename role", reason: editBlock, onSelect: () => { setName(r.name); setDialog("rename"); } }] : []),
@@ -114,8 +115,8 @@ export function RoleDetail({ id }: { id: string }) {
           </div>
         )}>
         {readOnly && <div className="px-3 pt-3"><Notice>{readOnly}</Notice></div>}
-        <PermissionMatrix label={`Permissions of ${r.name}`} value={value} allowed={perms}
-          onChange={readOnly ? undefined : (edit) => setDraft((d) => applyEdit(saved, d, edit, perms))} />
+        <PermissionMatrix label={`Permissions of ${r.name}`} value={value} allowed={perms} catalog={r.catalog}
+          onChange={readOnly ? undefined : (edit) => setDraft((d) => mx.applyEdit(saved, d, edit, perms))} />
       </Panel>
 
       {dialog === "save" && (

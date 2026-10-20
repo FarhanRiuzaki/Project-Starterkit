@@ -55,7 +55,7 @@ const transformAnimations = (page: Page) => page.evaluate(() => document.getAnim
 /** Waits until the deferred Framer layer has loaded (after idle), so the next navigation uses the page swap. */
 async function navigateTwice(page: Page) {
   const menu = page.getByRole("navigation", { name: "Menu" });
-  await menu.getByRole("link", { name: "Users" }).click();
+  await menu.getByRole("link", { name: "Users", exact: true }).click();
   await heading(page, "Users");
   await settleAnimations(page);
   await startSampler(page);

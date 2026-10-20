@@ -34,7 +34,7 @@ const VIEW = "/users?sort=-createdAt&status=inactive";
 test("a list reopens with its last filters and sort from the sidebar and the breadcrumb, not its page or search", async ({ page }) => {
   await page.goto("/users?status=inactive&sort=-createdAt&page=2&q=a");
   const menu = page.getByRole("navigation", { name: "Menu" });
-  const usersLink = menu.getByRole("link", { name: "Users" });
+  const usersLink = menu.getByRole("link", { name: "Users", exact: true });
   await expect.poll(async () => norm((await usersLink.getAttribute("href")) ?? "")).toBe(VIEW);
   await menu.getByRole("link", { name: "Roles" }).click();
   await expect(page).toHaveURL("/roles");
@@ -43,11 +43,11 @@ test("a list reopens with its last filters and sort from the sidebar and the bre
   await expect(page.getByRole("button", { name: "Status: Inactive" })).toBeVisible();
   // From a user's page the breadcrumb goes back to the same view.
   await page.getByRole("table").getByRole("link").first().click();
-  const crumb = page.getByRole("navigation", { name: "Breadcrumb" }).getByRole("link", { name: "Users" });
+  const crumb = page.getByRole("navigation", { name: "Breadcrumb" }).getByRole("link", { name: "Users", exact: true });
   await expect.poll(async () => norm((await crumb.getAttribute("href")) ?? "")).toBe(VIEW);
   // Back on the defaults, the link is plain again.
   await page.goto("/users");
-  await expect(menu.getByRole("link", { name: "Users" })).toHaveAttribute("href", "/users");
+  await expect(menu.getByRole("link", { name: "Users", exact: true })).toHaveAttribute("href", "/users");
 });
 
 test("new-password requirements are listed before typing and tick off while typing", async ({ page }) => {

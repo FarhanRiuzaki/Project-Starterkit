@@ -26,6 +26,8 @@ import { skipReason, USERS_KEY, protection, rankBlock, useLastSuperadminId, useR
 
 const STATUS_LABEL = { "": "Any", active: "Active", inactive: "Inactive" } as const;
 const STATUSES = USER_STATUSES.map((value) => ({ value, label: STATUS_LABEL[value] }));
+/** The table names the view it shows, as the sidebar's Users children do (the page bar already says "Users"). */
+const VIEW_TITLE: Record<(typeof USER_STATUSES)[number], string> = { "": "All users", active: "Active users", inactive: "Inactive users" };
 /**
  * The Deactivate / Activate row button is a desktop shortcut (from 1280 px). Below that (phone card, and the tablet
  * table, where it would push the name column into a sideways scroll) and on any touch screen it is an item of the
@@ -67,7 +69,10 @@ export function UsersPage() {
   const onSearch = useCallback((q: string) => set({ q }), [set]);
   const onRole = useCallback((role: string) => set({ role }), [set]);
   const toggle = (id: string) => setSelected((s) => { const n = new Set(s); if (!n.delete(id)) n.add(id); return n; });
-  const columns = useMemo(() => userColumns(canAct ? { has: (id) => selected.has(id), toggle } : undefined), [canAct, selected]);
+  const allOn = selected.size > 0 && rows.every((u) => selected.has(u.id));
+  const toggleAll = useCallback(() => setSelected(allOn ? new Set() : new Set(rows.map((u) => u.id))), [allOn, rows]);
+  const columns = useMemo(() => userColumns(canAct ? { has: (id) => selected.has(id), toggle, all: { checked: allOn, count: rows.length, toggle: toggleAll } } : undefined),
+    [canAct, selected, allOn, rows.length, toggleAll]);
 
   const refresh = () => qc.invalidateQueries({ queryKey: USERS_KEY });
 
@@ -107,24 +112,24 @@ export function UsersPage() {
       <PageHeader title="Users" description="Accounts that can sign in, their roles and status."
         actions={can("user.create") ? <Button asChild><Link href="/users/new">Create user</Link></Button> : undefined} />
       {t.staleError && <Notice tone="warn" live>Couldn&apos;t refresh the users; showing the ones loaded before. {errorText(t.staleError)}</Notice>}
-      <Toolbar>
-        <div className="w-full max-w-80 max-md:max-w-none"><QueryInput value={f.q} onChange={onSearch} keys={[]} label="Search users" placeholder="Search name, username or email" /></div>
-        <ToolbarFilters active={(f.role ? 1 : 0) + (f.status ? 1 : 0)}>
-          {roles.more
-            ? <RoleSearch label="Role" value={f.role} onChange={onRole} />
-            : <FilterMenu label="Role" value={f.role} options={[{ value: "", label: "Any" }, ...roles.names.map((r) => ({ value: r, label: r }))]} onChange={onRole} />}
-          <FilterMenu label="Status" value={f.status} options={STATUSES} onChange={(status) => set({ status })} />
-          {filtered && <Button variant="ghost" size="sm" onClick={() => set({ q: "", role: "", status: "" })}>Clear filters</Button>}
-        </ToolbarFilters>
-      </Toolbar>
-      <Panel flush icon={UsersIcon} title="Users" count={t.count} description="Select rows for bulk actions" legend={LEGEND}>
+      <Panel toolbar={<Toolbar>
+          <div className="w-full max-w-64 max-md:max-w-none"><QueryInput value={f.q} onChange={onSearch} keys={[]} label="Search users" placeholder="Search name, username or email" /></div>
+          <ToolbarFilters active={(f.role ? 1 : 0) + (f.status ? 1 : 0)}>
+            {roles.more
+              ? <RoleSearch label="Role" value={f.role} onChange={onRole} />
+              : <FilterMenu label="Role" value={f.role} options={[{ value: "", label: "Any" }, ...roles.names.map((r) => ({ value: r, label: r }))]} onChange={onRole} />}
+            <FilterMenu label="Status" value={f.status} options={STATUSES} onChange={(status) => set({ status })} />
+            {filtered && <Button variant="ghost" size="sm" onClick={() => set({ q: "", role: "", status: "" })}>Clear filters</Button>}
+          </ToolbarFilters>
+        </Toolbar>}
+        flush icon={UsersIcon} title={VIEW_TITLE[f.status]} count={t.count} description="Select rows for bulk actions" legend={LEGEND}>
         {canAct && rows.length > 0 && (
           // On a phone, with rows selected, the bar sticks under the top bar so the actions stay in reach while scrolling the cards.
+          // From 768 px it shows only with a selection (the header checkbox selects the page); a phone has no header row.
           <div role="region" aria-label="Bulk actions" className={cn("flex min-h-12 flex-wrap items-center gap-2 border-b border-line bg-card px-3 py-2",
-            selected.size > 0 && "max-md:sticky max-md:top-(--topbar-h) max-md:z-20")}>
+            selected.size > 0 ? "max-md:sticky max-md:top-(--topbar-h) max-md:z-20" : "md:hidden")}>
             <label className="flex items-center gap-2 text-body-sm text-fg-2">
-              <input type="checkbox" className="size-4 cursor-pointer accent-primary" checked={selected.size > 0 && rows.every((u) => selected.has(u.id))}
-                onChange={(e) => setSelected(e.target.checked ? new Set(rows.map((u) => u.id)) : new Set())} />
+              <input type="checkbox" className="size-4 cursor-pointer accent-primary" checked={allOn} onChange={toggleAll} />
               {selected.size > 0 ? `${selected.size} selected` : `Select all ${rows.length} on this page`}
             </label>
             {selected.size > 0 && <>

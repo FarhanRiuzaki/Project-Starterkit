@@ -20,7 +20,8 @@ const val = (r: Row | undefined, k: string): number | null => (r && typeof r[k] 
 type Props = {
   /**
    * `slot` = the entity's fixed 0-based colour slot (seriesSlots); without it, colours follow position.
-   * `striped` = secondary / partial series: same hue at 35 % with the stripe texture (spec §6.3).
+   * Every bar carries the 45° stripe texture (spec §6.3). `striped` = secondary / partial series: the same hue's soft
+   * tint (35 %), still striped.
    * `tone: "down"` = a failure count: Down mark colour instead of a palette slot.
    */
   label: string; categories: string[]; series: { label: string; values: (number | null)[]; slot?: number; striped?: boolean; tone?: SeriesTone }[];
@@ -95,7 +96,7 @@ export function BarChart({ label, categories, series, stacked, format, height = 
     return (
       <g className="chart-bar" data-i={i}>
         <path d={d} fill={x.fill} className="chart-grow" style={motion} />
-        {x.striped && <path d={d} fill={`url(#${id}-stripes)`} className="chart-grow" style={motion} />}
+        <path d={d} fill={`url(#${id}-stripes)`} className="chart-grow" style={motion} />
         {i === peak && x.key === peakKey && (
           <text x={bx + w / 2} y={p.y - 6} textAnchor="middle" className="chart-fade fill-fg text-label tabular">{format(totals[i]!)}</text>
         )}

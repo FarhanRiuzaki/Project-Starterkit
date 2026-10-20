@@ -40,12 +40,13 @@ through `next/font`.
 
 ## 1. Page anatomy (top to bottom, always in this order)
 
-1. **PageHeader** — breadcrumb (detail pages only: `Users / <name>`), title (noun), aggregate `StatusChip` if the
-   page has a health concept, `actions` slot right-aligned in this order: `TimeRangePicker` (if the page is
-   time-scoped) → one primary action or `ActionMenu`. Secondary actions go in `more` (`HeaderAction[]`: label, `href`
-   or `onSelect`, `reason` when blocked, `destructive`, `busy`): buttons after the primary from 768 px, one "More
-   actions" menu below. Title and description wrap. Description = one sentence: scope + freshness. No status
-   legend here: legends belong to the card that shows the statuses (item 5).
+1. **PageHeader** — title (noun; on a sub-page also the top bar breadcrumb's last crumb, design-system §4), aggregate
+   `StatusChip` if the page has a health concept, `actions` slot right-aligned in this order: `TimeRangePicker` (if the
+   page is time-scoped) → one primary action or `ActionMenu`. Secondary actions go in `more` (`HeaderAction[]`: label,
+   `href` or `onSelect`, `reason` when blocked, `destructive`, `busy`): buttons after the primary from 768 px, one
+   "More actions" menu below. Title and description wrap. Description = one sentence: scope + freshness. No status
+   legend here: legends belong to the card that shows the statuses (item 5). A list's panel names its view ("All users
+   50"), not the page again. Search is in the sidebar (⌘K), the theme in the account menu.
 2. **Page-level banners** — stale/partial-source `Notice` (one per page, aggregated), never inside panels.
 3. **StatTiles** — one KPI tray of 4 (or 3) tiles, the page's headline numbers; same order and units everywhere the
    same metric appears (e.g. "Active users" is always first). **Label = the metric only** ("Users",
@@ -53,8 +54,10 @@ through `next/font`.
    "Last 7 days", "Last 7 days · vs previous 7 days" (with a delta pill), or "Today, since 00:00 WIB"
    for today-counters. One icon per metric on every page, by meaning from `packages/ui/src/ui/icons.ts` (Hugeicons Stroke Rounded). A new
    meaning gets a new export there first; never import `@hugeicons/core-free-icons` elsewhere (architecture test).
-4. **Toolbar** — `QueryInput` (left, grows) · saved views / filters as chips · view `Segmented` (right) ·
-   export (right-most). One row; wraps when the content column is too narrow (below 1280, and on a phone).
+4. **Toolbar** — on the list panel's title row (`Panel toolbar={<Toolbar>…</Toolbar>}`): "Users 51" left, then
+   `QueryInput` · filters (`ToolbarFilters`) · view `Segmented` · export right-most; the panel description moves to
+   its own line under them. Wraps under the title when the row is too narrow; on a phone the search takes the row and
+   the filters sit in the "Filters" sheet. Never a separate row above the panel.
 5. **Panels** — `Panel` with title (noun phrase), optional description (sentence case), optional actions slot.
    Charts above tables. Below-the-fold charts in `LazyMount`. The **description is the scope** (period and
    granularity, one shape everywhere: "Last 24 hours · per hour, WIB" or "Last 7 days"); the **footnote is provenance** (`StaleNote`, source notes).
@@ -180,7 +183,9 @@ same kind extends this list (and its check) first.
 | A value the user can't change is an `Input readOnly` (inset fill, fg-2), never an input that looks editable; say why in the field note. | Laws of UX: Mental Model | `packages/ui/src/ui/input.tsx` |
 | A form with typed, unsaved changes asks before a link click drops them (`useLeaveGuard` + a "Leave without saving" `ConfirmActionDialog`). | NN/g heuristic 5 (error prevention) | `apps/web/src/lib/client/use-leave-guard.ts`; `user-form.tsx`, `profile-form.tsx`, `role-detail.tsx` |
 | A list page reopens as it was left: its last filters, sort and rows per page (not the page or the search) live in the prefs cookie, and the sidebar, phone menu, breadcrumb, palette and `G` shortcuts open that view. A new list page joins `VIEW_PAGES`. | Airform "design for the tenth visit"; Laws of UX: Working Memory | `apps/web/src/lib/shared/prefs.ts` (+ test); `use-table-query.ts`; `tests/e2e/ux-patterns.spec.ts` |
-| On a sub-page (`/users/<id>`) the breadcrumb's list is a link back to it. | Laws of UX: Jakob's Law | `components/shell/top-bar.tsx`; `ux-patterns.spec.ts` |
+| The breadcrumb names the parents and the open page (`Users / Rina Wulandari / Edit user`); every crumb but the last links back. A screen gets it by rendering `PageHeader` (and `trail` for a middle parent). | Laws of UX: Jakob's Law, Working Memory | `components/shell/top-bar.tsx`, `page-header.tsx`, `lib/client/crumb-trail.ts`, `lib/shared/nav.ts` (+ test); `ux-patterns.spec.ts` |
+| A nav item may list views of its page as `children` (Users → All / Active / Inactive users), opened under it on a guide line while the page is open. | Airform sidebar; Laws of UX: Chunking | `lib/shared/nav.ts` `activeChild` (+ test); `sidebar.tsx`, `mobile-nav.tsx` |
+| A list's search and filters sit on its panel's title row (`Panel toolbar`), as Airform's "All users 145" row. | Airform admin mockups; Laws of UX: Proximity | `packages/ui/src/ds/panel.tsx`; §1 item 4 |
 | A headline number has context: a count over a period shows its change against the period before (`StatTile delta`, `formatSignedNumber`), with `good` set by meaning (more failed sign-ins is bad, never green). | Airform "numbers need context" | `features/dashboard/dashboard-page.tsx`; `GET /v1/dashboard` |
 | A dashboard answers first, explains second, details last: KPI tray → charts → tables. | Airform "decide what goes at the top" | §1 page anatomy |
 | Records show words, not codes: activity actions through `actionLabel`, glossary terms only (copy guide). | NN/g heuristic 2 (match the real world) | `packages/shared/src/audit.ts` |

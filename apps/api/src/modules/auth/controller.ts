@@ -31,4 +31,4 @@ export const authController = () =>
       return { ok: true };
     })
     /** The signed-in user and their permissions in catalog order (API-internal: the web's page guards). */
-    .get("/v1/auth/context", ({ ctx }) => AuthContextDto.parse({ user: ctx.user, permissions: PERMISSIONS.filter((p) => ctx.perms.has(p)) }), { guard: null });
+    .get("/v1/auth/context", ({ ctx }) => AuthContextDto.parse({ user: ctx.user, permissions: [...PERMISSIONS.filter((p) => ctx.perms.has(p)), ...[...ctx.perms].filter((p) => !(PERMISSIONS as readonly string[]).includes(p)).sort()] }), { guard: null });

@@ -11,9 +11,10 @@ export function CountBadge({ children, inTray, className }: { children: ReactNod
   );
 }
 
-export type CategorySlot = 1 | 2 | 3 | 4 | 5 | 6;
-const SLOT_BG: Record<CategorySlot, string> = { 1: "bg-chart-1/10", 2: "bg-chart-2/10", 3: "bg-chart-3/10", 4: "bg-chart-4/10", 5: "bg-chart-5/10", 6: "bg-chart-6/10" };
-const SLOT_DOT: Record<CategorySlot, string> = { 1: "bg-chart-1", 2: "bg-chart-2", 3: "bg-chart-3", 4: "bg-chart-4", 5: "bg-chart-5", 6: "bg-chart-6" };
+/** A categorical slot 1–6, or "neutral" for the plain, lowest-rank member of a set (Viewer): grey, no hue. */
+export type CategorySlot = 1 | 2 | 3 | 4 | 5 | 6 | "neutral";
+const SLOT_BG: Record<CategorySlot, string> = { 1: "bg-chart-1/10", 2: "bg-chart-2/10", 3: "bg-chart-3/10", 4: "bg-chart-4/10", 5: "bg-chart-5/10", 6: "bg-chart-6/10", neutral: "bg-inset" };
+const SLOT_DOT: Record<CategorySlot, string> = { 1: "bg-chart-1", 2: "bg-chart-2", 3: "bg-chart-3", 4: "bg-chart-4", 5: "bg-chart-5", 6: "bg-chart-6", neutral: "bg-fg-4" };
 
 /**
  * Category chip (spec §5.8) for models, teams, result types: 22 px, radius 6, the categorical slot's soft tint
