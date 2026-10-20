@@ -788,6 +788,16 @@ describe("order: parse (400) → guard → existence (404) → rules", () => {
     expect((await patch("ghost", { email: "nope" }, sa)).status).toBe(400);
     expect((await setStatus("ghost", { active: "no" }, sa)).status).toBe(400);
   });
+
+  it("bulk with a bad body: no session is 401, then the permission a bad body needs (user.edit) is 403, before the 400", async () => {
+    const bad = { action: "explode", ids: [] };
+    expect((await bulk(bad, "no-such-session")).status).toBe(401);
+    expect((await call("POST", "/v1/users/bulk", { body: bad })).status).toBe(401);
+    expect((await bulk(bad, await signIn("viewer"))).status).toBe(403);
+    await giveOnlyRole("admin", ["user.view", "user.delete"]);
+    expect((await bulk(bad, await signIn("admin"))).status).toBe(403);
+    expect((await bulk(bad, await signIn("superadmin"))).status).toBe(400);
+  });
 });
 
 describe("bulk assignRole respects the 20-role cap", () => {

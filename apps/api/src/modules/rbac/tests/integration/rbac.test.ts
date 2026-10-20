@@ -139,6 +139,16 @@ describe("POST /v1/roles", () => {
     expect(await roleNames()).toHaveLength(3);
   });
 
+  it("a taken name with permissions answers 409 from the unique index and writes nothing (no role, permissions or activity)", async () => {
+    const grants = await db.$count(rolePermissions);
+    const r = await create({ name: "VIEWER", permissions: ["user.view"] });
+    expect(r.status).toBe(409);
+    expect(await code(r)).toBe("duplicate");
+    expect(await roleNames()).toHaveLength(3);
+    expect(await db.$count(rolePermissions)).toBe(grants);
+    expect(await acts("role.create")).toEqual([]);
+  });
+
   it("can't create a role carrying a permission the actor lacks", async () => {
     await giveOnlyRole("admin", ["role.view", "role.create"]);
     const admin = await signIn("admin");

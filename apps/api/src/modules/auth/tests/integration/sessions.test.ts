@@ -1,12 +1,13 @@
 import { beforeAll, describe, expect, it } from "bun:test";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, SQL, sql } from "drizzle-orm";
 import { resetData, signIn } from "../../../../../test/helpers/app";
 import { hashToken } from "../../../../kernel/crypto";
 import { db } from "../../../../kernel/db";
+import { userIdentities } from "../../../oauth";
 import { roles, userRoles } from "../../../rbac";
 import { users } from "../../../users";
 import { sessions } from "../../schema";
-import { createSession, deviceOf, endSession, endUserSessions, resolveSession } from "../../sessions";
+import { createSession, deviceOf, endSession, endUserSessions, providersOf, resolveSession } from "../../sessions";
 
 beforeAll(resetData);
 
@@ -16,6 +17,17 @@ const ago = (interval: string) => sql`now() - ${interval}::interval`;
 const roleId = async (name: string) => (await db.select({ id: roles.id }).from(roles).where(eq(roles.name, name)))[0]!.id;
 
 describe("sessions", () => {
+  it("providersOf builds its SQL at once (oauth imported statically): the linked providers, A–Z", async () => {
+    const id = (await db.select({ id: users.id }).from(users).where(eq(users.username, "admin")))[0]!.id;
+    expect(providersOf(id)).toBeInstanceOf(SQL);
+    await db.insert(userIdentities).values([{ userId: id, provider: "google", subject: "g-1" }, { userId: id, provider: "apple", subject: "a-1" }]);
+    try {
+      expect((await resolveSession(await signIn("admin")))?.user.connected).toEqual(["apple", "google"]);
+    } finally {
+      await db.delete(userIdentities).where(eq(userIdentities.userId, id));
+    }
+  });
+
   it("a new session resolves with the user's current permissions", async () => {
     const token = await signIn("viewer");
     const a = await resolveSession(token);

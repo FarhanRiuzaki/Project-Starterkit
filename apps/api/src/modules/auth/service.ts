@@ -1,5 +1,5 @@
 // Sign-in (password, LDAP, second factor), sign-out, reset links and re-authentication. Port of
-// apps/web/src/lib/server/sign-in.ts and the /v1/auth handlers of the former Hono router.
+// apps/web/src/lib/server/sign-in.ts.
 import { and, eq, getTableColumns, isNotNull, not, or, type SQL, sql } from "drizzle-orm";
 import type { AuthLogDto } from "@starterkit/shared/contracts/audit";
 import type { AuthMethod, LoginBody, ResetPasswordBody, TwoFactorBody } from "@starterkit/shared/contracts/auth";
@@ -27,7 +27,7 @@ const BAD_CODE = "That code didn't match. Enter the current code from your authe
 const BAD_LINK = "This reset link expired or was already used. Request a new link.";
 
 async function selectUser(where: SQL | undefined): Promise<UserRow | null> {
-  const [r] = await db.select({ ...getTableColumns(users), roles: rolesOf(users.id), connected: await providersOf(users.id) }).from(users).where(where);
+  const [r] = await db.select({ ...getTableColumns(users), roles: rolesOf(users.id), connected: providersOf(users.id) }).from(users).where(where);
   return r ? toUserRow(r) : null;
 }
 

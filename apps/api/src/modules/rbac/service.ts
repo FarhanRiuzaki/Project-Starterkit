@@ -100,9 +100,11 @@ export async function createRole(ctx: Ctx, b: CreateRoleBody): Promise<RoleDto> 
       throw new ApiError("forbidden", "Your role doesn't hold every permission you picked. Leave those out, or ask an administrator who has them.");
     }
     const id = Bun.randomUUIDv7();
-    // The only unique key a new id can hit is lower(name).
-    const made = await tx.insert(roles).values({ id, name: b.name }).onConflictDoNothing().returning({ id: roles.id });
-    if (!made.length) throw DUPLICATE();
+    try {
+      await tx.insert(roles).values({ id, name: b.name });
+    } catch (e) {
+      throw isUniqueViolation(e) ? DUPLICATE() : e; // the only unique key a new id can hit is lower(name)
+    }
     if (perms.length) await tx.insert(rolePermissions).values(perms.map((permission) => ({ roleId: id, permission })));
     await recordActivity(tx, ctx, { action: "role.create", target: { type: "role", id, label: b.name }, after: { name: b.name, added: perms, removed: [] } });
     return (await roleById(id, tx))!;

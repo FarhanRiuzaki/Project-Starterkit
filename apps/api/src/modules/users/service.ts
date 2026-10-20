@@ -127,7 +127,7 @@ const isUniqueViolation = (e: unknown) => ((e as { cause?: { errno?: string } })
  */
 export async function usersByIds(tx: Tx, ids: string[]): Promise<UserRowDto[]> {
   if (!ids.length) return [];
-  const rows = await tx.select({ ...getTableColumns(users), roles: rolesOf(users.id), connected: await providersOf(users.id), perms: permsOf(users.id) })
+  const rows = await tx.select({ ...getTableColumns(users), roles: rolesOf(users.id), connected: providersOf(users.id), perms: permsOf(users.id) })
     .from(users).where(inArray(users.id, ids));
   return rows.map((r) => ({ ...UserDto.parse(toUserRow(r)), permissions: inCatalogOrder(r.perms) }));
 }
