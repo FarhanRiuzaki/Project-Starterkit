@@ -24,14 +24,26 @@ starterkit.
    - **Targets**: drawn at **28 px minimum, 32 px default** for buttons, icon buttons, segments and pagination at every
      width. Under `@media (pointer: coarse)` every control also has a hit area of at least **44 × 44 px**
      (`--touch-min`): a transparent `::before` from `base.css`, so the drawn size never changes; text fields and selects
-     grow to 44 px instead. An action that shows on hover (row actions) is always shown on a touch screen
-     (`pointer-coarse:`). (`responsive.spec.ts` "touch targets", mobile project.)
+     grow to 44 px instead. (`responsive.spec.ts` "touch targets", signed-in and sign-in pages, mobile project.)
+   - **Hover-only details have a touch path**, CSS only (`pointer-coarse:`, both versions in the server HTML): row
+     actions are always shown; `RelativeTime` adds the short absolute time as a second line in fg-3; a `BlockedButton`
+     shows its reason as a caption under it (`caption={false}` only in table row actions whose reason is also shown
+     elsewhere on touch: the users list's Actions menu hints, the user detail's Edit user caption); on a tablet with a
+     touch screen the top bar shows the menu button, so the rail's labels are reachable in the drawer.
+     (`packages/ui/src/ds/{relative-time,blocked-button,data-table}.test.ts`, `responsive.spec.ts` "hover-only details",
+     "tablet with touch".)
    - **Inputs** use at least 16 px text under a coarse pointer (`--text-input-touch`, `base.css`), so iOS never zooms.
    - **Overlays**: below 768 px a `Dialog` (and so `ConfirmActionDialog` and every form dialog) is a bottom sheet:
      full width, at most 90 dvh, scrolling content, the action row stuck to its bottom, safe-area padding; same
-     motion tokens (`packages/ui/src/ui/dialog.test.ts`, `responsive.spec.ts` "bottom sheet").
+     motion tokens (`packages/ui/src/ui/dialog.test.ts`, `responsive.spec.ts` "bottom sheet"). A dialog built around
+     a text field passes `phone="top"`: it hangs from the top edge instead, so the on-screen keyboard doesn't cover it
+     (the command palette, results at most 50 dvh; `responsive.spec.ts` "command palette").
    - **Safe areas**: `viewport-fit=cover`; the phone top bar, the drawer, the bottom sheet and the shell's sides pad
-     with `env(safe-area-inset-*)` (`pt-safe`, `pb-safe`, `pl-safe`, `px-safe` utilities in `base.css`).
+     with `env(safe-area-inset-*)` (`pt-safe`, `pb-safe`, `pl-safe`, `px-safe` utilities in `base.css`). The top bar's
+     min-height adds the inset to its 56 px row.
+   - **Known limit**: the responsive checks run in Chromium emulation only (`isMobile`, `hasTouch`, a 390 px viewport):
+     no WebKit project and no real iPhone or iPad. Safari-only behaviour (the keyboard over fixed layers, `env()` insets
+     on a real notch, `dvh` while the toolbar collapses) is not tested.
    - New layout uses `md` and `xl` only. Older uses of other breakpoints, kept until the data surfaces move to the
      three classes: `lg` (1024) in the KPI tray (`stat-tile.tsx`), the user detail and security grids, the route
      skeleton and the `/ds` spans; `sm` (640) for the filter input width and two `/ds` grids; `max-lg` narrows the

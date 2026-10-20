@@ -115,7 +115,7 @@ Detail pages add `Tabs` (line variant) directly under the header; the tab value 
   tabular figures. First column = identity (28 px `Avatar` + name + secondary id), with a `min-w-*` on the column so
   auto layout never squeezes it. `Avatar seed={id}`: the tint follows the stable id, the initials the display name, so one user looks
   the same on every page. Status column uses `StatusChip`. Timestamps use
-  `RelativeTime` (absolute in tooltip). Long values `Truncate` with title. On a phone a table wider than the screen
+  `RelativeTime` (absolute in tooltip; on touch a second line). Long values `Truncate` with title. On a phone a table wider than the screen
   scrolls inside its card (`ui/table.tsx`); stacked rows replace that per the responsive spec.
 - Row actions (`DataTable` `rowActions`) are secondary shortcuts: they show on row hover, on keyboard focus anywhere in
   the row, while one of their menus is open and always on a touch screen (`pointer-coarse:`), and always stay in the DOM and the tab order (opacity only, never
@@ -136,7 +136,7 @@ Detail pages add `Tabs` (line variant) directly under the header; the tab value 
   `useTableQuery` + `TableSpec` (one parser per key, each with its own fallback; `apps/web/src/lib/shared/table-state.ts`).
   zod schemas live in `packages/shared/src/contracts/*` and are imported by route handlers; client code never imports zod
   into a route's first load (≤ 250 kB gz, `bun run budget`).
-- Disabled actions always explain why (tooltip / menu label).
+- Disabled actions always explain why (tooltip / menu label; on touch the `BlockedButton` caption).
 - Keyboard: every action reachable; one tab stop per card; roving focus in segmented controls; focus moves to
   the region after pagination; ⌘K palette reaches every page.
 - Motion: see §5a.
