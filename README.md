@@ -1,9 +1,131 @@
-# Starterkit
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/brand/sunnygo-wordmark-dark.svg">
+    <img src="docs/assets/brand/sunnygo-wordmark.svg" alt="SunnyGo" width="200">
+  </picture>
+</p>
 
-The SunnyGo starterkit: a template for internal web apps and admin products. It ships sign-in (password, two-factor,
-Google/Apple, LDAP), users, roles and permissions, an activity log and a sign-in log, a responsive design system
-(phone, tablet, desktop) in the SunnyGo brand, and an API on Bun and PostgreSQL. A new project copies this repository
-and changes it; nothing here is published as a library.
+<h1 align="center">Starterkit</h1>
+
+<p align="center">
+  A template for internal web apps and admin products: sign-in, users, roles, audit logs, a responsive UI and an API on Bun and PostgreSQL.
+</p>
+
+<p align="center">
+  <a href="#quick-start">Quick start</a> ·
+  <a href="#architecture">Architecture</a> ·
+  <a href="#commands">Commands</a> ·
+  <a href="docs/api/README.md">API contract</a> ·
+  <a href="AGENTS.md">Rules</a>
+</p>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screenshots/dashboard-dark.png">
+  <img src="docs/assets/screenshots/dashboard.png" alt="The dashboard: active users, new users, failed sign-ins and active sessions, sign-ins per day, recent activity">
+</picture>
+
+The SunnyGo starterkit ships sign-in (password, two-factor, Google/Apple, LDAP), users, roles and permissions, an
+activity log and a sign-in log, a responsive design system (phone, tablet, desktop) in the SunnyGo brand, and an API
+on Bun and PostgreSQL. A new project copies this repository and changes it; nothing here is published as a library.
+
+## What's inside
+
+**Sign-in and security**
+
+- Password, two-factor (TOTP, with single-use recovery codes), Google and Apple (only an identity the user connected
+  first), and LDAP.
+- "Forgot password?" and invitation links by email; production sends over SMTP with TLS only.
+- Sessions end 12 hours after sign-in or after 120 idle minutes (both configurable); users see and end their own on
+  `/me/sessions`.
+- The browser talks only to the Next.js BFF: sealed session cookie, CSRF token on mutations, nonce CSP. The API checks
+  an internal token and the caller's permission on every request.
+- Rate limits on sign-in, forgot-password, re-authentication and OAuth start, shared by every API process through
+  PostgreSQL.
+
+**Users and access**
+
+- Create, edit, deactivate and delete users, reset a password, send an invitation link; bulk activate, deactivate and
+  delete.
+- Roles with a module × action permission matrix. Superadmin holds every permission and its role is locked.
+- Each user's effective permissions, combined from all their roles. The menu shows only what the user may open.
+
+**Audit**
+
+- Activity log (who changed which record, and when) and sign-in log, with filters and CSV export.
+- Both tables are append-only (a trigger refuses UPDATE); entries past `AUDIT_RETENTION_DAYS` (default 365) are
+  deleted by the janitor.
+
+**UI**
+
+- Phone, tablet and desktop layouts. On a phone, tables become cards with a "Sort by" select and a Filters sheet, and
+  the navigation moves into a drawer.
+- Light and dark themes, following the system setting by default; page search in the top bar (⌘K or Ctrl+K).
+- A design-system gallery at `/ds`: tokens, components, charts and states with sample data. It is also the screenshot
+  baseline of the E2E tests.
+
+**Backend**
+
+- A modular monolith on Bun and Elysia: modules health, auth, oauth, me, rbac, users, audit and dashboard, each
+  controller → service → Drizzle. Architecture tests check the module boundaries.
+- All shared state (sessions, rate limits, OAuth states) lives in PostgreSQL; no Redis.
+- zod contracts shared with the web (`packages/shared`). The endpoint table and JSON Schemas in
+  [`docs/api/`](docs/api/README.md) are checked against the routes by a conformance test.
+
+**Ops**
+
+- `bun run setup` writes both env files, creates the database, migrates and seeds.
+- A Docker Compose stack: PostgreSQL 18, a one-shot `migrate` service, the API and the web; the API connects as a role
+  limited to SELECT, INSERT, UPDATE and DELETE.
+- `/healthz` and `/readyz`, graceful shutdown on `SIGTERM`, JSON logs with shared redaction, a janitor for expired rows.
+- A CI workflow: gitleaks, `bun run check`, E2E on a production build, the bundle budget.
+
+## Screens
+
+Taken from the E2E stack with the demo seed (`@example.com` accounts only).
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/assets/screenshots/signin.png" alt="Sign-in page with password and LDAP tabs, Google and Apple buttons"></td>
+    <td width="50%"><img src="docs/assets/screenshots/users.png" alt="Users table with roles, status, sign-in method and last sign-in"></td>
+  </tr>
+  <tr>
+    <td>Sign-in: password or LDAP, Google, Apple</td>
+    <td>Users: search, role and status filters, bulk actions</td>
+  </tr>
+  <tr>
+    <td><img src="docs/assets/screenshots/user-detail.png" alt="User detail with account facts, roles, effective permissions and active sessions"></td>
+    <td><img src="docs/assets/screenshots/role-matrix.png" alt="Admin role with its permission matrix"></td>
+  </tr>
+  <tr>
+    <td>User detail: roles, effective permissions, sessions</td>
+    <td>Role: the module × action permission matrix</td>
+  </tr>
+  <tr>
+    <td><img src="docs/assets/screenshots/activity-log.png" alt="Activity log with time, user, action and target"></td>
+    <td><img src="docs/assets/screenshots/design-system.png" alt="Design-system gallery: KPI cards and charts with sample data"></td>
+  </tr>
+  <tr>
+    <td>Activity log: filters, date range, CSV export</td>
+    <td>Design system at <code>/ds</code>, with sample data</td>
+  </tr>
+</table>
+
+Phone, 390 px wide:
+
+<table>
+  <tr>
+    <td width="33%"><img src="docs/assets/screenshots/phone-users.png" alt="Users on a phone as stacked cards"></td>
+    <td width="33%"><img src="docs/assets/screenshots/phone-drawer.png" alt="Navigation drawer open on a phone"></td>
+    <td width="33%"><img src="docs/assets/screenshots/phone-filters.png" alt="Filters sheet open on a phone"></td>
+  </tr>
+  <tr>
+    <td>Tables become cards</td>
+    <td>Navigation drawer</td>
+    <td>Filters sheet</td>
+  </tr>
+</table>
+
+## Stack
 
 | Part | Stack |
 |---|---|
@@ -73,6 +195,30 @@ line), even when they name another email. With no active Superadmin, a user with
 is; a different user holding that username is an error. In production the
 password must be 12 to 128 characters; elsewhere a shorter one is accepted with a warning.
 
+## Commands
+
+| Command | What it does |
+|---|---|
+| `bun run setup` | Env files (when missing), database, migrations, both seeds (see Quick start). |
+| `bun run dev` | `apps/web` on :3000 and `apps/api` on :4000 together. |
+| `bun run db:generate` | The next `apps/api/drizzle/NNNN_*.sql` from every module's `schema.ts` (drizzle-kit), with `"public".` stripped from its foreign keys; `-- --custom --name=<name>` (from `apps/api`) makes an empty file for custom SQL. Never edit an applied file. |
+| `bun run db:migrate` | Applies pending `apps/api/drizzle/*.sql` as `MIGRATION_DATABASE_URL` (else `DATABASE_URL`). |
+| `bun run db:seed` | Permission catalog, roles Superadmin/Admin/Viewer, and the `SEED_SUPERADMIN_*` user while no active Superadmin exists. Idempotent. |
+| `bun run db:seed:demo` | Demo accounts and data. Refused with `NODE_ENV=production`. |
+| `bun run db:reset` | Drops the schema, migrates, runs both seeds. Refused with `NODE_ENV=production`. |
+| `bun run check` | Typecheck, lint (no warnings allowed) and every workspace's tests; the API's run against `<database>_test`, created and migrated on first run. Must pass before every commit. |
+| `bun run --filter @starterkit/api test:unit` / `test:integration` | API unit tests (no database) / integration and architecture tests. |
+| `bun run test:changed` | Tests touched by the files changed since the last commit. |
+| `bun run build` | Production build of `apps/web` (`NEXT_DIST_DIR=.next-e2e` builds into `apps/web/.next-e2e`). |
+| `bun run e2e` | Resets and demo-seeds `<database>_e2e`, starts the API on :4123 and a production web build (`apps/web/.next-e2e`) on :3123, and runs Playwright on the desktop (1440 × 900), tablet (834 × 1112) and mobile (390 × 844, touch) projects. `E2E_DATABASE_URL` picks another database (its name must end in `_e2e`); `E2E_REUSE=1` reuses servers already on `E2E_PORT` and `E2E_API_PORT`; artifacts go to `.superpowers/scratch/`. |
+| `bun run budget` | First-load JS per route after a build: at most 250 kB gzip each (`NEXT_DIST_DIR=.next-e2e` reads the E2E build). |
+| `bun run api:schemas` | Regenerates `docs/api/schemas/` and the activity action table from the zod contracts. |
+
+Playwright uses the Chromium it already has. `/ds` screenshot baselines are per project and platform
+(`ds-light-desktop-darwin.png`), so a Linux CI runner looks for `…-linux.png` and fails until it has its own. Make them
+on that platform (for CI: in the same Linux image the runner uses) with `bunx playwright test ds --update-snapshots`
+inside `apps/web`, review them by eye, and commit them next to the others.
+
 ## Architecture
 
 ```
@@ -121,31 +267,7 @@ docs/api/                 API contract: endpoint table and JSON Schemas
 scripts/                  setup.ts, compose-app-role.sh
 ```
 
-## Scripts
-
-| Command | What it does |
-|---|---|
-| `bun run setup` | Env files (when missing), database, migrations, both seeds (see Quick start). |
-| `bun run dev` | `apps/web` on :3000 and `apps/api` on :4000 together. |
-| `bun run db:generate` | The next `apps/api/drizzle/NNNN_*.sql` from every module's `schema.ts` (drizzle-kit), with `"public".` stripped from its foreign keys; `-- --custom --name=<name>` (from `apps/api`) makes an empty file for custom SQL. Never edit an applied file. |
-| `bun run db:migrate` | Applies pending `apps/api/drizzle/*.sql` as `MIGRATION_DATABASE_URL` (else `DATABASE_URL`). |
-| `bun run db:seed` | Permission catalog, roles Superadmin/Admin/Viewer, and the `SEED_SUPERADMIN_*` user while no active Superadmin exists. Idempotent. |
-| `bun run db:seed:demo` | Demo accounts and data. Refused with `NODE_ENV=production`. |
-| `bun run db:reset` | Drops the schema, migrates, runs both seeds. Refused with `NODE_ENV=production`. |
-| `bun run check` | Typecheck, lint (no warnings allowed) and every workspace's tests; the API's run against `<database>_test`, created and migrated on first run. Must pass before every commit. |
-| `bun run --filter @starterkit/api test:unit` / `test:integration` | API unit tests (no database) / integration and architecture tests. |
-| `bun run test:changed` | Tests touched by the files changed since the last commit. |
-| `bun run build` | Production build of `apps/web` (`NEXT_DIST_DIR=.next-e2e` builds into `apps/web/.next-e2e`). |
-| `bun run e2e` | Resets and demo-seeds `<database>_e2e`, starts the API on :4123 and a production web build (`apps/web/.next-e2e`) on :3123, and runs Playwright on the desktop (1440 × 900), tablet (834 × 1112) and mobile (390 × 844, touch) projects. `E2E_DATABASE_URL` picks another database (its name must end in `_e2e`); `E2E_REUSE=1` reuses servers already on `E2E_PORT` and `E2E_API_PORT`; artifacts go to `.superpowers/scratch/`. |
-| `bun run budget` | First-load JS per route after a build: at most 250 kB gzip each (`NEXT_DIST_DIR=.next-e2e` reads the E2E build). |
-| `bun run api:schemas` | Regenerates `docs/api/schemas/` and the activity action table from the zod contracts. |
-
-Playwright uses the Chromium it already has. `/ds` screenshot baselines are per project and platform
-(`ds-light-desktop-darwin.png`), so a Linux CI runner looks for `…-linux.png` and fails until it has its own. Make them
-on that platform (for CI: in the same Linux image the runner uses) with `bunx playwright test ds --update-snapshots`
-inside `apps/web`, review them by eye, and commit them next to the others.
-
-## Configuration
+## Environment reference
 
 Every setting is server environment; there is no `NEXT_PUBLIC_*` setting. Empty counts as unset in both apps. A missing
 or invalid value stops the process with an error that names the key, never the value. Every key, with placeholders:
@@ -354,10 +476,16 @@ outbox: a failed mail is not retried.
   (`apps/api/Dockerfile`).
 - `DATA_ENCRYPTION_KEY` can't be rotated yet (see Operations).
 
-## Standards
+## Contributing and docs
+
+Read `AGENTS.md` before a change; `bun run check` must pass before every commit.
 
 - [`AGENTS.md`](AGENTS.md): the working rules for people and AI agents, each with the test or file that enforces it,
   including how to add a module (§13).
 - [`docs/standards/`](docs/standards): UI standard, design system, copy guide.
 - [`docs/api/README.md`](docs/api/README.md): the API contract.
 - [`docs/superpowers/specs/`](docs/superpowers/specs): the design specs of each phase (front end, backend, responsive).
+
+## License
+
+No license file yet.
