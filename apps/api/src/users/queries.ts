@@ -5,7 +5,7 @@ import { type ActivityBrief, UserDto, type UserListQuery, type UserRowDto } from
 import type { PermissionName } from "@starterkit/shared/permissions";
 import { permsOf, sessionLive, toUserRow } from "../auth/sessions";
 import { sql, type Tx } from "../db/client";
-import { likeEscape, pageQuery, sortSql } from "../db/page";
+import { type Fragment, likeEscape, pageQuery, sortSql } from "../db/page";
 import { inCatalogOrder } from "../rbac/rules";
 import { SUPERADMIN } from "./rules";
 
@@ -72,13 +72,27 @@ export async function recentActivity(userId: string): Promise<ActivityBrief[]> {
 
 export type RoleRef = { id: string; name: string; permissions: PermissionName[] };
 
-/** Roles named in `names` (any letter case) with their permissions, keyed by lower-case name. */
-export async function rolesByName(db: SQL, names: readonly string[]): Promise<Map<string, RoleRef>> {
+/**
+ * Roles matching `where` (alias `r`) with their permissions. The rows are share-locked first, in a statement of their
+ * own: a role edit or delete in progress finishes before the read (a deleted role is then simply missing), and none
+ * starts until this transaction ends. Role routes never wait on user rows or SUPERADMIN_LOCK, so this can't deadlock.
+ */
+async function lockedRoles(tx: Tx, where: Fragment): Promise<RoleRef[]> {
+  await tx`select 1 from roles r where ${where} for share`;
+  return tx`select r.id, r.name, array(select rp.permission from role_permissions rp where rp.role_id = r.id) as permissions
+    from roles r where ${where} order by r.name`;
+}
+
+/** Roles named in `names` (any letter case), share-locked, keyed by lower-case name. */
+export async function rolesByName(tx: Tx, names: readonly string[]): Promise<Map<string, RoleRef>> {
   if (!names.length) return new Map();
-  const rows: RoleRef[] = await db`select r.id, r.name, array(select rp.permission from role_permissions rp where rp.role_id = r.id) as permissions
-    from roles r where lower(r.name) in ${db([...new Set(names.map((n) => n.toLowerCase()))])} order by r.name`;
+  const rows = await lockedRoles(tx, sql`lower(r.name) in ${tx([...new Set(names.map((n) => n.toLowerCase()))])}`);
   return new Map(rows.map((r) => [r.name.toLowerCase(), r]));
 }
+
+/** The roles `userId` holds now, by id (a rename since the user was read doesn't matter), share-locked, A–Z. */
+export const rolesOfUser = (tx: Tx, userId: string): Promise<RoleRef[]> =>
+  lockedRoles(tx, sql`r.id in (select role_id from user_roles where user_id = ${userId})`);
 
 /** pg_advisory_xact_lock key for changes that can lower the number of active Superadmins. */
 export const SUPERADMIN_LOCK = 50_002;

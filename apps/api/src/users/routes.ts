@@ -10,7 +10,7 @@ import type { PermissionName } from "@starterkit/shared/permissions";
 import { recordActivity } from "../audit/record";
 import { hashToken, randomToken } from "../auth/crypto";
 import { hashPassword } from "../auth/password";
-import { actorPermissions, endUserSessions } from "../auth/sessions";
+import { actorPermissions, endUserSessions, sessionLive } from "../auth/sessions";
 import { config } from "../config";
 import { sql, type Tx } from "../db/client";
 import { ApiError, currentSession, notFound } from "../http/errors";
@@ -19,7 +19,7 @@ import type { AppEnv } from "../http/middleware";
 import { body, idParam, isUuid, query } from "../http/parse";
 import { sendMail } from "../mail/mailer";
 import { checkRoleGrant } from "../rbac/rules";
-import { duplicateOf, lockUsers, otherSuperadmins, recentActivity, type RoleRef, rolesByName, sessionPage, userPage, usersByIds } from "./queries";
+import { duplicateOf, lockUsers, otherSuperadmins, recentActivity, type RoleRef, rolesByName, rolesOfUser, sessionPage, userPage, usersByIds } from "./queries";
 import { bulk, checkPasswordOp, checkTargetRank, checkUserChange, type UserChange } from "./rules";
 
 export const usersRoutes = new Hono<AppEnv>();
@@ -132,6 +132,9 @@ usersRoutes.post("/users", async (c) => {
  * active Superadmin, a user who outranks you, a user who already holds MAX_USER_ROLES roles, unknown ids) are skipped
  * with a code; only `done` ids are applied, and only changes reach the activity log.
  */
+// ponytail: one transaction per bulk request: up to 100 row locks and ~400 statements (lock, read, per-row Superadmin
+// count, change, entry), and SUPERADMIN_LOCK held until commit once a Superadmin target is checked. Chunk the ids if
+// bulk requests start queueing other user edits.
 usersRoutes.post("/users/bulk", async (c) => {
   // The action picks the permission (delete needs user.delete), but a bad body still answers 400 after the guard.
   const parsed = await body(c, BulkUserBody).then((b) => ({ b }), (e: unknown) => ({ e }));
@@ -194,13 +197,15 @@ usersRoutes.patch("/users/:id", async (c) => {
   const id = idParam(c, "id", "user");
   const dto = await sql.begin(async (tx) => {
     const { u, actor } = await lockTarget(tx, ctx, id);
-    const known = b.roles ? await rolesByName(tx, [...b.roles, ...u.roles]) : new Map<string, RoleRef>();
-    const roles = b.roles ? canonical(b.roles, known) : undefined;
+    const roles = b.roles ? canonical(b.roles, await rolesByName(tx, b.roles)) : undefined;
     if (roles === null) throw UNKNOWN_ROLE();
     if ((b.username !== undefined || b.email !== undefined) && (await duplicateOf(tx, b.username, b.email, id))) throw DUPLICATE();
-    const added = roles?.filter((r) => !u.roles.includes(r.name)) ?? [];
-    const removed = roles ? u.roles.filter((n) => !roles.some((r) => r.name === n)).map((n) => known.get(n.toLowerCase())!) : [];
-    if (added.length || removed.length) {
+    // Compared by id with the roles held now: a rename since `u` was read changes nothing here.
+    const held = roles ? await rolesOfUser(tx, id) : [];
+    const added = roles?.filter((r) => !held.some((h) => h.id === r.id)) ?? [];
+    const removed = roles ? held.filter((h) => !roles.some((r) => r.id === h.id)) : [];
+    const rolesChange = added.length > 0 || removed.length > 0;
+    if (rolesChange) {
       roleGrantDenied(actor, [...added, ...removed]);
       const stop = await userChange(tx, ctx, u, { kind: "setRoles", roles: roles!.map((r) => r.name) });
       if (stop) throw new ApiError(stop);
@@ -212,7 +217,7 @@ usersRoutes.patch("/users/:id", async (c) => {
     }
     const name = b.name ?? u.name, username = b.username ?? u.username, email = b.email ?? u.email;
     const fieldsChange = name !== u.name || username !== u.username || email !== u.email;
-    if (fieldsChange || added.length || removed.length) {
+    if (fieldsChange || rolesChange) {
       try {
         await tx`update users set name = ${name}, username = ${username}, email = ${email}, updated_at = now() where id = ${id}`;
       } catch (e) {
@@ -222,10 +227,11 @@ usersRoutes.patch("/users/:id", async (c) => {
     if (removed.length) await tx`delete from user_roles where user_id = ${id} and role_id in ${tx(removed.map((r) => r.id))}`;
     if (added.length) await tx`insert into user_roles ${tx(added.map((r) => ({ user_id: id, role_id: r.id })))}`;
     const [after] = await usersByIds(tx, [id]);
-    const changed = FIELDS.filter((k) => JSON.stringify(u[k]) !== JSON.stringify(after![k]));
+    const before = { ...u, roles: roles ? held.map((r) => r.name) : u.roles };
+    const changed = FIELDS.filter((k) => (k === "roles" ? rolesChange : before[k] !== after![k]));
     if (changed.length) {
       const pick = (d: UserRowDto) => Object.fromEntries(changed.map((k) => [k, d[k]]));
-      await recordActivity(tx, ctx, { action: "user.update", target: { type: "user", id, label: after!.name }, before: pick(u), after: pick(after!) });
+      await recordActivity(tx, ctx, { action: "user.update", target: { type: "user", id, label: after!.name }, before: pick(before), after: pick(after!) });
     }
     if (statusChange) await applyStatus(tx, ctx, after!, b.isActive!);
     return UserDto.parse({ ...after, isActive: b.isActive ?? after!.isActive });
@@ -250,7 +256,8 @@ usersRoutes.post("/users/:id/reset-password", async (c) => {
   const ctx = await guard(c, "user.edit");
   const id = idParam(c, "id", "user");
   const password = temporaryPassword();
-  const hash = await hashPassword(password); // before the row lock: argon2 is slow on purpose
+  // ponytail: hashed before the row lock (argon2 is slow on purpose), so a refused request (404/403/409) still costs one hash; fine on a user.edit-guarded route.
+  const hash = await hashPassword(password);
   await sql.begin(async (tx) => {
     const { u } = await lockTarget(tx, ctx, id);
     if (u.id === ctx.user.id) throw new ApiError("self_action"); // the reset would end the actor's own sessions; use Security
@@ -295,7 +302,8 @@ usersRoutes.delete("/users/:id/sessions/:sid", async (c) => {
   if (!isUuid(id) || !isUuid(sid)) throw SESSION_GONE();
   await sql.begin(async (tx) => {
     const u = (await lockUsers(tx, [id])).get(id);
-    const [s] = u ? await tx`select device from sessions where id = ${sid} and user_id = ${id}` : [];
+    // Only a live session: an ended one answers like an unknown one (the mock pruned before looking it up).
+    const [s] = u ? await tx`select s.device from sessions s where s.id = ${sid} and s.user_id = ${id} and ${sessionLive()}` : [];
     if (!u || !s) throw SESSION_GONE();
     await actorOver(tx, ctx, u);
     if (sid === ctx.sid) throw currentSession();

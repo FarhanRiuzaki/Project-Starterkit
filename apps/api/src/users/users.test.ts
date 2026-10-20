@@ -496,6 +496,23 @@ describe("POST /v1/users/bulk", () => {
     expect((await bulk({ action: "deactivate", ids: [apple] }, viewer)).status).toBe(200);
   });
 
+  it("bulk deactivate of every Superadmin leaves one active: self_action for the actor, last_superadmin for the last", async () => {
+    const superRole = await roleIdOf("Superadmin");
+    const activeSupers = async () => (await sql`select count(*)::int as n from users u join user_roles ur on ur.user_id = u.id
+      where ur.role_id = ${superRole} and u.is_active`)[0].n as number;
+    const [a, b, c] = [await idOf("superadmin"), await idOf("viewer"), await idOf("apple")];
+    await sql`insert into user_roles (user_id, role_id) values (${b}, ${superRole}), (${c}, ${superRole})`;
+    // A (a Superadmin) on A, B and C: A is skipped as self, so A stays and B and C go
+    expect(await (await bulk({ action: "deactivate", ids: [a, b, c] }, await signIn("superadmin"))).json()).toEqual({ done: [b, c], skipped: [{ id: a, code: "self_action" }] });
+    expect(await activeSupers()).toBe(1);
+    // an actor holding every permission without being a Superadmin: the second of the last two is refused
+    await sql`update users set is_active = true where id in ${sql([b, c])}`;
+    await giveOnlyRole("admin", [...PERMISSIONS]);
+    const r = await bulk({ action: "deactivate", ids: [a, b, c] }, await signIn("admin"));
+    expect(await r.json()).toEqual({ done: [a, b], skipped: [{ id: c, code: "last_superadmin" }] });
+    expect(await activeSupers()).toBe(1);
+  });
+
   it("bulk delete removes sessions of deleted users and logs only done ids", async () => {
     const admin = await signIn("admin");
     const me = await idOf("admin");
@@ -571,6 +588,21 @@ describe("reset password and sessions", () => {
     expect((await endSession(v, Bun.randomUUIDv7(), admin)).status).toBe(404);
   });
 
+  it("DELETE session of an ended session (expired or idle) is 404 and writes nothing", async () => {
+    const admin = await signIn("admin");
+    const v = await idOf("viewer");
+    const expired = await addSession(v);
+    await sql`update sessions set expires_at = now() - interval '1 second' where id = ${expired}`;
+    const idle = await addSession(v);
+    await sql`update sessions set last_seen_at = now() - interval '1 day' where id = ${idle}`;
+    for (const sid of [expired, idle]) {
+      const r = await endSession(v, sid, admin);
+      expect(r.status).toBe(404);
+      expect(await code(r)).toBe("not_found");
+    }
+    expect(await acts()).toHaveLength(0);
+  });
+
   it("DELETE session refuses the actor's own session and a wrong csrf token", async () => {
     // The csrf half is the web's (Task 9); the API part is the actor's own session.
     const admin = await signIn("admin");
@@ -598,6 +630,29 @@ describe("role grants (no privilege escalation)", () => {
     expect((await patch(v, { roles: ["Viewer", "Viewer"] }, admin)).status).toBe(200); // unchanged set, no grant
     expect((await create({ ...NEW, roles: ["Viewer"] }, admin)).status).toBe(201);
     expect((await bulk({ action: "assignRole", ids: [await idOf("apple")], role: "Viewer" }, admin)).status).toBe(200);
+  });
+
+  it("a role deleted while the PATCH waits for it is an unknown role (400), not a 500", async () => {
+    const sa = await signIn("superadmin");
+    const temp = Bun.randomUUIDv7();
+    await sql`insert into roles (id, name) values (${temp}, 'Temp')`;
+    const v = await idOf("viewer");
+    const holder = await sql.reserve();
+    try {
+      await holder`begin`;
+      await holder`delete from roles where id = ${temp}`; // a role DELETE that hasn't committed yet
+      const pending = patch(v, { roles: ["Viewer", "Temp"] }, sa);
+      if (!(await lockWaiters(1, "%roles%"))) throw new Error("the PATCH never waited on the role");
+      await holder`commit`;
+      const r = await pending;
+      expect(r.status).toBe(400);
+      expect(await code(r)).toBe("bad_request");
+    } finally {
+      await holder`rollback`.catch(() => {});
+      holder.release();
+    }
+    expect(await rolesOf(v)).toEqual(["Viewer"]);
+    expect(await acts()).toHaveLength(0);
   });
 
   it("Superadmin can grant Superadmin", async () => {
