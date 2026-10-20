@@ -1,27 +1,38 @@
-import { randomUUID } from "node:crypto";
-import { sealData } from "iron-session";
-import { db, type SessionRecord, type UserRecord } from "@/lib/server/mock/db";
-import { newSessionRecord, SESSION_COOKIE } from "@/lib/server/session";
+import { sealData, unsealData } from "iron-session";
+import { vi } from "vitest";
+import { type AppSession, SESSION_COOKIE } from "@/lib/server/session";
 
-/** CSRF token the helper seals into the cookie; send it as `x-csrf-token` on mutations. */
+/** CSRF token and API session token the helper seals into the cookie; send the first as `x-csrf-token` on mutations. */
 export const TEST_CSRF = "c".repeat(43);
+export const TEST_TOKEN = "session-token-of-the-test";
 
-/** Another store session of `userId` (a second browser), built like a real sign-in; `over` changes fields. Returns its id. */
-export function addSession(userId: string, over: Partial<SessionRecord> = {}): string {
-  const rec = { ...newSessionRecord(over.id ?? randomUUID(), userId, "password", { device: "other", ip: "1.1.1.1" }), ...over };
-  db().sessions.set(rec.id, rec);
-  return rec.id;
+/**
+ * Seals `data` (default: a full session) as the `sk_session` cookie into `jar`, the Map behind the test file's
+ * `vi.mock("next/headers")` cookie store. `process.env.SESSION_SECRET` must be set (vi.hoisted) first.
+ */
+export async function sealCookie(jar: Map<string, string>, data: AppSession = { token: TEST_TOKEN, csrf: TEST_CSRF }): Promise<void> {
+  jar.set(SESSION_COOKIE, await sealData(data, { password: process.env.SESSION_SECRET!, ttl: 3600 }));
+}
+
+/** The session cookie in `jar`, unsealed; null when there is none. */
+export async function cookieOf(jar: Map<string, string>): Promise<AppSession | null> {
+  const v = jar.get(SESSION_COOKIE);
+  return v ? unsealData<AppSession>(v, { password: process.env.SESSION_SECRET! }) : null;
 }
 
 /**
- * Route tests: sign `username` in by adding a store session and sealing `{ sid, csrf, ...cookie }` into `jar`, the Map
- * behind the test file's `vi.mock("next/headers")` cookie store. `process.env.SESSION_SECRET` must be set (vi.hoisted)
- * first. `cookie` adds or overrides session fields (e.g. `pending2fa`).
+ * A fake API in place of the global `fetch`: `answer` gets each request the web sends (URL under API_BASE_URL) and
+ * returns the answer. Returns the list of requests seen so far (clones, bodies readable).
  */
-export async function signInAs(jar: Map<string, string>, username: string, cookie: Record<string, unknown> = {}): Promise<{ user: UserRecord; sid: string }> {
-  const user = [...db().users.values()].find((u) => u.username === username);
-  if (!user) throw new Error(`signInAs: no user "${username}"`);
-  const sid = addSession(user.id, { device: "test", ip: "test" });
-  jar.set(SESSION_COOKIE, await sealData({ sid, csrf: TEST_CSRF, ...cookie }, { password: process.env.SESSION_SECRET!, ttl: 24 * 3600 }));
-  return { user, sid };
+export function fakeApi(answer: (req: Request) => Response | Promise<Response>): Request[] {
+  const seen: Request[] = [];
+  vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const req = new Request(input, init);
+    seen.push(req.clone());
+    return answer(req);
+  }));
+  return seen;
 }
+
+/** The pathname + search of a request the fake API saw ("/v1/users?page=2"). */
+export const pathOf = (r: Request) => { const u = new URL(r.url); return u.pathname + u.search; };

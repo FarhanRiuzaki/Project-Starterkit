@@ -1,4 +1,4 @@
-// The user cases of apps/web/src/lib/server/mock/rules.test.ts. Not ported here: the effectivePermissions cases (that
+// The user cases of the web mock's rules.test.ts (deleted in Task 9). Not ported here: the effectivePermissions cases (that
 // union is SQL now, auth/sessions.ts permsOf; covered by users.test.ts) and the role cases (rbac/rules.test.ts).
 import { describe, expect, it, mock } from "bun:test";
 import { PERMISSIONS, type PermissionName } from "@starterkit/shared/permissions";

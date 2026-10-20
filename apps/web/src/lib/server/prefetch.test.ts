@@ -1,155 +1,140 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.hoisted(() => (process.env.SESSION_SECRET = "s".repeat(40)));
+vi.hoisted(() => {
+  process.env.SESSION_SECRET = "s".repeat(40);
+  process.env.INTERNAL_API_TOKEN = "i".repeat(40);
+});
 const jar = vi.hoisted(() => new Map<string, string>());
 vi.mock("next/headers", () => ({
   cookies: async () => ({
     get: (name: string) => (jar.has(name) ? { name, value: jar.get(name)! } : undefined),
     set: (name: string, value: string) => void (value ? jar.set(name, value) : jar.delete(name)),
   }),
+  headers: async () => new Headers({ "user-agent": "Browser/1" }),
 }));
 
 import type { QueryKey } from "@tanstack/react-query";
-import { GET as activityGet } from "@/app/api/audit/activity/route";
-import { GET as authLogGet } from "@/app/api/audit/auth/route";
-import { GET as dashboardGet } from "@/app/api/dashboard/route";
-import { GET as meGet } from "@/app/api/me/route";
-import { GET as mySessionsGet } from "@/app/api/me/sessions/route";
-import { GET as permissionsGet } from "@/app/api/permissions/route";
-import { GET as roleGet } from "@/app/api/roles/[id]/route";
-import { GET as rolesGet } from "@/app/api/roles/route";
-import { GET as userGet } from "@/app/api/users/[id]/route";
-import { GET as userSessionsGet } from "@/app/api/users/[id]/sessions/route";
-import { GET as roleOptionsGet } from "@/app/api/users/roles/route";
-import { GET as usersGet } from "@/app/api/users/route";
-import { db, resetDb } from "@/lib/server/mock/db";
 import { UserListQuery } from "@starterkit/shared/contracts/users";
-import { text } from "@/lib/shared/table-state";
-import { authOf, getSession } from "@/lib/server/session";
-import { readTable, tableRequest } from "@/lib/shared/table-state";
-import { userPage } from "./users";
+import { readTable, tableRequest, text } from "@/lib/shared/table-state";
 import { ACTIVITY, AUTH_LOG, DASHBOARD_KEY, ME_KEY, MY_SESSIONS, PERMISSIONS_TABLE, roleKey, roleOptions, ROLES, SUPERADMINS, type TableDef, userDetail, USERS, userSessions } from "@/lib/shared/queries";
-import { addSession, signInAs } from "@/test/session";
+import { fakeApi, pathOf, sealCookie, TEST_TOKEN } from "@/test/session";
 import { Prefetch, prefetchState, reads, type Read, table, toSearch } from "./prefetch";
 
-const ctxOf = async (username: string) => {
-  await signInAs(jar, username);
-  return authOf(await getSession())!;
-};
-const at = (path: string) => new Request(`http://c${path}`);
-const id = (v: string) => ({ params: Promise.resolve({ id: v }) });
-const body = async (r: Response) => { expect(r.status).toBe(200); return r.json(); };
 const sp = (qs: string) => toSearch(Object.fromEntries(new URLSearchParams(qs)));
-/** What the prefetch put under `key`, or undefined when it skipped the read. */
-const dataAt = (rs: Read[], ctx: Awaited<ReturnType<typeof ctxOf>>, key: QueryKey) =>
-  prefetchState(ctx, rs).queries.find((q) => JSON.stringify(q.queryKey) === JSON.stringify(key))?.state.data;
 /** The key useTableQuery builds for `table` at URL state `qs`, and the request it would send. */
-const tableKey = <F extends Record<string, string>>(table: TableDef<F>, qs: string) => {
-  const { url } = tableRequest(table.path, readTable(new URLSearchParams(qs), table.spec), table.spec, table.params);
-  return { key: [table.key, url] as const, url };
+const tableKey = <F extends Record<string, string>>(t: TableDef<F>, qs: string) => {
+  const { url } = tableRequest(t.path, readTable(new URLSearchParams(qs), t.spec), t.spec, t.params);
+  return { key: [t.key, url] as const, url };
 };
+/** A fake API that answers each GET with `{ at: <path the API got> }`, or the status `statusOf` gives. */
+const echoApi = (statusOf: (path: string) => number = () => 200) =>
+  fakeApi((r) => {
+    const status = statusOf(pathOf(r));
+    return status === 200 ? Response.json({ at: pathOf(r) }) : Response.json({ error: { code: "x", message: "x" } }, { status });
+  });
+const dataAt = async (rs: Read[], key: QueryKey) =>
+  (await prefetchState(TEST_TOKEN, rs)).queries.find((q) => JSON.stringify(q.queryKey) === JSON.stringify(key))?.state.data;
+/** The /v1 path the API gets for the browser's /api URL. */
+const v1 = (url: string) => ({ at: url.replace(/^\/api\//, "/v1/") });
 
-beforeEach(() => {
-  resetDb();
-  jar.clear();
-  vi.useFakeTimers({ toFake: ["Date"], now: Date.now() }); // the API stamps lastSeenAt; a frozen clock makes both reads equal
-});
-afterEach(() => vi.useRealTimers());
+beforeEach(() => jar.clear());
+afterEach(() => vi.unstubAllGlobals());
 
-describe("server prefetch = the /api route's own data, under the browser hook's key", () => {
+describe("server prefetch = the API's answer to the browser hook's own URL, under the hook's key", () => {
   it("dashboard and profile", async () => {
-    const ctx = await ctxOf("superadmin");
-    expect(dataAt([reads.dashboard()], ctx, DASHBOARD_KEY)).toEqual(await body(await dashboardGet(at("/api/dashboard"))));
-    expect(dataAt([reads.me()], ctx, ME_KEY)).toEqual(await body(await meGet(at("/api/me"))));
+    const seen = echoApi();
+    expect(await dataAt([reads.dashboard()], DASHBOARD_KEY)).toEqual(v1("/api/dashboard"));
+    expect(await dataAt([reads.me()], ME_KEY)).toEqual(v1("/api/me"));
+    expect(seen.every((r) => r.method === "GET" && r.headers.get("authorization") === `Bearer ${TEST_TOKEN}`)).toBe(true);
   });
 
   it("users table at the URL's page, sort and filters, plus the role options and the Superadmin check", async () => {
-    const ctx = await ctxOf("superadmin");
+    echoApi();
     const t = tableKey(USERS, "q=a&status=active&sort=-createdAt&page=2&pageSize=25");
     expect(t.url).toBe("/api/users?q=a&status=active&page=2&pageSize=25&sort=-createdAt");
     const rs = [reads.users(sp("q=a&status=active&sort=-createdAt&page=2&pageSize=25")), reads.roleOptions(), reads.superadmins()];
-    expect(dataAt(rs, ctx, t.key)).toEqual(await body(await usersGet(at(t.url))));
-    expect(dataAt(rs, ctx, roleOptions().key)).toEqual(await body(await roleOptionsGet(at(roleOptions().url))));
-    expect(dataAt(rs, ctx, SUPERADMINS.key)).toEqual(await body(await usersGet(at(SUPERADMINS.url))));
+    expect(await dataAt(rs, t.key)).toEqual(v1(t.url));
+    expect(await dataAt(rs, roleOptions().key)).toEqual(v1(roleOptions().url));
+    expect(await dataAt(rs, SUPERADMINS.key)).toEqual(v1(SUPERADMINS.url));
   });
 
-  it("user detail and that user's sessions (no detail → sessions waterfall)", async () => {
-    const ctx = await ctxOf("superadmin");
-    addSession("u-002");
-    const t = tableKey(userSessions("u-002"), "sort=device");
-    const rs = [reads.user("u-002"), reads.userSessions("u-002", sp("sort=device"))];
-    expect(dataAt(rs, ctx, userDetail("u-002").key)).toEqual(await body(await userGet(at("/api/users/u-002"), id("u-002"))));
-    expect(dataAt(rs, ctx, t.key)).toEqual(await body(await userSessionsGet(at(t.url), id("u-002"))));
-  });
-
-  it("own sessions", async () => {
-    const ctx = await ctxOf("viewer");
-    const t = tableKey(MY_SESSIONS, "");
-    expect(dataAt([reads.mySessions(sp(""))], ctx, t.key)).toEqual(await body(await mySessionsGet(at(t.url))));
+  it("user detail and that user's sessions; own sessions", async () => {
+    echoApi();
+    const id = "0199f0a0-0000-7000-8000-000000000002";
+    const t = tableKey(userSessions(id), "sort=device");
+    const rs = [reads.user(id), reads.userSessions(id, sp("sort=device")), reads.mySessions(sp(""))];
+    expect(await dataAt(rs, userDetail(id).key)).toEqual(v1(`/api/users/${id}`));
+    expect(await dataAt(rs, t.key)).toEqual(v1(t.url));
+    expect(await dataAt(rs, tableKey(MY_SESSIONS, "").key)).toEqual(v1(tableKey(MY_SESSIONS, "").url));
   });
 
   it("roles table, one role, permissions table", async () => {
-    const ctx = await ctxOf("superadmin");
+    echoApi();
+    const id = "0199f0a0-0000-7000-8000-00000000000a";
     const roles = tableKey(ROLES, "q=adm");
     const perms = tableKey(PERMISSIONS_TABLE, "module=user&sort=-name");
-    const rs = [reads.roles(sp("q=adm")), reads.role("role-admin"), reads.permissions(sp("module=user&sort=-name"))];
-    expect(dataAt(rs, ctx, roles.key)).toEqual(await body(await rolesGet(at(roles.url))));
-    expect(dataAt(rs, ctx, roleKey("role-admin"))).toEqual(await body(await roleGet(at("/api/roles/role-admin"), id("role-admin"))));
-    expect(dataAt(rs, ctx, perms.key)).toEqual(await body(await permissionsGet(at(perms.url))));
+    const rs = [reads.roles(sp("q=adm")), reads.role(id), reads.permissions(sp("module=user&sort=-name"))];
+    expect(await dataAt(rs, roles.key)).toEqual(v1(roles.url));
+    expect(await dataAt(rs, roleKey(id))).toEqual(v1(`/api/roles/${id}`));
+    expect(await dataAt(rs, perms.key)).toEqual(v1(perms.url));
   });
 
   it("audit logs: the range preset becomes the same from/to the browser sends", async () => {
-    const ctx = await ctxOf("superadmin");
+    echoApi();
     const act = tableKey(ACTIVITY, "range=30d&action=user.update");
     const auth = tableKey(AUTH_LOG, "event=login_failed");
     expect(act.url).toMatch(/^\/api\/audit\/activity\?action=user\.update&from=\d{4}-\d{2}-\d{2}&to=\d{4}-\d{2}-\d{2}&page=1/);
     const rs = [reads.activity(sp("range=30d&action=user.update")), reads.authLog(sp("event=login_failed"))];
-    expect(dataAt(rs, ctx, act.key)).toEqual(await body(await activityGet(at(act.url))));
-    expect(dataAt(rs, ctx, auth.key)).toEqual(await body(await authLogGet(at(auth.url))));
+    expect(await dataAt(rs, act.key)).toEqual(v1(act.url));
+    expect(await dataAt(rs, auth.key)).toEqual(v1(auth.url));
+  });
+
+  it("all reads are sent at once, not one after another", async () => {
+    let open = 0;
+    let most = 0;
+    fakeApi(async () => {
+      most = Math.max(most, ++open);
+      await new Promise((r) => setTimeout(r, 20));
+      open--;
+      return Response.json({});
+    });
+    await prefetchState(TEST_TOKEN, [reads.users(sp("")), reads.roleOptions(), reads.superadmins()]);
+    expect(most).toBe(3);
   });
 });
 
-describe("server prefetch reads only what the user may read", () => {
-  it("a read the /api route would refuse (403) is skipped; the browser then shows its own state", async () => {
-    const ctx = await ctxOf("viewer"); // user.view + audit.view only
-    const rs = [reads.roles(sp("")), reads.role("role-admin"), reads.permissions(sp("")), reads.users(sp(""))];
-    expect(dataAt(rs, ctx, tableKey(ROLES, "").key)).toBeUndefined();
-    expect(dataAt(rs, ctx, roleKey("role-admin"))).toBeUndefined();
-    expect(dataAt(rs, ctx, tableKey(PERMISSIONS_TABLE, "").key)).toBeUndefined();
-    expect(dataAt(rs, ctx, tableKey(USERS, "").key)).toBeDefined();
+describe("server prefetch keeps only 200 answers", () => {
+  it("a read the API refuses (403), a record that doesn't exist (404) and an API failure (500) are left out", async () => {
+    echoApi((p) => (p.startsWith("/v1/roles") ? 403 : p.startsWith("/v1/users/") ? 404 : p.startsWith("/v1/permissions") ? 500 : 200));
+    const id = "0199f0a0-0000-7000-8000-000000000002";
+    const state = await prefetchState(TEST_TOKEN, [reads.roles(sp("")), reads.role(id), reads.user(id), reads.permissions(sp("")), reads.users(sp(""))]);
+    expect(state.queries.map((q) => q.queryKey)).toEqual([tableKey(USERS, "").key]);
   });
 
-  it("a record that doesn't exist (the route's 404) is skipped", async () => {
-    const ctx = await ctxOf("superadmin");
-    const rs = [reads.user("nope"), reads.userSessions("nope", sp("")), reads.role("nope")];
-    expect(prefetchState(ctx, rs).queries).toEqual([]);
-  });
-});
-
-describe("server prefetch edge cases", () => {
-  it("dashboard for a user without audit.view: the route's own answer, without the audit parts", async () => {
-    db().roles.set("role-reader", { id: "role-reader", name: "Reader", locked: false, permissions: ["user.view"] });
-    db().users.get("u-003")!.roles = ["Reader"]; // viewer
-    const ctx = await ctxOf("viewer");
-    expect(ctx.perms.has("audit.view")).toBe(false);
-    const data = dataAt([reads.dashboard()], ctx, DASHBOARD_KEY) as { failedLogins24h: unknown; recent: unknown };
-    expect(data).toEqual(await body(await dashboardGet(at("/api/dashboard"))));
-    expect(data.failedLogins24h).toBeNull();
-    expect(data.recent).toBeNull();
-  });
-
-  it("no session: nothing is prefetched (the layout sends the browser to sign-in)", async () => {
+  it("no session: nothing is read (the layout sends the browser to sign-in)", async () => {
+    const seen = echoApi();
     const el = await Prefetch({ reads: [reads.dashboard(), reads.me()], children: null });
     expect((el.props as { state: unknown }).state).toBeUndefined();
+    await sealCookie(jar, { challenge: "pending" });
+    expect(((await Prefetch({ reads: [reads.me()], children: null })).props as { state: unknown }).state).toBeUndefined();
+    expect(seen).toEqual([]);
   });
 
-  it("a request URL the route's schema rejects (its 400) reads nothing", async () => {
-    const ctx = await ctxOf("superadmin");
+  it("with a session: the cookie's token and the browser's user agent go with each read", async () => {
+    const seen = echoApi();
+    await sealCookie(jar);
+    const el = await Prefetch({ reads: [reads.me()], children: null });
+    expect((el.props as { state: { queries: unknown[] } }).state.queries).toHaveLength(1);
+    expect([seen[0]!.headers.get("authorization"), seen[0]!.headers.get("x-client-ua")]).toEqual([`Bearer ${TEST_TOKEN}`, "Browser/1"]);
+  });
+
+  it("a request URL the route's schema rejects (its 400), or a path outside /api/[a-z0-9/_-], reads nothing", async () => {
+    const seen = echoApi();
     // A table spec looser than the route: status takes any text, UserListQuery takes active | inactive only.
     const loose = { key: "users", path: "/api/users", spec: { sorts: ["name"], defaultSort: "name", filters: { status: text(20) } } } as const;
-    const read = table(loose, sp("status=bogus"), "user.view", UserListQuery, userPage);
-    expect(read.key).toEqual(["users", "/api/users?status=bogus&page=1&pageSize=15&sort=name"]);
-    expect(prefetchState(ctx, [read]).queries).toEqual([]);
-    expect((await usersGet(at("/api/users?status=bogus"))).status).toBe(400);
+    const read = table(loose, sp("status=bogus"), UserListQuery);
+    expect(read).toEqual({ key: ["users", "/api/users?status=bogus&page=1&pageSize=15&sort=name"], path: null });
+    expect((await prefetchState(TEST_TOKEN, [read, reads.user("../dashboard"), reads.role("A.b")])).queries).toEqual([]);
+    expect(seen).toEqual([]);
   });
 });

@@ -1,4 +1,4 @@
-// RBAC cases of apps/web/src/lib/server/mock/rules.test.ts, on the shapes the API has (a role row, a holder count).
+// RBAC cases of the web mock's rules.test.ts (deleted in Task 9), on the shapes the API has (a role row, a holder count).
 import { describe, expect, it } from "bun:test";
 import { PERMISSIONS, type PermissionName } from "@starterkit/shared/permissions";
 import { checkPermissionGrant, checkRoleChange, checkRoleGrant, inCatalogOrder } from "./rules";

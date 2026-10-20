@@ -4,7 +4,7 @@ import { PERMISSIONS, type PermissionName } from "@starterkit/shared/permissions
 import { hashPassword } from "../auth/password";
 import { log } from "../log";
 
-/** The built-in roles, as apps/web/src/lib/server/mock/seed.ts makes them. */
+/** The built-in roles, as the web mock's seed made them. */
 const ROLES: { name: string; locked: boolean; perms: readonly PermissionName[] }[] = [
   { name: "Superadmin", locked: true, perms: PERMISSIONS },
   { name: "Admin", locked: false, perms: PERMISSIONS.filter((p) => !p.startsWith("role.") && !p.startsWith("permission.")) },

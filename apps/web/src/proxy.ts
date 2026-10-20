@@ -3,7 +3,7 @@ import { securityHeaders } from "./security-headers";
 
 /**
  * CSP with a per-request nonce plus the security headers, on every matched request (Next 16: proxy = middleware;
- * Node runtime). No permission checks here: layouts (requirePagePermission) and API routes (withPermission) do that.
+ * Node runtime). No permission checks here: layouts (requirePagePermission) and the API (behind app/api) do that.
  */
 export function proxy(request: NextRequest) {
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");

@@ -103,87 +103,25 @@ function clientZodViolations(fs: F[]): string[] {
     .map((m) => `${r}: value import from ${m[3]}`));
 }
 
-const METHODS = "GET|HEAD|OPTIONS|POST|PUT|PATCH|DELETE";
-/** Exported HTTP handlers of a route file with their source text (up to the next exported handler). */
-const handlers = (src: string) => {
-  const hits = [...src.matchAll(new RegExp(`export\\s+(?:async\\s+)?function\\s+(${METHODS})\\b`, "g"))];
-  return hits.map((m, i) => ({ method: m[1]!, body: src.slice(m.index, hits[i + 1]?.index ?? src.length) }));
-};
-
-/** Calls that write an activity entry: recordActivity itself, and lib/server helpers that always end in it. */
-const LOGS = /\b(?:recordActivity|applyStatus)\(/;
-
-/** Every route.ts under app/ (API or not) is a route handler; app/api/auth/** answers before a session exists. */
-const ROUTE_FILE = new RegExp(`^${WEB}app/(.+/)?route\\.tsx?$`);
 /**
- * Every route handler (any route.ts under app/) outside app/api/auth/** runs inside withPermission(, and every
- * non-GET/HEAD/OPTIONS one calls recordActivity( (or a helper in LOGS). Handlers must be function declarations (an `export const POST =` would
- * escape the check). Order inside a handler: the body/query check (400) comes before the existence check (404).
+ * The web reaches the API over HTTP only (lib/server/backend.ts): nothing under apps/web/src imports the Bun runtime
+ * (`bun`, `bun:*`), a database driver (`pg`) or API code (`@starterkit/api`, a path into apps/api).
  */
-function routeViolations(fs: F[]): string[] {
-  return fs.filter(({ r }) => ROUTE_FILE.test(r) && !r.startsWith(`${WEB}app/api/auth/`))
-    .flatMap(({ r, src: raw }) => {
-      const src = strip(raw);
-      if (new RegExp(`export\\s+(?:const|let|var)\\s+(?:${METHODS})\\b|export\\s*\\{[^}]*\\b(?:${METHODS})\\b`).test(src)) {
-        return [`${r}: export each handler as a function declaration`];
-      }
-      const hs = handlers(src);
-      if (hs.length === 0) return [`${r}: no exported handler found`];
-      return hs.flatMap((h) => [
-        ...(/\bwithPermission\(/.test(h.body) ? [] : [`${r} ${h.method}: no withPermission(`]),
-        ...(["GET", "HEAD", "OPTIONS"].includes(h.method) || LOGS.test(h.body) ? [] : [`${r} ${h.method}: no recordActivity(`]),
-        ...(existenceBeforeParse(h.body) ? [`${r} ${h.method}: checks existence (404) before the request body (400)`] : []),
-      ]);
-    });
-}
-
-/** A 404 answer appears before the `!x.success` body check in one handler. */
-function existenceBeforeParse(body: string): boolean {
-  const parse = body.search(/!\s*\w+\.success\b/), exists = body.search(/\bnotFound\(|apiError\(\s*404\b/);
-  return parse >= 0 && exists >= 0 && exists < parse;
-}
-
-const ROUTE = new RegExp(`^${WEB}app/api/(.+/)?route\\.tsx?$`);
-
-/**
- * GET routes that answer one record, a summary or a redirect, not a list; every other GET pages with paginate(
- * (spec "Standar tabel & skalabilitas": no list endpoint without a bound). Keys are paths under app/api/.
- */
-const NON_LIST_GETS: Record<string, string> = {
-  "auth/oauth/[provider]/route.ts": "redirect to the provider",
-  "dashboard/route.ts": "summary numbers; its recent list is fixed at 5",
-  "me/route.ts": "the signed-in user",
-  "roles/[id]/route.ts": "one role",
-  "users/[id]/route.ts": "one user; its recent activity is fixed at 20",
-};
-
-/**
- * lib/server read functions that page with paginate( (userPage, rolePage, …): one function per resource, shared by
- * its GET route and the server prefetch. An exported function or const counts when its own text calls paginate(.
- */
-function pagers(fs: F[]): string[] {
-  return fs.filter(({ r }) => r.startsWith(`${WEB}lib/server/`)).flatMap(({ src }) => {
-    const s = strip(src);
-    const fns = [...s.matchAll(/export\s+(?:async\s+)?(?:function\s+(\w+)|const\s+(\w+)\s*=)/g)];
-    return fns.flatMap((m, i) => (/\bpaginate\(/.test(s.slice(m.index, fns[i + 1]?.index ?? s.length)) ? [m[1] ?? m[2]!] : []));
-  });
+function runtimeViolations(fs: F[]): string[] {
+  const bad = (r: string, s: string) => /^(bun|pg)$|^bun:|^pg\//.test(s) || s.startsWith("@starterkit/api")
+    || /(^|\/)apps\/api(\/|$)/.test(s) || !!resolveSpec(r, s)?.startsWith("apps/api/");
+  return fs.filter(({ r }) => r.startsWith(WEB)).flatMap(({ r, imp }) => imp.filter((s) => bad(r, s)).map((s) => `${r} → ${s}`));
 }
 
 /**
- * A GET route not in `allow` must page in its GET handler: paginate( itself or a lib/server pager; an `allow` entry
- * must name a route that has a GET.
+ * Route handlers: the catch-all that forwards to the API, and the auth routes that set the cookie. Guards, CSRF order
+ * and activity entries of every other endpoint live in the API (apps/api/src/conformance.test.ts).
  */
-function listGetViolations(fs: F[], allow: Record<string, string> = NON_LIST_GETS): string[] {
-  const paging = new RegExp(`\\b(?:${["paginate", ...pagers(fs)].join("|")})\\(`);
-  const gets = fs.filter(({ r }) => ROUTE.test(r)).flatMap(({ r, src }) => {
-    const get = handlers(strip(src)).find((h) => h.method === "GET");
-    return get ? [{ key: r.slice(`${WEB}app/api/`.length), body: get.body }] : [];
-  });
-  return [
-    ...gets.filter((g) => !(g.key in allow) && !paging.test(g.body)).map((g) => `app/api/${g.key}: GET answers a list without paginate(`),
-    ...Object.keys(allow).filter((k) => !gets.some((g) => g.key === k)).map((k) => `app/api/${k}: listed as a non-list GET but has no GET handler`),
-  ];
-}
+const ROUTE_FILES = [
+  "app/api/[...path]/route.ts", "app/api/auth/2fa/route.ts", "app/api/auth/forgot/route.ts", "app/api/auth/login/route.ts",
+  "app/api/auth/logout/route.ts", "app/api/auth/oauth/[provider]/route.ts", "app/api/auth/reset/route.ts",
+].map((r) => WEB + r);
+const routeFiles = (fs: F[]) => fs.filter(({ r }) => new RegExp(`^${WEB}app/(.+/)?route\\.tsx?$`).test(r)).map(({ r }) => r).sort();
 
 const MOTION_TOKENS = `${UI}motion/tokens.ts`;
 /** Literal timings in TS/TSX (motion values come from motion/tokens.ts or the CSS --dur-* / --ease-* tokens). */
@@ -258,8 +196,12 @@ describe("architecture", () => {
     expect(siblingFeatureViolations(files)).toEqual([]);
   });
 
-  it("every API route handler outside app/api/auth/** calls withPermission(; every non-GET one calls recordActivity(", () => {
-    expect(routeViolations(files)).toEqual([]);
+  it("no Bun runtime, database driver or API code in apps/web/src", () => {
+    expect(runtimeViolations(files)).toEqual([]);
+  });
+
+  it("route.ts files are exactly the catch-all and the auth routes", () => {
+    expect(routeFiles(files)).toEqual([...ROUTE_FILES].sort());
   });
 
   it("client code never imports lib/server", () => {
@@ -324,10 +266,6 @@ describe("architecture", () => {
     expect(motionLiteralViolations(files, cssFiles)).toEqual([]);
   });
 
-  it("every GET route that answers a list pages it with paginate( (itself or a lib/server pager); the non-list allowlist is exact", () => {
-    expect(listGetViolations(files)).toEqual([]);
-  });
-
   it("StatusLegend is rendered only by Panel (per-card legend)", () => {
     expect(legendViolations(files)).toEqual([]);
   });
@@ -349,7 +287,6 @@ describe("architecture", () => {
 /** The rules above are vacuous until shell, features and routes exist; these fixtures prove each checker bites. */
 describe("architecture checkers (fixtures)", () => {
   const f = (r: string, src: string): F => ({ r, src, imp: [...src.matchAll(/from\s+["']([^"']+)["']/g)].map((m) => m[1]!) });
-  const route = (src: string, at = "users") => f(`${WEB}app/api/${at}/route.ts`, src);
 
   it("layer: shell importing a feature, ds importing charts", () => {
     expect(layerViolations([
@@ -368,8 +305,8 @@ describe("architecture checkers (fixtures)", () => {
 
   it("client code importing lib/server", () => {
     expect(clientImportsServer([
-      f(`${WEB}features/users/a.tsx`, `"use client";\nimport { db } from "@/lib/server/mock/db";`),
-      f(`${WEB}features/users/b.tsx`, `import { db } from "@/lib/server/mock/db";`),
+      f(`${WEB}features/users/a.tsx`, `"use client";\nimport { getSession } from "@/lib/server/session";`),
+      f(`${WEB}features/users/b.tsx`, `import { getSession } from "@/lib/server/session";`),
     ])).toEqual([`${WEB}features/users/a.tsx`]);
   });
 
@@ -431,36 +368,23 @@ describe("architecture checkers (fixtures)", () => {
     ]);
   });
 
-  it("a route handler without withPermission(", () => {
-    expect(routeViolations([route(`export async function GET(req: Request) { return json(db().users); }`)]))
-      .toEqual([`${WEB}app/api/users/route.ts GET: no withPermission(`]);
-    expect(routeViolations([route(`// withPermission(\nexport async function GET() { return json(1); }`)]))
-      .toEqual([`${WEB}app/api/users/route.ts GET: no withPermission(`]);
+  it("runtime imports: bun, bun:sqlite, pg, @starterkit/api and paths into apps/api are caught; node: and packages pass", () => {
+    const g = (r: string, src: string): F => ({ r, src, imp: importsIn(src) });
+    expect(runtimeViolations([
+      g(`${WEB}lib/server/a.ts`, `import { SQL } from "bun";\nimport { Database } from "bun:sqlite";\nimport { Pool } from "pg";`),
+      g(`${WEB}lib/server/b.ts`, `import { createApp } from "@starterkit/api/app";\nimport { sql } from "../../../../api/src/db/client";`),
+      g(`${WEB}lib/server/ok.ts`, `import { randomUUID } from "node:crypto";\nimport { z } from "zod";\nimport { BRAND } from "@starterkit/shared/brand";\nimport x from "bunyan";`),
+      g(`${UI}lib/c.ts`, `import { SQL } from "bun";`),
+    ])).toEqual([
+      `${WEB}lib/server/a.ts → bun`, `${WEB}lib/server/a.ts → bun:sqlite`, `${WEB}lib/server/a.ts → pg`,
+      `${WEB}lib/server/b.ts → @starterkit/api/app`, `${WEB}lib/server/b.ts → ../../../../api/src/db/client`,
+    ]);
   });
 
-  it("a mutation without recordActivity(, an arrow handler, a route with no handler", () => {
-    const guarded = `export async function GET(req: Request) { return withPermission(req, "user.view", async () => json(1)); }\n`;
-    expect(routeViolations([route(`${guarded}export async function DELETE(req: Request) { return withPermission(req, "user.delete", async () => json(1)); }`)]))
-      .toEqual([`${WEB}app/api/users/route.ts DELETE: no recordActivity(`]);
-    expect(routeViolations([route(`export const POST = async () => json(1);`)]))
-      .toEqual([`${WEB}app/api/users/route.ts: export each handler as a function declaration`]);
-    expect(routeViolations([route(`export const dynamic = "force-dynamic";`)])).toEqual([`${WEB}app/api/users/route.ts: no exported handler found`]);
-  });
-
-  it("order: a 404 before the body check is reported; body first, or no body, passes", () => {
-    const h = (inner: string) => route(`export async function PATCH(req: Request) { const body = B.safeParse(1); return withPermission(req, "user.edit", async (ctx) => { ${inner} recordActivity(ctx, e); return json(1); }); }`);
-    expect(routeViolations([h(`const u = get(id); if (!u) return notFound("user"); if (!body.success) return badRequest();`)]))
-      .toEqual([`${WEB}app/api/users/route.ts PATCH: checks existence (404) before the request body (400)`]);
-    expect(routeViolations([h(`if (!body.success) return badRequest(); if (!u) return notFound("user");`)])).toEqual([]);
-    expect(routeViolations([h(`if (!s) return apiError(404, "not_found", "x");`)])).toEqual([]);
-  });
-
-  it("a HEAD or OPTIONS handler and a route.ts outside app/api are checked too", () => {
-    expect(routeViolations([
-      route(`export async function HEAD(req: Request) { return new Response(null); }`),
-      f(`${WEB}app/(main)/export/route.ts`, `export async function GET(req: Request) { return json(db().users); }`),
-      f(`${WEB}app/(main)/ok/route.ts`, `export function OPTIONS(req: Request) { return withPermission(req, null, async () => json(1)); }`),
-    ])).toEqual([`${WEB}app/api/users/route.ts HEAD: no withPermission(`, `${WEB}app/(main)/export/route.ts GET: no withPermission(`]);
+  it("route files: an extra route.ts under app/ (api or not) shows up in the list", () => {
+    const g = (r: string): F => ({ r: WEB + r, src: "", imp: [] });
+    expect(routeFiles([g("app/api/users/route.ts"), g("app/(main)/export/route.ts"), g("app/api/[...path]/route.ts"), g("app/(main)/page.tsx")]))
+      .toEqual([`${WEB}app/(main)/export/route.ts`, `${WEB}app/api/[...path]/route.ts`, `${WEB}app/api/users/route.ts`]);
   });
 
   it("strip() removes comments but keeps strings, templates and regex literals whole", () => {
@@ -477,40 +401,10 @@ describe("architecture checkers (fixtures)", () => {
     ])).toEqual([`${WEB}features/x/a.tsx: fetch("https://evil…) must start with "/api/"`]);
   });
 
-  it("a guarded GET next to an unguarded POST in one file: exactly the POST is reported", () => {
-    const src = `export async function GET(req: Request) { return withPermission(req, "user.view", async () => json(1)); }
-export async function POST(req: Request) { recordActivity(ctx, e); return json(1); }`;
-    expect(routeViolations([route(src)])).toEqual([`${WEB}app/api/users/route.ts POST: no withPermission(`]);
-  });
-
-  it("guarded routes pass; app/api/auth/** is exempt", () => {
-    const ok = `export async function PATCH(req: Request) { return withPermission(req, "user.edit", async (ctx) => { recordActivity(ctx, e); return json(1); }); }`;
-    expect(routeViolations([route(ok), f(`${WEB}app/api/auth/login/route.ts`, `export async function POST() { return json(1); }`)])).toEqual([]);
-  });
-
   it("zod import check: a side-effect import followed by a type-only contract import passes", () => {
     expect(clientZodViolations([
       f(`${WEB}features/x/a.tsx`, `import "./x.css";\nimport type { A } from "@starterkit/shared/contracts/audit";`),
     ])).toEqual([]);
-  });
-
-  it("list GET without paginate(, allowlisted and paged GETs pass, a stale allowlist entry is reported", () => {
-    const guarded = (inner: string) => `export async function GET(req: Request) { return withPermission(req, "user.view", async () => ${inner}); }`;
-    expect(listGetViolations([
-      route(guarded("json([...db().users.values()])"), "users"),
-      route(guarded("json(paginate(rows, q, SORTERS, \"name\"))"), "roles"),
-      route(guarded("json(db().users.get(id))"), "users/[id]"),
-      route(`export async function POST(req: Request) { return withPermission(req, "x", async () => json([])); }`, "bulk"),
-      route(guarded("json(rows) // paginate( only in a comment"), "logs"),
-      route(guarded("json(userPage(q))"), "people"),
-      route(guarded("json(rowsOf(q))"), "things"),
-      f(`${WEB}lib/server/people.ts`, `export function userPage(q: Q) { return paginate(rows(), q, S, "name"); }\nexport const rowsOf = (q: Q) => rows(q);`),
-    ], { "users/[id]/route.ts": "one user", "gone/route.ts": "removed route" })).toEqual([
-      "app/api/users/route.ts: GET answers a list without paginate(",
-      "app/api/logs/route.ts: GET answers a list without paginate(",
-      "app/api/things/route.ts: GET answers a list without paginate(",
-      "app/api/gone/route.ts: listed as a non-list GET but has no GET handler",
-    ]);
   });
 
   it("motion literals in TS/TSX and CSS; tokens, token definitions and 0ms pass", () => {

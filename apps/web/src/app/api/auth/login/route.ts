@@ -1,75 +1,17 @@
-import { randomUUID } from "node:crypto";
-import { afterSignIn } from "@starterkit/ui/lib/safe-path";
-import { apiError, clientIp, crossSite, handleError, json, sameOrigin, tooManyAttempts } from "@/lib/server/api";
-import { secureEquals } from "@/lib/server/csrf";
-import { db, type UserRecord } from "@/lib/server/mock/db";
-import { hashPassword, verifyPassword } from "@/lib/server/mock/password";
-import { loginGate, loginLimits, retryText } from "@/lib/server/ratelimit";
-import { getSession } from "@/lib/server/session";
-import { completeSignIn, findUser, logAuth } from "@/lib/server/sign-in";
-import { LoginBody } from "@starterkit/shared/contracts/auth";
-
-let dummy: string | undefined;
-/** A hash no password matches: scrypt runs for unknown logins too, so the answer time doesn't reveal which exist. */
-const dummyHash = () => (dummy ??= hashPassword(randomUUID()));
-
-/** Password users by scrypt hash; LDAP users only by the LDAP method, against the (mock) directory. */
-function credentialOk(user: UserRecord | undefined, method: "password" | "ldap", password: string): boolean {
-  if (method === "ldap") {
-    const dir = user?.isLdap ? db().ldapDirectory.get(user.id) : undefined;
-    return secureEquals(password, dir ?? "\0") && dir !== undefined;
-  }
-  const hash = user && !user.isLdap ? user.passwordHash : null;
-  return verifyPassword(password, hash ?? dummyHash()) && hash !== null;
-}
+import { crossSite, json, sameOrigin } from "@/lib/server/api";
+import { backend, relay } from "@/lib/server/backend";
+import { getSession, storeSignIn } from "@/lib/server/session";
 
 /**
- * Sign-in step 1. Unknown login, wrong password and the wrong method for the account share one answer; an inactive
- * account is named only after the right credential. A user with 2FA gets only the pending marker (no sid, no CSRF).
+ * Sign-in step 1, checked by the API (`POST /v1/auth/login`). Success: the cookie gets the session token and a new
+ * CSRF token, or only the challenge when a second factor is due; the browser gets `{ next }`, never a token. A
+ * failure passes through as the API answered (status, body, Retry-After) and leaves the cookie as it was.
  */
 export async function POST(req: Request): Promise<Response> {
   if (!sameOrigin(req)) return crossSite();
-  try {
-    const body = LoginBody.parse(await req.json().catch(() => null));
-    const user = findUser(body.login);
-    const name = (user?.username ?? body.login.trim()).toLowerCase();
-    // The log names the account by its email when the login matched one, else by what was typed.
-    const login = user?.email ?? body.login;
-    const fail = () => logAuth(req, "login_failed", body.method, login, user?.id ?? null);
-    // Synchronous gate (counts the attempt before any await); the reserved failure stays unless the credential is right.
-    const wait = loginGate(loginLimits, { step: "login", ip: clientIp(req), username: name });
-    if (wait != null) {
-      fail();
-      return tooManyAttempts(wait, retryText(wait));
-    }
-    const ok = credentialOk(user, body.method, body.password);
-    if (!ok || !user) {
-      fail();
-      return apiError(401, "invalid_credentials", "The sign-in details don't match an account. Check them and the sign-in method, then try again.");
-    }
-    const twoFactor = user.twoFactorEnabled && !!user.totpSecret;
-    // With 2FA the sign-in isn't won yet: drop only this attempt's reservation, so earlier OTP failures keep counting.
-    if (twoFactor) loginLimits.user.release(name);
-    else loginLimits.user.succeed(name);
-    if (!user.isActive) {
-      fail();
-      return apiError(403, "account_inactive", "This account is inactive. Ask an administrator to reactivate it.");
-    }
-    const s = await getSession();
-    if (twoFactor) {
-      if (s.sid) db().sessions.delete(s.sid);
-      s.sid = undefined;
-      s.csrf = undefined;
-      s.pending2fa = { userId: user.id, method: body.method, at: Date.now() };
-      await s.save();
-      logAuth(req, "password_ok", body.method, login, user.id); // not a sign-in yet: the code step logs 2fa_success
-      const next = afterSignIn(body.next);
-      return json({ next: next === "/" ? "/login/2fa" : `/login/2fa?next=${encodeURIComponent(next)}` });
-    }
-    await completeSignIn(s, user, body.method, req);
-    logAuth(req, "login_success", body.method, login, user.id);
-    return json({ next: afterSignIn(body.next) });
-  } catch (e) {
-    return handleError(e);
-  }
+  const res = await backend("/v1/auth/login", { method: "POST", body: await req.text(), contentType: "application/json", req });
+  if (!res.ok) return relay(res);
+  const { next, token, challenge } = (await res.json()) as { next: string; token?: string; challenge?: string };
+  await storeSignIn(await getSession(), { token, challenge }, req);
+  return json({ next });
 }
