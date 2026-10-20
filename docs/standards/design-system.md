@@ -8,12 +8,34 @@ starterkit.
 
 ## 0. Principles
 
-1. **Desktop only.** The app runs in a desktop browser and is never opened on a phone. Design for 1280–1920 px
-   wide; **1440 px is the reference width, 1280 px the minimum**. 768–1279 px only has to avoid horizontal page
-   scroll (the content column narrows, grids drop to fewer columns); there is no separate tablet layout and no
-   mobile layout, bottom nav or 375 px rule. Targets are sized for a mouse and keyboard: **28 px minimum, 32 px
-   default** for buttons, icon buttons, segments and pagination. 44 px coarse-pointer targets are not a design
-   driver.
+1. **Responsive: phone, tablet, desktop.** Every screen works fully at every width from 360 px, with the same five
+   states, motion, no-flicker rules, a11y and JS budget (spec `docs/superpowers/specs/2026-10-20-responsive-design.md`).
+   Three width classes, on Tailwind's `md` (768) and `xl` (1280) breakpoints:
+
+   | Class | Width | Reference | Navigation |
+   |---|---|---|---|
+   | Phone | 360–767 px (`max-md:`) | 390 px | Top bar (menu button, logo mark, page title, search, account); the sidebar opens as a drawer from the left |
+   | Tablet | 768–1279 px | 834 px | 64 px icon rail |
+   | Desktop | ≥ 1280 px (`xl:`) | 1440 px | 248 px sidebar, collapsible to the rail |
+
+   - **No horizontal page scroll** at any width from 360 px. Only a component that is wide by nature (permission
+     matrix, a wide table, a tablist) scrolls sideways, inside its own card. (`tests/e2e/responsive.spec.ts`
+     "no horizontal page scroll", helper `expectNoHorizontalScroll`, on the desktop, tablet and mobile projects.)
+   - **Targets**: drawn at **28 px minimum, 32 px default** for buttons, icon buttons, segments and pagination at every
+     width. Under `@media (pointer: coarse)` every control also has a hit area of at least **44 × 44 px**
+     (`--touch-min`): a transparent `::before` from `base.css`, so the drawn size never changes; text fields and selects
+     grow to 44 px instead. An action that shows on hover (row actions) is always shown on a touch screen
+     (`pointer-coarse:`). (`responsive.spec.ts` "touch targets", mobile project.)
+   - **Inputs** use at least 16 px text under a coarse pointer (`--text-input-touch`, `base.css`), so iOS never zooms.
+   - **Overlays**: below 768 px a `Dialog` (and so `ConfirmActionDialog` and every form dialog) is a bottom sheet:
+     full width, at most 90 dvh, scrolling content, the action row stuck to its bottom, safe-area padding; same
+     motion tokens (`packages/ui/src/ui/dialog.test.ts`, `responsive.spec.ts` "bottom sheet").
+   - **Safe areas**: `viewport-fit=cover`; the phone top bar, the drawer, the bottom sheet and the shell's sides pad
+     with `env(safe-area-inset-*)` (`pt-safe`, `pb-safe`, `pl-safe`, `px-safe` utilities in `base.css`).
+   - New layout uses `md` and `xl` only. Older uses of other breakpoints, kept until the data surfaces move to the
+     three classes: `lg` (1024) in the KPI tray (`stat-tile.tsx`), the user detail and security grids, the route
+     skeleton and the `/ds` spans; `sm` (640) for the filter input width and two `/ds` grids; `max-lg` narrows the
+     top bar's search field.
 2. **Tray and sheet.** Every region has exactly one job, and its surface says it. App background → content
    sheet → tray (grouping, header, label) → card (the data itself). Each step is a visible but quiet value change
    of 2–4 % lightness, plus a 1 px hairline. Shadows are only for things that float.
@@ -56,7 +78,10 @@ starterkit.
 - Sheet inset 8 px top/right/bottom; content padding 32 px horizontal, 24 px top, 40 px bottom.
 - At 1440: content width 1440 − 248 − 8 − 8 − 64 = 1112 px; 12 columns, 16 px gutters → column 78.0 px.
 - At 1920: content capped at 1376 px and centred in the sheet. At 1280: 952 px content, same 12 columns.
-- 768–1279: sidebar auto-collapses to the 64 px rail; 12-col spans of 3 become 6, 4 become 6; no horizontal scroll.
+- Tablet, 768–1279: the sidebar is always the 64 px rail; 12-col spans of 3 become 6, 4 become 6 (2 per row).
+- Phone, below 768: no sidebar (drawer), the sheet fills the window edge to edge (no inset, no radius), content padding
+  16 px, top bar sticky; every span becomes 12 (one column) and a KPI tray shows 2 tiles per row (the spec's target for
+  the data surfaces, still being built: until then a wide surface scrolls inside its card); no horizontal scroll.
 
 ### 2.2 Rhythm
 
@@ -78,8 +103,8 @@ Symmetry rules: siblings in a row share width and height (`grid-auto-rows: 1fr` 
 | KPI strip | one tray, 4 tiles (or 3), equal |
 | Primary chart | 8 col + 4 col companion (legend cards, insights, top-N) |
 | Paired charts | 6 + 6 |
-| Card grid | 3 col each (4 per row) ≥ 1440; 4 col (3 per row) 1280–1439 |
-| Tables | 12 col |
+| Card grid | 3 col each (4 per row) ≥ 1440; 4 col (3 per row) 1280–1439; 6 col (2 per row) on a tablet; 12 col on a phone |
+| Tables | 12 col (on a phone the table scrolls inside its card until stacked rows land) |
 
 ---
 
@@ -283,6 +308,14 @@ in nav, toolbars, panel headers and KPI tiles, 14 px in chips and table headers,
 └──────────────────────┘ └───────────────────────────────────────────────────────────────────┘
 ```
 
+Phone (below 768 px): the sidebar is not shown. The top bar holds the menu button ("Open navigation", 32 px), the logo
+mark, the breadcrumb as the page title, search as a 32 px icon button and the account menu (avatar; the theme switch is
+in it). The menu button opens the same sections in a drawer from the left (`Drawer`, `packages/ui/src/ui/drawer.tsx`:
+a Radix dialog loaded through `deferred-overlay`): 288 px (at most 5/6 of the width), items 44 px, focus trapped,
+Escape and the scrim close it, any route change closes it, the page behind is `inert`, focus returns to the menu
+button (`packages/ui/src/ui/drawer.test.ts`, `responsive.spec.ts` "phone"). The bar is server-rendered and switched by
+CSS, so it never shifts on first paint.
+
 Rules: the nav is exactly Dashboard, Users, Roles, Permissions, Activity log, Sign-in log, Design system and Profile
 (own sessions live at /me/sessions and on a user's detail page; there is no global Sessions page). Nav items carry no
 badges; count badges elsewhere are counts, never words ("New" pills are not used).
@@ -406,7 +439,8 @@ under the field in Down ink `body-sm`.
 ### 5.14 Menus, tooltips, dialogs
 Menu: `--raised`, radius 12, padding 4, items 32 px radius 8, `--shadow-overlay`. Tooltip (UI): inverse `#18181b`
 (dark: `#f2f2f3` text `#151517`), radius 8, `body-sm`, padding 6 10, max 280 px. Dialog: 480 / 640 px, radius 16,
-padding 24, title `title-1`, footer buttons right; confirm copy per copy guide.
+padding 24, title `title-1`, footer buttons right; confirm copy per copy guide. Below 768 px the dialog is a bottom
+sheet (§0): full width, top corners 16, at most 90 dvh, content scrolls, footer sticky at the bottom.
 
 ---
 
@@ -543,7 +577,8 @@ allowed. Reduced motion: the indicator jumps (no spring) and crossfades 100 ms.
 - Toggle thumb: 100 ms; checkbox check-path draw 150 ms.
 - Menus/popovers: opacity + scale 0.98 → 1 from the trigger origin, `--dur-pop` (180 ms) in / `--dur-instant` (100 ms) out.
 - Tooltip: opacity only, `--dur-instant` (100 ms) in and out, 300 ms open delay (0 when moving between chart points).
-- Dialog: scrim fade `--dur-enter` in / `--dur-exit` out; panel opacity + scale 0.98 → 1, `--dur-slow` (280 ms) in / `--dur-exit` (160 ms) out.
+- Dialog: scrim fade `--dur-enter` in / `--dur-exit` out; panel opacity + scale 0.98 → 1, `--dur-slow` (280 ms) in / `--dur-exit` (160 ms) out. Below 768 px (bottom sheet) the panel rises from the bottom edge instead of scaling, same tokens.
+- Navigation drawer (phone): scrim as the dialog; panel slides in from the left with a fade, `--dur-slow` in / `--dur-exit` out (`OVERLAY_MOTION.drawer`).
 
 ### 7.6 Reduced motion
 `useReducedMotion()` + `@media (prefers-reduced-motion: reduce)`: **no translate, no scale, no spring, no
@@ -569,7 +604,8 @@ tokens from `packages/ui/src/motion/tokens.ts` (`DUR.*`, `STAGGER`, `EASE`), nev
 | Page enter | CSS | `DUR.page`; route change only, the shell never animates | Fade only, `DUR.instant` |
 | Stagger | CSS | `DUR.enter`, `STAGGER.step` steps, cap `STAGGER.max` items (KPI trays, card grids) | Fade only, no delay |
 | Reveal | CSS | `DUR.enter` in, `DUR.fast` out; skeleton to content in the same box | Fade only, `DUR.instant` |
-| Dialog | CSS | `OVERLAY_MOTION.dialog`: `DUR.slow` in, `DUR.exit` out; scrim `DUR.enter` in, `DUR.exit` out | Fade only, no scale |
+| Dialog | CSS | `OVERLAY_MOTION.dialog`: `DUR.slow` in, `DUR.exit` out; scrim `DUR.enter` in, `DUR.exit` out; below 768 px it rises from the bottom (sheet) | Fade only, no scale or slide |
+| Drawer | CSS | `OVERLAY_MOTION.drawer`: `DUR.slow` in, `DUR.exit` out, slide from the left; scrim as the dialog | Fade only, no slide |
 | Menu | CSS | `OVERLAY_MOTION.menu`: `DUR.pop` in, `DUR.instant` out (popovers too) | Fade only, no slide |
 | Tooltip | CSS | `OVERLAY_MOTION.tooltip`: `DUR.instant` in and out | Fade only |
 | Toast | CSS | sonner's own 400 ms (not a token) | None: sonner keeps its own reduced rule (no transform override, so stacked toasts keep their transform) |

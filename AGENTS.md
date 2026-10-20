@@ -16,7 +16,7 @@ code, tests and docs of the app this starterkit was extracted from; do not add a
 - `lib/shared` is pure: no React, Next, `lib/server` or components. (`architecture.test.ts`)
 - `packages/shared/src/**` is pure: no React, Next, `apps/`, `@/`; the only workspace import is `@starterkit/ui/lib/*`. Contracts, paging, permissions, audit vocabulary and log redaction live there. (`architecture.test.ts`, `no-domain.test.ts`)
 - Only `charts` imports `recharts`; only `packages/ui/src/motion/framer.tsx` imports `motion`; only `packages/ui/src/ui/icons.ts` imports `@hugeicons/core-free-icons`; no `lucide-react`. (`architecture.test.ts`, `packages/ui/src/motion/layer.test.ts`)
-- Radix DropdownMenu and Popover are imported only in their `*-impl` file; nothing imports it statically. (`packages/ui/src/ui/deferred-overlay.test.ts`)
+- Radix DropdownMenu and Popover are imported only in their `*-impl` file; nothing imports it statically. The phone navigation drawer (`ui/drawer.tsx`) loads its Radix dialog the same way (`drawer-impl.tsx`). (`packages/ui/src/ui/deferred-overlay.test.ts`, `drawer.test.ts`)
 - Only `lib/cn.ts` imports the raw class-merge package. (`packages/ui/src/lib/cn.test.ts`)
 - No source-app domain words in `apps/**` and `packages/**` (except `package.json`, lockfile); the list lives only in the test. (`apps/web/src/test/no-domain.test.ts`)
 
@@ -92,7 +92,7 @@ A change that touches routes, guards, redirects or exports needs a test for each
 ## 7. UI standard
 
 - Follow `docs/standards/ui-standard.md`: page anatomy (§1), grid (§2), the five states per data region (§3), data display (§4), interaction (§5).
-- Desktop-first: 1440 px reference, 1280 px minimum, no horizontal scroll at 768–1279; targets 28 px minimum, 32 px default.
+- Responsive: phone 360–767 px (reference 390; top bar + navigation drawer), tablet 768–1279 (reference 834; 64 px rail), desktop ≥ 1280 (reference 1440); breakpoints `md` and `xl`, decided in CSS, never `matchMedia` in render. No horizontal page scroll from 360 px; a wide component scrolls inside its card. Below 768 a `Dialog` is a bottom sheet (one variant in `ui/dialog.tsx`). Targets drawn 28 px minimum, 32 px default; under `pointer: coarse` a 44 × 44 px hit area (`base.css`) and inputs at ≥ 16 px; hover-only affordances always shown on touch. Safe-area insets on the phone chrome. (`apps/web/tests/e2e/responsive.spec.ts` on the desktop, tablet and mobile projects, `packages/ui/src/ui/{drawer,dialog}.test.ts`, `docs/standards/design-system.md` §0)
 - Same metric, same label, unit, format and icon on every page; numbers only through `format.ts`.
 - Status uses `StatusChip` plus the card's legend, never color alone. Shareable state (filters, tab, range, page) lives in the URL. Query keys start with the owning module (`users`, `rbac`, `me`, `audit`, `dashboard`), built only in `apps/web/src/lib/shared/queries.ts`. (`queries.test.ts`)
 - Every list is server-side: the GET route calls `paginate()` with whitelisted sorters (`sortParam`), the screen uses `useTableQuery` + `DataTable` server mode (sortable headers, page-size select, numbered pagination); page size 15 | 25 | 50 | 100 (default 15), page ≤ 1000 (deeper is 400), `totalCapped` shows "N+"; page, size, sort, search and filters live in the URL (any change but the page goes to page 1, Back undoes it). (`packages/shared/src/contracts/common.ts`, `apps/web/src/lib/server/paginate.test.ts`, `apps/web/src/lib/shared/table-state.test.ts`, `architecture.test.ts` "every GET route that answers a list")
@@ -144,6 +144,7 @@ A change that touches routes, guards, redirects or exports needs a test for each
 - Write the failing test first for logic, guards and contracts; keep the test next to the module (`*.test.ts`). A guard ships with fixtures that prove it fails on a violation.
 - While working, run only the related tests (`bunx vitest related <files>` or `bun run test:changed`); run the full `bun run check` when shared code changed and before the task's final commit, and always in final verification.
 - Playwright and other browser artifacts (screenshots, traces, logs) go under `.superpowers/scratch/` (gitignored), never outside the repo.
+- Playwright runs three projects (`apps/web/playwright.config.ts`): `desktop` 1440 × 900 runs every spec, `tablet` 834 × 1112 runs `responsive.spec.ts`, `mobile` 390 × 844 (touch, `isMobile`) runs `responsive.spec.ts` and `a11y.spec.ts`. Screenshot baselines carry the project name (`ds-light-desktop-darwin.png`).
 - Done = `bun run check` passes + the related e2e passes + no banned word (§1) in `apps/**` and `packages/**`.
 - A new route, guard or redirect adds its §4 cases.
 - A new color, motion value or icon goes through tokens/`icons.ts` first, then the `/ds` gallery.
