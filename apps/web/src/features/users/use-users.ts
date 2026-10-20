@@ -1,5 +1,5 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { api, retryUnlessNotFound } from "@/lib/client/api";
+import { api, isNotFound, retryUnlessNotFound } from "@/lib/client/api";
 import type { Page } from "@starterkit/shared/contracts/common";
 import type { RoleOption } from "@starterkit/shared/contracts/rbac";
 import type { UserDetailDto, UserDto, UserRowDto } from "@starterkit/shared/contracts/users";
@@ -54,3 +54,6 @@ export function protection(u: UserRowDto, meId: string, perms: ReadonlySet<Permi
   if (u.id === meId) return "You can't do this to your own account. Ask another administrator.";
   return rankBlock(u, perms) ?? (u.id === lastSuperId ? "This is the last active Superadmin. Make another user Superadmin first." : null);
 }
+
+/** The user's own queries (sessions) stay off once the detail answered 404 or this page deleted them: no "Couldn't load" flash. */
+export const userGone = (detailError: unknown, deleted: boolean): boolean => deleted || isNotFound(detailError);

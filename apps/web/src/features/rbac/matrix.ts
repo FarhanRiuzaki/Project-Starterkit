@@ -29,16 +29,18 @@ export const toggleAll = (s: Perms, allowed?: Perms) => toggle(s, PERMISSIONS, a
 
 /**
  * A module's view comes with its other actions (the server's withViews): any other action on → view on; view
- * switched off (on in `before`, off in `after`) → the module's other actions go with it.
+ * switched off (on in `before`, off in `after`) → the module's other actions go with it. With `allowed` (the actor's
+ * own permissions) it only adds or removes what the actor holds, so it never grants or strips a permission they lack.
  */
-export function closeViews(before: Perms, after: Perms): Set<PermissionName> {
+export function closeViews(before: Perms, after: Perms, allowed?: Perms): Set<PermissionName> {
+  const may = (p: PermissionName) => !allowed || allowed.has(p);
   const out = new Set(after);
   for (const m of MODULES) {
     const view = `${m.key}.view` as PermissionName;
     const others = rowCells(m.key).filter((p) => p !== view);
     if (!others.some((p) => out.has(p))) continue;
-    if (before.has(view) && !out.has(view)) for (const p of others) out.delete(p);
-    else out.add(view);
+    if (before.has(view) && !out.has(view)) { for (const p of others) if (may(p)) out.delete(p); }
+    else if (may(view)) out.add(view);
   }
   return out;
 }
@@ -66,9 +68,9 @@ export const withDraft = (saved: Perms, d: Draft | null): Set<PermissionName> =>
  * Apply one edit to the draft. Used as `setDraft(prev => applyEdit(saved, prev, edit))`, so toggles queued before a
  * render compose instead of each starting from the same stale set.
  */
-export const applyEdit = (saved: Perms, d: Draft | null, edit: Edit): Draft => {
+export const applyEdit = (saved: Perms, d: Draft | null, edit: Edit, allowed?: Perms): Draft => {
   const current = withDraft(saved, d);
-  return diff(saved, closeViews(current, edit(current)));
+  return diff(saved, closeViews(current, edit(current), allowed));
 };
 
 /** The draft against the server's current set: what it still changes (a refetch may already hold part of it). */

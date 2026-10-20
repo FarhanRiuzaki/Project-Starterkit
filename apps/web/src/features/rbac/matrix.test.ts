@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { PERMISSIONS, type PermissionName } from "@starterkit/shared/permissions";
-import { ACTIONS, applyEdit, cellState, columnCells, diff, type Draft, rebase, rowCells, toggleAll, toggleCell, toggleColumn, toggleRow, withDraft } from "./matrix";
+import { ACTIONS, applyEdit, closeViews, cellState, columnCells, diff, type Draft, rebase, rowCells, toggleAll, toggleCell, toggleColumn, toggleRow, withDraft } from "./matrix";
 
 const set = (...p: PermissionName[]) => new Set<PermissionName>(p);
 const sorted = (s: ReadonlySet<PermissionName>) => [...s].sort();
@@ -91,6 +91,19 @@ describe("permission matrix", () => {
     expect(applyEdit(saved, null, (v) => toggleColumn(v, "delete"))).toEqual({ added: ["user.view", "user.delete", "role.view", "role.delete"], removed: [] });
     const full = set("user.view", "user.edit", "user.delete", "audit.view");
     expect(applyEdit(full, null, (v) => toggleCell(v, "user.view"))).toEqual({ added: [], removed: ["user.view", "user.edit", "user.delete"] });
+  });
+
+  it("with `allowed`, closeViews never adds a view the actor lacks nor strips an action they lack", () => {
+    const allowed = set("user.edit", "audit.view");
+    // user.edit on, user.view not held: view is not added
+    expect(sorted(closeViews(set(), set("user.edit"), allowed))).toEqual(["user.edit"]);
+    // without `allowed` it still adds it
+    expect(sorted(closeViews(set(), set("user.edit")))).toEqual(["user.edit", "user.view"]);
+    // applyEdit threads `allowed` through
+    expect(applyEdit(set(), null, (v) => toggleCell(v, "user.edit"), allowed)).toEqual({ added: ["user.edit"], removed: [] });
+    // view off (held) removes only the other actions the actor holds; user.delete stays
+    const held = set("user.view", "user.edit");
+    expect(sorted(closeViews(set("user.view", "user.edit", "user.delete"), set("user.edit", "user.delete"), held))).toEqual(["user.delete"]);
   });
 
   it("rebase: a draft made against an older set shows and sends only what still changes something", () => {

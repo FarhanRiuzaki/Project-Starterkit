@@ -13,13 +13,15 @@ import type { NoFilters, TableDef } from "@/lib/shared/queries";
  * address, last active; page, size and sort in the URL. `table` = MY_SESSIONS or userSessions(id) (lib/shared/queries);
  * its key is the prefix the caller invalidates after ending a session; `current` labels the session making the request.
  */
-export function SessionsTable({ table, title, description, current, emptyHint, action }: {
+export function SessionsTable({ table, title, description, current, emptyHint, action, enabled }: {
   table: TableDef<NoFilters>; title: string; description: string; current: string;
   /** Empty state: when sessions appear. */
   emptyHint: string;
   action?: (s: SessionDto) => ReactNode;
+  /** false = don't fetch (the user is gone). */
+  enabled?: boolean;
 }) {
-  const t = useTableQuery<SessionDto, NoFilters>(table);
+  const t = useTableQuery<SessionDto, NoFilters>(table, enabled);
   const columns: Column<SessionDto>[] = [
     { key: "device", header: "Device", sortable: true, cell: (s) => <span className="font-medium text-fg">{s.device}{s.current && <span className="ml-2 text-caption font-normal text-primary-ink">{current}</span>}</span> },
     { key: "ip", header: "IP address", cell: (s) => <span className="font-mono text-mono">{s.ip}</span> },

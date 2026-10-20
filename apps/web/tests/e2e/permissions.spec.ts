@@ -43,3 +43,15 @@ test("viewer: menu, direct API call and direct page", async ({ page, baseURL }) 
     await expect(page.getByRole("link", { name: "Go to dashboard" })).toBeVisible();
   }
 });
+
+/** An Admin may open a Superadmin's edit page (user.edit) but holds fewer permissions: fields read, Save is blocked with the rank reason. */
+test("admin: a Superadmin's edit page is read-only with the blocked Save", async ({ page, baseURL }) => {
+  await signIn(page, "admin@example.com");
+  await expect(page).toHaveURL("/");
+  await page.goto(await withIds("/users/{superadmin}/edit", baseURL));
+  await heading(page, "Edit user");
+  await expect(page.locator("#u-name")).toBeDisabled();
+  const save = page.getByRole("button", { name: "Save user" });
+  await expect(save).toHaveAttribute("aria-disabled", "true");
+  await expect(save).toHaveAccessibleDescription("This user has permissions your role doesn't hold. Ask an administrator who has all of them.");
+});

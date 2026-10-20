@@ -24,7 +24,7 @@ import { MODULES, permissionLabel } from "@starterkit/shared/permissions";
 import { userDetail, userSessions } from "@/lib/shared/queries";
 import { BRAND } from "@starterkit/shared/brand";
 import { UserStatusChip } from "./user-columns";
-import { USERS_KEY, protection, rankBlock, useLastSuperadminId, useUserDetail } from "./use-users";
+import { USERS_KEY, protection, rankBlock, useLastSuperadminId, userGone, useUserDetail } from "./use-users";
 import { USER_DETAIL_SHAPE } from "./shapes";
 
 const PROVIDER = { google: "Google", apple: "Apple" } as const;
@@ -132,7 +132,7 @@ export function UserDetail({ id }: { id: string }) {
           </dl>
         </Panel></StaggerItem>
       </Stagger>
-      <SessionsTable table={userSessions(id)} title="Active sessions" description="Where this user is signed in"
+      <SessionsTable table={userSessions(id)} enabled={!userGone(q.error, deleted)} title="Active sessions" description="Where this user is signed in"
         current="Your session" emptyHint="Sessions appear here when this user signs in."
         action={can("user.edit") ? (s) => (s.current ? <span className="text-caption text-fg-3">Your session</span> : <BlockedButton size="sm" variant="ghost" reason={rank} onClick={() => setDialog({ end: s })}>End session</BlockedButton>) : undefined} />
       {u.recentActivity && (

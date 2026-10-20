@@ -106,7 +106,7 @@ export function RoleDetail({ id }: { id: string }) {
         )}>
         {readOnly && <div className="px-3 pt-3"><Notice>{readOnly}</Notice></div>}
         <PermissionMatrix label={`Permissions of ${r.name}`} value={value} allowed={perms}
-          onChange={readOnly ? undefined : (edit) => setDraft((d) => applyEdit(saved, d, edit))} />
+          onChange={readOnly ? undefined : (edit) => setDraft((d) => applyEdit(saved, d, edit, perms))} />
       </Panel>
 
       {dialog === "save" && (

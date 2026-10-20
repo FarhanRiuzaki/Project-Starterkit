@@ -3,7 +3,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useState } from "react";
-import { Failure, Field, Panel } from "@starterkit/ui/ds";
+import { BlockedButton, Failure, Field, Panel } from "@starterkit/ui/ds";
 import { Button } from "@starterkit/ui/ui/button";
 import { Icon } from "@starterkit/ui/ui/icon";
 import { SpinnerIcon, UsersIcon } from "@starterkit/ui/ui/icons";
@@ -16,9 +16,9 @@ import { LoadingShape } from "@/components/route-skeleton";
 import { PageHeader } from "@/components/shell/page-header";
 import { api, errorText, isNotFound } from "@/lib/client/api";
 import { useAuth } from "@/lib/client/auth-context";
-import type { UserDto } from "@starterkit/shared/contracts/users";
+import type { UserDetailDto, UserDto } from "@starterkit/shared/contracts/users";
 import { BRAND } from "@starterkit/shared/brand";
-import { USERS_KEY, useRoleNames, useUserDetail } from "./use-users";
+import { rankBlock, USERS_KEY, useRoleNames, useUserDetail } from "./use-users";
 import { useDebounced } from "@/lib/client/use-debounced";
 import { EDIT_USER_SHAPE } from "./shapes";
 
@@ -34,10 +34,10 @@ export function CreateUser() {
 }
 
 /** Create (no `user`) or edit one user. LDAP users have no password or invite; the LDAP choice is fixed after creation. */
-function UserForm({ user }: { user?: UserDto }) {
+function UserForm({ user }: { user?: UserDetailDto }) {
   const router = useRouter();
   const qc = useQueryClient();
-  const { user: me } = useAuth();
+  const { user: me, perms } = useAuth();
   const [roleText, setRoleText] = useState("");
   const roleTerm = useDebounced(roleText.trim());
   const roleNames = useRoleNames(roleTerm);
@@ -52,6 +52,8 @@ function UserForm({ user }: { user?: UserDto }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const self = !!user && user.id === me.id;
+  // Same rank rule as the list and detail: fields stay readable, nothing can be changed or saved.
+  const blocked = user ? rankBlock(user, perms) : null;
   // More roles than one page: type to search; the roles already picked stay listed first.
   const searchable = roleNames.more || roleTerm !== "";
   const shownRoles = searchable ? [...new Set([...roles, ...roleNames.names])] : roleNames.names;
@@ -59,6 +61,7 @@ function UserForm({ user }: { user?: UserDto }) {
 
   async function save(e: FormEvent) {
     e.preventDefault();
+    if (blocked) return;
     setBusy(true);
     setError(null);
     try {
@@ -85,6 +88,7 @@ function UserForm({ user }: { user?: UserDto }) {
   return (
     <Panel icon={UsersIcon} title={user ? "Edit user" : "New user"} description={user ? "Name, sign-in names, roles and status" : "They sign in with the method you choose below"}>
       <form onSubmit={save} className="grid max-w-md gap-4">
+        <fieldset disabled={!!blocked} className="contents">
         <Field id="u-name" label="Name"><Input id="u-name" value={name} maxLength={100} required onChange={(e) => setName(e.target.value)} autoComplete="off" /></Field>
         <Field id="u-username" label="Username" note="3–32 characters: letters, numbers, dot, dash or underscore.">
           <Input id="u-username" value={username} minLength={3} maxLength={32} pattern="[a-zA-Z0-9._\-]+" required onChange={(e) => setUsername(e.target.value)} autoComplete="off" className="font-mono" />
@@ -132,9 +136,10 @@ function UserForm({ user }: { user?: UserDto }) {
             )}
           </>
         )}
+        </fieldset>
         {error && <p role="alert" className="text-body-sm text-down-ink">{error}</p>}
         <div className="flex items-center gap-3">
-          <Button type="submit" disabled={busy}>{busy && <Icon icon={SpinnerIcon} className="motion-safe:animate-spin" />}{user ? "Save user" : "Create user"}</Button>
+          <BlockedButton type="submit" reason={blocked} disabled={busy}>{busy && <Icon icon={SpinnerIcon} className="motion-safe:animate-spin" />}{user ? "Save user" : "Create user"}</BlockedButton>
           <Button type="button" variant="ghost" onClick={() => router.back()} disabled={busy}>Cancel</Button>
         </div>
       </form>
