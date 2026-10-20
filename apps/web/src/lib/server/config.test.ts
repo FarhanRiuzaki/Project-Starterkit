@@ -1,5 +1,7 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { DEV_API_BASE_URL, DEV_APP_URL, parseConfig } from "./config";
+import { CONFIG_KEYS, DEV_API_BASE_URL, DEV_APP_URL, parseConfig } from "./config";
 
 const TOKEN = "t".repeat(32);
 const base = { SESSION_SECRET: "s".repeat(32), INTERNAL_API_TOKEN: TOKEN };
@@ -47,5 +49,13 @@ describe("config", () => {
     expect(parseConfig({ ...prod, OAUTH_MOCK: "true" }).OAUTH_MOCK).toBe(true);
     expect(() => parseConfig({ ...prod, COOKIE_SECURE: "true", OAUTH_MOCK: "true" })).toThrow(/OAUTH_MOCK/);
     expect(parseConfig({ ...prod, COOKIE_SECURE: "true" }).OAUTH_MOCK).toBe(false);
+  });
+});
+
+describe("apps/web/.env.example", () => {
+  it("names every key of the config schema and the two read beside it (TRUSTED_PROXY, LOG_LEVEL)", () => {
+    const text = readFileSync(path.resolve(import.meta.dirname, "../../../.env.example"), "utf8");
+    const named = new Set([...text.matchAll(/^(?:# ?)?([A-Z][A-Z0-9_]*)=/gm)].map((m) => m[1]));
+    expect([...CONFIG_KEYS, "TRUSTED_PROXY", "LOG_LEVEL"].filter((k) => !named.has(k))).toEqual([]);
   });
 });

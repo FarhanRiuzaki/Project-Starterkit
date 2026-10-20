@@ -48,6 +48,9 @@ const DbFields = Fields.pick({ DATABASE_URL: true, DB_POOL_MAX: true });
 
 export type Config = z.output<typeof Schema>;
 
+/** Every key the schema reads (apps/api/.env.example must name each; its test checks). */
+export const CONFIG_KEYS = Object.keys(Fields.shape);
+
 export const GOOGLE_KEYS = ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"] as const;
 export const APPLE_KEYS = ["APPLE_CLIENT_ID", "APPLE_TEAM_ID", "APPLE_KEY_ID", "APPLE_PRIVATE_KEY"] as const;
 

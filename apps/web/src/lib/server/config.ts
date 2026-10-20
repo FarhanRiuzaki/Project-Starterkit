@@ -19,6 +19,9 @@ const Env = z.object({
   OAUTH_MOCK: z.enum(["true", "false"]).default("false").transform((v) => v === "true"),
 });
 
+/** Every key the schema reads (apps/web/.env.example must name each; its test checks). */
+export const CONFIG_KEYS = Object.keys(Env.shape);
+
 export type Config = {
   SESSION_SECRET: string; SESSION_TTL_HOURS: number; COOKIE_SECURE: boolean; API_BASE_URL: string; INTERNAL_API_TOKEN: string;
   APP_URL: string; OAUTH_MOCK: boolean;

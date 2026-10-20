@@ -1,5 +1,7 @@
 import { describe, expect, it } from "bun:test";
-import { loadConfig, loadDbConfig } from "../../config";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { CONFIG_KEYS, loadConfig, loadDbConfig } from "../../config";
 
 const KEY = Buffer.alloc(32, 7).toString("base64");
 const base = {
@@ -97,5 +99,25 @@ describe("loadConfig", () => {
     const bad = failure({ ...base, ...apple, APPLE_PRIVATE_KEY: "secret-but-not-a-pem" });
     expect(bad).toContain("APPLE_PRIVATE_KEY");
     expect(bad).not.toContain("secret-but-not-a-pem");
+  });
+});
+
+/** The keys an env example file names, set or commented out (`KEY=` or `# KEY=` at the start of a line). */
+const exampleKeys = (file: string) => new Set([...readFileSync(file, "utf8").matchAll(/^(?:# ?)?([A-Z][A-Z0-9_]*)=/gm)].map((m) => m[1]));
+const API = path.join(import.meta.dir, "../../../..");
+
+describe("example env files", () => {
+  it("apps/api/.env.example names every key of the config schema and the seeder", () => {
+    const named = exampleKeys(path.join(API, ".env.example"));
+    const seed = ["SEED_SUPERADMIN_NAME", "SEED_SUPERADMIN_EMAIL", "SEED_SUPERADMIN_USERNAME", "SEED_SUPERADMIN_PASSWORD"];
+    expect([...CONFIG_KEYS, ...seed].filter((k) => !named.has(k))).toEqual([]);
+  });
+
+  it(".env.compose.example names every key docker-compose.yml reads", () => {
+    const compose = readFileSync(path.join(API, "../../docker-compose.yml"), "utf8");
+    const used = [...new Set([...compose.matchAll(/\$\{([A-Z][A-Z0-9_]*)/g)].map((m) => m[1]!))];
+    expect(used.length).toBeGreaterThan(10);
+    const named = exampleKeys(path.join(API, "../../.env.compose.example"));
+    expect(used.filter((k) => !named.has(k))).toEqual([]);
   });
 });

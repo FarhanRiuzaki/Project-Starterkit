@@ -1,6 +1,6 @@
 # The web image. Build from the repo root: `docker build -f apps/web/Dockerfile -t starterkit-web .`
 # Installs and builds with Bun on Node 24, then runs Next's standalone server (next.config.ts `output: "standalone"`)
-# on node:24-slim, port 3000. Runtime env: API_BASE_URL, INTERNAL_API_TOKEN, SESSION_SECRET (apps/web/.env.example).
+# on node:24-slim, port 3000. Runtime env: API_BASE_URL, INTERNAL_API_TOKEN, SESSION_SECRET, APP_URL (apps/web/.env.example).
 FROM node:24-slim AS build
 COPY --from=oven/bun:1.4.3 /usr/local/bin/bun /usr/local/bin/bun
 WORKDIR /app
