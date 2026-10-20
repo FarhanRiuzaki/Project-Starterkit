@@ -65,7 +65,7 @@ function CustomRange({ from, to, onCommit }: { from: string; to: string; onCommi
 
 /** Time column cell: relative, with the absolute time under it. */
 export const timeCell = (at: string) => (
-  <span className="grid"><RelativeTime at={Date.parse(at)} /><span className="font-mono text-caption text-fg-3">{formatDateTimeLong(Date.parse(at))}</span></span>
+  <span className="grid"><RelativeTime at={Date.parse(at)} touchDate={false} /><span className="font-mono text-caption text-fg-3">{formatDateTimeLong(Date.parse(at))}</span></span>
 );
 
 const day = (d: string) => formatDate(appDayStart(d));

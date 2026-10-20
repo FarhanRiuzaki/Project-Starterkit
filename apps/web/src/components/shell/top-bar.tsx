@@ -20,7 +20,8 @@ const openPalette = () => window.dispatchEvent(new CustomEvent(OPEN_PALETTE));
 /**
  * Top bar: 56 px, 1 px bottom line. Breadcrumb from the route (16 px icon + body per crumb, current in fg), the ⌘K
  * search field (32 × 280, opens the command palette) and a 32 px theme toggle. The shell never animates on navigation.
- * Below 768 px (no sidebar) it is the phone bar, sticky, under the safe-area inset: menu button (drawer), logo mark,
+ * Below 768 px (no sidebar) it is the phone bar, sticky, under the safe-area inset (the 56 px row stays below it): menu
+ * button (drawer; also on a touch tablet), logo mark,
  * the breadcrumb as the page title, search as a 32 px icon button, and the account menu (the theme is in it). All of it
  * is in the server HTML and switched by CSS, so the bar never shifts on first paint.
  */
@@ -30,7 +31,7 @@ export function TopBar({ mark, wordmark }: { mark: ReactNode; wordmark: ReactNod
   const list = crumbs(path, perms);
   const { resolvedTheme, setTheme } = useTheme();
   return (
-    <div data-print="hide" className="flex min-h-14 shrink-0 items-center gap-3 border-b border-line px-6 max-md:sticky max-md:top-0 max-md:z-30 max-md:gap-2 max-md:bg-sheet max-md:px-3 max-md:pt-safe">
+    <div data-print="hide" className="flex min-h-14 shrink-0 items-center gap-3 border-b border-line px-6 max-md:sticky max-md:top-0 max-md:z-30 max-md:gap-2 max-md:min-h-[calc(3.5rem+env(safe-area-inset-top))] max-md:bg-sheet max-md:px-3 max-md:pt-safe">
       <MobileNav wordmark={wordmark} />
       <span className="contents md:hidden">{mark}</span>
       {/* A route without crumbs keeps the spacer but no empty landmark. */}

@@ -4,7 +4,7 @@ import { axeSerious, pending2faState, withIds } from "./helpers";
 
 /**
  * axe (WCAG 2.0–2.2 A/AA): no serious or critical violation on the sign-in steps and the main screens, light and
- * dark, on the desktop and the mobile project (playwright.config.ts). Signed-in pages use the superadmin session from
+ * dark, on the desktop, tablet and mobile projects (playwright.config.ts). Signed-in pages use the superadmin session from
  * global-setup; /login/2fa needs a sign-in waiting for its second factor (helpers.ts pending2faState).
  */
 /** `{name}` = a demo id (helpers.ts demoIds). */

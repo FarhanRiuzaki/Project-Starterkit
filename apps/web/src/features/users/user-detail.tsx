@@ -132,9 +132,10 @@ export function UserDetail({ id }: { id: string }) {
           </dl>
         </Panel></StaggerItem>
       </Stagger>
+      {/* End session: no touch caption in the row; the same `rank` reason is the caption of the header's Edit user. */}
       <SessionsTable table={userSessions(id)} enabled={!userGone(q.error, deleted)} title="Active sessions" description="Where this user is signed in"
         current="Your session" emptyHint="Sessions appear here when this user signs in."
-        action={can("user.edit") ? (s) => (s.current ? <span className="text-caption text-fg-3">Your session</span> : <BlockedButton size="sm" variant="ghost" reason={rank} onClick={() => setDialog({ end: s })}>End session</BlockedButton>) : undefined} />
+        action={can("user.edit") ? (s) => (s.current ? <span className="text-caption text-fg-3">Your session</span> : <BlockedButton size="sm" variant="ghost" reason={rank} caption={false} onClick={() => setDialog({ end: s })}>End session</BlockedButton>) : undefined} />
       {u.recentActivity && (
       <Panel flush icon={LogIcon} title="Recent activity" description="The last 20 actions on this user" count={u.recentActivity.length}>
         <DataTable label="Recent activity" columns={ACTIVITY_COLUMNS} rows={u.recentActivity} rowKey={(a) => a.id}

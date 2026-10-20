@@ -14,7 +14,8 @@ import { NavGlyph } from "./nav-icon";
 const ICON_BUTTON = "inline-grid size-8 shrink-0 cursor-pointer place-items-center rounded-md text-fg-2 hover:bg-tray hover:text-fg";
 
 /**
- * Phone navigation (below 768 px; the top bar's menu button): the sidebar's sections in a drawer from the left
+ * Phone navigation (below 768 px, and on a touch tablet, where the rail's hover labels can't be read; the top bar's
+ * menu button): the sidebar's sections in a drawer from the left
  * (packages/ui `Drawer`, a deferred chunk). Items are 44 px. It closes on any route change (`closeOn`), on a tap on an
  * item (also the current page), on Escape and on the scrim; focus then returns to the menu button.
  */
@@ -24,7 +25,7 @@ export function MobileNav({ wordmark }: { wordmark: ReactNode }) {
   return (
     <Drawer closeOn={path}>
       <DrawerTrigger asChild>
-        <button type="button" aria-label="Open navigation" className={cn(ICON_BUTTON, "-ml-1 md:hidden")}>
+        <button type="button" aria-label="Open navigation" className={cn(ICON_BUTTON, "-ml-1 md:pointer-fine:hidden")}>
           <Icon icon={MenuIcon} className="size-5" />
         </button>
       </DrawerTrigger>

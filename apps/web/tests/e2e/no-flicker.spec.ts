@@ -174,8 +174,11 @@ for (const mode of [{ name: "light", colorScheme: "light", reducedMotion: "no-pr
 
 test.describe("client navigation and table changes", () => {
   test.use({ storageState: STATE });
+  /** The navigations below click the sidebar ("Menu"): desktop only; a phone has it in the drawer (responsive.spec). */
+  const PHONE = "sidebar navigation: a phone has the drawer (responsive.spec)";
 
   test("fast client-side navigation between pages: no flash, no shift, no /api read", async ({ page, baseURL }) => {
+    test.skip(!!test.info().project.use.isMobile, PHONE);
     const { admin } = await demoIds(baseURL);
     await page.addInitScript(installProbe);
     await page.goto("/");
@@ -210,6 +213,7 @@ test.describe("client navigation and table changes", () => {
   });
 
   test("chained navigation within 150 ms: the copy of the first page stays up, no gap, no flash", async ({ page }) => {
+    test.skip(!!test.info().project.use.isMobile, PHONE);
     await page.addInitScript(installProbe);
     await page.route("**/*", async (route) => {
       const h = route.request().headers();
@@ -234,6 +238,7 @@ test.describe("client navigation and table changes", () => {
   });
 
   test("navigating from a scrolled page: the copy stands exactly where the old page was on screen", async ({ page }) => {
+    test.skip(!!test.info().project.use.isMobile, PHONE);
     await page.route("**/*", async (route) => {
       const h = route.request().headers();
       if (h.rsc === "1" && !h["next-router-prefetch"]) await new Promise((r) => setTimeout(r, 400));
@@ -261,6 +266,7 @@ test.describe("client navigation and table changes", () => {
   });
 
   test("revisiting a page after its cache went stale: the server's fresh data is used, no /api refetch", async ({ page }) => {
+    test.skip(!!test.info().project.use.isMobile, PHONE);
     test.setTimeout(60_000);
     await page.addInitScript(installProbe);
     await page.goto("/users");
@@ -284,6 +290,7 @@ test.describe("client navigation and table changes", () => {
   for (const reducedMotion of ["no-preference", "reduce"] as const) {
     for (const delay of [0, 250]) {
       test(`same-segment navigation (${reducedMotion === "reduce" ? "reduced motion" : "motion"}, page payload +${delay} ms): no flash, no blank gap`, async ({ page, baseURL }) => {
+        test.skip(!!test.info().project.use.isMobile, PHONE);
         const { admin } = await demoIds(baseURL);
         await page.emulateMedia({ reducedMotion });
         await page.addInitScript(installProbe);
@@ -320,6 +327,7 @@ test.describe("client navigation and table changes", () => {
 
   for (const delay of [100, 250, 600]) {
     test(`slow server (${delay} ms per page): the route loading shape shows only after 150 ms and then stays at least 300 ms`, async ({ page }) => {
+      test.skip(!!test.info().project.use.isMobile, PHONE);
       await page.addInitScript(installProbe);
       // Slows the page payload of each client navigation (not the prefetches) as a slow backend would.
       await page.route("**/*", async (route) => {
@@ -347,6 +355,7 @@ test.describe("client navigation and table changes", () => {
   }
 
   test("navigating again while a loading shape is held: no blank, no flash, no doubled page", async ({ page }) => {
+    test.skip(!!test.info().project.use.isMobile, PHONE);
     await page.addInitScript(installProbe);
     await page.route("**/*", async (route) => {
       const h = route.request().headers();
@@ -369,6 +378,7 @@ test.describe("client navigation and table changes", () => {
   });
 
   test("a chart chunk that fails to load takes down only its panel, which offers Reload page", async ({ page }) => {
+    test.skip(!!test.info().project.use.isMobile, PHONE);
     await page.addInitScript(installProbe);
     let hydrated = false;
     await page.route("**/_next/static/chunks/*.js", async (route) => {

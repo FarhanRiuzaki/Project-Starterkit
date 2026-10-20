@@ -9,18 +9,21 @@ import { NavGlyph } from "./nav-icon";
 
 const PLACEHOLDER = "Search pages";
 
-/** The ⌘K dialog (cmdk). Loaded on first open by CommandPalette, so cmdk is not in any route's first load. */
+/**
+ * The ⌘K dialog (cmdk). Loaded on first open by CommandPalette, so cmdk is not in any route's first load. On a phone it
+ * hangs from the top edge (`phone="top"`), its results at most half the screen, so the keyboard doesn't cover them.
+ */
 export function PaletteDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
   const router = useRouter();
   const { perms } = useAuth();
   const go = (href: string) => { onOpenChange(false); router.push(href); };
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent showCloseButton={false} className="top-24 translate-y-0 p-0 md:max-w-xl">
+      <DialogContent phone="top" showCloseButton={false} className="top-24 translate-y-0 p-0 md:max-w-xl">
         <DialogTitle className="sr-only">Search pages</DialogTitle>
         <Command label="Command palette">
           <CommandInput placeholder={PLACEHOLDER} aria-label={PLACEHOLDER} />
-          <CommandList>
+          <CommandList className="max-md:max-h-[50dvh]">
             <CommandEmpty>No pages match.</CommandEmpty>
             <CommandGroup heading="Pages">
               {navFor(perms).flatMap((s) => s.items).map((n) => (
