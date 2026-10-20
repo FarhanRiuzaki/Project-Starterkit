@@ -7,7 +7,7 @@ import { ACTIONS, cellState, columnCells, type Edit, rowCells, toggleAll, toggle
 
 const TH = "h-10 border-b border-line px-2 text-left align-middle text-label font-medium whitespace-nowrap text-fg-2";
 const TD = "h-10 border-b border-line px-2 align-middle";
-const VIEW_KEPT = "View stays on while another action in this module is on that your role doesn't hold. Ask an administrator who holds it.";
+const VIEW_KEPT = "This role has another action in this module that your role doesn't hold, so View stays on. Ask an administrator who holds it.";
 const NOT_HELD = "Your role doesn't hold this permission, so you can't grant or remove it.";
 
 const BOX = '[role="checkbox"]';
