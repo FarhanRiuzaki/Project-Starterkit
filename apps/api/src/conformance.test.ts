@@ -319,7 +319,7 @@ r.patch("/a/:id", async (c) => { const ctx = await guard(c, "x.edit"); const b =
     expect([...dataModulesOf([f("x/routes.ts", `import { recordActivity } from "../modules/audit"; import type { Ctx } from "../modules/auth";`)])].sort())
       .toEqual(["db/client", "kernel/db", "modules/audit"]);
     const real2 = [...dataModulesOf(real)];
-    expect(real2).toEqual(expect.arrayContaining(["db/client", "db/page", "users/queries", "rbac/queries", "audit/queries", "db/fragments", "modules/audit", "modules/auth"]));
+    expect(real2).toEqual(expect.arrayContaining(["db/client", "db/page", "modules/users/service", "modules/rbac/service", "audit/queries", "db/fragments", "modules/audit", "modules/auth"]));
   });
   it("fixture: a mutation without recordActivity( is reported", () => {
     expect(run(`r.delete("/a/:id", async (c) => { await guard(c, "x.delete"); await sql\`delete from a\`; return c.json(1); });`)).toEqual(["x/routes.ts DELETE /a/:id: no recordActivity("]);

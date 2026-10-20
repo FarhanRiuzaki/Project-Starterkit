@@ -4,34 +4,46 @@ import { beforeEach, describe, expect, it } from "bun:test";
 import type { Page } from "@starterkit/shared/contracts/common";
 import type { PermissionDto, RoleDto } from "@starterkit/shared/contracts/rbac";
 import { PERMISSIONS, type PermissionName } from "@starterkit/shared/permissions";
-import { call, resetData, signIn } from "../../test/helpers/app";
-import { lockWaiters } from "../../test/helpers/db";
-import { sql } from "../db/client";
+import { and, asc, eq, sql } from "drizzle-orm";
+import { call, resetData, signIn } from "../../../../../test/helpers/app";
+import { holdTx, lockWaiters, rows } from "../../../../../test/helpers/db";
+import { db } from "../../../../kernel/db";
+import { activity } from "../../../audit";
+import { users } from "../../../users";
+import { permissions, rolePermissions, roles as roleTable, userRoles } from "../../schema"; // tests name a helper `roles`
 
 const code = async (r: Response) => ((await r.json()) as { error: { code: string } }).error.code;
-const idOf = async (name: string): Promise<string> => (await sql`select id from roles where name = ${name}`)[0].id;
-const roleNames = async (): Promise<string[]> => (await sql`select name from roles order by name`).map((r: { name: string }) => r.name);
+const idOf = async (name: string): Promise<string> => (await rows(db.select({ id: roleTable.id }).from(roleTable).where(eq(roleTable.name, name))))[0].id;
+const roleNames = async (): Promise<string[]> => (await db.select({ name: roleTable.name }).from(roleTable).orderBy(roleTable.name)).map((r) => r.name);
 const permsOf = async (id: string): Promise<string[]> =>
-  (await sql`select rp.permission from role_permissions rp join permissions p on p.name = rp.permission where rp.role_id = ${id} order by p.position`).map((r: { permission: string }) => r.permission);
+  (await db.select({ permission: rolePermissions.permission }).from(rolePermissions).innerJoin(permissions, eq(permissions.name, rolePermissions.permission))
+    .where(eq(rolePermissions.roleId, id)).orderBy(permissions.position)).map((r) => r.permission);
 /** Activity written by this test (beforeEach empties the table). */
-const acts = async (action?: string) =>
-  (await sql`select action, target_type as "targetType", target_id as "targetId", target_label as "targetLabel", before, after from activity
-    where ${action ?? ""} = '' or action = ${action ?? ""} order by at, id`) as { action: string; targetType: string; targetId: string; targetLabel: string; before: unknown; after: unknown }[];
+const acts = async (action?: string): Promise<{ action: string; targetType: string; targetId: string; targetLabel: string; before: unknown; after: unknown }[]> =>
+  db.select({ action: activity.action, targetType: activity.targetType, targetId: activity.targetId, targetLabel: activity.targetLabel, before: activity.before, after: activity.after })
+    .from(activity).where(action === undefined || action === "" ? undefined : eq(activity.action, action)).orderBy(asc(activity.at), asc(activity.id));
 
 /** A role "Custom" with exactly `perms`, the only role of `username`. */
 async function giveOnlyRole(username: string, perms: PermissionName[]) {
   const id = Bun.randomUUIDv7();
-  await sql`insert into roles (id, name) values (${id}, 'Custom')`;
-  if (perms.length) await sql`insert into role_permissions ${sql(perms.map((permission) => ({ role_id: id, permission })))}`;
-  await sql`delete from user_roles where user_id = (select id from users where username = ${username})`;
-  await sql`insert into user_roles (user_id, role_id) select id, ${id} from users where username = ${username}`;
+  await db.insert(roleTable).values({ id, name: "Custom" });
+  if (perms.length) await db.insert(rolePermissions).values(perms.map((permission) => ({ roleId: id, permission })));
+  const [u] = await db.select({ id: users.id }).from(users).where(eq(users.username, username));
+  await db.delete(userRoles).where(eq(userRoles.userId, u!.id));
+  await db.insert(userRoles).values({ userId: u!.id, roleId: id });
   return id;
+}
+
+/** Fills the catalog with `audit.x<i>` names up to `total`. */
+async function fillCatalog(total: number) {
+  const n = await db.$count(permissions);
+  await db.insert(permissions).values(Array.from({ length: total - n }, (_, i) => ({ name: `audit.x${i + 1}`, position: n + i + 1 })));
 }
 
 let sa: string;
 beforeEach(async () => {
   await resetData();
-  await sql`delete from activity`;
+  await db.delete(activity);
   sa = await signIn("superadmin");
 });
 
@@ -58,7 +70,7 @@ describe("GET /v1/roles and /v1/roles/{id}", () => {
     expect(page).toMatchObject({ total: 3, page: 1, pageSize: 15 });
     expect(page.items.map((r) => r.name)).toEqual(["Admin", "Superadmin", "Viewer"]);
     for (const r of page.items) {
-      const [{ n }] = await sql`select count(*)::int as n from user_roles where role_id = ${r.id}`;
+      const n = await db.$count(userRoles, eq(userRoles.roleId, r.id));
       expect(r.userCount).toBe(n);
     }
     expect(page.items[1]).toMatchObject({ id: await idOf("Superadmin"), locked: true, permissions: [...PERMISSIONS] });
@@ -187,7 +199,7 @@ describe("PATCH /v1/roles/{id}", () => {
     const viewer = await signIn("viewer");
     const dto = (await (await patch("Viewer", { name: "Reader" })).json()) as RoleDto;
     expect(dto).toMatchObject({ name: "Reader", userCount: count });
-    expect((await sql`select 1 from user_roles ur join roles r on r.id = ur.role_id where r.name = 'Viewer'`)).toHaveLength(0);
+    expect((await db.select({ one: sql`1` }).from(userRoles).innerJoin(roleTable, eq(roleTable.id, userRoles.roleId)).where(eq(roleTable.name, "Viewer")))).toHaveLength(0);
     // a renamed role still grants its permissions on the next request
     expect(await roleOptions(viewer)).toEqual(["Admin", "Reader", "Superadmin"]);
   });
@@ -207,18 +219,14 @@ describe("the actor's permissions are read inside the transaction", () => {
     const custom = await giveOnlyRole("admin", ["role.view", "role.edit", "user.view", "user.create"]);
     const admin = await signIn("admin");
     const viewer = await idOf("Viewer");
-    const holder = await sql.reserve();
+    const holder = await holdTx((tx) => tx.select({ one: sql`1` }).from(roleTable).where(eq(roleTable.id, viewer)).for("update"));
     try {
-      await holder`begin`;
-      await holder`select 1 from roles where id = ${viewer} for update`;
       const pending = call("PATCH", `/v1/roles/${viewer}`, { token: admin, body: { add: ["user.create"] } });
       if (!(await lockWaiters(1, "%for update%"))) throw new Error("the PATCH never waited on the role lock");
-      await holder`delete from role_permissions where role_id = ${custom} and permission = 'user.create'`;
-      await holder`commit`;
+      await holder.commit((tx) => tx.delete(rolePermissions).where(and(eq(rolePermissions.roleId, custom), eq(rolePermissions.permission, "user.create"))));
       expect(await code(await pending)).toBe("forbidden");
     } finally {
-      await holder`rollback`.catch(() => {});
-      holder.release();
+      await holder.rollback().catch(() => {});
     }
     expect(await permsOf(await idOf("Viewer"))).toEqual(["user.view", "audit.view"]);
     expect(await acts("role.update")).toHaveLength(0);
@@ -320,21 +328,19 @@ describe("/v1/permissions", () => {
   });
 
   it("POST is 400 when the catalog would pass 500 names; nothing is added", async () => {
-    const [{ n }] = await sql`select count(*)::int as n from permissions`;
-    await sql`insert into permissions (name, position) select 'audit.x' || i, ${n} + i from generate_series(1, ${499 - n}) i`;
+    await fillCatalog(499);
     expect((await addPerms({ names: ["audit.one", "audit.two"] })).status).toBe(400);
-    expect((await sql`select count(*)::int as n from permissions`)[0].n).toBe(499);
+    expect(await db.$count(permissions)).toBe(499);
     expect((await addPerms({ names: ["audit.one", "user.view"] })).status).toBe(200);
-    expect((await sql`select count(*)::int as n from permissions`)[0].n).toBe(500);
+    expect(await db.$count(permissions)).toBe(500);
   });
 
   it("concurrent POSTs can't pass 500 names", async () => {
-    const [{ n }] = await sql`select count(*)::int as n from permissions`;
-    await sql`insert into permissions (name, position) select 'audit.x' || i, ${n} + i from generate_series(1, ${498 - n}) i`;
+    await fillCatalog(498);
     const rs = await Promise.all(["a", "b", "c", "d"].map((s) => addPerms({ names: [`audit.${s}1`, `audit.${s}2`] })));
     expect(rs.filter((r) => r.status === 200)).toHaveLength(1);
     expect(rs.filter((r) => r.status === 400)).toHaveLength(3);
-    expect((await sql`select count(*)::int as n from permissions`)[0].n).toBe(500);
+    expect(await db.$count(permissions)).toBe(500);
   });
 
   it("POST needs permission.create; adds new names, skips existing ones, logs only the added", async () => {
@@ -377,7 +383,8 @@ describe("PermissionDto: role names are capped", () => {
 describe("role names in lookups are case-insensitive", () => {
   it("a rename that only changes letter case is allowed and moves the holders", async () => {
     expect((await patch("Viewer", { name: "VIEWER" })).status).toBe(200);
-    const [row] = await sql`select r.name from users u join user_roles ur on ur.user_id = u.id join roles r on r.id = ur.role_id where u.username = 'viewer'`;
+    const [row] = await rows(db.select({ name: roleTable.name }).from(users).innerJoin(userRoles, eq(userRoles.userId, users.id)).innerJoin(roleTable, eq(roleTable.id, userRoles.roleId))
+      .where(eq(users.username, "viewer")));
     expect(row.name).toBe("VIEWER");
   });
 });

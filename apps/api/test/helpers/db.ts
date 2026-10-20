@@ -1,6 +1,6 @@
 import { getTableColumns } from "drizzle-orm";
 import type { PgColumn, PgTable } from "drizzle-orm/pg-core";
-import { client } from "../../src/kernel/db";
+import { client, db, type Tx } from "../../src/kernel/db";
 
 /** Empties every table of the current schema except schema_migrations. */
 export async function truncateAll(): Promise<void> {
@@ -18,6 +18,38 @@ export async function lockWaiters(n: number, like: string): Promise<boolean> {
     await Bun.sleep(20);
   }
   return false;
+}
+
+/**
+ * A transaction on its own pool connection for the lock-staged tests: `lock` runs in it, then it stays open, holding
+ * what `lock` took, until `commit(then)` (runs `then` in it, then commits) or `rollback()` (a no-op once it ended).
+ */
+export async function holdTx(lock: (tx: Tx) => PromiseLike<unknown>) {
+  const ROLLBACK = new Error("holdTx: rollback");
+  let finish!: (then: ((tx: Tx) => PromiseLike<unknown>) | null) => void;
+  const next = new Promise<((tx: Tx) => PromiseLike<unknown>) | null>((r) => (finish = r));
+  let held!: () => void;
+  const locked = new Promise<void>((r) => (held = r));
+  const done = db.transaction(async (tx) => {
+    await lock(tx);
+    held();
+    const then = await next;
+    if (!then) throw ROLLBACK;
+    await then(tx);
+  }).catch((e: unknown) => {
+    if (e !== ROLLBACK) throw e;
+  });
+  await Promise.race([locked, done]);
+  return {
+    commit: async (then: (tx: Tx) => PromiseLike<unknown> = async () => {}) => {
+      finish(then);
+      await done;
+    },
+    rollback: async () => {
+      finish(null);
+      await done;
+    },
+  };
 }
 
 /** A table's columns keyed by their SQL names: `db.select(sqlColumns(t))` reads rows with the keys `select *` gave. */

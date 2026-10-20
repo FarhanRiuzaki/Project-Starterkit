@@ -5,50 +5,63 @@ import { beforeEach, describe, expect, it } from "bun:test";
 import type { Page } from "@starterkit/shared/contracts/common";
 import type { UserDetailDto, UserDto, UserRowDto } from "@starterkit/shared/contracts/users";
 import { PERMISSIONS, type PermissionName } from "@starterkit/shared/permissions";
-import { call, resetData, signIn } from "../../test/helpers/app";
-import { lockWaiters } from "../../test/helpers/db";
-import { orm, sql } from "../db/client";
-import { SEED_PASSWORD } from "../db/seed/demo";
-import { hashToken } from "../kernel/crypto";
-import { clearMail, sentMail } from "../kernel/mailer";
-import { createSession, verifyPassword } from "../modules/auth";
-import { SUPERADMIN_LOCK } from "./queries";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { call, resetData, signIn } from "../../../../../test/helpers/app";
+import { holdTx, lockWaiters, rows, sqlColumns } from "../../../../../test/helpers/db";
+import { SEED_PASSWORD } from "../../../../db/seed/demo";
+import { hashToken } from "../../../../kernel/crypto";
+import { db } from "../../../../kernel/db";
+import { xactLock } from "../../../../kernel/locks";
+import { clearMail, sentMail } from "../../../../kernel/mailer";
+import { activity } from "../../../audit";
+import { createSession, sessions, userTokens, verifyPassword } from "../../../auth";
+import { userIdentities } from "../../../oauth";
+import { rolePermissions, roles, userRoles } from "../../../rbac";
+import { users } from "../../schema";
 
 const code = async (r: Response) => ((await r.json()) as { error: { code: string } }).error.code;
-const idOf = async (username: string): Promise<string> => (await sql`select id from users where username = ${username}`)[0].id;
-const roleIdOf = async (name: string): Promise<string> => (await sql`select id from roles where name = ${name}`)[0].id;
-const sidOf = async (token: string): Promise<string> => (await sql`select id from sessions where token_hash = ${hashToken(token)}`)[0].id;
+const idOf = async (username: string): Promise<string> => (await rows(db.select({ id: users.id }).from(users).where(eq(users.username, username))))[0].id;
+const roleIdOf = async (name: string): Promise<string> => (await rows(db.select({ id: roles.id }).from(roles).where(eq(roles.name, name))))[0].id;
+const sidOf = async (token: string): Promise<string> => (await rows(db.select({ id: sessions.id }).from(sessions).where(eq(sessions.tokenHash, hashToken(token)))))[0].id;
 const addSession = async (userId: string): Promise<string> =>
-  (await sql.begin((tx) => createSession(orm(tx), { userId, method: "password", client: { ip: "10.0.0.9", ua: "bun test" } }))).id;
-const hasSession = async (id: string) => (await sql`select 1 from sessions where id = ${id}`).length === 1;
-const userRow = async (id: string) => (await sql`select * from users where id = ${id}`)[0];
+  (await db.transaction((tx) => createSession(tx, { userId, method: "password", client: { ip: "10.0.0.9", ua: "bun test" } }))).id;
+const hasSession = async (id: string) => (await db.select({ id: sessions.id }).from(sessions).where(eq(sessions.id, id))).length === 1;
+const userRow = async (id: string) => (await rows(db.select(sqlColumns(users)).from(users).where(eq(users.id, id))))[0];
 const rolesOf = async (id: string): Promise<string[]> =>
-  (await sql`select r.name from user_roles ur join roles r on r.id = ur.role_id where ur.user_id = ${id} order by r.name`).map((r: { name: string }) => r.name);
-const userCount = async (): Promise<number> => (await sql`select count(*)::int as n from users`)[0].n;
+  (await db.select({ name: roles.name }).from(userRoles).innerJoin(roles, eq(roles.id, userRoles.roleId)).where(eq(userRoles.userId, id)).orderBy(roles.name)).map((r) => r.name);
+const userCount = async (): Promise<number> => db.$count(users);
 type Act = { id: string; action: string; targetId: string; targetLabel: string; actorName: string; before: unknown; after: unknown };
 /** Activity written by this test (beforeEach empties the table), oldest first. */
 const acts = async (): Promise<Act[]> =>
-  await sql`select id, action, target_id as "targetId", target_label as "targetLabel", actor_name as "actorName", before, after from activity order by at, id`;
+  await db.select({ id: activity.id, action: activity.action, targetId: activity.targetId, targetLabel: activity.targetLabel, actorName: activity.actorName, before: activity.before, after: activity.after })
+    .from(activity).orderBy(asc(activity.at), asc(activity.id));
+/** Active holders of the Superadmin role. */
+const activeSupers = async (): Promise<number> =>
+  db.$count(userRoles, and(eq(userRoles.roleId, await roleIdOf("Superadmin")), inArray(userRoles.userId, db.select({ id: users.id }).from(users).where(eq(users.isActive, true)))));
 /** `role` holds exactly `perms`. */
 async function setPerms(role: string, perms: PermissionName[]) {
   const id = await roleIdOf(role);
-  await sql`delete from role_permissions where role_id = ${id}`;
-  if (perms.length) await sql`insert into role_permissions ${sql(perms.map((permission) => ({ role_id: id, permission })))}`;
+  await db.delete(rolePermissions).where(eq(rolePermissions.roleId, id));
+  if (perms.length) await db.insert(rolePermissions).values(perms.map((permission) => ({ roleId: id, permission })));
 }
 /** `username` holds exactly the roles `names`. */
 async function setRoles(username: string, names: string[]) {
   const id = await idOf(username);
-  await sql`delete from user_roles where user_id = ${id}`;
-  await sql`insert into user_roles (user_id, role_id) select ${id}, id from roles where name in ${sql(names)}`;
+  await db.delete(userRoles).where(eq(userRoles.userId, id));
+  const held = await db.select({ id: roles.id }).from(roles).where(inArray(roles.name, names));
+  await db.insert(userRoles).values(held.map((r) => ({ userId: id, roleId: r.id })));
 }
 /** A role "Custom" with exactly `perms`, the only role of `username`. */
 async function giveOnlyRole(username: string, perms: PermissionName[]) {
   const id = Bun.randomUUIDv7();
-  await sql`insert into roles (id, name) values (${id}, 'Custom')`;
-  await sql`insert into role_permissions ${sql(perms.map((permission) => ({ role_id: id, permission })))}`;
+  await db.insert(roles).values({ id, name: "Custom" });
+  await db.insert(rolePermissions).values(perms.map((permission) => ({ roleId: id, permission })));
   await setRoles(username, ["Custom"]);
   return id;
 }
+/** A reset link `token` (stored hashed) for user `userId`, valid for an hour. */
+const addToken = (userId: string, token: string) =>
+  db.insert(userTokens).values({ tokenHash: hashToken(token), userId, kind: "reset", expiresAt: sql`now() + interval '1 hour'` });
 
 const NEW = { name: "New Person", username: "new.person", email: "new.person@example.com", roles: ["Viewer"], isActive: true, isLdap: false, password: "Brand-New-Pass-1!" };
 
@@ -66,7 +79,7 @@ const total = async (r: Response) => ((await r.json()) as { total: number }).tot
 
 beforeEach(async () => {
   await resetData();
-  await sql`delete from activity`;
+  await db.delete(activity);
   clearMail();
 });
 
@@ -119,7 +132,7 @@ describe("GET /v1/users", () => {
 
   it("role filter ignores case", async () => {
     const admin = await signIn("admin");
-    const [{ n }] = await sql`select count(*)::int as n from user_roles where role_id = ${await roleIdOf("Viewer")}`;
+    const n = await db.$count(userRoles, eq(userRoles.roleId, await roleIdOf("Viewer")));
     expect(await total(await get("?role=vIeWeR", admin))).toBe(n);
     expect(await total(await get("?role=superADMIN", admin))).toBe(1);
     expect(await total(await get("?role=Nope", admin))).toBe(0);
@@ -161,7 +174,7 @@ describe("GET /v1/users/roles", () => {
 
   it("searches the name, pages, sorts descending; never unbounded", async () => {
     const viewer = await signIn("viewer");
-    await sql`insert into roles ${sql(Array.from({ length: 120 }, (_, i) => ({ id: Bun.randomUUIDv7(), name: `Team ${String(i).padStart(3, "0")}` })))}`;
+    await db.insert(roles).values(Array.from({ length: 120 }, (_, i) => ({ id: Bun.randomUUIDv7(), name: `Team ${String(i).padStart(3, "0")}` })));
     const page = (await (await options("pageSize=100", viewer)).json()) as Page<{ name: string }>;
     expect(page.items).toHaveLength(100);
     expect(page.total).toBe(123);
@@ -208,7 +221,7 @@ describe("POST /v1/users", () => {
     expect(r.status).toBe(201);
     const id = ((await r.json()) as { id: string }).id;
     expect((await userRow(id)).password_hash).toBeNull();
-    const tokens = await sql`select kind, extract(epoch from expires_at - now()) as left from user_tokens where user_id = ${id}`;
+    const tokens = await rows(db.select({ kind: userTokens.kind, left: sql`extract(epoch from ${userTokens.expiresAt} - now())` }).from(userTokens).where(eq(userTokens.userId, id)));
     expect(tokens).toHaveLength(1);
     expect(tokens[0].kind).toBe("invite");
     expect(Number(tokens[0].left)).toBeGreaterThan(71 * 3600);
@@ -264,8 +277,9 @@ describe("GET/PATCH /v1/users/{id}", () => {
     const ids: string[] = [];
     for (let n = 0; n < 25; n++) {
       ids.push(Bun.randomUUIDv7());
-      await sql`insert into activity (id, at, actor_id, actor_name, action, target_type, target_id, target_label)
-        values (${ids[n]!}, ${new Date(Date.UTC(2030, 0, 1, 0, n))}, null, 'X', 'user.update', 'user', ${target}, 'Viewer User')`;
+      await db.insert(activity).values({
+        id: ids[n]!, at: new Date(Date.UTC(2030, 0, 1, 0, n)), actorId: null, actorName: "X", action: "user.update", targetType: "user", targetId: target, targetLabel: "Viewer User",
+      });
     }
     const body = (await (await getOne(target, admin)).json()) as UserDetailDto & { sessions?: unknown };
     expect(body.id).toBe(target);
@@ -343,20 +357,16 @@ describe("GET/PATCH /v1/users/{id}", () => {
     const custom = await giveOnlyRole("admin", ["user.view", "user.edit", "audit.view"]);
     const admin = await signIn("admin");
     const v = await idOf("viewer");
-    const holder = await sql.reserve();
+    const holder = await holdTx((tx) => tx.select({ one: sql`1` }).from(users).where(eq(users.id, v)).for("update"));
     try {
-      await holder`begin`;
-      await holder`select 1 from users where id = ${v} for update`;
       const pending = patch(v, { name: "Taken Over" }, admin);
       if (!(await lockWaiters(1, "%for update%"))) throw new Error("the PATCH never waited on the user's row lock");
-      await holder`delete from role_permissions where role_id = ${custom} and permission = 'audit.view'`;
-      await holder`commit`;
+      await holder.commit((tx) => tx.delete(rolePermissions).where(and(eq(rolePermissions.roleId, custom), eq(rolePermissions.permission, "audit.view"))));
       const r = await pending;
       expect(r.status).toBe(403);
       expect(await code(r)).toBe("forbidden");
     } finally {
-      await holder`rollback`.catch(() => {});
-      holder.release();
+      await holder.rollback().catch(() => {});
     }
     expect((await userRow(v)).name).toBe("Viewer User");
     expect(await acts()).toHaveLength(0);
@@ -383,10 +393,10 @@ describe("DELETE and status", () => {
     const google = await idOf("google");
     expect((await patch(google, { roles: ["Viewer", "Admin"] }, sa)).status).toBe(200);
     expect((await patch(await idOf("apple"), { name: "Apple Renamed" }, await signIn("google"))).status).toBe(200);
-    await sql`insert into user_tokens (token_hash, user_id, kind, expires_at) values (${hashToken("g-link")}, ${google}, 'reset', now() + interval '1 hour')`;
+    await addToken(google, "g-link");
     expect((await del(google, sa)).status).toBe(200);
-    for (const table of ["sessions", "user_identities", "user_tokens", "user_roles"]) {
-      expect((await sql`select count(*)::int as n from ${sql(table)} where user_id = ${google}`)[0].n).toBe(0);
+    for (const table of [sessions, userIdentities, userTokens, userRoles]) {
+      expect(await db.$count(table, eq(table.userId, google))).toBe(0);
     }
     const a = await acts();
     expect(a.find((x) => x.action === "user.update" && x.targetLabel === "Apple Renamed")).toMatchObject({ actorName: "Google User" });
@@ -413,24 +423,22 @@ describe("DELETE and status", () => {
     // requests pass the guard and lock their target's row before either counts the Superadmins.
     const a = await idOf("superadmin");
     const b = await idOf("viewer");
-    await sql`insert into user_roles (user_id, role_id) values (${b}, ${await roleIdOf("Superadmin")})`;
+    await db.insert(userRoles).values({ userId: b, roleId: await roleIdOf("Superadmin") });
     const [ta, tb] = [await signIn("superadmin"), await signIn("viewer")];
-    const holder = await sql.reserve();
+    const holder = await holdTx((tx) => xactLock(tx, "superadmin"));
     let waited = false;
     let rs: Response[];
     try {
-      await holder`select pg_advisory_lock(${SUPERADMIN_LOCK})`;
       const both = Promise.all([setStatus(b, { active: false }, ta), setStatus(a, { active: false }, tb)]);
       waited = await lockWaiters(2, "%pg_advisory_xact_lock%");
-      await holder`select pg_advisory_unlock(${SUPERADMIN_LOCK})`;
+      await holder.commit();
       rs = await both;
     } finally {
-      holder.release();
+      await holder.rollback();
     }
     expect(rs.map((r) => r.status).sort()).toEqual([200, 409]);
     expect(await code(rs.find((r) => r.status === 409)!)).toBe("last_superadmin");
-    const [{ n }] = await sql`select count(*)::int as n from users u join user_roles ur on ur.user_id = u.id
-      where ur.role_id = ${await roleIdOf("Superadmin")} and u.is_active`;
+    const n = await activeSupers();
     expect(n).toBe(1);
     expect(waited).toBe(true);
   });
@@ -489,15 +497,13 @@ describe("POST /v1/users/bulk", () => {
 
   it("bulk deactivate of every Superadmin leaves one active: self_action for the actor, last_superadmin for the last", async () => {
     const superRole = await roleIdOf("Superadmin");
-    const activeSupers = async () => (await sql`select count(*)::int as n from users u join user_roles ur on ur.user_id = u.id
-      where ur.role_id = ${superRole} and u.is_active`)[0].n as number;
     const [a, b, c] = [await idOf("superadmin"), await idOf("viewer"), await idOf("apple")];
-    await sql`insert into user_roles (user_id, role_id) values (${b}, ${superRole}), (${c}, ${superRole})`;
+    await db.insert(userRoles).values([{ userId: b, roleId: superRole }, { userId: c, roleId: superRole }]);
     // A (a Superadmin) on A, B and C: A is skipped as self, so A stays and B and C go
     expect(await (await bulk({ action: "deactivate", ids: [a, b, c] }, await signIn("superadmin"))).json()).toEqual({ done: [b, c], skipped: [{ id: a, code: "self_action" }] });
     expect(await activeSupers()).toBe(1);
     // an actor holding every permission without being a Superadmin: the second of the last two is refused
-    await sql`update users set is_active = true where id in ${sql([b, c])}`;
+    await db.update(users).set({ isActive: true }).where(inArray(users.id, [b, c]));
     await giveOnlyRole("admin", [...PERMISSIONS]);
     const r = await bulk({ action: "deactivate", ids: [a, b, c] }, await signIn("admin"));
     expect(await r.json()).toEqual({ done: [a, b], skipped: [{ id: c, code: "last_superadmin" }] });
@@ -521,7 +527,7 @@ describe("reset password and sessions", () => {
     const admin = await signIn("admin");
     const v = await idOf("viewer");
     const sess = await addSession(v);
-    await sql`insert into user_tokens (token_hash, user_id, kind, expires_at) values (${hashToken("old-link")}, ${v}, 'reset', now() + interval '1 hour')`;
+    await addToken(v, "old-link");
     const r = await resetPassword(v, admin);
     expect(r.status).toBe(200);
     const { temporaryPassword } = (await r.json()) as { temporaryPassword: string };
@@ -531,7 +537,7 @@ describe("reset password and sessions", () => {
     expect(await verifyPassword(SEED_PASSWORD, hash)).toBe(false);
     expect(await hasSession(sess)).toBe(false);
     expect(JSON.stringify(await acts())).not.toContain(temporaryPassword);
-    expect((await sql`select 1 from user_tokens where user_id = ${v}`).length).toBe(0);
+    expect((await db.select({ one: sql`1` }).from(userTokens).where(eq(userTokens.userId, v))).length).toBe(0);
     expect((await acts()).at(-1)).toMatchObject({ action: "user.reset_password", targetId: v, before: null, after: null });
   });
 
@@ -549,12 +555,12 @@ describe("reset password and sessions", () => {
     const viewer = await signIn("viewer");
     const sid = await sidOf(viewer);
     const older = await addSession(v);
-    await sql`update sessions set last_seen_at = now() - interval '60 minutes' where id = ${older}`;
+    await db.update(sessions).set({ lastSeenAt: sql`now() - interval '60 minutes'` }).where(eq(sessions.id, older));
     // ended sessions are not listed: expired, and idle past SESSION_IDLE_MINUTES
     const expired = await addSession(v);
-    await sql`update sessions set expires_at = now() - interval '1 second' where id = ${expired}`;
+    await db.update(sessions).set({ expiresAt: sql`now() - interval '1 second'` }).where(eq(sessions.id, expired));
     const idle = await addSession(v);
-    await sql`update sessions set last_seen_at = now() - interval '1 day' where id = ${idle}`;
+    await db.update(sessions).set({ lastSeenAt: sql`now() - interval '1 day'` }).where(eq(sessions.id, idle));
     await addSession(await idOf("apple"));
     const page = (await (await sessionsOf(v, "", viewer)).json()) as Page<{ id: string; current: boolean }>;
     expect(page).toMatchObject({ total: 2, page: 1, pageSize: 15 });
@@ -583,9 +589,9 @@ describe("reset password and sessions", () => {
     const admin = await signIn("admin");
     const v = await idOf("viewer");
     const expired = await addSession(v);
-    await sql`update sessions set expires_at = now() - interval '1 second' where id = ${expired}`;
+    await db.update(sessions).set({ expiresAt: sql`now() - interval '1 second'` }).where(eq(sessions.id, expired));
     const idle = await addSession(v);
-    await sql`update sessions set last_seen_at = now() - interval '1 day' where id = ${idle}`;
+    await db.update(sessions).set({ lastSeenAt: sql`now() - interval '1 day'` }).where(eq(sessions.id, idle));
     for (const sid of [expired, idle]) {
       const r = await endSession(v, sid, admin);
       expect(r.status).toBe(404);
@@ -626,21 +632,18 @@ describe("role grants (no privilege escalation)", () => {
   it("a role deleted while the PATCH waits for it is an unknown role (400), not a 500", async () => {
     const sa = await signIn("superadmin");
     const temp = Bun.randomUUIDv7();
-    await sql`insert into roles (id, name) values (${temp}, 'Temp')`;
+    await db.insert(roles).values({ id: temp, name: "Temp" });
     const v = await idOf("viewer");
-    const holder = await sql.reserve();
+    const holder = await holdTx((tx) => tx.delete(roles).where(eq(roles.id, temp))); // a role DELETE that hasn't committed yet
     try {
-      await holder`begin`;
-      await holder`delete from roles where id = ${temp}`; // a role DELETE that hasn't committed yet
       const pending = patch(v, { roles: ["Viewer", "Temp"] }, sa);
       if (!(await lockWaiters(1, "%roles%"))) throw new Error("the PATCH never waited on the role");
-      await holder`commit`;
+      await holder.commit();
       const r = await pending;
       expect(r.status).toBe(400);
       expect(await code(r)).toBe("bad_request");
     } finally {
-      await holder`rollback`.catch(() => {});
-      holder.release();
+      await holder.rollback().catch(() => {});
     }
     expect(await rolesOf(v)).toEqual(["Viewer"]);
     expect(await acts()).toHaveLength(0);
@@ -696,8 +699,8 @@ describe("actor rank: no acting on a user who holds a permission the actor lacks
 
   it("Admin cannot activate an inactive Superadmin", async () => {
     const extra = Bun.randomUUIDv7();
-    await sql`insert into users (id, name, username, email, is_active) values (${extra}, 'Second Super', 'sa2', 'sa2@example.com', false)`;
-    await sql`insert into user_roles (user_id, role_id) values (${extra}, ${await roleIdOf("Superadmin")})`;
+    await db.insert(users).values({ id: extra, name: "Second Super", username: "sa2", email: "sa2@example.com", isActive: false });
+    await db.insert(userRoles).values({ userId: extra, roleId: await roleIdOf("Superadmin") });
     expect(await code(await setStatus(extra, { active: true }, await signIn("admin")))).toBe("forbidden");
     expect((await userRow(extra)).is_active).toBe(false);
   });
@@ -746,7 +749,7 @@ describe("roles are referenced by name, case-insensitively, stored in their cano
 
   it("a stale name (the role was renamed) is 400", async () => {
     const sa = await signIn("superadmin");
-    await sql`update roles set name = 'Reader' where name = 'Viewer'`;
+    await db.update(roles).set({ name: "Reader" }).where(eq(roles.name, "Viewer"));
     expect((await create({ ...NEW, roles: ["Viewer"] }, sa)).status).toBe(400);
     expect((await bulk({ action: "assignRole", ids: [await idOf("apple")], role: "Viewer" }, sa)).status).toBe(400);
   });
@@ -792,7 +795,7 @@ describe("bulk assignRole respects the 20-role cap", () => {
     const sa = await signIn("superadmin");
     const v = await idOf("viewer");
     const names = Array.from({ length: 19 }, (_, i) => `Team ${i}`);
-    await sql`insert into roles ${sql(names.map((name) => ({ id: Bun.randomUUIDv7(), name })))}`;
+    await db.insert(roles).values(names.map((name) => ({ id: Bun.randomUUIDv7(), name })));
     await setRoles("viewer", ["Viewer", ...names]);
     const apple = await idOf("apple");
     const r = await bulk({ action: "assignRole", ids: [v, apple], role: "Admin" }, sa);

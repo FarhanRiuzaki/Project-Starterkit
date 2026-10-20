@@ -1,5 +1,6 @@
 // User rules, moved from the web mock's rules.ts (deleted in Task 9). Effective permissions are SQL now (auth/sessions.ts
 // permsOf), so the rules take permission sets and a Superadmin count instead of the store.
+import { randomInt } from "node:crypto";
 import type { BulkResult, ErrorCode } from "@starterkit/shared/contracts/common";
 import type { PermissionName } from "@starterkit/shared/permissions";
 
@@ -50,4 +51,22 @@ export async function bulk<T extends string>(ids: T[], check: (id: T) => Promise
     }
   }
   return res;
+}
+
+/** `names` as roles (any letter case, deduplicated), or null when one isn't a role (unknown, or a name from before a rename). */
+export function canonical<R>(names: readonly string[], known: ReadonlyMap<string, R>): R[] | null {
+  const out = names.map((n) => known.get(n.toLowerCase()));
+  return out.every((r) => r !== undefined) ? [...new Set(out as R[])] : null;
+}
+
+/** 18 random chars from an alphabet without look-alikes, plus one of each class so any password rule passes; unbiased (randomInt) and shuffled. */
+export function temporaryPassword(): string {
+  const pick = (set: string) => set[randomInt(set.length)]!;
+  const all = "abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const chars = [pick("abcdefghijkmnpqrstuvwxyz"), pick("ABCDEFGHJKLMNPQRSTUVWXYZ"), pick("23456789"), pick("-_!#"), ...Array.from({ length: 14 }, () => pick(all))];
+  for (let i = chars.length - 1; i > 0; i--) {
+    const j = randomInt(i + 1);
+    [chars[i], chars[j]] = [chars[j]!, chars[i]!];
+  }
+  return chars.join("");
 }

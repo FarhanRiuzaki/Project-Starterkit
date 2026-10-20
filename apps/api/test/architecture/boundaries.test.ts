@@ -14,11 +14,10 @@ const ROOT = path.join(import.meta.dir, "../..");
 
 /**
  * Not yet moved to the module layout (Hono routers, their queries and tests, the raw-SQL shims they use): exempt from
- * every rule until Tasks 17–18 move them. A stale entry (no such path) fails.
+ * every rule until Task 18 moves them. A stale entry (no such path) fails.
  */
 const LEGACY = [
-  "src/audit/", "src/dashboard/", "src/rbac/", "src/users/", "src/http/",
-  "src/db/client.ts", "src/db/fragments.ts", "src/db/page.ts", "src/conformance.test.ts",
+  "src/audit/", "src/dashboard/", "src/http/", "src/db/client.ts", "src/db/fragments.ts", "src/db/page.ts", "src/conformance.test.ts",
 ];
 /** The migration runner applies SQL files and creates databases: the only place that writes SQL by hand. */
 const RAW_SQL_OK = ["src/db/migrate.ts"];
@@ -179,7 +178,7 @@ describe("module boundaries: fixtures", () => {
     expect(misplacedTests([
       f("src/modules/auth/limits.test.ts", ""), f("src/kernel/config.test.ts", ""),
       f("src/modules/auth/tests/unit/totp.test.ts", ""), f("src/kernel/tests/integration/db.test.ts", ""), f("test/db/seed.test.ts", ""),
-      f("src/users/users.test.ts", ""), // legacy, until Task 17
+      f("src/audit/audit.test.ts", ""), // legacy, until Task 18
     ])).toEqual([
       "src/modules/auth/limits.test.ts: tests live in modules/<m>/tests/, kernel/tests/ or apps/api/test/, not beside the source",
       "src/kernel/config.test.ts: tests live in modules/<m>/tests/, kernel/tests/ or apps/api/test/, not beside the source",

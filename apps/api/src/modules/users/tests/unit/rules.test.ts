@@ -2,7 +2,7 @@
 // union is SQL now, auth/sessions.ts permsOf; covered by users.test.ts) and the role cases (rbac/rules.test.ts).
 import { describe, expect, it, mock } from "bun:test";
 import { PERMISSIONS, type PermissionName } from "@starterkit/shared/permissions";
-import { bulk, checkPasswordOp, checkTargetRank, checkUserChange } from "./rules";
+import { bulk, checkPasswordOp, checkTargetRank, checkUserChange } from "../../rules";
 
 const user = (id: string, roles: string[], over: { isActive?: boolean; isLdap?: boolean } = {}) => ({ id, roles, isActive: true, isLdap: false, ...over });
 const me = user("me", ["Admin"]);
@@ -29,7 +29,7 @@ describe("rules", () => {
 
   it("a second active superadmin frees the first", async () => {
     expect(await checkUserChange(otherAdmin.id, onlySuper, { kind: "deactivate" }, one)).toBeNull();
-    // an inactive one doesn't count: the SQL count (users/queries.ts otherSuperadmins) answers 0
+    // an inactive one doesn't count: the SQL count (service.ts otherSuperadmins) answers 0
     expect(await checkUserChange(otherAdmin.id, onlySuper, { kind: "deactivate" }, none)).toBe("last_superadmin");
     // the count is read only when it matters
     const count = mock(none);

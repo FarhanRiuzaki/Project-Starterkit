@@ -9,17 +9,10 @@ import { context } from "./kernel/plugins/context";
 import { errorHandler } from "./kernel/plugins/error";
 import { internalAuth } from "./kernel/plugins/internal-auth";
 import { type AppDeps, modules } from "./modules";
-import { rbacRoutes } from "./rbac/routes";
-import { usersRoutes } from "./users/routes";
 
-/**
- * Transitional: the Hono routers not yet moved to modules (Tasks 17–18), as one app with their own paths (/v1/…).
- * Mount rbac before users: `/users/roles` must not reach `/users/:id`.
- */
+/** Transitional: the Hono routers not yet moved to modules (Task 18), as one app with their own paths (/v1/…). */
 export const legacy = new Hono<AppEnv>()
   .use(requestContext, honoBodyLimit)
-  .route("/v1", rbacRoutes) // owns /users/roles: keep it before the users router, whose /users/:id would capture it
-  .route("/v1", usersRoutes)
   .route("/v1", auditRoutes)
   .route("/v1", dashboardRoutes)
   .notFound(() => {
