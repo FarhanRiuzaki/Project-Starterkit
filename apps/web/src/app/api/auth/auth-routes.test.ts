@@ -3,21 +3,33 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.hoisted(() => {
   process.env.SESSION_SECRET = "s".repeat(40);
   process.env.INTERNAL_API_TOKEN = "i".repeat(40);
+  process.env.OAUTH_MOCK = "true";
 });
 const jar = vi.hoisted(() => new Map<string, string>());
+/** The options of the last `set` per cookie name (a clearing set included). */
+const cookieOpts = vi.hoisted(() => new Map<string, Record<string, unknown>>());
 vi.mock("next/headers", () => ({
   cookies: async () => ({
     get: (name: string) => (jar.has(name) ? { name, value: jar.get(name)! } : undefined),
-    set: (name: string, value: string) => void (value ? jar.set(name, value) : jar.delete(name)),
+    set: (name: string, value: string, opts: Record<string, unknown> = {}) => {
+      cookieOpts.set(name, opts);
+      if (value) jar.set(name, value);
+      else jar.delete(name);
+    },
   }),
 }));
 
+import { createHash } from "node:crypto";
+import { oauthCookieOptions } from "@/lib/server/oauth";
+import { parseConfig } from "@/lib/server/config";
 import { cookieOf, fakeApi, pathOf, sealCookie, TEST_CSRF, TEST_TOKEN } from "@/test/session";
 import { POST as twoFactor } from "./2fa/route";
 import { POST as forgot } from "./forgot/route";
 import { POST as login } from "./login/route";
 import { POST as logout } from "./logout/route";
-import { GET as oauth } from "./oauth/[provider]/route";
+import { GET as oauthCallback, POST as oauthCallbackPost } from "./oauth/[provider]/callback/route";
+import { GET as mockAuthorize } from "./oauth/[provider]/mock-authorize/route";
+import { GET as oauthStart } from "./oauth/[provider]/route";
 import { POST as reset } from "./reset/route";
 
 const post = (h: (r: Request) => Promise<Response>, body: unknown, headers: Record<string, string> = {}) =>
@@ -133,15 +145,118 @@ describe("/api/auth (cookie and same origin in Next; credentials checked by the 
     expect((await post(reset, { token: "x", password: "Another-Pass-456!" })).status).toBe(400);
     expect(seen.map(pathOf)).toEqual(["/v1/auth/forgot", "/v1/auth/reset"]);
   });
+});
 
-  it("OAuth (mock until Task 10): mock-login with next, the session in the cookie, 303 to the API's next", async () => {
-    const seen = fakeApi((r) => (pathOf(r).startsWith("/v1/auth/oauth/google/") ? Response.json({ next: "/users", token: "t4" }) : Response.json({ ok: true })));
+describe("/api/auth/oauth (Google and Apple: browser binding, landing page)", () => {
+  const ctx = (provider: string) => ({ params: Promise.resolve({ provider }) });
+  const startUrl = (q = "") => new Request(`http://c/api/auth/oauth/google${q}`);
+  const landing = async (r: Response) => {
+    const html = await r.text();
+    return { status: r.status, url: /<meta http-equiv="refresh" content="0;url=([^"]*)">/.exec(html)?.[1], html };
+  };
+  /** The sk_oauth cookie a start would have set: mode + binding. */
+  const bound = (mode = "login", binding = "b".repeat(43)) => jar.set("sk_oauth", `${mode}.${binding}`);
+
+  it("start: a random binding in sk_oauth (httpOnly, /api/auth/oauth, 10 minutes, Lax over HTTP), its hash to the API, 303 to the API's URL", async () => {
+    const seen = fakeApi(() => Response.json({ url: "https://accounts.google.com/o/oauth2/v2/auth?state=s1" }));
+    const r = await oauthStart(startUrl("?next=%2Fusers"), ctx("google"));
+    expect([r.status, r.headers.get("location")]).toEqual([303, "https://accounts.google.com/o/oauth2/v2/auth?state=s1"]);
+    const [mode, binding] = jar.get("sk_oauth")!.split(".");
+    expect(mode).toBe("login");
+    expect(binding).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(cookieOpts.get("sk_oauth")).toEqual({ httpOnly: true, path: "/api/auth/oauth", maxAge: 600, secure: false, sameSite: "lax" });
+    expect(seen.map((x) => [x.method, pathOf(x), x.headers.get("authorization")])).toEqual([["POST", "/v1/auth/oauth/google/start", null]]);
+    expect(await seen[0]!.json()).toEqual({ mode: "login", next: "/users", bindingHash: createHash("sha256").update(binding!).digest("base64url") });
+  });
+
+  it("the binding cookie is Secure and SameSite=None over HTTPS (Apple posts its answer from its own site)", () => {
+    const c = parseConfig({ SESSION_SECRET: "s".repeat(40), INTERNAL_API_TOKEN: "i".repeat(40), COOKIE_SECURE: "true" });
+    expect(oauthCookieOptions(c)).toEqual({ httpOnly: true, path: "/api/auth/oauth", maxAge: 600, secure: true, sameSite: "none" });
+  });
+
+  it("start: link needs a full session (else sign-in, nothing sent) and sends its bearer; unknown provider 404; an API refusal lands on the error", async () => {
+    const seen = fakeApi(() => Response.json({ url: "/api/auth/oauth/google/mock-authorize?state=s1" }));
+    let r = await oauthStart(startUrl("?mode=link"), ctx("google"));
+    expect([r.status, r.headers.get("location")]).toEqual([303, "/login?next=%2Fme%2Fsecurity"]);
+    expect(seen).toEqual([]);
     await sealCookie(jar);
-    const r = await oauth(new Request("http://c/api/auth/oauth/google?next=%2Fusers"), { params: Promise.resolve({ provider: "google" }) });
-    expect([r.status, r.headers.get("location")]).toEqual([303, "/users"]);
-    expect(seen.map((x) => [x.method, pathOf(x)])).toEqual([["POST", "/v1/auth/oauth/google/mock-login?next=%2Fusers"], ["POST", "/v1/auth/logout"]]);
-    expect((await cookieOf(jar))!.token).toBe("t4");
+    r = await oauthStart(startUrl("?mode=link"), ctx("google"));
+    expect(r.headers.get("location")).toBe("/api/auth/oauth/google/mock-authorize?state=s1");
+    expect(jar.get("sk_oauth")).toMatch(/^link\./);
+    expect(seen[0]!.headers.get("authorization")).toBe(`Bearer ${TEST_TOKEN}`);
+    expect((await seen[0]!.json()).mode).toBe("link");
+    expect((await oauthStart(startUrl(), ctx("github"))).status).toBe(404);
+    expect(seen).toHaveLength(1);
+    jar.clear();
     fakeApi(() => fail(404, "not_found"));
-    expect((await oauth(new Request("http://c/api/auth/oauth/github"), { params: Promise.resolve({ provider: "github" }) })).status).toBe(404);
+    r = await oauthStart(startUrl(), ctx("google"));
+    expect([r.status, r.headers.get("location")]).toEqual([303, "/login?error=oauth"]);
+    expect(jar.has("sk_oauth")).toBe(false);
+  });
+
+  it("callback sets the session and answers a meta-refresh page to a safe next", async () => {
+    const seen = fakeApi((x) => (pathOf(x) === "/v1/auth/oauth/google/callback" ? Response.json({ next: "/users?a=1&b=2", token: "t5" }) : Response.json({ ok: true })));
+    await sealCookie(jar);
+    bound();
+    const r = await oauthCallback(new Request("http://c/api/auth/oauth/google/callback?code=c1&state=s1"), ctx("google"));
+    const page = await landing(r);
+    expect([page.status, page.url]).toEqual([200, "/users?a=1&amp;b=2"]);
+    expect(page.html).toContain('<a href="/users?a=1&amp;b=2">');
+    expect(page.html).not.toMatch(/<script/i);
+    expect(r.headers.get("cache-control")).toBe("no-store");
+    expect(r.headers.get("content-type")).toBe("text/html; charset=utf-8");
+    const s = (await cookieOf(jar))!;
+    expect(s.token).toBe("t5");
+    expect(s.csrf).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(s.csrf).not.toBe(TEST_CSRF);
+    expect(jar.has("sk_oauth")).toBe(false); // cleared
+    expect(cookieOpts.get("sk_oauth")).toMatchObject({ path: "/api/auth/oauth", maxAge: 0 });
+    // The API got the code, state and binding; the previous session ended (one browser, one session).
+    expect(seen.map((x) => pathOf(x))).toEqual(["/v1/auth/oauth/google/callback", "/v1/auth/logout"]);
+    expect(await seen[0]!.json()).toEqual({ code: "c1", state: "s1", binding: "b".repeat(43) });
+  });
+
+  it("next=//evil.com lands on /", async () => {
+    for (const next of ["//evil.com", "/\\evil", "https://evil.com", "/login", "/api/me", "\"><script>alert(1)</script>"]) {
+      fakeApi(() => Response.json({ next, token: "t6" }));
+      bound();
+      expect((await landing(await oauthCallback(new Request("http://c/api/auth/oauth/google/callback?code=c&state=s"), ctx("google")))).url, next).toBe("/");
+    }
+  });
+
+  it("Apple posts the answer as a form; a link lands on the security screen", async () => {
+    const seen = fakeApi(() => Response.json({ next: "/me/security?connected=apple" }));
+    bound("link");
+    const r = await oauthCallbackPost(new Request("http://c/api/auth/oauth/apple/callback", {
+      method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: "code=c2&state=s2&user=%7B%7D",
+    }), ctx("apple"));
+    expect((await landing(r)).url).toBe("/me/security?connected=apple");
+    expect(await seen[0]!.json()).toEqual({ code: "c2", state: "s2", binding: "b".repeat(43) });
+    expect(seen[0]!.headers.get("authorization")).toBeNull(); // the link was bound to its user at start
+    expect(await cookieOf(jar)).toBeNull(); // no session change
+  });
+
+  it("failures land on /login?error=oauth (inactive: error=inactive) or /me/security?oauth=failed; without the binding cookie or a code the API isn't asked", async () => {
+    const seen = fakeApi(() => fail(401, "invalid_credentials"));
+    const cb = (q: string, p = "google") => oauthCallback(new Request(`http://c/api/auth/oauth/${p}/callback${q}`), ctx(p));
+    expect((await landing(await cb("?code=c&state=s"))).url).toBe("/login?error=oauth"); // no sk_oauth
+    bound();
+    expect((await landing(await cb("?error=access_denied&state=s"))).url).toBe("/login?error=oauth");
+    expect(seen).toEqual([]);
+    bound();
+    expect((await landing(await cb("?code=c&state=s"))).url).toBe("/login?error=oauth");
+    bound("link");
+    expect((await landing(await cb("?code=c&state=s"))).url).toBe("/me/security?oauth=failed");
+    fakeApi(() => fail(403, "account_inactive"));
+    bound();
+    expect((await landing(await cb("?code=c&state=s"))).url).toBe("/login?error=inactive");
+    expect(await cookieOf(jar)).toBeNull();
+    expect((await cb("?code=c&state=s", "github")).status).toBe(404);
+  });
+
+  it("mock-authorize (OAUTH_MOCK only) sends the browser to the callback with code=mock", async () => {
+    const r = await mockAuthorize(new Request("http://c/api/auth/oauth/google/mock-authorize?state=s%2B1"), ctx("google"));
+    expect([r.status, r.headers.get("location")]).toEqual([303, "/api/auth/oauth/google/callback?code=mock&state=s%2B1"]);
+    expect((await mockAuthorize(new Request("http://c/api/auth/oauth/github/mock-authorize?state=s"), ctx("github"))).status).toBe(404);
   });
 });

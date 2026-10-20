@@ -14,10 +14,10 @@ const HIDDEN = new Set(["passwordHash", "totpSecret", "pendingTotpSecret", "reco
 const snapshot = (v: unknown): string | null =>
   v == null ? null : JSON.stringify(v, (k, x: unknown) => (HIDDEN.has(k) ? undefined : k && SECRET_KEY.test(k) && x != null ? MASK : x));
 
-/** One activity entry by the request's user, inside the change's transaction. */
+/** One activity entry by the request's user (`ctx.user`, the actor), inside the change's transaction. */
 export async function recordActivity(
   tx: SQL,
-  ctx: Ctx,
+  ctx: Pick<Ctx, "user">,
   e: { action: ActivityAction; target: { type: string; id: string; label: string }; before?: unknown; after?: unknown },
 ): Promise<void> {
   // jsonb through text: a parameter typed jsonb would be JSON-encoded a second time

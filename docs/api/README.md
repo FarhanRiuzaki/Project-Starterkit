@@ -16,7 +16,7 @@ other schema describes the answer exactly (`additionalProperties: false`).
 
 - The browser calls only same-origin `/api/*` on the Next server. The backend is reached from Next server code
   through `API_BASE_URL` (server env); its address never reaches the browser.
-- Answers are JSON with `Cache-Control: no-store`, except the CSV export and the OAuth redirect.
+- Answers are JSON with `Cache-Control: no-store`, except the CSV export and the OAuth redirects and landing page.
 - Errors: `{ "error": { "code": string, "message": string } }` ([ApiErrorBody](schemas/ApiErrorBody.json)). The
   message is UI copy (English, says what happened and what to do); unknown failures are 500 `internal` with a fixed
   message, never the thrown text.
@@ -74,7 +74,8 @@ other schema describes the answer exactly (`additionalProperties: false`).
   `password_reset` (a new password set through a reset or invitation link). A completed sign-in is `login_success` or
   `2fa_success`; the dashboard counts only those.
 - `login` is the account's email whenever the attempt matched an account (typed as username or email), otherwise the
-  text that was typed. `userId` is null for an unknown login.
+  text that was typed. `userId` is null for an unknown login. A Google/Apple attempt logs `method` = the provider;
+  for an identity that isn't connected to a user, `login` is the provider's email (else its subject).
 
 ### Lists (paging)
 
@@ -177,7 +178,7 @@ generated from the action vocabulary (`ACTION_LABEL` in `packages/shared/src/aud
 
 ## Endpoints
 
-37 endpoints. Path parameters are in braces. "Signed in" = any live session, no permission. Errors list what the
+39 endpoints. Path parameters are in braces. "Signed in" = any live session, no permission. Errors list what the
 endpoint adds to the guard's 401/403 and the 400 for an invalid body or query.
 
 | Method | Path | Permission | Request | Answer | Errors |
@@ -187,14 +188,16 @@ endpoint adds to the guard's 401/403 and the 400 for an invalid body or query.
 | POST | `/api/auth/logout` | none, same-origin; `x-csrf-token` with a full session | none | [OkDto](schemas/OkDto.json) | `csrf` |
 | POST | `/api/auth/forgot` | none, same-origin | [ForgotPasswordBody](schemas/ForgotPasswordBody.json) | [OkDto](schemas/OkDto.json), the same for an unknown email and for a throttled request | none |
 | POST | `/api/auth/reset` | none, same-origin | [ResetPasswordBody](schemas/ResetPasswordBody.json) (the token is spent on first use; the user's sessions end; logs `password_reset`) | [OkDto](schemas/OkDto.json) | `invalid_code` (expired, used or LDAP user) |
-| GET | `/api/auth/oauth/{provider}` | none | `provider` = [ConnectionProvider](schemas/ConnectionProvider.json); query `next` | 303 to `next` when internal, else `/` | `not_found` |
+| GET | `/api/auth/oauth/{provider}` | none (navigation); a full session for `mode=link` | `provider` = [ConnectionProvider](schemas/ConnectionProvider.json) (else 404); query `mode` = `login` (default) or `link`, `next` | 303 to the provider's authorize page (or `mock-authorize` under `OAUTH_MOCK`), with the `sk_oauth` browser-binding cookie (10 minutes); `link` without a session: 303 to `/login?next=/me/security` | `not_found` (unknown provider, or not configured and no mock) |
+| GET | `/api/auth/oauth/{provider}/callback` | the `sk_oauth` cookie of the browser that started it | query `code`, `state` (or `error`) from the provider | 200 page that moves on with `<meta http-equiv="refresh">`: sign-in → the session cookie, then `next` (internal, else `/`); link → `/me/security?connected={provider}` (logs `me.connect`; already linked: no entry). Failure → `/login?error=oauth` (`/login?error=inactive` for an inactive account) or `/me/security?oauth=failed` | none (every failure lands on a page); the state is spent on first use |
+| POST | `/api/auth/oauth/{provider}/callback` | as GET | form fields `code`, `state` (Apple posts its answer: `response_mode=form_post`) | as GET | as GET |
+| GET | `/api/auth/oauth/{provider}/mock-authorize` | `OAUTH_MOCK=true` in the web and the API (else 404) | query `state` | 303 to the callback with `code=mock` | `not_found` |
 | GET | `/api/dashboard` | signed in (audit numbers need `audit.view`, else null) | none | [DashboardDto](schemas/DashboardDto.json) | none |
 | GET | `/api/me` | signed in | none | [MeDto](schemas/MeDto.json) | none |
 | PATCH | `/api/me` | signed in | [UpdateProfileBody](schemas/UpdateProfileBody.json) (`currentPassword` when `email` changes) | [MeDto](schemas/MeDto.json) | `bad_request` (new email without `currentPassword`), `invalid_credentials` (400), `rate_limited`, `self_action` (Google or Apple only account), `duplicate` |
 | POST | `/api/me/2fa` | signed in | none (starts setup) | [TwoFactorSetupDto](schemas/TwoFactorSetupDto.json) | `already_enabled`, `bad_request` (Google or Apple only account) |
 | PUT | `/api/me/2fa` | signed in | [TwoFactorEnableBody](schemas/TwoFactorEnableBody.json) | [RecoveryCodesDto](schemas/RecoveryCodesDto.json) (shown once) | `bad_request` (setup not started), `invalid_code` |
 | DELETE | `/api/me/2fa` | signed in | [DisableTwoFactorBody](schemas/DisableTwoFactorBody.json) (`password`; `recoveryCode` for a Google or Apple only account) | [OkDto](schemas/OkDto.json) | `bad_request` (already off, wrong kind of proof), `invalid_credentials` (400), `invalid_code`, `rate_limited` |
-| POST | `/api/me/connections/{provider}` | signed in | `provider` = [ConnectionProvider](schemas/ConnectionProvider.json) | [MeDto](schemas/MeDto.json) | none |
 | DELETE | `/api/me/connections/{provider}` | signed in | `provider` = [ConnectionProvider](schemas/ConnectionProvider.json) | [MeDto](schemas/MeDto.json) | `only_sign_in_method` (the only way left to sign in) |
 | POST | `/api/me/password` | signed in | [ChangePasswordBody](schemas/ChangePasswordBody.json) (other sessions end; reset links are spent) | [OkDto](schemas/OkDto.json) | `ldap_password`, `invalid_credentials` (400), `rate_limited` |
 | GET | `/api/me/sessions` | signed in | [SessionListQuery](schemas/SessionListQuery.json) | [SessionPage](schemas/SessionPage.json) | none |

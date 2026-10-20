@@ -1,32 +1,39 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 import { BlockedButton, ConfirmActionDialog, Panel } from "@starterkit/ui/ds";
+import { buttonVariants } from "@starterkit/ui/ui/button";
 import { InternetIcon } from "@starterkit/ui/ui/icons";
 import { toast } from "@starterkit/ui/ui/toast";
-import { api, errorText } from "@/lib/client/api";
+import { api } from "@/lib/client/api";
 import type { ConnectionProvider, MeDto } from "@starterkit/shared/contracts/me";
 import { ME_KEY } from "./use-me";
 
 const PROVIDERS: { id: ConnectionProvider; label: string }[] = [{ id: "google", label: "Google" }, { id: "apple", label: "Apple" }];
 
-/** Linked sign-in accounts (mock: no provider round trip). Disconnecting asks first. */
-export function ConnectionsCard({ user }: { user: MeDto }) {
+/**
+ * Linked sign-in accounts. Connecting goes through the provider (`/api/auth/oauth/<provider>?mode=link`), which comes
+ * back here with `?connected=<provider>` or `?oauth=failed`: toasted once, then dropped from the URL. Disconnecting asks first.
+ */
+export function ConnectionsCard({ user, providers }: { user: MeDto; providers: Record<ConnectionProvider, boolean> }) {
   const qc = useQueryClient();
-  const [busy, setBusy] = useState<ConnectionProvider | null>(null);
+  const router = useRouter();
   const [leaving, setLeaving] = useState<ConnectionProvider | null>(null);
+  const announced = useRef(false);
 
-  async function run(p: ConnectionProvider, method: "POST" | "DELETE") {
-    const u = await api<MeDto>(`/api/me/connections/${p}`, { method });
-    qc.setQueryData(ME_KEY, u);
-  }
-  async function connect(p: ConnectionProvider, label: string) {
-    setBusy(p);
-    try { await run(p, "POST"); toast(`Connected ${label}.`); }
-    catch (e) { toast.error(errorText(e)); }
-    finally { setBusy(null); }
-  }
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    const connected = PROVIDERS.find((p) => p.id === q.get("connected"));
+    const failed = q.get("oauth") === "failed";
+    if (announced.current || (!connected && !failed)) return;
+    announced.current = true;
+    if (connected) toast(`Connected ${connected.label}.`);
+    else toast.error("Couldn't connect the account. It may already be connected to another user, or the connection was canceled or took longer than 10 minutes. Try again.");
+    router.replace(window.location.pathname, { scroll: false });
+  }, [router]);
+
   const label = PROVIDERS.find((p) => p.id === leaving)?.label ?? "";
   // The server refuses to remove the last way in (only_sign_in_method); say so on the button instead.
   const lastWay = !user.hasPassword && !user.isLdap && user.connected.length === 1;
@@ -40,9 +47,11 @@ export function ConnectionsCard({ user }: { user: MeDto }) {
             <li key={p.id} className="flex items-center gap-3 py-2.5 first:pt-0 last:pb-0">
               <span className="text-body font-medium text-fg">{p.label}</span>
               <span className="text-body-sm text-fg-3">{on ? "Connected" : "Not connected"}</span>
-              <BlockedButton className="ml-auto" size="sm" variant="secondary" disabled={busy === p.id} aria-busy={busy === p.id || undefined}
-                reason={on && lastWay ? "This is your only way to sign in. Connect another account first." : null}
-                onClick={() => (on ? setLeaving(p.id) : void connect(p.id, p.label))}>{on ? `Disconnect ${p.label}` : `Connect ${p.label}`}</BlockedButton>
+              {on || !providers[p.id]
+                ? <BlockedButton className="ml-auto" size="sm" variant="secondary"
+                    reason={on ? (lastWay ? "This is your only way to sign in. Connect another account first." : null) : `${p.label} sign-in isn't set up on this server.`}
+                    onClick={() => setLeaving(p.id)}>{on ? `Disconnect ${p.label}` : `Connect ${p.label}`}</BlockedButton>
+                : <a href={`/api/auth/oauth/${p.id}?mode=link`} className={buttonVariants({ variant: "secondary", size: "sm", className: "ml-auto" })}>Connect {p.label}</a>}
             </li>
           );
         })}
@@ -50,7 +59,10 @@ export function ConnectionsCard({ user }: { user: MeDto }) {
       <ConfirmActionDialog open={leaving !== null} onOpenChange={(o) => { if (!o) setLeaving(null); }} auditFields={false} reasons={[]}
         title={`Disconnect ${label}`} description={`You will no longer be able to sign in with ${label}.`}
         impact={["Your other sign-in methods keep working."]} actionLabel={`Disconnect ${label}`} destructive
-        onConfirm={async () => { await run(leaving!, "DELETE"); toast(`Disconnected ${label}.`); }} />
+        onConfirm={async () => {
+          qc.setQueryData(ME_KEY, await api<MeDto>(`/api/me/connections/${leaving}`, { method: "DELETE" }));
+          toast(`Disconnected ${label}.`);
+        }} />
     </Panel>
   );
 }

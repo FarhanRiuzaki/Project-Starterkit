@@ -1,10 +1,12 @@
-// /v1/auth/*: port of apps/web/src/app/api/auth/{login,2fa,logout,forgot,reset}. The web keeps the cookie, CSRF and
-// same-origin checks; here a full sign-in answers `token` and a pending second factor answers `challenge`.
+// /v1/auth/*: port of apps/web/src/app/api/auth/{login,2fa,logout,forgot,reset}, plus the Google/Apple flow (oauth.ts).
+// The web keeps the cookie, CSRF and same-origin checks; here a full sign-in answers `token` and a pending second
+// factor answers `challenge`.
 import { Hono } from "hono";
 import { AuthContextDto, ForgotPasswordBody, LoginBody, ResetPasswordBody, TwoFactorBody } from "@starterkit/shared/contracts/auth";
 import { ConnectionProvider } from "@starterkit/shared/contracts/me";
 import { PERMISSIONS } from "@starterkit/shared/permissions";
 import { afterSignIn } from "@starterkit/ui/lib/safe-path";
+import { recordActivity } from "../audit/record";
 import { config } from "../config";
 import { sql } from "../db/client";
 import { ApiError, tooManyAttempts } from "../http/errors";
@@ -13,9 +15,10 @@ import type { AppEnv } from "../http/middleware";
 import { body } from "../http/parse";
 import { log } from "../log";
 import { sendMail } from "../mail/mailer";
-import { decryptSecret, hashToken, randomToken } from "./crypto";
+import { decryptSecret, hashToken, randomToken, safeEqual } from "./crypto";
 import { directory } from "./ldap";
 import { forgotLimits, loginGate, loginLimits, retryText } from "./limits";
+import { authorizeUrl, identityOf, OAuthCallbackBody, OAuthStartBody, providerEnabled } from "./oauth";
 import { hashPassword, verifyPassword } from "./password";
 import { endUserSessions, type UserRow } from "./sessions";
 import { completeSignIn, findUser, logAuth, spendRecoveryCode, userById } from "./sign-in";
@@ -205,25 +208,76 @@ authRoutes.get("/auth/context", async (c) => {
   return c.json(AuthContextDto.parse({ user, permissions: PERMISSIONS.filter((p) => perms.has(p)) }));
 });
 
+const OAUTH_EXPIRED = "The sign-in with the provider expired or started in another browser. Start again.";
+const NOT_CONNECTED = "This account isn't connected to a user here. Sign in another way, then connect it under Security.";
+
+/** The provider of the path when it can sign in (mock or configured); else 404. */
+function oauthProvider(name: string): ConnectionProvider {
+  const p = ConnectionProvider.safeParse(name);
+  if (!p.success || !providerEnabled(p.data)) throw new ApiError("not_found", "This sign-in provider isn't available.");
+  return p.data;
+}
+
+/** Which providers can sign in (API-internal: the web hides or blocks the other buttons). */
+authRoutes.get("/auth/providers", (c) => c.json({ google: providerEnabled("google"), apple: providerEnabled("apple") }));
+
 /**
- * Temporary mock OAuth sign-in (OAUTH_MOCK only, else 404; Task 10 replaces it with the provider flow): signs in the
- * active demo account linked to `mock-<provider>-demo` and answers `{ next, token }` (`next` from the query, internal
- * paths only). The provider counts as the second factor, as in the mock it replaces.
+ * Start a provider sign-in (`login`) or a link to the signed-in user (`link`, bearer required): a state row (state
+ * stored hashed, the browser binding's hash, PKCE verifier, nonce, who links, `next`; 10 minutes) and the URL the
+ * browser goes to next.
  */
-authRoutes.post("/auth/oauth/:provider/mock-login", async (c) => {
-  if (!config().OAUTH_MOCK) throw new ApiError("not_found");
-  const provider = ConnectionProvider.safeParse(c.req.param("provider"));
-  if (!provider.success) throw new ApiError("not_found", "This sign-in provider isn't available.");
-  const p = provider.data;
-  const [row] = await sql`select u.id from user_identities i join users u on u.id = i.user_id
-    where i.provider = ${p} and i.subject = ${`mock-${p}-demo`} and u.is_active`;
-  const user = row ? await userById(row.id) : null;
-  if (!user) throw new ApiError("not_found", "No active user is connected to this provider.");
+authRoutes.post("/auth/oauth/:provider/start", async (c) => {
+  const b = await body(c, OAuthStartBody);
+  const ctx = b.mode === "link" ? await guard(c, null) : null;
+  const p = oauthProvider(c.req.param("provider"));
+  const s = { state: randomToken(), verifier: randomToken(), nonce: randomToken() };
+  // ponytail: rows of abandoned sign-ins stay until their 10 minutes pass and the janitor removes them; no per-IP cap on starts.
+  await sql`insert into oauth_states (state_hash, provider, mode, user_id, binding_hash, code_verifier, nonce, next, expires_at)
+    values (${hashToken(s.state)}, ${p}, ${b.mode}, ${ctx?.user.id ?? null}, ${Buffer.from(b.bindingHash, "base64url")}, ${s.verifier}, ${s.nonce},
+      ${b.mode === "login" ? afterSignIn(b.next) : null}, now() + interval '10 minutes')`;
+  return c.json({ url: authorizeUrl(p, s) });
+});
+
+/**
+ * Finish a provider round trip. The state is spent on first use (also when expired, for another provider or with
+ * another browser's binding: all 401). Login: only an identity already linked signs in (no new users, no match by
+ * email); the provider counts as the second factor; answers `{ next, token }`. Link: the identity joins the user who
+ * started it (one `me.connect` entry; already linked = no entry; linked to someone else = 409); answers `{ next }`.
+ */
+authRoutes.post("/auth/oauth/:provider/callback", async (c) => {
+  const b = await body(c, OAuthCallbackBody);
+  const p = oauthProvider(c.req.param("provider"));
   const client = c.var.client;
+  const [s] = await sql`delete from oauth_states where state_hash = ${hashToken(b.state)}
+    returning provider, mode, user_id, binding_hash, code_verifier, nonce, next, expires_at > now() as live`;
+  if (!s?.live || s.provider !== p || !safeEqual(hashToken(b.binding).toString("hex"), Buffer.from(s.binding_hash).toString("hex"))) {
+    throw new ApiError("unauthenticated", OAUTH_EXPIRED);
+  }
+  const id = await identityOf(p, b.code, { verifier: s.code_verifier, nonce: s.nonce, userId: s.user_id });
+  if (s.mode === "link") {
+    const user = await userById(s.user_id);
+    if (!user?.isActive) throw new ApiError("unauthenticated");
+    await sql.begin(async (tx) => {
+      const added = await tx`insert into user_identities (user_id, provider, subject, email) values (${user.id}, ${p}, ${id.subject}, ${id.email})
+        on conflict do nothing returning 1`;
+      if (added.length) return recordActivity(tx, { user }, { action: "me.connect", target: { type: "user", id: user.id, label: user.name }, after: { provider: p } });
+      // Not added: this identity is someone else's (409), or the user already has this provider (nothing to do).
+      const [owner] = await tx`select user_id from user_identities where provider = ${p} and subject = ${id.subject}`;
+      if (owner && owner.user_id !== user.id) throw new ApiError("duplicate", "This account is already connected to another user.");
+    });
+    return c.json({ next: `/me/security?connected=${p}` });
+  }
+  const [linked] = await sql`select user_id from user_identities where provider = ${p} and subject = ${id.subject}`;
+  const user = linked ? await userById(linked.user_id) : null;
+  const login = user?.email ?? id.email ?? id.subject;
+  if (!user?.isActive) {
+    await logAuth(sql, client, "login_failed", p, login, user?.id ?? null);
+    throw user ? new ApiError("account_inactive") : new ApiError("invalid_credentials", NOT_CONNECTED);
+  }
   const token = await sql.begin(async (tx) => {
     const t = await completeSignIn(tx, user, p, client);
     await logAuth(tx, client, "login_success", p, user.email, user.id);
     return t;
   });
-  return c.json({ next: afterSignIn(c.req.query("next")), token });
+  return c.json({ next: s.next ?? "/", token });
 });

@@ -39,6 +39,19 @@ test("OAuth: Continue with Google signs in as the connected seed user", async ({
   await expect(page.getByRole("button", { name: account("Google User") })).toBeVisible();
 });
 
+test("connect Google from /me/security shows the connected state and a toast", async ({ page }) => {
+  await page.goto("/api/auth/oauth/apple"); // Apple User, connected to Apple only
+  await expect(page).toHaveURL("/");
+  await page.goto("/me/security");
+  const google = page.getByRole("listitem").filter({ hasText: /^Google/ }); // not the toast ("Connected Google.")
+  await expect(google).toContainText("Not connected");
+  await google.getByRole("link", { name: "Connect Google" }).click(); // the mock provider's redirect round trip
+  await expect(page.getByText("Connected Google.")).toBeVisible();
+  await expect(page).toHaveURL("/me/security"); // the parameter is dropped once toasted
+  await expect(google).not.toContainText("Not connected");
+  await expect(google.getByRole("button", { name: "Disconnect Google" })).toBeVisible();
+});
+
 test("LDAP: directory username and directory password", async ({ page }) => {
   await signIn(page, "ldap", SEED.ldapPassword, "LDAP");
   await expect(page).toHaveURL("/");

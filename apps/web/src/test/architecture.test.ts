@@ -119,7 +119,8 @@ function runtimeViolations(fs: F[]): string[] {
  */
 const ROUTE_FILES = [
   "app/api/[...path]/route.ts", "app/api/auth/2fa/route.ts", "app/api/auth/forgot/route.ts", "app/api/auth/login/route.ts",
-  "app/api/auth/logout/route.ts", "app/api/auth/oauth/[provider]/route.ts", "app/api/auth/reset/route.ts",
+  "app/api/auth/logout/route.ts", "app/api/auth/oauth/[provider]/callback/route.ts", "app/api/auth/oauth/[provider]/mock-authorize/route.ts",
+  "app/api/auth/oauth/[provider]/route.ts", "app/api/auth/reset/route.ts",
 ].map((r) => WEB + r);
 const routeFiles = (fs: F[]) => fs.filter(({ r }) => new RegExp(`^${WEB}app/(.+/)?route\\.tsx?$`).test(r)).map(({ r }) => r).sort();
 

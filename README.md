@@ -34,9 +34,12 @@ Every account signs in with its email or its username. Password: `Password123!`,
 
 The other 42 users (`<name>.<n>@example.com`) are generated with the same password, about 20 % Admin and 10 % inactive.
 
-In development (`OAUTH_MOCK`, `LDAP_MOCK` and `MAIL_TRANSPORT=log` in `apps/api/.env`):
+In development (`OAUTH_MOCK=true` in `apps/api/.env` and `apps/web/.env.local`, `LDAP_MOCK` and `MAIL_TRANSPORT=log`
+in `apps/api/.env`):
 
-- Google and Apple sign-in is mocked: no provider round trip, and it skips the two-factor step.
+- Google and Apple sign-in is mocked: the same redirects and state checks as a real provider, with a fake authorize
+  step that approves at once; like a real provider sign-in, it skips the two-factor step. Without the mock and without
+  a provider's keys (`GOOGLE_*`, `APPLE_*` in `apps/api/.env.example`), its button says it isn't set up.
 - "Forgot password?" and "Send an invitation link" send no email: the API logs the mail.
 - An LDAP user created in the UI has no entry in the mock directory, so it can't sign in; only `ldap@example.com` can.
 - These credentials exist only in the demo seed (`apps/api/src/seed/demo.ts`). Never reuse them.
@@ -54,6 +57,7 @@ Server environment only; there is no `NEXT_PUBLIC_*` setting.
 | `COOKIE_SECURE` | `false` | `true` behind HTTPS: `Secure` cookie and `Strict-Transport-Security`. |
 | `TRUSTED_PROXY` | `false` | `true` only behind a proxy that appends `X-Forwarded-For` and sets `X-Forwarded-Host`/`-Proto`; otherwise those headers are ignored. |
 | `LOG_LEVEL` | `info` | pino log level. |
+| `OAUTH_MOCK` | `false` | `true` serves the fake Google/Apple authorize step (the API needs `OAUTH_MOCK=true` too); development and E2E only, refused with `NODE_ENV=production` and `COOKIE_SECURE=true`. |
 
 ## Repository
 

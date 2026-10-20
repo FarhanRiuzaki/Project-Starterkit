@@ -12,10 +12,13 @@ const README = readFileSync(path.join(SRC, "../../../docs/api/README.md"), "utf8
 
 // ---------------------------------------------------------------- (a) endpoint table
 
-/** Routes the API has that the README does not list (internal; mock-login is the temporary OAuth mock, Task 10 removes it). */
-const API_ONLY = ["GET /v1/auth/context", "GET /healthz", "GET /readyz", "POST /v1/auth/oauth/{provider}/mock-login"];
-/** README rows with no API route yet. Task 10 (OAuth) removes them. */
-const WEB_ONLY = ["GET /api/auth/oauth/{provider}"];
+/** Routes the API has that the README does not list (internal: the web's page guards, login page and OAuth routes call them). */
+const API_ONLY = [
+  "GET /v1/auth/context", "GET /healthz", "GET /readyz", "GET /v1/auth/providers",
+  "POST /v1/auth/oauth/{provider}/start", "POST /v1/auth/oauth/{provider}/callback",
+];
+/** README rows that are web routes only: the browser's side of the OAuth flow (it calls the API's start and callback). */
+const WEB_ONLY = ["GET /api/auth/oauth/{provider}", "GET /api/auth/oauth/{provider}/callback", "POST /api/auth/oauth/{provider}/callback", "GET /api/auth/oauth/{provider}/mock-authorize"];
 
 /** "METHOD /v1/path/{param}" of every registered route; middleware (ALL) is not a route. Hono answers HEAD/OPTIONS itself. */
 const registered = (app: { routes: { method: string; path: string }[] }): string[] =>
@@ -45,7 +48,8 @@ describe("endpoint table (docs/api/README.md)", () => {
   it("the allowlists name real routes and real rows (a stale entry fails)", () => {
     expect(API_ONLY.filter((r) => !routes.includes(r))).toEqual([]);
     expect(WEB_ONLY.filter((r) => !rows.includes(r))).toEqual([]);
-    expect(WEB_ONLY.filter((r) => routes.includes(r.replace(" /api/", " /v1/")))).toEqual([]); // ported: drop it from WEB_ONLY
+    // ported: drop it from WEB_ONLY (a same-path API route that is internal, like the OAuth callback the web calls, isn't a port)
+    expect(WEB_ONLY.map((r) => r.replace(" /api/", " /v1/")).filter((r) => routes.includes(r) && !API_ONLY.includes(r))).toEqual([]);
   });
 
   it("fixture: a route without a row, a row without a route and a stale allowlist entry are reported", () => {

@@ -7,7 +7,7 @@ const prod = { ...base, NODE_ENV: "production", API_BASE_URL: "http://api:4000" 
 
 describe("config", () => {
   it("defaults: cookie not secure, 12 h sessions, the dev API address", () => {
-    expect(parseConfig(base)).toEqual({ ...base, SESSION_TTL_HOURS: 12, COOKIE_SECURE: false, API_BASE_URL: DEV_API_BASE_URL });
+    expect(parseConfig(base)).toEqual({ ...base, SESSION_TTL_HOURS: 12, COOKIE_SECURE: false, API_BASE_URL: DEV_API_BASE_URL, OAUTH_MOCK: false });
   });
   it("a secret shorter than 32 characters is refused", () => {
     expect(() => parseConfig({ ...base, SESSION_SECRET: "short" })).toThrow();
@@ -32,5 +32,12 @@ describe("config", () => {
   it("INTERNAL_API_TOKEN is required, at least 32 characters", () => {
     expect(() => parseConfig({ SESSION_SECRET: base.SESSION_SECRET })).toThrow();
     expect(() => parseConfig({ ...base, INTERNAL_API_TOKEN: "x".repeat(31) })).toThrow();
+  });
+  it("OAUTH_MOCK: true/false only; refused in production over HTTPS (E2E runs a production build over plain HTTP)", () => {
+    expect(parseConfig({ ...base, OAUTH_MOCK: "true" }).OAUTH_MOCK).toBe(true);
+    expect(() => parseConfig({ ...base, OAUTH_MOCK: "yes" })).toThrow();
+    expect(parseConfig({ ...prod, OAUTH_MOCK: "true" }).OAUTH_MOCK).toBe(true);
+    expect(() => parseConfig({ ...prod, COOKIE_SECURE: "true", OAUTH_MOCK: "true" })).toThrow(/OAUTH_MOCK/);
+    expect(parseConfig({ ...prod, COOKIE_SECURE: "true" }).OAUTH_MOCK).toBe(false);
   });
 });

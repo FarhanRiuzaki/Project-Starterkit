@@ -33,9 +33,20 @@ const Schema = z.object({
   // Without {username} every sign-in would search the same entry.
   LDAP_USER_FILTER: z.string().refine((v) => v.includes("{username}"), { message: "must contain {username}" }).default("(uid={username})"),
   LDAP_STARTTLS: flag,
+  // Google and Apple sign-in: each provider is on when all of its keys are set (redirect: APP_URL/api/auth/oauth/<provider>/callback).
+  GOOGLE_CLIENT_ID: z.string().optional(),
+  GOOGLE_CLIENT_SECRET: z.string().optional(),
+  APPLE_CLIENT_ID: z.string().optional(),
+  APPLE_TEAM_ID: z.string().optional(),
+  APPLE_KEY_ID: z.string().optional(),
+  /** The Sign in with Apple key (.p8): PKCS#8 PEM; line breaks may be written as \n. */
+  APPLE_PRIVATE_KEY: z.string().refine((v) => v.includes("-----BEGIN PRIVATE KEY-----"), { message: "must be a PKCS#8 PEM (BEGIN PRIVATE KEY)" }).optional(),
 }).transform((c) => ({ ...c, MIGRATION_DATABASE_URL: c.MIGRATION_DATABASE_URL ?? c.DATABASE_URL }));
 
 export type Config = z.output<typeof Schema>;
+
+export const GOOGLE_KEYS = ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"] as const;
+export const APPLE_KEYS = ["APPLE_CLIENT_ID", "APPLE_TEAM_ID", "APPLE_KEY_ID", "APPLE_PRIVATE_KEY"] as const;
 
 /**
  * Rules across keys, on the raw env so they're reported even when a field is invalid (zod skips refinements of an
@@ -48,6 +59,10 @@ function crossKeyProblems(e: Record<string, string>): string[] {
     if (!e.MAIL_FROM) out.push("MAIL_FROM (required when MAIL_TRANSPORT=smtp)");
   }
   if (e.LDAP_URL && !e.LDAP_BASE_DN) out.push("LDAP_BASE_DN (required when LDAP_URL is set)");
+  // A provider's keys come all together or not at all: half a provider would show a button that can't work.
+  for (const keys of [GOOGLE_KEYS, APPLE_KEYS]) {
+    if (keys.some((k) => e[k])) out.push(...keys.filter((k) => !e[k]).map((k) => `${k} (required with ${keys.filter((x) => e[x]).join(", ")})`));
+  }
   if (e.NODE_ENV === "production") {
     if (e.MAIL_TRANSPORT !== "smtp") out.push("MAIL_TRANSPORT (must be smtp in production)");
     if (e.OAUTH_MOCK === "true") out.push("OAUTH_MOCK (must be false in production)");

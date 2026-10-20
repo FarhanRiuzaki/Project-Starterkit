@@ -3,26 +3,31 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useState } from "react";
-import { Segmented } from "@starterkit/ui/ds";
+import { BlockedButton, Segmented } from "@starterkit/ui/ds";
 import { Button, buttonVariants } from "@starterkit/ui/ui/button";
 import { Icon } from "@starterkit/ui/ui/icon";
 import { SecureIcon, SpinnerIcon } from "@starterkit/ui/ui/icons";
 import { Input } from "@starterkit/ui/ui/input";
 import { api, errorText } from "@/lib/client/api";
 import type { LoginResult } from "@starterkit/shared/contracts/auth";
+import type { ConnectionProvider } from "@starterkit/shared/contracts/me";
 import { AuthCard, FormError } from "./auth-card";
 
 type Method = "password" | "ldap";
 const METHODS = [{ value: "password", label: "Password" }, { value: "ldap", label: "LDAP" }] as const;
 const PROVIDERS = [{ id: "google", label: "Google" }, { id: "apple", label: "Apple" }] as const;
 
-/** Sign in with email or username + password (or LDAP directory password), or a connected Google / Apple account. */
-export function LoginForm({ next }: { next: string }) {
+/**
+ * Sign in with email or username + password (or LDAP directory password), or a connected Google / Apple account
+ * (`providers`: the ones the server has set up; the others stay visible, blocked with the reason). `error`: a
+ * message to show first (a provider sign-in that came back failed).
+ */
+export function LoginForm({ next, providers, error: initialError = null }: { next: string; providers: Record<ConnectionProvider, boolean>; error?: string | null }) {
   const router = useRouter();
   const [method, setMethod] = useState<Method>("password");
   const [login, setLogin] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(initialError);
   const [busy, setBusy] = useState(false);
   const back = next === "/" ? "" : `?next=${encodeURIComponent(next)}`;
 
@@ -64,11 +69,13 @@ export function LoginForm({ next }: { next: string }) {
       </form>
       <div className="grid gap-2">
         <p className="flex items-center gap-3 text-caption text-fg-3 before:h-px before:flex-1 before:bg-line after:h-px after:flex-1 after:bg-line">or</p>
-        {PROVIDERS.map((p) => (
-          <a key={p.id} href={`/api/auth/oauth/${p.id}${back}`} className={buttonVariants({ variant: "secondary", size: "lg", className: "h-10 w-full" })}>
-            Continue with {p.label}
-          </a>
-        ))}
+        {PROVIDERS.map((p) => (providers[p.id]
+          ? <a key={p.id} href={`/api/auth/oauth/${p.id}${back}`} className={buttonVariants({ variant: "secondary", size: "lg", className: "h-10 w-full" })}>
+              Continue with {p.label}
+            </a>
+          : <BlockedButton key={p.id} variant="secondary" size="lg" className="h-10 w-full" reason={`${p.label} sign-in isn't set up on this server. Sign in another way.`}>
+              Continue with {p.label}
+            </BlockedButton>))}
       </div>
       <p className="flex items-center gap-1.5 border-t border-line pt-4 text-caption text-fg-3">
         <Icon icon={SecureIcon} className="size-3.5 shrink-0" />Every sign-in is logged.

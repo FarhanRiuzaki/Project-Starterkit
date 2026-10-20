@@ -66,4 +66,16 @@ describe("loadConfig", () => {
     expect(msg).toContain("SMTP_URL");
     expect(msg).toContain("MAIL_FROM");
   });
+
+  it("a provider's keys come together or not at all; the Apple key must be a PKCS#8 PEM", () => {
+    const pem = "-----BEGIN PRIVATE KEY-----\\nMIGTAgEA\\n-----END PRIVATE KEY-----";
+    const apple = { APPLE_CLIENT_ID: "com.example", APPLE_TEAM_ID: "T", APPLE_KEY_ID: "K", APPLE_PRIVATE_KEY: pem };
+    expect(loadConfig({ ...base, GOOGLE_CLIENT_ID: "g", GOOGLE_CLIENT_SECRET: "google-secret-value", ...apple }).APPLE_KEY_ID).toBe("K");
+    const msg = failure({ ...base, GOOGLE_CLIENT_ID: "g", APPLE_CLIENT_ID: "com.example" });
+    for (const key of ["GOOGLE_CLIENT_SECRET", "APPLE_TEAM_ID", "APPLE_KEY_ID", "APPLE_PRIVATE_KEY"]) expect(msg).toContain(key);
+    expect(msg).not.toContain("GOOGLE_CLIENT_ID (");
+    const bad = failure({ ...base, ...apple, APPLE_PRIVATE_KEY: "secret-but-not-a-pem" });
+    expect(bad).toContain("APPLE_PRIVATE_KEY");
+    expect(bad).not.toContain("secret-but-not-a-pem");
+  });
 });

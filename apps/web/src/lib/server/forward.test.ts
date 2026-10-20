@@ -103,7 +103,7 @@ describe("forward (app/api/[...path])", () => {
     const seen = fakeApi(ok);
     await sealCookie(jar);
     for (const p of ["/api/../v1/users", "/api/%2e%2e/v1/users", "/api/users%2F..%2Fdashboard", "/api/users/a.b",
-      "/api/Users", "/api/users/%ZZ", "/api/", "/api/auth/oauth/google/mock-login", "/api/auth/context", "/v1/users"]) {
+      "/api/Users", "/api/users/%ZZ", "/api/", "/api/auth/oauth/google/start", "/api/auth/context", "/v1/users"]) {
       const r = await at(p);
       expect(r.status, p).toBe(404);
       expect((await errorOf(r)).code, p).toBe("not_found");

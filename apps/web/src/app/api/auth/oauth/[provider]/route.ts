@@ -1,18 +1,33 @@
-import { backend, relay } from "@/lib/server/backend";
-import { getSession, storeSignIn } from "@/lib/server/session";
+import { createHash, randomBytes } from "node:crypto";
+import { cookies } from "next/headers";
+import { apiError } from "@/lib/server/api";
+import { backend } from "@/lib/server/backend";
+import { isProvider, OAUTH_COOKIE, oauthCookieOptions, seeOther } from "@/lib/server/oauth";
+import { getSession } from "@/lib/server/session";
 
 /**
- * Mock OAuth until Task 10's provider flow: `POST /v1/auth/oauth/{provider}/mock-login` (API with OAUTH_MOCK=true
- * only) signs in the demo account linked to the provider; the cookie gets the session and the browser a 303 to `next`
- * (relative, internal only: the API checks it). The provider counts as the second factor.
+ * Start a Google/Apple sign-in (`mode=login`, default; `next` for afterwards) or a link to the signed-in user
+ * (`mode=link`, full session required, else sign-in). A navigation, so another site can link here; that's harmless:
+ * a new random binding goes into `sk_oauth`, the API stores its hash with the state, and only this browser can finish.
+ * Then 303 to the provider (or the mock authorize page). A refusal lands on the sign-in or security screen.
  */
-// ponytail: no OAuth state/nonce (nothing leaves the app); Task 10 replaces this with the real redirect flow.
 export async function GET(req: Request, { params }: { params: Promise<{ provider: string }> }): Promise<Response> {
   const { provider } = await params;
-  const next = new URL(req.url).searchParams.get("next");
-  const res = await backend(`/v1/auth/oauth/${encodeURIComponent(provider)}/mock-login${next ? `?${new URLSearchParams({ next })}` : ""}`, { method: "POST", req });
-  if (!res.ok) return relay(res);
-  const got = (await res.json()) as { next: string; token: string };
-  await storeSignIn(await getSession(), { token: got.token }, req);
-  return new Response(null, { status: 303, headers: { Location: got.next, "Cache-Control": "no-store" } });
+  if (!isProvider(provider)) return apiError(404, "not_found", "This sign-in provider isn't available.");
+  const q = new URL(req.url).searchParams;
+  const mode = q.get("mode") === "link" ? "link" : "login";
+  const s = await getSession();
+  if (mode === "link" && !(s.token && s.csrf)) return seeOther("/login?next=%2Fme%2Fsecurity");
+  const binding = randomBytes(32).toString("base64url");
+  const res = await backend(`/v1/auth/oauth/${provider}/start`, {
+    method: "POST", contentType: "application/json", token: mode === "link" ? s.token : null, req,
+    body: JSON.stringify({ mode, next: q.get("next") ?? undefined, bindingHash: createHash("sha256").update(binding).digest("base64url") }),
+  });
+  if (!res.ok) {
+    await res.body?.cancel();
+    return seeOther(mode === "link" ? "/me/security?oauth=failed" : "/login?error=oauth");
+  }
+  const { url } = (await res.json()) as { url: string };
+  (await cookies()).set(OAUTH_COOKIE, `${mode}.${binding}`, oauthCookieOptions());
+  return seeOther(url);
 }

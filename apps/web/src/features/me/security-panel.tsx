@@ -14,7 +14,7 @@ import { LoadingShape } from "@/components/route-skeleton";
 import { PageHeader } from "@/components/shell/page-header";
 import { api, errorText } from "@/lib/client/api";
 import { BRAND } from "@starterkit/shared/brand";
-import type { MeDto, TwoFactorSetupDto } from "@starterkit/shared/contracts/me";
+import type { ConnectionProvider, MeDto, TwoFactorSetupDto } from "@starterkit/shared/contracts/me";
 import { ConnectionsCard } from "./connections-card";
 import { MeNav } from "./me-nav";
 import { ME_KEY, useMe } from "./use-me";
@@ -28,8 +28,8 @@ const TwoFactorSetup = dynamic(() => loadSetup().then((m) => m.TwoFactorSetup), 
 /** No password and not a directory user: signs in only through a connected Google or Apple account. */
 const providerOnly = (u: MeDto) => !u.hasPassword && !u.isLdap;
 
-/** /me/security: password, two-factor authentication and connected accounts of the signed-in user. */
-export function SecurityPage() {
+/** /me/security: password, two-factor authentication and connected accounts (`providers`: set up on the server). */
+export function SecurityPage({ providers }: { providers: Record<ConnectionProvider, boolean> }) {
   const q = useMe();
   // No flash: the loading shape appears after 150 ms and then stays at least 300 ms (it holds its place hidden before).
   const skeleton = useDelayedFlag(!q.data && !q.error);
@@ -44,7 +44,7 @@ export function SecurityPage() {
       <div className="grid items-start gap-section lg:grid-cols-2">
         <PasswordCard user={u} />
         <TwoFactorCard user={u} />
-        <ConnectionsCard user={u} />
+        <ConnectionsCard user={u} providers={providers} />
       </div>
     </div>
   );

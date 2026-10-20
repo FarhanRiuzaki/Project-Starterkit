@@ -1,5 +1,5 @@
-// /v1/me*: port of apps/web/src/app/api/me/**. POST /me/connections/{provider} is a temporary mock (OAUTH_MOCK only)
-// until connecting moves to the OAuth flow (Task 10). Nothing here lowers the number of active Superadmins (no role, status or delete change), so
+// /v1/me*: port of apps/web/src/app/api/me/**. Connecting Google or Apple is the OAuth flow's link mode
+// (auth/routes.ts). Nothing here lowers the number of active Superadmins (no role, status or delete change), so
 // SUPERADMIN_LOCK isn't taken. Checks that read the user lock its row in the transaction and re-read what they decide on.
 import { Hono } from "hono";
 import { BRAND } from "@starterkit/shared/brand";
@@ -10,7 +10,6 @@ import { hashPassword } from "../auth/password";
 import { endUserSessions, sessionLive, type UserRow } from "../auth/sessions";
 import { oauthOnly, reauth, userById } from "../auth/sign-in";
 import { matchTotpStep, newRecoveryCodes, newTotpSecret, otpauthUrl } from "../auth/totp";
-import { config } from "../config";
 import { sql, type Tx } from "../db/client";
 import { ApiError, currentSession } from "../http/errors";
 import { guard } from "../http/guard";
@@ -140,24 +139,6 @@ meRoutes.delete("/me/2fa", async (c) => {
     await recordActivity(tx, ctx, { action: "me.2fa_disable", target: target(u) });
   });
   return c.json({ ok: true });
-});
-
-/**
- * Temporary mock connect (OAUTH_MOCK only, else 404; Task 10 replaces it with the OAuth link flow): links the provider
- * with subject `mock-<provider>-<userId>`, no provider round trip. Already linked = 200 and no activity entry.
- */
-meRoutes.post("/me/connections/:provider", async (c) => {
-  const ctx = await guard(c, null);
-  if (!config().OAUTH_MOCK) throw new ApiError("not_found");
-  const provider = ConnectionProvider.parse(c.req.param("provider"));
-  const u = ctx.user;
-  await sql.begin(async (tx) => {
-    await lockUser(tx, u.id);
-    const linked = await tx`insert into user_identities (user_id, provider, subject, email)
-      values (${u.id}, ${provider}, ${`mock-${provider}-${u.id}`}, ${u.email}) on conflict do nothing returning 1`;
-    if (linked.length) await recordActivity(tx, ctx, { action: "me.connect", target: target(u), after: { provider } });
-  });
-  return c.json(toMe((await userById(u.id))!));
 });
 
 /** Refused when it is the only way to sign in (no password, not LDAP, nothing else connected). */
