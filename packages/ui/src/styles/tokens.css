@@ -135,7 +135,7 @@
   --row-selected: #172033;
   --seg-active: #2c2c31;
   --healthy-mark: #3ec27e;  --healthy-ink: #4cc98a;  --healthy-soft: #143323;
-  --degraded-mark: #f0a040; --degraded-ink: #f5a25a; --degraded-soft: #3a2614;
+  --degraded-mark: #ea7a3a; --degraded-ink: #ee8548; --degraded-soft: #3a2614;
   --down-mark: #ff6b70;     --down-ink: #ff7a7f;     --down-soft: #3d1a1d;
   --stopped-mark: #7d7d86;  --stopped-ink: #a8a8b1;  --stopped-soft: #2a2a2f;
   --unknown-mark: #5d5d66;  --unknown-ink: #a8a8b1;  --unknown-soft: #2a2a2f;

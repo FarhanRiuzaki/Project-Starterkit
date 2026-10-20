@@ -3,7 +3,6 @@
 @theme inline {
   /* next/font variables from app/fonts.ts, set on <html> by both root layouts (layout.tsx, global-error.tsx). */
   --font-sans: var(--font-inter), "Inter Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-brand: var(--font-geist), "Geist Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: var(--font-geist-mono), "Geist Mono Variable", ui-monospace, "SFMono-Regular", Menlo, monospace;
 
   /* v3 surfaces, lines, ink */
@@ -94,11 +93,6 @@
   --text-body-sm: 13px;   --text-body-sm--line-height: 18px;
   --text-label: 12px;     --text-label--line-height: 16px;     --text-label--font-weight: 500;
   --text-caption: 11px;   --text-caption--line-height: 16px;   --text-caption--letter-spacing: 0.01em;
-  /* Brand wordmark, Geist via font-brand; -desc = the "Console" descriptor, 0.62 × the hero size. */
-  --text-wordmark-sm: 15px; --text-wordmark-sm--line-height: 1; --text-wordmark-sm--letter-spacing: -0.01em;  --text-wordmark-sm--font-weight: 640;
-  --text-wordmark-md: 26px; --text-wordmark-md--line-height: 1; --text-wordmark-md--letter-spacing: -0.03em;  --text-wordmark-md--font-weight: 620;
-  --text-wordmark-lg: 30px; --text-wordmark-lg--line-height: 1; --text-wordmark-lg--letter-spacing: -0.032em; --text-wordmark-lg--font-weight: 620;
-  --text-wordmark-desc: 19px; --text-wordmark-desc--line-height: 1; --text-wordmark-desc--letter-spacing: 0; --text-wordmark-desc--font-weight: 400;
   --text-mono: 12px;      --text-mono--line-height: 16px;
 
   /* motion easings (spec §7.1), same values as tokens.css (literal: a var() here would reference itself);

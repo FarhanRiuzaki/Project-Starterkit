@@ -53,6 +53,7 @@ Server environment only; there is no `NEXT_PUBLIC_*` setting.
 | `SESSION_SECRET` | random per process (development) | Seals the session cookie; at least 32 characters; required in production. |
 | `SESSION_TTL_HOURS` | `12` | Cookie lifetime, 1 to 24 hours (the API ends sessions by its own `SESSION_TTL_HOURS` and `SESSION_IDLE_MINUTES`). |
 | `API_BASE_URL` | `http://127.0.0.1:4000` (development) | The API; required in production. |
+| `APP_URL` | `http://localhost:3000` (development) | Public origin of the site (`metadataBase`: absolute `og:image` and icon URLs); required in production. |
 | `INTERNAL_API_TOKEN` | none | Shared with the API (`apps/api/.env`), at least 32 characters; required. |
 | `COOKIE_SECURE` | `false` | `true` behind HTTPS: `Secure` cookie and `Strict-Transport-Security`. |
 | `TRUSTED_PROXY` | `false` | `true` only behind a proxy that appends `X-Forwarded-For` and sets `X-Forwarded-Host`/`-Proto`; otherwise those headers are ignored. |

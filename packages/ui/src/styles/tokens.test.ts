@@ -33,6 +33,15 @@ export function contrast(a: string, b: string): number {
   return (hi + 0.05) / (lo + 0.05);
 }
 
+/** HSL hue (degrees) and saturation of a hex colour. */
+function hueSat(hex: string): [number, number] {
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255) as [number, number, number];
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
+  if (!d) return [0, 0];
+  const h = max === r ? ((g - b) / d + 6) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return [h * 60, d / (1 - Math.abs(max + min - 1))];
+}
+
 const SURFACES = ["bg", "sheet", "tray", "card", "inset", "raised", "row-selected", "primary-soft"];
 const INKS = ["fg", "fg-2", "fg-3", "primary", "primary-ink", "healthy-ink", "degraded-ink", "down-ink", "stopped-ink", "unknown-ink"];
 const STATES = ["healthy", "degraded", "down", "stopped", "unknown"];
@@ -90,6 +99,15 @@ describe.each([["light", false], ["dark", true]] as const)("tokens (%s)", (name,
     expect(t["brand-sun"]).toBe("#ffa928");
     expect(Object.keys(t).filter((k) => t[k] === "#ffa928")).toEqual(["brand-sun"]);
     if (!dark) expect([t.primary, t["primary-ink"], t["primary-soft"]]).toEqual(["#0d1530", "#0d1530", "#eff2fa"]);
+  });
+  it("amber only for the sun: no amber/orange status token within 1.3:1 of --brand-sun", () => {
+    // Hue-scoped: luminance contrast alone ignores hue, and green or grey status inks at the sun's lightness are no amber.
+    const [sunHue] = hueSat(t["brand-sun"]!);
+    const near = Object.keys(t).filter((k) => /^(healthy|degraded|down|stopped|unknown)-(mark|ink|soft)$/.test(k)).filter((k) => {
+      const [h, sat] = hueSat(t[k]!);
+      return sat > 0.3 && Math.abs(h - sunHue) <= 30 && contrast(t[k]!, t["brand-sun"]!) < 1.3;
+    });
+    expect(near).toEqual([]);
   });
   it("surfaces step: bg ≠ sheet ≠ tray, card distinct from tray", () => {
     expect(new Set([t.bg, t.sheet, t.tray]).size).toBe(3);

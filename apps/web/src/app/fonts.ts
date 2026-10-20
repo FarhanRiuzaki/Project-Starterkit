@@ -27,19 +27,5 @@ export const geistMono = localFont({
   adjustFontFallback: false,
 });
 
-/**
- * Geist for the brand wordmark only; the body stays Inter. Same self-hosted route as Inter: the file comes from
- * the pinned @fontsource-variable package that `bun install` installs, so the build needs no font download. One
- * latin variable file covers the wordmark weights 620 and 640; no static Geist weight exists at those values.
- */
-export const geist = localFont({
-  src: "../../node_modules/@fontsource-variable/geist/files/geist-latin-wght-normal.woff2",
-  weight: "620 640",
-  style: "normal",
-  display: "swap",
-  variable: "--font-geist",
-  fallback: ["ui-sans-serif", "system-ui", "-apple-system", "Segoe UI", "sans-serif"],
-});
-
 /** Classes for <html>: expose the font variables to the token layer (globals.css → --font-sans / --font-mono). */
-export const fontVariables = `${inter.variable} ${geistMono.variable} ${geist.variable}`;
+export const fontVariables = `${inter.variable} ${geistMono.variable}`;

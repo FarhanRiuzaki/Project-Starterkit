@@ -3,12 +3,18 @@ import { cookies, headers } from "next/headers";
 import { connection } from "next/server";
 import { Providers } from "@/components/providers";
 import { BRAND } from "@starterkit/shared/brand";
+import { config } from "@/lib/server/config";
 import { PREFS_COOKIE, parsePrefs } from "@/lib/shared/prefs";
 import { fontVariables } from "./fonts";
 import "./globals.css";
 
-/** Pages give only their own title; the product name comes from BRAND (one place to rename the product). */
-export const metadata: Metadata = { title: { template: `%s · ${BRAND.name}`, default: BRAND.name }, description: BRAND.name };
+/**
+ * Pages give only their own title; the product name comes from BRAND (one place to rename the product). metadataBase
+ * (absolute og:image and icon URLs) comes from the runtime APP_URL, so it is read per request, not at build time.
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  return { metadataBase: new URL(config().APP_URL), title: { template: `%s · ${BRAND.name}`, default: BRAND.name }, description: BRAND.name };
+}
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   // Render per request: Next stamps the proxy's CSP nonce on its scripts only in dynamic rendering (a prerendered

@@ -151,7 +151,7 @@ marks ≥ 3:1 on white (3.38 / 3.79 / 4.36) except Stopped/Unknown, which are al
 | `--action` | `#f2f2f3` (text `#151517`) | the CTA inverts to white in dark |
 | `--row-selected` | `#172033` | |
 | Healthy | mark `#3ec27e` · ink `#4cc98a` · soft `#143323` | ink/soft 6.57:1 |
-| Degraded | mark `#f0a040` · ink `#f5a25a` · soft `#3a2614` | 6.95:1 |
+| Degraded | mark `#ea7a3a` · ink `#ee8548` · soft `#3a2614` | ink/soft 5.51:1, mark on card 5.74:1; kept ≥ 1.3:1 from the sun (1.49 / 1.36), amber is the logo's only |
 | Down | mark `#ff6b70` · ink `#ff7a7f` · soft `#3d1a1d` | 6.12:1 |
 | Stopped | mark `#7d7d86` · ink `#a8a8b1` · soft `#2a2a2f` | 6.05:1 |
 | Unknown | mark `#5d5d66` dashed · ink `#a8a8b1` · soft `#2a2a2f` | |

@@ -8,7 +8,7 @@ import { sessionOptions } from "./session";
 describe("session cookie", () => {
   it("httpOnly, sameSite strict, secure follows COOKIE_SECURE, ttl = hours × 3600", () => {
     for (const secure of [true, false]) {
-      const o = sessionOptions({ SESSION_SECRET: SECRET, SESSION_TTL_HOURS: 5, COOKIE_SECURE: secure, API_BASE_URL: "http://a", INTERNAL_API_TOKEN: "t".repeat(32), OAUTH_MOCK: false });
+      const o = sessionOptions({ SESSION_SECRET: SECRET, SESSION_TTL_HOURS: 5, COOKIE_SECURE: secure, API_BASE_URL: "http://a", INTERNAL_API_TOKEN: "t".repeat(32), APP_URL: "http://w", OAUTH_MOCK: false });
       expect(o).toMatchObject({ cookieName: "sk_session", ttl: 5 * 3600, cookieOptions: { httpOnly: true, sameSite: "strict", secure, path: "/" } });
     }
   });

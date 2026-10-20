@@ -79,6 +79,8 @@ services:
       API_BASE_URL: http://api:4000
       INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:?set in .env.compose}
       SESSION_SECRET: ${SESSION_SECRET:?set in .env.compose}
+      # Public origin users open (metadataBase); the web refuses to start in production without it.
+      APP_URL: ${APP_URL:?set in .env.compose (the public origin, e.g. https://app.example.com)}
       # true once the site is served over HTTPS (behind a proxy: TRUSTED_PROXY=true too).
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
       TRUSTED_PROXY: ${TRUSTED_PROXY:-}

@@ -64,7 +64,7 @@ export default defineConfig({
       timeout: 300_000,
       env: {
         NEXT_DIST_DIR: ".next-e2e", SESSION_SECRET: randomBytes(32).toString("base64url"),
-        API_BASE_URL: `http://127.0.0.1:${API_PORT}`, INTERNAL_API_TOKEN, OAUTH_MOCK: "true",
+        API_BASE_URL: `http://127.0.0.1:${API_PORT}`, APP_URL: `http://localhost:${PORT}`, INTERNAL_API_TOKEN, OAUTH_MOCK: "true",
       },
     },
   ],

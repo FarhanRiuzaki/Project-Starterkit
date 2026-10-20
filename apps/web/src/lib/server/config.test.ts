@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { DEV_API_BASE_URL, parseConfig } from "./config";
+import { DEV_API_BASE_URL, DEV_APP_URL, parseConfig } from "./config";
 
 const TOKEN = "t".repeat(32);
 const base = { SESSION_SECRET: "s".repeat(32), INTERNAL_API_TOKEN: TOKEN };
-const prod = { ...base, NODE_ENV: "production", API_BASE_URL: "http://api:4000" };
+const prod = { ...base, NODE_ENV: "production", API_BASE_URL: "http://api:4000", APP_URL: "https://app.example.com" };
 
 describe("config", () => {
   it("defaults: cookie not secure, 12 h sessions, the dev API address", () => {
-    expect(parseConfig(base)).toEqual({ ...base, SESSION_TTL_HOURS: 12, COOKIE_SECURE: false, API_BASE_URL: DEV_API_BASE_URL, OAUTH_MOCK: false });
+    expect(parseConfig(base)).toEqual({ ...base, SESSION_TTL_HOURS: 12, COOKIE_SECURE: false, API_BASE_URL: DEV_API_BASE_URL, APP_URL: DEV_APP_URL, OAUTH_MOCK: false });
   });
   it("a secret shorter than 32 characters is refused", () => {
     expect(() => parseConfig({ ...base, SESSION_SECRET: "short" })).toThrow();
@@ -28,6 +28,14 @@ describe("config", () => {
     expect(parseConfig({ ...prod, API_BASE_URL: "http://10.0.0.5:4000/" }).API_BASE_URL).toBe("http://10.0.0.5:4000");
     expect(parseConfig({ ...base, API_BASE_URL: "" }).API_BASE_URL).toBe(DEV_API_BASE_URL);
     for (const v of ["ftp://api", "api:4000"]) expect(() => parseConfig({ ...base, API_BASE_URL: v }), v).toThrow();
+  });
+  it("APP_URL (public origin for metadataBase): required in production, http(s) only, dev default", () => {
+    expect(() => parseConfig({ ...prod, APP_URL: undefined })).toThrow(/APP_URL/);
+    expect(() => parseConfig({ ...prod, APP_URL: "" })).toThrow(/APP_URL/);
+    expect(parseConfig(prod).APP_URL).toBe("https://app.example.com");
+    expect(parseConfig({ ...base, APP_URL: "" }).APP_URL).toBe(DEV_APP_URL);
+    expect(DEV_APP_URL).toBe("http://localhost:3000");
+    for (const v of ["ftp://app", "app.example.com"]) expect(() => parseConfig({ ...base, APP_URL: v }), v).toThrow();
   });
   it("INTERNAL_API_TOKEN is required, at least 32 characters", () => {
     expect(() => parseConfig({ SESSION_SECRET: base.SESSION_SECRET })).toThrow();

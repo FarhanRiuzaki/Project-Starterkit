@@ -8,7 +8,7 @@ type ClassValue = Parameters<typeof clsx>[number];
  * type-scale class is masked as an arbitrary font-size (`text-[length:…]`) for the merge and restored after, which
  * keeps size and colour in separate groups. Costs a few hundred bytes, unlike a full extended merge config.
  */
-const SIZES = ["display", "title-1", "title-2", "title-3", "stat", "stat-sm", "body", "body-sm", "label", "caption", "mono", "wordmark-sm", "wordmark-md", "wordmark-lg", "wordmark-desc"];
+const SIZES = ["display", "title-1", "title-2", "title-3", "stat", "stat-sm", "body", "body-sm", "label", "caption", "mono"];
 const SIZE = new RegExp(`^(.*:)?(!?)text-(${SIZES.join("|")})(!?)$`);
 
 /**

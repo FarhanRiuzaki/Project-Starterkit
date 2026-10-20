@@ -86,5 +86,6 @@ test("signed out, the icons and the social image load (no sign-in redirect, CSP 
   }
   await page.goto("/login");
   await expect(page.locator('link[rel="icon"][href^="/icon.svg"]')).toHaveCount(1);
-  await expect(page.locator('meta[property="og:image"]')).toHaveCount(1);
+  // metadataBase = APP_URL (playwright.config.ts): the social image URL is absolute on the site's origin.
+  await expect(page.locator('meta[property="og:image"]')).toHaveAttribute("content", /^http:\/\/localhost:\d+\/opengraph-image\.png/);
 });
