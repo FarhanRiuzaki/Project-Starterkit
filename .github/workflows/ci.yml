@@ -1,4 +1,4 @@
-# check + build + E2E + bundle budget + secret scan, on every push and pull request.
+# Secret scan, check, E2E (on a production build), bundle budget, on every push and pull request.
 # No secret lives here: PostgreSQL trusts connections (the service is reachable only from this job), the API tests use
 # the fixed test values of apps/api/test/helpers/preload.ts, and the E2E run draws a random internal token, encryption
 # key and session secret per run (apps/web/playwright.config.ts).
@@ -41,6 +41,11 @@ jobs:
         with:
           fetch-depth: 0 # gitleaks scans the history
 
+      - uses: gitleaks/gitleaks-action@v2.3.9
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_VERSION: 8.30.1
+
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.4.3
@@ -53,14 +58,11 @@ jobs:
 
       - run: bun run check
 
-      - run: bun run build
-        env:
-          NEXT_DIST_DIR: .next-e2e
-
       # The browser matching apps/web's @playwright/test; CI only (never on a developer machine).
       - run: bunx playwright install --with-deps chromium
         working-directory: apps/web
 
+      # Builds the web into .next-e2e itself (playwright.config.ts webServer), then runs the suite.
       - run: bun run e2e
 
       - run: bun run budget
@@ -73,8 +75,3 @@ jobs:
           name: playwright
           path: .superpowers/scratch/e2e/
           retention-days: 7
-
-      - uses: gitleaks/gitleaks-action@v2.3.9
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITLEAKS_VERSION: 8.30.1

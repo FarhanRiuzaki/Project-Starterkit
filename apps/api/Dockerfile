@@ -9,6 +9,10 @@ COPY apps/api/package.json apps/api/
 COPY apps/web/package.json apps/web/
 COPY packages/shared/package.json packages/shared/
 COPY packages/ui/package.json packages/ui/
+# ponytail: about 289 MB of node_modules (measured on a hand-built copy of this stage), mostly @starterkit/ui's runtime
+# dependencies (icons, radix, recharts, react) that come with the workspace although the API imports only ui/lib/*.
+# Upgrade path: `bun build src/index.ts --target bun` into one file plus drizzle/ in the image; db/migrate.ts then needs
+# an env override for its DIR (it resolves drizzle/ from import.meta.dir, which a bundle moves).
 RUN bun install --frozen-lockfile --production --filter @starterkit/api
 
 FROM oven/bun:1.4.3
