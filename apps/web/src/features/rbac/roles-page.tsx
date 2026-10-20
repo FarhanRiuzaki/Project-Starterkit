@@ -40,7 +40,7 @@ export function RolesPage() {
   const [deleting, setDeleting] = useState<RoleDto | null>(null);
 
   const columns: Column<RoleDto>[] = [
-    { key: "name", header: "Role", icon: KeyIcon, sortable: true, mobile: "title", cell: (r) => (
+    { key: "name", header: "Role", sortable: true, mobile: "title", cell: (r) => (
       <span className="flex items-center gap-2"><Link href={rolePage(r.id)} className={LINK}>{r.name}</Link>{r.locked && <span className="text-caption text-fg-3">Locked</span>}</span>
     ) },
     { key: "permissions", header: "Permissions", sortable: true, align: "right", cell: (r) => formatNumber(r.permissions.length) },

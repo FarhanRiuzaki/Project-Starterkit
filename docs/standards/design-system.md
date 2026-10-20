@@ -325,7 +325,8 @@ smaller; negative values use the true minus sign `−`.
 4 px base: `0 · 2 · 4 · 6 · 8 · 12 · 16 · 20 · 24 · 32 · 40 · 48 · 64`. Control heights: 28 (sm), 32 (default),
 36 (nav item, lg), 40 (table header, login input 40). Icons: Hugeicons Stroke Rounded (`@hugeicons/core-free-icons`, rendered by the local `Icon` in `packages/ui/src/ui/icon.tsx`;
 one icon per meaning, taken only from `packages/ui/src/ui/icons.ts`), `currentColor` with text tokens, 16 px (stroke 1.5)
-in nav, toolbars, panel headers and KPI tiles, 14 px in chips and table headers, 20 px in empty states.
+in nav, toolbars, panel headers and KPI tiles, 14 px in chips, 20 px in empty states. Table column headers carry no
+icon: the table's card header names it with its icon ("All users"), the columns are words only.
 
 ---
 
