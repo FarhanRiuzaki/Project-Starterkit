@@ -166,7 +166,8 @@ restart `bun run dev`.
 Needs Docker only. `docker-compose.dev.yml` runs PostgreSQL and one container with `bun run dev` on the mounted
 checkout: a saved file reloads the web (Fast Refresh) or restarts the API (`bun --watch`), no image rebuild. One host
 port, http://localhost:3000; the API and the database stay inside. The first `up` installs, migrates and runs both
-seeds (`scripts/docker-dev.sh`); secrets are generated once into a volume.
+seeds (`scripts/docker-dev.sh`); secrets are generated once into a volume. Database roles match production: the
+servers connect as `starterkit_app` (SELECT/INSERT/UPDATE/DELETE only), migrations and seeds run as the owner.
 
 ```sh
 docker compose -f docker-compose.dev.yml up -d

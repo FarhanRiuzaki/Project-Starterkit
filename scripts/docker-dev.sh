@@ -1,8 +1,8 @@
 #!/bin/sh
 # Entry point of the `app` service in docker-compose.dev.yml: the dev stack (web + API, hot reload) in one container.
 # Secrets are generated once into the `state` volume, so sessions and encrypted TOTP secrets survive restarts.
-# Then install (fast when the node_modules volumes are warm), migrate, system seed, demo seed (skipped once present)
-# and `bun run dev`. Prints file names and steps only, never a value.
+# Then install (fast when the node_modules volumes are warm), migrate and seed as the owner (MIGRATION_DATABASE_URL),
+# demo seed (skipped once present), and `bun run dev` as the app role. Prints file names and steps only, never a value.
 set -e
 STATE=/state/dev.env
 if [ ! -f "$STATE" ]; then
@@ -21,4 +21,5 @@ bun install --frozen-lockfile
 bun run db:migrate
 bun run db:seed
 bun run db:seed:demo
-exec bun run dev
+# As in production, the servers never see the owner's URL: they connect as the app role of DATABASE_URL.
+exec env -u MIGRATION_DATABASE_URL -u TEST_DATABASE_URL bun run dev
