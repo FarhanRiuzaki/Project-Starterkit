@@ -4,7 +4,7 @@ import { createApp } from "../src/app";
 import { log } from "../src/kernel/log";
 import { body } from "../src/kernel/parse";
 import { LEGACY_MOUNT_ROUTE } from "../src/kernel/plugins/context";
-import { request } from "./helpers/app";
+import { request, resetData, signIn } from "./helpers/app";
 
 type ErrorJson = { error: { code: string; message: string } };
 const code = async (res: Response) => ((await res.json()) as ErrorJson).error.code;
@@ -41,6 +41,23 @@ describe("app", () => {
     for (const p of ["/nope", "/", "/healthz/x", "/v2/users"]) expect([p, (await request(createApp(), p)).status]).toEqual([p, 401]);
     expect((await request(createApp(), "/healthz")).status).toBe(200);
     expect((await request(createApp(), "/healthz", { method: "POST" })).status).toBe(401);
+  });
+
+  it("the health allowlist is the exact path: a dot-segment, backslash or encoded spelling of /healthz needs the token", async () => {
+    await resetData();
+    const bearer = { Authorization: `Bearer ${await signIn("admin")}` };
+    const cases: [string, Record<string, string>][] = [
+      ["/v1/auth/providers/..%2f..%2f..%2fhealthz", {}], ["/v1/users/..%2f..%2fhealthz", bearer], ["/v1/users/..%5c..%5chealthz", {}],
+      ["/healthz%2f..%2fv1/auth/providers", {}], ["/%68ealthz", {}],
+    ];
+    for (const [p, headers] of cases) {
+      const res = await request(createApp(), p, { headers });
+      expect([p, res.status, await code(res)]).toEqual([p, 401, "unauthenticated"]);
+    }
+    for (const p of ["/healthz", "/readyz", "/healthz?x=/v1"]) {
+      const res = await request(createApp(), p);
+      expect([p, res.status, await res.json()]).toEqual([p, 200, { ok: true }]);
+    }
   });
 
   it("unknown /v1 path is 404 not_found with no-store", async () => {
