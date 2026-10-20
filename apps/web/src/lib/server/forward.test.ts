@@ -40,7 +40,8 @@ describe("forward (app/api/[...path])", () => {
     }
     expect(seen).toEqual([]);
     expect((await at("/api/users", { method: "POST", headers: { "x-csrf-token": TEST_CSRF } })).status).toBe(200);
-    expect(seen).toHaveLength(1);
+    expect((await at("/api/users", { method: "HEAD" })).status).toBe(200); // a read: no token needed
+    expect(seen.map((r) => r.method)).toEqual(["POST", "HEAD"]);
   });
 
   it("GET without a session is forwarded without Authorization", async () => {

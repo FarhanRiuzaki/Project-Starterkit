@@ -32,7 +32,7 @@ export async function forward(req: Request): Promise<Response> {
   if (!path) return apiError(404, "not_found", "This page doesn't exist or was deleted.");
   const s = await getSession();
   const token = s.token && s.csrf ? s.token : null;
-  const mutation = req.method !== "GET";
+  const mutation = req.method !== "GET" && req.method !== "HEAD"; // Next answers HEAD with the GET handler
   if (mutation && token && !csrfOk(req.headers.get(CSRF_HEADER), s.csrf)) return csrfFailed();
   const body = mutation ? await bodyOf(req) : null;
   if (mutation && !body) return apiError(400, "bad_request", "A request parameter has an unsupported value.");
