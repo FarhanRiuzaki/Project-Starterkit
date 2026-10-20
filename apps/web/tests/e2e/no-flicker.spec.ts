@@ -153,6 +153,9 @@ for (const mode of [{ name: "light", colorScheme: "light", reducedMotion: "no-pr
     for (const p of PAGES) {
       test(`${p.path} renders filled on first paint: no flash, no shift, no /api read`, async ({ page, baseURL }) => {
         const filled = await withIds(p.filled, baseURL);
+        // A 4× slower CPU (a CI runner, a phone): the browser gets to paint a frame before React's reveal script
+        // runs, which is what app/layout.tsx's render-blocking link must cover.
+        await (await page.context().newCDPSession(page)).send("Emulation.setCPUThrottlingRate", { rate: 4 });
         await page.addInitScript(installProbe);
         const api: string[] = [];
         page.on("request", (r) => { if (new URL(r.url()).pathname.startsWith("/api/")) api.push(`${r.method()} ${r.url()}`); });

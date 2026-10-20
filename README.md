@@ -214,10 +214,11 @@ password must be 12 to 128 characters; elsewhere a shorter one is accepted with 
 | `bun run budget` | First-load JS per route after a build: at most 250 kB gzip each (`NEXT_DIST_DIR=.next-e2e` reads the E2E build). |
 | `bun run api:schemas` | Regenerates `docs/api/schemas/` and the activity action table from the zod contracts. |
 
-Playwright uses the Chromium it already has. `/ds` screenshot baselines are per project and platform
-(`ds-light-desktop-darwin.png`), so a Linux CI runner looks for `…-linux.png` and fails until it has its own. Make them
-on that platform (for CI: in the same Linux image the runner uses) with `bunx playwright test ds --update-snapshots`
-inside `apps/web`, review them by eye, and commit them next to the others.
+Playwright uses the Chromium it already has. `/ds` screenshot baselines are per project and platform:
+`…-darwin.png` for macOS and `…-linux.png` for the CI runner (taken from CI's own output, `ubuntu-24.04`). After a
+visual change, update the macOS ones with `bunx playwright test ds --update-snapshots` inside `apps/web`, and the
+Linux ones from the `playwright` artifact of the failing CI run (`test-results/ds-*/ds-*-actual.png`); review both by
+eye and commit them next to the others.
 
 ## Architecture
 

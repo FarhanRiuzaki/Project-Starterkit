@@ -29,6 +29,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const density = parsePrefs((await cookies()).get(PREFS_COOKIE)?.value).density;
   return (
     <html lang="en" suppressHydrationWarning className={fontVariables} data-density={density}>
+      {/* The page streams in after the shell as a Suspense segment (loading.tsx). If the browser paints a frame before
+          React's reveal script runs, React holds the page back 300 ms past that frame ($RT throttle) and the region
+          paints blank. No element has this id, so first paint waits for the end of the document and the page shows on
+          it (Chromium; elsewhere the link is ignored). */}
+      <head><link rel="expect" href="#document-parsed" blocking="render" /></head>
       <body className="min-h-screen font-sans"><Providers nonce={nonce}>{children}</Providers></body>
     </html>
   );
