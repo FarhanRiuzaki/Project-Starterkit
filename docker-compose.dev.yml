@@ -1,0 +1,72 @@
+# The development stack in Docker: PostgreSQL 18 and one `app` container running `bun run dev` (web + API) on the
+# source mounted from this checkout, so a code change reloads at once (Next Fast Refresh, `bun --watch`) without a
+# rebuild. One port on the host: http://localhost:3000 (the API and the database stay inside). Sign in as
+# superadmin / Password123! (demo seed) or the SEED_SUPERADMIN_* user of apps/api/.env.
+#   docker compose -f docker-compose.dev.yml up -d            # first run installs, migrates and seeds (about a minute)
+#   docker compose -f docker-compose.dev.yml logs -f app      # follow web + API logs
+#   docker compose -f docker-compose.dev.yml exec app bun run check     # tests run against starterkit_test in here
+#   docker compose -f docker-compose.dev.yml exec postgres psql -U postgres starterkit
+#   docker compose -f docker-compose.dev.yml down             # add -v to drop the database and the volumes
+# Rebuild only when the base image changes (Bun or Node version), never for code or dependencies: a changed bun.lock
+# is installed on the next `restart app`. Not for production: that is docker-compose.yml.
+name: starterkit-dev
+
+services:
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres # dev only: the database has no host port
+      POSTGRES_DB: starterkit
+    volumes:
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d starterkit"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  app:
+    build:
+      context: scripts
+      dockerfile_inline: |
+        FROM node:24-slim
+        COPY --from=oven/bun:1.4.3 /usr/local/bin/bun /usr/local/bin/bun
+    image: starterkit-dev:local
+    working_dir: /app
+    command: ["sh", "scripts/docker-dev.sh"]
+    # Explicit values win over the mounted apps/api/.env and apps/web/.env.local (Bun and Next keep what is set).
+    environment:
+      NODE_ENV: development
+      NEXT_TELEMETRY_DISABLED: "1"
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/starterkit
+      MIGRATION_DATABASE_URL: postgresql://postgres:postgres@postgres:5432/starterkit
+      API_BASE_URL: http://127.0.0.1:4000
+      APP_URL: http://localhost:3000
+      MAIL_TRANSPORT: log
+      OAUTH_MOCK: "true"
+      LDAP_MOCK: "true"
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/app
+      # Linux builds of the dependencies and Next's cache stay in volumes, apart from the host's macOS ones.
+      - node_modules:/app/node_modules
+      - web_node_modules:/app/apps/web/node_modules
+      - api_node_modules:/app/apps/api/node_modules
+      - ui_node_modules:/app/packages/ui/node_modules
+      - shared_node_modules:/app/packages/shared/node_modules
+      - next:/app/apps/web/.next
+      - state:/state
+    depends_on:
+      postgres: { condition: service_healthy }
+
+volumes:
+  pgdata:
+  node_modules:
+  web_node_modules:
+  api_node_modules:
+  ui_node_modules:
+  shared_node_modules:
+  next:
+  state:
