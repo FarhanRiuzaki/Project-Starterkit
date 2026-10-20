@@ -28,8 +28,11 @@ starterkit.
    - **Hover-only details have a touch path**, CSS only (`pointer-coarse:`, both versions in the server HTML): row
      actions are always shown; `RelativeTime` adds the short absolute time as a second line in fg-3; a `BlockedButton`
      shows its reason as a caption under it (`caption={false}` only in table row actions whose reason is also shown
-     elsewhere on touch: the users list's Actions menu hints, the user detail's Edit user caption); on a tablet with a
-     touch screen the top bar shows the menu button, so the rail's labels are reachable in the drawer.
+     elsewhere on touch: the users list's Actions menu, which on a touch screen also carries Deactivate / Activate
+     user with the reason under the label, and the user detail's Edit user caption); `className` stays on the button
+     and `wrapClassName` places the button + caption box (`w-full`, `ml-auto items-end`); on a tablet with a touch
+     screen (768–1279) the top bar shows the menu button, so the rail's labels are reachable in the drawer; from 1280
+     the full sidebar has them and the button hides.
      (`packages/ui/src/ds/{relative-time,blocked-button,data-table}.test.ts`, `responsive.spec.ts` "hover-only details",
      "tablet with touch".)
    - **Inputs** use at least 16 px text under a coarse pointer (`--text-input-touch`, `base.css`), so iOS never zooms.
@@ -44,10 +47,28 @@ starterkit.
    - **Known limit**: the responsive checks run in Chromium emulation only (`isMobile`, `hasTouch`, a 390 px viewport):
      no WebKit project and no real iPhone or iPad. Safari-only behaviour (the keyboard over fixed layers, `env()` insets
      on a real notch, `dvh` while the toolbar collapses) is not tested.
-   - New layout uses `md` and `xl` only. Older uses of other breakpoints, kept until the data surfaces move to the
-     three classes: `lg` (1024) in the KPI tray (`stat-tile.tsx`), the user detail and security grids, the route
-     skeleton and the `/ds` spans; `sm` (640) for the filter input width and two `/ds` grids; `max-lg` narrows the
-     top bar's search field.
+   - **Data surfaces on a phone** (`tests/e2e/responsive-data.spec.ts`, `packages/ui/src/ds/{data-table,data-table-dom,toolbar}.test.ts`):
+     - `DataTable` rows are **stacked cards**: each `Column` declares `mobile: "title" | "meta" | "hidden" | "lead"`
+       (title = the card heading, exactly one, checked in development; meta = a label–value line with the header as the
+       label; lead = the row checkbox left of the title); row actions sit top right and are always shown. One DOM for
+       every width, switched in CSS (no second list, no hydration difference); the table keeps its semantics through
+       explicit ARIA roles. Sorting is a "Sort by" select, pagination is compact (previous / "Page x of y" / next +
+       rows per page); URL state, `placeholderData` and the delayed skeleton are the same, and the loading shape is a card.
+     - The toolbar keeps the search in the row; the other filters go in `ToolbarFilters`: inline from 768, below it a
+       "Filters" button with the active count opening a bottom sheet (deferred chunk) where `FilterMenu` is a labelled
+       select. The controls write the URL as inline; "Show results" closes.
+     - The users list's bulk bar sticks under the top bar while rows are selected (`Panel flush` clips with
+       `overflow: clip`, so a sticky child sticks to the page).
+     - The permission matrix scrolls inside its card (at most 70 dvh) with a sticky header row and module column
+       (a rule marks the column edge on a phone), 44 px rows under a coarse pointer; a press on a read-only cell shows
+       its reason under the matrix (`role="status"`).
+     - Charts take the container's width; the column chart's x labels keep a 16 px gap, so a phone shows about every
+       other day; a tap shows the tooltip (Recharts' touch handling). Line tabs scroll inside the tablist; the
+       indicator is positioned in the list's own coordinates and scrolls with it.
+     - Detail grids: one column on a phone, two from 768 (`md:grid-cols-2`, `md:col-span-6`).
+   - New layout uses `md` and `xl` only. Older uses of other breakpoints: `lg` (1024) in the KPI tray (`stat-tile.tsx`:
+     2 per row up to 1023, one row from 1024); `sm` (640) for the filter input width and two `/ds` grids; `max-lg`
+     narrows the top bar's search field.
 2. **Tray and sheet.** Every region has exactly one job, and its surface says it. App background → content
    sheet → tray (grouping, header, label) → card (the data itself). Each step is a visible but quiet value change
    of 2–4 % lightness, plus a 1 px hairline. Shadows are only for things that float.
@@ -92,8 +113,8 @@ starterkit.
 - At 1920: content capped at 1376 px and centred in the sheet. At 1280: 952 px content, same 12 columns.
 - Tablet, 768–1279: the sidebar is always the 64 px rail; 12-col spans of 3 become 6, 4 become 6 (2 per row).
 - Phone, below 768: no sidebar (drawer), the sheet fills the window edge to edge (no inset, no radius), content padding
-  16 px, top bar sticky; every span becomes 12 (one column) and a KPI tray shows 2 tiles per row (the spec's target for
-  the data surfaces, still being built: until then a wide surface scrolls inside its card); no horizontal scroll.
+  16 px, top bar sticky; every span becomes 12 (one column) and a KPI tray shows 2 tiles per row; tables are stacked
+  cards (§0); no horizontal scroll.
 
 ### 2.2 Rhythm
 
@@ -116,7 +137,7 @@ Symmetry rules: siblings in a row share width and height (`grid-auto-rows: 1fr` 
 | Primary chart | 8 col + 4 col companion (legend cards, insights, top-N) |
 | Paired charts | 6 + 6 |
 | Card grid | 3 col each (4 per row) ≥ 1440; 4 col (3 per row) 1280–1439; 6 col (2 per row) on a tablet; 12 col on a phone |
-| Tables | 12 col (on a phone the table scrolls inside its card until stacked rows land) |
+| Tables | 12 col (stacked cards on a phone, §0) |
 
 ---
 

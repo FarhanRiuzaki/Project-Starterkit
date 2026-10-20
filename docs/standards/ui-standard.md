@@ -115,8 +115,12 @@ Detail pages add `Tabs` (line variant) directly under the header; the tab value 
   tabular figures. First column = identity (28 px `Avatar` + name + secondary id), with a `min-w-*` on the column so
   auto layout never squeezes it. `Avatar seed={id}`: the tint follows the stable id, the initials the display name, so one user looks
   the same on every page. Status column uses `StatusChip`. Timestamps use
-  `RelativeTime` (absolute in tooltip; on touch a second line). Long values `Truncate` with title. On a phone a table wider than the screen
-  scrolls inside its card (`ui/table.tsx`); stacked rows replace that per the responsive spec.
+  `RelativeTime` (absolute in tooltip; on touch a second line). Long values `Truncate` with title. On a phone the rows
+  are stacked cards: give every column a `mobile` role (`title` exactly once, `meta`, `hidden`, `lead` for the row
+  checkbox); sorting becomes the "Sort by" select and the pagination compact (design-system §0 "Data surfaces"). Put
+  every toolbar filter but the search in `ToolbarFilters` with its active count (the phone's "Filters" sheet).
+  A row button that a card drops (`max-md:hidden`, `className` + `wrapClassName` on a `BlockedButton`) gets a
+  phone/touch item in the row's `ActionMenu` with its reason as the hint.
 - Row actions (`DataTable` `rowActions`) are secondary shortcuts: they show on row hover, on keyboard focus anywhere in
   the row, while one of their menus is open and always on a touch screen (`pointer-coarse:`), and always stay in the DOM and the tab order (opacity only, never
   `hidden`). Their names say the target ("Revoke the session started …"), so a screen reader hears them in place.
