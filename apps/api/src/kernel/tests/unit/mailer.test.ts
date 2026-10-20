@@ -80,6 +80,11 @@ it("smtp transport gives up after 10 s at every step (connect, greeting, idle so
   expect(options).toMatchObject({ host: "mail.example.test", port: 587, connectionTimeout: 10_000, greetingTimeout: 10_000, socketTimeout: 10_000, dnsTimeout: 10_000 });
 });
 
+it("smtp transport takes TLS from the URL: smtps:// is TLS from the start, ?requireTLS=true demands STARTTLS", () => {
+  expect(smtpTransport("smtps://mail.example.test").options).toMatchObject({ secure: true });
+  expect(smtpTransport("smtp://mail.example.test:587?requireTLS=true").options).toMatchObject({ secure: false, requireTLS: true });
+});
+
 it("a refused mail logs the masked address and the error's name and code, never the address, the text or the server's reply", async () => {
   const smtp = fakeSmtp("550 5.1.1 <rina@example.com>: mailbox unavailable");
   stop = smtp.stop;

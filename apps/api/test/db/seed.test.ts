@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, spyOn } from "bun:test";
+import path from "node:path";
 import { PERMISSIONS } from "@starterkit/shared/permissions";
 import { seedDemo } from "../../src/db/seed/demo";
 import { seedSystem } from "../../src/db/seed/system";
@@ -80,6 +81,18 @@ describe("seedSystem", () => {
       warn.mockRestore();
     }
     expect(await userCount()).toBe(1);
+  });
+
+  it("db:seed runs in production with only the database URL and SEED_SUPERADMIN_*, without the server's secrets", async () => {
+    // --no-env-file: nothing from apps/api/.env; the env below is all the process gets (compose's migrate service).
+    const r = Bun.spawnSync(["bun", "--no-env-file", "src/db/seed/cli.ts", "system"], {
+      cwd: path.join(import.meta.dir, "../.."),
+      env: { PATH: process.env.PATH!, NODE_ENV: "production", DATABASE_URL: process.env.DATABASE_URL!, LOG_LEVEL: "silent", ...OWNER },
+      stderr: "pipe",
+    });
+    expect(r.stderr.toString()).toBe("");
+    expect(r.exitCode).toBe(0);
+    expect((await usersWithRoles()).map((u) => [u.username, u.roles])).toEqual([["owner", ["Superadmin"]]]);
   });
 });
 

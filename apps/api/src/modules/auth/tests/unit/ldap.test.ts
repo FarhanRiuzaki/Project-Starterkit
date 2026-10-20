@@ -9,7 +9,7 @@ const base = {
   INTERNAL_API_TOKEN: "t".repeat(40),
   DATA_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString("base64"),
 };
-const prod = { ...base, NODE_ENV: "production", MAIL_TRANSPORT: "smtp", SMTP_URL: "smtp://mail:25", MAIL_FROM: "a@b.c" };
+const prod = { ...base, NODE_ENV: "production", MAIL_TRANSPORT: "smtp", SMTP_URL: "smtps://mail:465", MAIL_FROM: "a@b.c" };
 const ldap = { LDAP_URL: "ldap://dir.example:389", LDAP_BASE_DN: "dc=example,dc=com", LDAP_BIND_DN: "cn=app", LDAP_BIND_PASSWORD: "bind-secret-value" };
 
 /** The message of the error `loadConfig(env)` throws. */

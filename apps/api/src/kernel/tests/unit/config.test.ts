@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { loadConfig } from "../../config";
+import { loadConfig, loadDbConfig } from "../../config";
 
 const KEY = Buffer.alloc(32, 7).toString("base64");
 const base = {
@@ -49,7 +49,7 @@ describe("loadConfig", () => {
   });
 
   it("refuses OAUTH_MOCK=true in production", () => {
-    const prod = { ...base, NODE_ENV: "production", MAIL_TRANSPORT: "smtp", SMTP_URL: "smtp://mail:25", MAIL_FROM: "a@b.c" };
+    const prod = { ...base, NODE_ENV: "production", MAIL_TRANSPORT: "smtp", SMTP_URL: "smtps://mail:465", MAIL_FROM: "a@b.c" };
     expect(loadConfig(prod).NODE_ENV).toBe("production");
     expect(failure({ ...prod, OAUTH_MOCK: "true" })).toContain("OAUTH_MOCK");
     expect(failure({ ...prod, LDAP_MOCK: "true" })).toContain("LDAP_MOCK");
@@ -58,6 +58,26 @@ describe("loadConfig", () => {
   it("names cross-key problems next to field problems", () => {
     const msg = failure({ ...base, DATABASE_URL: undefined, NODE_ENV: "production", MAIL_TRANSPORT: "smtp", OAUTH_MOCK: "true" });
     for (const key of ["DATABASE_URL", "OAUTH_MOCK", "SMTP_URL", "MAIL_FROM"]) expect(msg).toContain(key);
+  });
+
+  it("production refuses SMTP without TLS: smtps://, or smtp:// with requireTLS=true (STARTTLS)", () => {
+    const prod = { ...base, NODE_ENV: "production", MAIL_TRANSPORT: "smtp", MAIL_FROM: "a@b.c" };
+    for (const url of ["smtps://u:p@mail:465", "smtp://u:p@mail:587?requireTLS=true", "SMTPS://mail", "smtp://mail:587?name=x&requireTLS=true"]) {
+      expect(loadConfig({ ...prod, SMTP_URL: url }).SMTP_URL).toBe(url);
+    }
+    for (const url of ["smtp://u:hunter2-smtp@mail:587", "smtp://mail:25?requireTLS=false", "smtp://mail:25?xrequireTLS=true"]) {
+      const msg = failure({ ...prod, SMTP_URL: url });
+      expect(msg).toContain("SMTP_URL (production needs smtps:// or ?requireTLS=true)");
+      expect(msg).not.toContain("hunter2");
+    }
+    // Outside production a plain URL stays allowed (a local catcher such as Mailpit).
+    expect(loadConfig({ ...base, MAIL_TRANSPORT: "smtp", MAIL_FROM: "a@b.c", SMTP_URL: "smtp://localhost:1025" }).SMTP_URL).toBe("smtp://localhost:1025");
+  });
+
+  it("loadDbConfig needs only the pool's keys, so a one-shot script loads the modules without the app's secrets", () => {
+    expect(loadDbConfig({ DATABASE_URL: base.DATABASE_URL })).toEqual({ DATABASE_URL: base.DATABASE_URL, DB_POOL_MAX: 10 });
+    expect(loadDbConfig({ DATABASE_URL: base.DATABASE_URL, DB_POOL_MAX: "3", INTERNAL_API_TOKEN: "" })).toEqual({ DATABASE_URL: base.DATABASE_URL, DB_POOL_MAX: 3 });
+    expect(() => loadDbConfig({ DATABASE_URL: "" })).toThrow("Invalid API configuration: DATABASE_URL (invalid_type)");
   });
 
   it("production requires smtp", () => {

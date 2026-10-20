@@ -7,7 +7,7 @@ const key32 = z.string().refine((v) => /^[A-Za-z0-9+/]{43}=$/.test(v) && Buffer.
   message: "must be base64 of exactly 32 bytes",
 });
 
-const Schema = z.object({
+const Fields = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   API_HOST: z.string().default("127.0.0.1"),
   API_PORT: int(1, 65535, 4000),
@@ -41,7 +41,10 @@ const Schema = z.object({
   APPLE_KEY_ID: z.string().optional(),
   /** The Sign in with Apple key (.p8): PKCS#8 PEM; line breaks may be written as \n. */
   APPLE_PRIVATE_KEY: z.string().refine((v) => v.includes("-----BEGIN PRIVATE KEY-----"), { message: "must be a PKCS#8 PEM (BEGIN PRIVATE KEY)" }).optional(),
-}).transform((c) => ({ ...c, MIGRATION_DATABASE_URL: c.MIGRATION_DATABASE_URL ?? c.DATABASE_URL }));
+});
+const Schema = Fields.transform((c) => ({ ...c, MIGRATION_DATABASE_URL: c.MIGRATION_DATABASE_URL ?? c.DATABASE_URL }));
+/** What the pool needs (kernel/db.ts builds it when it loads). */
+const DbFields = Fields.pick({ DATABASE_URL: true, DB_POOL_MAX: true });
 
 export type Config = z.output<typeof Schema>;
 
@@ -68,23 +71,40 @@ function crossKeyProblems(e: Record<string, string>): string[] {
     if (e.OAUTH_MOCK === "true") out.push("OAUTH_MOCK (must be false in production)");
     if (e.LDAP_MOCK === "true") out.push("LDAP_MOCK (must be false in production)");
     if (/^ldap:\/\//i.test(e.LDAP_URL ?? "") && e.LDAP_STARTTLS !== "true") out.push("LDAP_URL (production needs ldaps:// or LDAP_STARTTLS=true)");
+    // smtp:// alone sends the password and the reset links in clear text whenever the server offers no STARTTLS.
+    if (e.MAIL_TRANSPORT === "smtp" && e.SMTP_URL && !/^smtps:\/\//i.test(e.SMTP_URL) && !/[?&]requireTLS=true(&|$)/.test(e.SMTP_URL)) {
+      out.push("SMTP_URL (production needs smtps:// or ?requireTLS=true)");
+    }
   }
   return out;
 }
+
+const nonEmpty = (env: Record<string, string | undefined>) =>
+  Object.fromEntries(Object.entries(env).filter(([, v]) => v !== undefined && v !== "")) as Record<string, string>;
+const issues = (e: z.ZodError | undefined) => e?.issues.map((i) => `${i.path.join(".")} (${i.code === "custom" ? i.message : i.code})`) ?? [];
+const invalid = (why: string[]) => new Error(`Invalid API configuration: ${[...new Set(why)].join(", ")}. See apps/api/.env.example.`);
 
 /**
  * Validated API settings from `env` (empty strings count as unset). A missing or invalid value throws one error that
  * names every bad key and why, never a value.
  */
 export function loadConfig(env: Record<string, string | undefined>): Config {
-  const set = Object.fromEntries(Object.entries(env).filter(([, v]) => v !== undefined && v !== "")) as Record<string, string>;
+  const set = nonEmpty(env);
   const r = Schema.safeParse(set);
-  const why = [
-    ...(r.error?.issues.map((i) => `${i.path.join(".")} (${i.code === "custom" ? i.message : i.code})`) ?? []),
-    ...crossKeyProblems(set),
-  ];
+  const why = [...issues(r.error), ...crossKeyProblems(set)];
   if (r.success && !why.length) return r.data;
-  throw new Error(`Invalid API configuration: ${[...new Set(why)].join(", ")}. See apps/api/.env.example.`);
+  throw invalid(why);
+}
+
+/**
+ * Only DATABASE_URL and DB_POOL_MAX, validated the same way: the pool is built when kernel/db.ts loads, so the one-shot
+ * scripts (db:seed) that import the modules run without the server's secrets. The server checks everything at boot
+ * (`config()` in index.ts).
+ */
+export function loadDbConfig(env: Record<string, string | undefined>): z.output<typeof DbFields> {
+  const r = DbFields.safeParse(nonEmpty(env));
+  if (r.success) return r.data;
+  throw invalid(issues(r.error));
 }
 
 let cached: Config | undefined;

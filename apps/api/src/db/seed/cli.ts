@@ -1,6 +1,7 @@
 // `bun src/db/seed/cli.ts system | demo | reset` (root scripts db:seed, db:seed:demo, db:reset). Logs steps, never a value.
+// Needs only MIGRATION_DATABASE_URL/DATABASE_URL (and SEED_SUPERADMIN_*), not the server's secrets: kernel/db.ts reads
+// just the pool keys when it loads (`loadDbConfig`).
 import { drizzle } from "drizzle-orm/bun-sql";
-import { config } from "../../kernel/config";
 import { log } from "../../kernel/log";
 import { migrationSql, resetSchema } from "../migrate";
 import { seedDemo } from "./demo";
@@ -8,7 +9,7 @@ import { seedSystem } from "./system";
 
 const cmd = process.argv[2];
 if (cmd !== "system" && cmd !== "demo" && cmd !== "reset") throw new Error("Usage: bun src/db/seed/cli.ts system | demo | reset");
-if (cmd === "reset" && config().NODE_ENV === "production") throw new Error("db:reset is refused when NODE_ENV=production.");
+if (cmd === "reset" && process.env.NODE_ENV === "production") throw new Error("db:reset is refused when NODE_ENV=production.");
 
 const raw = migrationSql();
 const db = drizzle({ client: raw });
