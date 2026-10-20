@@ -91,6 +91,11 @@ export async function reauth(u: UserRow, proof: { password: string } | { recover
   await passwordFails.succeed(u.id);
 }
 
+/** A new user's invitation link: 72 hours to choose a password; only its hash is stored, POST /v1/auth/reset spends it. */
+export async function createInvite(tx: Tx, userId: string, token: string): Promise<void> {
+  await tx.insert(userTokens).values({ tokenHash: hashToken(token), userId, kind: "invite", expiresAt: sql`now() + interval '72 hours'` });
+}
+
 /** Spends every reset and invitation link of the user. */
 export async function deleteUserTokens(tx: Tx, userId: string): Promise<void> {
   await tx.delete(userTokens).where(eq(userTokens.userId, userId));

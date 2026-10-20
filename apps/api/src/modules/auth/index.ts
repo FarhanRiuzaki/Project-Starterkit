@@ -6,9 +6,9 @@ export { type Ctx, authenticate, bearer, guard } from "./guard";
 export { oauthStartLimits, retryText } from "./limits";
 export { hashPassword, verifyPassword } from "./password";
 export { oauthOnly } from "./rules";
-export { completeSignIn, deleteUserTokens, logAuth, reauth, userById } from "./service";
+export { completeSignIn, createInvite, deleteUserTokens, logAuth, reauth, userById } from "./service";
 export {
-  actorPermissions, type AuthUser, createSession, endSession, endUserSessions, isLiveSession, lockLiveSession, permsOf, resolveSession, rolesOf,
+  actorPermissions, type AuthUser, createSession, endSession, endUserSessions, isLiveSession, lockLiveSession, permsOf, providersOf, resolveSession, rolesOf,
   sessionLive, sessionPage, toUserRow, type UserRow,
 } from "./sessions";
 export { matchTotpStep, newRecoveryCodes, newTotpSecret, otpauthUrl, totpCode } from "./totp";
