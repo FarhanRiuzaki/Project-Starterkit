@@ -1,46 +1,53 @@
 // Port of apps/web/src/app/api/audit/audit-routes.test.ts against /v1/audit/*, test for test with the same names.
-// Differences: ids are UUIDs (looked up by username); sessions come from signIn(); the mock store's rows are SQL inserts.
+// Differences: ids are UUIDs (looked up by username); sessions come from signIn(); the mock store's rows are Drizzle inserts.
 // New: "capped count on 200k rows" (deep page of a big table), filters through the actor's current email on real rows.
 import { beforeEach, describe, expect, it, setSystemTime } from "bun:test";
 import type { ActivityDto, AuthLogDto } from "@starterkit/shared/contracts/audit";
 import type { Page } from "@starterkit/shared/contracts/common";
-import { call, resetData, signIn } from "../../test/helpers/app";
 import { appDate, shiftDate } from "@starterkit/ui/lib/format";
-import { sql } from "../db/client";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { call, resetData, signIn } from "../../../../../test/helpers/app";
+import { db } from "../../../../kernel/db";
+import { rolePermissions, roles } from "../../../rbac";
+import { users } from "../../../users";
+import { activity as activityTable, authLog } from "../../schema";
 
 const activity = (token: string | undefined, qs = "") => call("GET", `/v1/audit/activity${qs ? `?${qs}` : ""}`, { token });
 const auth = (token: string | undefined, qs = "") => call("GET", `/v1/audit/auth${qs ? `?${qs}` : ""}`, { token });
 const page = async <T,>(r: Response) => { expect(r.status).toBe(200); return (await r.json()) as Page<T>; };
-const idOf = async (username: string): Promise<string> => (await sql`select id from users where username = ${username}`)[0].id;
-const count = async (table: "activity" | "auth_log"): Promise<number> => (await sql.unsafe(`select count(*)::int as n from ${table}`))[0].n;
+const idOf = async (username: string): Promise<string> => (await db.select({ id: users.id }).from(users).where(eq(users.username, username)))[0]!.id;
+const count = async (table: "activity" | "auth_log"): Promise<number> => db.$count(table === "activity" ? activityTable : authLog);
 
 type Act = Partial<Omit<ActivityDto, "id" | "at">> & { actorId?: string };
 /** Replaces the whole activity log with `rows`. Defaults: Super Admin updated user Viewer User. */
 async function setActivity(rows: (Act & { id: string; at: string })[]) {
   const superId = await idOf("superadmin"), viewerId = await idOf("viewer");
-  await sql`truncate activity`;
+  await db.delete(activityTable);
   for (const r of rows) {
     const actor = r.actor ?? { id: superId, name: "Super Admin" };
     const t = r.target ?? { type: "user", id: viewerId, label: "Viewer User" };
-    await sql`insert into activity (id, at, actor_id, actor_name, action, target_type, target_id, target_label, before, after)
-      values (${r.id}, ${r.at}, ${actor.id}, ${actor.name}, ${r.action ?? "user.update"}, ${t.type}, ${t.id}, ${t.label},
-        ${r.before == null ? null : JSON.stringify(r.before)}::text::jsonb, ${r.after == null ? null : JSON.stringify(r.after)}::text::jsonb)`;
+    await db.insert(activityTable).values({
+      id: r.id, at: new Date(r.at), actorId: actor.id, actorName: actor.name, action: r.action ?? "user.update",
+      targetType: t.type, targetId: t.id, targetLabel: t.label, before: r.before ?? null, after: r.after ?? null,
+    });
   }
 }
 /** Replaces the whole sign-in log with `rows`. Defaults: the viewer signed in with a password. */
 async function setAuthLog(rows: (Partial<Omit<AuthLogDto, "id" | "at">> & { id: string; at: string })[]) {
   const viewerId = await idOf("viewer");
-  await sql`truncate auth_log`;
+  await db.delete(authLog);
   for (const r of rows) {
-    await sql`insert into auth_log (id, at, event, login, user_id, method, ip, device, location)
-      values (${r.id}, ${r.at}, ${r.event ?? "login_success"}, ${r.login ?? "viewer@example.com"}, ${r.userId === undefined ? viewerId : r.userId},
-        ${r.method ?? "password"}, ${r.ip ?? "10.0.0.1"}, ${r.device ?? "Chrome on macOS"}, ${r.location ?? null})`;
+    await db.insert(authLog).values({
+      id: r.id, at: new Date(r.at), event: r.event ?? "login_success", login: r.login ?? "viewer@example.com", userId: r.userId === undefined ? viewerId : r.userId,
+      method: r.method ?? "password", ip: r.ip ?? "10.0.0.1", device: r.device ?? "Chrome on macOS", location: r.location ?? null,
+    });
   }
 }
 const uuid = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 /** A custom role holding everything the viewer has except audit.view. */
 async function dropAuditView() {
-  await sql`delete from role_permissions where permission = 'audit.view' and role_id = (select id from roles where name = 'Viewer')`;
+  await db.delete(rolePermissions)
+    .where(and(eq(rolePermissions.permission, "audit.view"), inArray(rolePermissions.roleId, db.select({ id: roles.id }).from(roles).where(eq(roles.name, "Viewer")))));
 }
 
 beforeEach(async () => {
@@ -92,7 +99,7 @@ describe("GET /api/audit/activity", () => {
     const ats = body.items.map((e) => e.at);
     expect(ats).toEqual([...ats].sort().reverse());
     const two = await page<ActivityDto>(await activity(token, "page=2&pageSize=25&sort=at"));
-    const all: { at: Date }[] = await sql`select at from activity order by at, id`;
+    const all = await db.select({ at: activityTable.at }).from(activityTable).orderBy(asc(activityTable.at), asc(activityTable.id));
     expect(two.items.map((e) => e.at)).toEqual(all.map((e) => e.at.toISOString()).slice(25, 50));
   });
 
@@ -112,7 +119,7 @@ describe("GET /api/audit/activity", () => {
     expect(await ids("user=admin%20user")).toEqual([uuid(4)]);
     // the actor's current email (looked up by id at query time): superadmin@example.com
     expect(await ids("user=SUPERADMIN%40example")).toEqual([uuid(2), uuid(1), uuid(3)]);
-    await sql`update users set email = 'renamed@example.org' where id = ${adminId}`;
+    await db.update(users).set({ email: "renamed@example.org" }).where(eq(users.id, adminId));
     expect(await ids("user=renamed%40example.org")).toEqual([uuid(4)]);
     expect(await ids("user=SUPER&action=user.update&from=2026-10-10&to=2026-10-10")).toEqual([uuid(1)]);
     // the id as recorded, and a wildcard typed by the user stays literal
@@ -162,8 +169,10 @@ describe("GET /api/audit/activity", () => {
     }
   });
 
-  const bulk = () => sql`insert into activity (id, at, actor_id, actor_name, action, target_type, target_id, target_label)
-    select gen_random_uuid(), now() - g * interval '1 second', null, 'Bulk', 'user.update', 'user', 'x', 'x' from generate_series(1, 200000) g`;
+  const bulk = () => db.insert(activityTable).select(db.select({
+    id: sql`gen_random_uuid()`.as("id"), at: sql`now() - g * interval '1 second'`.as("at"), actorId: sql`null`.as("actorId"), actorName: sql`'Bulk'`.as("actorName"), action: sql`'user.update'`.as("action"),
+    targetType: sql`'user'`.as("targetType"), targetId: sql`'x'`.as("targetId"), targetLabel: sql`'x'`.as("targetLabel"), before: sql`null`.as("before"), after: sql`null`.as("after"),
+  }).from(sql`generate_series(1, 200000) g`));
 
   it("capped count on 200k rows, filtered by user over the 92-day range", async () => {
     const token = await signIn("viewer");
@@ -180,7 +189,7 @@ describe("GET /api/audit/activity", () => {
         expect(ms).toBeLessThan(5000); // the statement timeout: documents the ceiling, not a target
       }
     } finally {
-      await sql`truncate activity`;
+      await db.delete(activityTable);
     }
   });
 
@@ -198,7 +207,7 @@ describe("GET /api/audit/activity", () => {
       expect(body.items).toHaveLength(100);
       expect(ms).toBeLessThan(2000);
     } finally {
-      await sql`truncate activity`;
+      await db.delete(activityTable);
     }
   });
 });
@@ -206,7 +215,7 @@ describe("GET /api/audit/activity", () => {
 describe("GET /api/audit/auth", () => {
   it("event=login_failed returns only failed sign-ins, all of them", async () => {
     const token = await signIn("viewer");
-    const expected = (await sql`select count(*)::int as n from auth_log where event = 'login_failed'`)[0].n;
+    const expected = await db.$count(authLog, eq(authLog.event, "login_failed"));
     expect(expected).toBeGreaterThan(0);
     const body = await page<AuthLogDto>(await auth(token, "event=login_failed&pageSize=100"));
     expect(body.total).toBe(expected);
@@ -225,7 +234,7 @@ describe("GET /api/audit/auth", () => {
     expect(await ids("method=google")).toEqual([uuid(2)]);
     expect(await ids("user=NOBODY")).toEqual([uuid(3)]);
     // the user's current email, and the user id
-    await sql`update users set email = 'moved@example.org' where username = 'viewer'`;
+    await db.update(users).set({ email: "moved@example.org" }).where(eq(users.username, "viewer"));
     expect(await ids("user=moved%40example")).toEqual([uuid(2), uuid(1)]);
     expect(await ids(`user=${await idOf("viewer")}`)).toEqual([uuid(2), uuid(1)]);
   });
@@ -233,9 +242,10 @@ describe("GET /api/audit/auth", () => {
   it("CSV is named sign-in-<date>.csv and stops at 10,000 rows, newest first", async () => {
     await setAuthLog([]);
     const start = Date.UTC(2026, 8, 1);
-    await sql`insert into auth_log (id, at, event, login, user_id, method, ip, device)
-      select gen_random_uuid(), ${new Date(start)}::timestamptz + g * interval '1 minute', 'login_success', 'viewer@example.com', null, 'password', '10.0.0.1', 'Chrome on macOS'
-      from generate_series(0, 10049) g`;
+    await db.insert(authLog).select(db.select({
+      id: sql`gen_random_uuid()`.as("id"), at: sql`${new Date(start).toISOString()}::timestamptz + g * interval '1 minute'`.as("at"), event: sql`'login_success'`.as("event"),
+      login: sql`'viewer@example.com'`.as("login"), userId: sql`null`.as("userId"), method: sql`'password'`.as("method"), ip: sql`'10.0.0.1'`.as("ip"), device: sql`'Chrome on macOS'`.as("device"), location: sql`null`.as("location"),
+    }).from(sql`generate_series(0, 10049) g`));
     const token = await signIn("viewer");
     const r = await auth(token, "format=csv");
     expect(r.headers.get("content-disposition")).toMatch(/^attachment; filename="sign-in-\d{4}-\d{2}-\d{2}\.csv"$/);

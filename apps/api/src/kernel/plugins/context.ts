@@ -8,12 +8,6 @@ type Meta = { requestId: string; client: Client; start: number; status?: number 
 
 const metas = new WeakMap<Request, Meta>();
 
-/**
- * The route Elysia registers for `.mount(fetch)` without a path: app.ts mounts the Hono routers there until Task 18.
- * Requests it serves write their own access log line (Hono's requestContext), so none is written here.
- */
-export const LEGACY_MOUNT_ROUTE = "/*";
-
 /** The request's id and client, set when it arrives (also for a request that matches no route or fails early). */
 export const requestMeta = (r: Request): Meta | undefined => metas.get(r);
 
@@ -40,7 +34,6 @@ export const context = new Elysia({ name: "kernel.context" })
     return { requestId: m.requestId, client: m.client };
   })
   .onAfterResponse({ as: "global" }, ({ request, route, set, responseValue }) => {
-    if (route === LEGACY_MOUNT_ROUTE) return;
     const m = metas.get(request);
     const status = m?.status ?? (responseValue instanceof Response ? responseValue.status : Number(set.status ?? 200));
     log.info({ method: request.method, route: route ?? null, status, ms: m ? Math.round(performance.now() - m.start) : null, requestId: m?.requestId }, "request");

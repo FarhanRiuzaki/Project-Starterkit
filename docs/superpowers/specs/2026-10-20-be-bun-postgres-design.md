@@ -269,6 +269,9 @@ Aturan batas (dijaga tes arsitektur API):
   milik modul lain. Satu pengecualian: `schema.ts` boleh mengimpor `schema.ts` modul lain hanya untuk foreign key
   (lewat `index.ts` akan menarik service dan klien DB ke drizzle-kit serta membuat impor melingkar).
 - `kernel/` tidak mengimpor `modules/`.
+- Module indexes may import each other; never use another module's export at module load; controllers are factories.
+  (Keputusan 2026-10-20: siklus antar-`index.ts` diterima; tes arsitektur memuat setiap `modules/*/index.ts` dan
+  `app.ts` sendirian di proses `bun` baru dan memanggil setiap pabrik `…Controller`.)
 - Setiap tabel dimiliki tepat satu modul (`schema.ts`); modul lain membaca/menulisnya lewat API publik pemiliknya.
   Join yang butuh tabel lintas modul memakai tabel yang diekspor dari `index.ts` pemiliknya (hanya-baca untuk query).
 - Tidak ada event bus dulu: efek lintas modul yang harus atomik (activity log) dipanggil sinkron di transaksi yang sama

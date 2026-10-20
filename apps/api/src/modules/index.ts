@@ -1,5 +1,7 @@
 import { Elysia } from "elysia";
+import { auditController } from "./audit";
 import { authController } from "./auth";
+import { dashboardController } from "./dashboard";
 import { healthController, type Pingable } from "./health";
 import { meController } from "./me";
 import { oauthController } from "./oauth";
@@ -11,8 +13,8 @@ export type AppDeps = { db?: Pingable };
 
 /**
  * The module registry: every module's controller, mounted in this order. A new module = its folder + one line here.
- * audit and dashboard are still the Hono routers mounted by app.ts (Task 18). Each app gets its own controller
- * instances. rbac comes before users: it owns GET /v1/users/roles, which users' /v1/users/:id must not take.
+ * Each app gets its own controller instances. rbac comes before users: it owns GET /v1/users/roles, which users'
+ * /v1/users/:id must not take.
  */
 export const modules = (deps: AppDeps = {}) =>
   new Elysia()
@@ -21,4 +23,6 @@ export const modules = (deps: AppDeps = {}) =>
     .use(oauthController())
     .use(meController())
     .use(rbacController())
-    .use(usersController());
+    .use(usersController())
+    .use(auditController())
+    .use(dashboardController());

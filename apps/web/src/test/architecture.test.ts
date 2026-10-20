@@ -115,7 +115,7 @@ function runtimeViolations(fs: F[]): string[] {
 
 /**
  * Route handlers: the catch-all that forwards to the API, and the auth routes that set the cookie. Guards, CSRF order
- * and activity entries of every other endpoint live in the API (apps/api/src/conformance.test.ts).
+ * and activity entries of every other endpoint live in the API (apps/api/test/architecture/conformance.test.ts).
  */
 const ROUTE_FILES = [
   "app/api/[...path]/route.ts", "app/api/auth/2fa/route.ts", "app/api/auth/forgot/route.ts", "app/api/auth/login/route.ts",

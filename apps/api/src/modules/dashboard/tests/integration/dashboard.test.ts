@@ -1,36 +1,41 @@
 // Port of apps/web/src/app/api/dashboard/dashboard-route.test.ts against /v1/dashboard, test for test with the same names.
-// Differences: rows are SQL inserts; only `Date` is faked (the database clock stays real, sessions are fresh anyway);
+// Differences: rows are Drizzle inserts; only `Date` is faked (the database clock stays real, sessions are fresh anyway);
 // "an expired or idle session is not counted" checks the count only: the API filters ended
 // sessions (like sessionPage) and does not delete them in a GET.
 import { afterEach, beforeEach, describe, expect, it, setSystemTime } from "bun:test";
 import type { AuthLogDto } from "@starterkit/shared/contracts/audit";
 import type { DashboardDto } from "@starterkit/shared/contracts/dashboard";
-import { call, resetData, signIn } from "../../test/helpers/app";
-import { orm, sql } from "../db/client";
-import { createSession } from "../modules/auth";
+import { desc, eq, gte, sql } from "drizzle-orm";
+import { call, resetData, signIn } from "../../../../../test/helpers/app";
+import { db } from "../../../../kernel/db";
+import { activity, authLog } from "../../../audit";
+import { createSession, sessions } from "../../../auth";
+import { rolePermissions, roles } from "../../../rbac";
+import { users } from "../../../users";
 
 // 20 Oct 2026, 00:30 WIB (UTC+7): early in the day, so "today" in WIB differs from the UTC date.
 const NOW = Date.UTC(2026, 9, 19, 17, 30);
 const HOUR = 3_600_000;
 const get = (token?: string) => call("GET", "/v1/dashboard", { token });
 const body = async (token: string) => { const r = await get(token); expect(r.status).toBe(200); return (await r.json()) as DashboardDto; };
-const idOf = async (username: string): Promise<string> => (await sql`select id from users where username = ${username}`)[0].id;
+const idOf = async (username: string): Promise<string> => (await db.select({ id: users.id }).from(users).where(eq(users.username, username)))[0]!.id;
 /** Replaces the whole sign-in log with `rows` (event at ms). */
 async function setAuthLog(rows: [id: number, at: number, event: AuthLogDto["event"]][]) {
-  await sql`truncate auth_log`;
+  await db.delete(authLog);
   for (const [n, at, event] of rows) {
-    await sql`insert into auth_log (id, at, event, login, user_id, method, ip, device)
-      values (${`00000000-0000-4000-8000-${String(n).padStart(12, "0")}`}, ${new Date(at)}, ${event}, 'x@example.com', null, 'password', '10.0.0.1', 'test')`;
+    await db.insert(authLog).values({
+      id: `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`, at: new Date(at), event, login: "x@example.com", userId: null, method: "password", ip: "10.0.0.1", device: "test",
+    });
   }
 }
 /** `role` holds exactly `perms`. */
 async function setPerms(role: string, perms: string[]) {
-  const [{ id }] = await sql`select id from roles where name = ${role}`;
-  await sql`delete from role_permissions where role_id = ${id}`;
-  if (perms.length) await sql`insert into role_permissions ${sql(perms.map((permission) => ({ role_id: id, permission })))}`;
+  const [{ id }] = (await db.select({ id: roles.id }).from(roles).where(eq(roles.name, role))) as [{ id: string }];
+  await db.delete(rolePermissions).where(eq(rolePermissions.roleId, id));
+  if (perms.length) await db.insert(rolePermissions).values(perms.map((permission) => ({ roleId: id, permission })));
 }
 const addSession = async (userId: string): Promise<string> =>
-  (await sql.begin((tx) => createSession(orm(tx), { userId, method: "password", client: { ip: "10.0.0.9", ua: "bun test" } }))).id;
+  (await db.transaction((tx) => createSession(tx, { userId, method: "password", client: { ip: "10.0.0.9", ua: "bun test" } }))).id;
 
 beforeEach(async () => {
   await resetData();
@@ -63,7 +68,7 @@ describe("GET /api/dashboard", () => {
     const b = await body(await signIn("viewer"));
     expect(b.failedLogins24h).toBe(2);
     expect(b.recent).toHaveLength(5);
-    const newest: { at: Date }[] = await sql`select at from activity order by at desc, id desc limit 5`;
+    const newest = await db.select({ at: activity.at }).from(activity).orderBy(desc(activity.at), desc(activity.id)).limit(5);
     expect(b.recent!.map((e) => e.at)).toEqual(newest.map((e) => e.at.toISOString()));
   });
 
@@ -89,13 +94,13 @@ describe("GET /api/dashboard", () => {
   });
 
   it("counts active users, users created in the last 7 days, and live sessions of active users", async () => {
-    await sql`update users set created_at = ${new Date(NOW - 2 * 24 * HOUR)} where username = 'admin'`;
-    await sql`update users set created_at = ${new Date(NOW - 8 * 24 * HOUR)} where username = 'twofa'`;
+    await db.update(users).set({ createdAt: new Date(NOW - 2 * 24 * HOUR) }).where(eq(users.username, "admin"));
+    await db.update(users).set({ createdAt: new Date(NOW - 8 * 24 * HOUR) }).where(eq(users.username, "twofa"));
     await signIn("viewer");
     await addSession(await idOf("inactive")); // a session of an inactive user is not counted
     const b = await body(await signIn("viewer"));
-    const [{ active }] = await sql`select count(*)::int as active from users where is_active`;
-    const [{ fresh }] = await sql`select count(*)::int as fresh from users where created_at >= ${new Date(NOW - 7 * 24 * HOUR)}`;
+    const active = await db.$count(users, eq(users.isActive, true));
+    const fresh = await db.$count(users, gte(users.createdAt, new Date(NOW - 7 * 24 * HOUR)));
     expect(b.activeUsers).toBe(active);
     expect(b.newUsers7d).toBe(fresh);
     expect(b.newUsers7d).toBeGreaterThanOrEqual(1);
@@ -116,8 +121,8 @@ describe("dashboard sign-in counts and sessions", () => {
     const n = (await body(token)).activeSessions;
     const adminId = await idOf("admin");
     const expired = await addSession(adminId), idle = await addSession(adminId);
-    await sql`update sessions set expires_at = now() - interval '1 millisecond' where id = ${expired}`;
-    await sql`update sessions set last_seen_at = now() - interval '121 minutes' where id = ${idle}`;
+    await db.update(sessions).set({ expiresAt: sql`now() - interval '1 millisecond'` }).where(eq(sessions.id, expired));
+    await db.update(sessions).set({ lastSeenAt: sql`now() - interval '121 minutes'` }).where(eq(sessions.id, idle));
     expect((await body(token)).activeSessions).toBe(n);
   });
 });

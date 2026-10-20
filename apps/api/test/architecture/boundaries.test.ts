@@ -1,9 +1,12 @@
 // The modulith's boundaries (refactor spec "Modular monolith"), read from the source with the TypeScript compiler API:
 // (1) a module is used only through its index.ts, (2) kernel/ never imports modules/, (3) every table has exactly one
 // owning modules/<m>/schema.ts, (4) tests live only in tests/ folders or apps/api/test, (5) no hand-written SQL
-// statement in src/ outside the migration runner. Each rule has a fixture that proves it fails.
+// statement in src/ outside the migration runner, (6) every module index and app.ts load alone in a fresh process and
+// build their controllers (the module indexes import each other: no export of another module may be used at load).
+// Each rule has a fixture that proves it fails.
 import { describe, expect, it } from "bun:test";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import ts from "typescript";
 import { client } from "../../src/kernel/db";
@@ -12,17 +15,9 @@ type File = { file: string; src: string };
 
 const ROOT = path.join(import.meta.dir, "../..");
 
-/**
- * Not yet moved to the module layout (Hono routers, their queries and tests, the raw-SQL shims they use): exempt from
- * every rule until Task 18 moves them. A stale entry (no such path) fails.
- */
-const LEGACY = [
-  "src/audit/", "src/dashboard/", "src/http/", "src/db/client.ts", "src/db/fragments.ts", "src/db/page.ts", "src/conformance.test.ts",
-];
 /** The migration runner applies SQL files and creates databases: the only place that writes SQL by hand. */
 const RAW_SQL_OK = ["src/db/migrate.ts"];
 
-const legacy = (f: string) => LEGACY.some((p) => (p.endsWith("/") ? f.startsWith(p) : f === p));
 const moduleOf = (f: string) => /^src\/modules\/([\w-]+)\//.exec(f)?.[1] ?? null;
 
 /** A specifier as a path from apps/api without extension or `/index`. */
@@ -51,7 +46,7 @@ function importsOf({ file, src }: File): string[] {
 
 /** (1) An import of another module's file other than its index; a schema.ts may import another module's schema.ts (foreign keys). */
 function deepImports(files: File[]): string[] {
-  return files.filter((f) => !legacy(f.file)).flatMap((f) => importsOf(f).flatMap((to) => {
+  return files.flatMap((f) => importsOf(f).flatMap((to) => {
     const m = /^src\/modules\/([\w-]+)\/(.+)$/.exec(to);
     if (!m || m[1] === moduleOf(f.file)) return [];
     if (m[2] === "schema" && /^src\/modules\/[\w-]+\/schema\.ts$/.test(f.file)) return [];
@@ -82,7 +77,7 @@ function tableOwners(files: File[], dbTables: string[]): string[] {
 
 /** (4) A test file outside modules/<m>/tests/, kernel/tests/ and apps/api/test/. */
 function misplacedTests(files: File[]): string[] {
-  return files.filter((f) => f.file.endsWith(".test.ts") && !legacy(f.file))
+  return files.filter((f) => f.file.endsWith(".test.ts"))
     .filter((f) => !/^(src\/modules\/[\w-]+\/tests\/|src\/kernel\/tests\/|test\/)/.test(f.file))
     .map((f) => `${f.file}: tests live in modules/<m>/tests/, kernel/tests/ or apps/api/test/, not beside the source`);
 }
@@ -92,7 +87,7 @@ const STATEMENT = [/\bselect\b[\s\S]*?\bfrom\b/i, /\binsert\s+into\b/i, /\bupdat
 
 /** (5) A string or template literal (placeholders as `?`) that spells a full SELECT…FROM / INSERT INTO / UPDATE…SET / DELETE FROM. */
 function rawSql(files: File[]): string[] {
-  return files.filter((f) => f.file.startsWith("src/") && !legacy(f.file) && !RAW_SQL_OK.includes(f.file)).flatMap((f) => {
+  return files.filter((f) => f.file.startsWith("src/") && !RAW_SQL_OK.includes(f.file)).flatMap((f) => {
     const sf = ts.createSourceFile(f.file, f.src, ts.ScriptTarget.Latest, true);
     const hits: string[] = [];
     const visit = (n: ts.Node) => {
@@ -104,6 +99,19 @@ function rawSql(files: File[]): string[] {
     visit(sf);
     return hits;
   });
+}
+
+/**
+ * (6) `file` imported alone by a fresh `bun` process that then calls every exported `…Controller` factory (and
+ * `createApp`): exit 0, or the error. Module indexes may import each other; one that uses another module's export at
+ * load (not inside a function) fails here with a ReferenceError, whichever index loads first.
+ */
+function loadsAlone(file: string): { ok: boolean; out: string } {
+  const code = `const m = await import(${JSON.stringify(file)});
+for (const [k, v] of Object.entries(m)) if (/Controller$/.test(k) || k === "createApp") v();
+process.exit(0);`;
+  const r = Bun.spawnSync(["bun", "-e", code], { cwd: ROOT, env: process.env, stderr: "pipe", stdout: "pipe" });
+  return { ok: r.exitCode === 0, out: r.stderr.toString() };
 }
 
 const scan = (dir: string): File[] =>
@@ -134,12 +142,26 @@ describe("module boundaries (apps/api)", () => {
     expect(rawSql(real)).toEqual([]);
   });
 
-  it("the legacy list names real paths (a stale entry fails)", () => {
-    expect(LEGACY.filter((p) => !real.some((r) => (p.endsWith("/") ? r.file.startsWith(p) : r.file === p)))).toEqual([]);
-  });
+  it("every module index and app.ts loads alone and builds its controllers (no export of another module used at load)", () => {
+    const entries = [...real.filter((x) => /^src\/modules\/[\w-]+\/index\.ts$/.test(x.file)).map((x) => x.file), "src/app.ts"];
+    expect(entries.length).toBeGreaterThan(8);
+    expect(entries.map((e) => [e, loadsAlone(path.join(ROOT, e))]).filter(([, r]) => !(r as { ok: boolean }).ok)).toEqual([]);
+  }, 60_000);
 });
 
 describe("module boundaries: fixtures", () => {
+  it("fixture: two indexes that import each other load; one that uses the other's export at load fails", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "isolation-"));
+    writeFileSync(path.join(dir, "a.ts"), `import { b } from "./b"; export const a = 1; export const aController = () => b();`);
+    writeFileSync(path.join(dir, "b.ts"), `import { a } from "./a"; export const b = () => a;`);
+    writeFileSync(path.join(dir, "c.ts"), `import { d } from "./d"; export const c = 1; export const cController = () => d;`);
+    writeFileSync(path.join(dir, "d.ts"), `import { c } from "./c"; export const d = c + 1;`);
+    expect(loadsAlone(path.join(dir, "a.ts")).ok).toBe(true);
+    const bad = loadsAlone(path.join(dir, "c.ts"));
+    expect(bad.ok).toBe(false);
+    expect(bad.out).toContain("ReferenceError");
+  });
+
   it("fixture: a deep import into another module fails; its index, its own files and schema-to-schema pass", () => {
     expect(deepImports([
       f("src/modules/users/service.ts", `import { sessions } from "../auth/schema"; import { createSession } from "../auth/sessions";`),
@@ -178,10 +200,12 @@ describe("module boundaries: fixtures", () => {
     expect(misplacedTests([
       f("src/modules/auth/limits.test.ts", ""), f("src/kernel/config.test.ts", ""),
       f("src/modules/auth/tests/unit/totp.test.ts", ""), f("src/kernel/tests/integration/db.test.ts", ""), f("test/db/seed.test.ts", ""),
-      f("src/audit/audit.test.ts", ""), // legacy, until Task 18
+      f("src/conformance.test.ts", ""), f("src/modules/audit/service.test.ts", ""),
     ])).toEqual([
       "src/modules/auth/limits.test.ts: tests live in modules/<m>/tests/, kernel/tests/ or apps/api/test/, not beside the source",
       "src/kernel/config.test.ts: tests live in modules/<m>/tests/, kernel/tests/ or apps/api/test/, not beside the source",
+      "src/conformance.test.ts: tests live in modules/<m>/tests/, kernel/tests/ or apps/api/test/, not beside the source",
+      "src/modules/audit/service.test.ts: tests live in modules/<m>/tests/, kernel/tests/ or apps/api/test/, not beside the source",
     ]);
   });
 

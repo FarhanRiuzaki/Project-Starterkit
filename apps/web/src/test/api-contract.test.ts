@@ -6,7 +6,7 @@ import { ACTION_LABEL } from "@starterkit/shared/audit";
 
 /**
  * The API contract (docs/api): the generated JSON Schemas and the action table stay true. The endpoint table is checked
- * against the API's routes in apps/api/src/conformance.test.ts.
+ * against the API's routes in apps/api/test/architecture/conformance.test.ts.
  */
 const DOCS = path.dirname(SCHEMA_DIR);
 const README = readFileSync(path.join(DOCS, "README.md"), "utf8");

@@ -1,4 +1,4 @@
-// The Elysia side of request parsing (src/http/parse.test.ts covers the Hono side until Task 18).
+// Request parsing on an Elysia app: body, idParam and the first-value query.
 import { describe, expect, it } from "bun:test";
 import { z } from "zod";
 import { api, request } from "../../../../test/helpers/app";

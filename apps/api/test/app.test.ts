@@ -1,9 +1,11 @@
 import { describe, expect, it, spyOn } from "bun:test";
+import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { createApp } from "../src/app";
+import { db } from "../src/kernel/db";
 import { log } from "../src/kernel/log";
 import { body } from "../src/kernel/parse";
-import { LEGACY_MOUNT_ROUTE } from "../src/kernel/plugins/context";
+import { users } from "../src/modules/users";
 import { request, resetData, signIn } from "./helpers/app";
 
 type ErrorJson = { error: { code: string; message: string } };
@@ -17,10 +19,6 @@ describe("app", () => {
     const res = await request(createApp(), "/v1/anything");
     expect(res.status).toBe(401);
     expect(await code(res)).toBe("unauthenticated");
-  });
-
-  it("the Hono routers are mounted on the route the access log leaves to them", () => {
-    expect(createApp().routes.filter((r) => r.path === LEGACY_MOUNT_ROUTE).map((r) => r.method)).toEqual(["ALL"]);
   });
 
   it("a wrong token of the same length is 401", async () => {
@@ -65,7 +63,7 @@ describe("app", () => {
     expect(res.status).toBe(404);
     expect(res.headers.get("Cache-Control")).toBe("no-store");
     expect(await res.json()).toEqual({ error: { code: "not_found", message: "This page doesn't exist or was deleted." } });
-    // A trailing slash is another path (strictPath), as on the Hono routers: not /v1/me (401 unsigned) nor /healthz (200).
+    // A trailing slash is another path (strictPath): not /v1/me (401 unsigned) nor /healthz (200).
     for (const p of ["/v1/me/", "/healthz/"]) {
       const other = await request(createApp(), p, { headers: auth });
       expect([p, other.status, await code(other)]).toEqual([p, 404, "not_found"]);
@@ -110,6 +108,24 @@ describe("app", () => {
       expect((JSON.parse(text) as ErrorJson).error.code).toBe("internal");
       expect(text + JSON.stringify(spy.mock.calls)).not.toContain("secret-string");
       expect(spy).toHaveBeenCalledTimes(1);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it("a real unique violation answers 500 and logs its SQLSTATE 23505 and constraint, never the row's values", async () => {
+    await resetData();
+    const [viewer] = await db.select().from(users).where(eq(users.username, "viewer"));
+    const app = createApp().post("/v1/boom", () => db.insert(users).values({ ...viewer!, id: Bun.randomUUIDv7(), username: "dup", email: "VIEWER@example.com" }));
+    const spy = spyOn(log, "error");
+    try {
+      const res = await request(app, "/v1/boom", { method: "POST", headers: auth });
+      expect(res.status).toBe(500);
+      expect(spy).toHaveBeenCalledTimes(1);
+      expect((spy.mock.calls[0]![0] as unknown as { err: unknown }).err).toMatchObject({ code: "23505", constraint: "users_email_key", table: "users" });
+      const logged = JSON.stringify(spy.mock.calls[0]);
+      expect(logged).not.toContain("VIEWER@example.com");
+      expect(logged).not.toContain(viewer!.passwordHash!);
     } finally {
       spy.mockRestore();
     }

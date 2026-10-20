@@ -1,4 +1,4 @@
-// The kernel plugins on an Elysia app without the Hono mount (the shape every route has after Task 18).
+// The kernel plugins on a bare Elysia app (no module routes).
 import { describe, expect, it, spyOn } from "bun:test";
 import { Elysia } from "elysia";
 import { z } from "zod";
