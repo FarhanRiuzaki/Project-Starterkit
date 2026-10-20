@@ -19,7 +19,7 @@ const buttonVariants = cva(
         outline: "border-line-strong bg-card text-fg shadow-xs hover:bg-tray",
         ghost: "border-transparent bg-transparent text-fg-2 hover:bg-tray hover:text-fg",
         destructive: "border-down-mark/40 bg-card text-down-ink shadow-xs hover:bg-down-soft",
-        link: "h-auto border-transparent px-0 text-primary-ink underline-offset-4 hover:underline motion-safe:active:scale-100",
+        link: "h-auto border-transparent px-0 text-primary-ink underline underline-offset-4 hover:decoration-2 motion-safe:active:scale-100",
       },
       size: {
         sm: "h-7 px-2.5 text-body-sm [&_svg:not([class*='size-'])]:size-3.5",

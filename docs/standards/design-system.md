@@ -21,8 +21,8 @@ starterkit.
    everywhere at panel level. A row of tiles always fills the row: 4 × 3 col, 3 × 4 col or 2 × 6 col, never 5 tiles.
 4. **Numbers are the interface.** KPI values are large, regular weight (not bold), tabular. Units, denominators
    and minor digits drop to the muted ink ("82 % / 100 %", "4.2M"). Deltas sit beside the number in a tinted pill.
-5. **Ink is neutral; colour is information.** Text and chrome are greyscale. Blue means selection/primary and
-   "series 1". Status colours are reserved for the five health states. The categorical palette is for series only.
+5. **Ink is neutral; colour is information.** Text and chrome are greyscale. Navy (the brand ink) means selection/primary;
+   blue means "series 1". Status colours are reserved for the five health states. The categorical palette is for series only.
 6. **Charts are quiet.** Dashed recessive grid, no axis lines, rounded bar caps, 2 px lines, gradient-to-zero area,
    one highlighted point with a dark tooltip. Every chart has a legend for ≥ 2 series and a table view.
 7. **Smooth, never showy.** Motion explains change (where did it come from, what is loading, what moved) in
@@ -104,11 +104,14 @@ All colours are CSS custom properties in `packages/ui/src/styles/tokens.css`, ma
 | `--fg-2` | `#55555c` | Secondary text, labels, panel titles' icons | 7.4:1 |
 | `--fg-3` | `#6e6e77` | Muted text, captions, axis ticks, denominators | 5.05:1 card, 4.6:1 tray |
 | `--fg-4` | `#a1a1aa` | Disabled, placeholder glyphs only — never information | decorative |
-| `--primary` | `#0a6bdb` | Selection, links, focus ring, checkbox, active tab underline | 5.07:1 |
-| `--primary-soft` | `#ebf4ff` | Selected nav item tint, info chip bg, selected row `#f5f9ff` | primary on it 4.57:1 |
+| `--primary` | `#0d1530` | Brand navy: selection, links, focus ring, checkbox, active tab underline. Links are always underlined: navy is 1.01:1 against `--fg` | 17.99:1 card, 16.23:1 bg |
+| `--primary-hover` | `#1b2547` | | white on it 14.98:1 |
+| `--primary-soft` | `#eff2fa` | Mist (`#eef2fa`, one step lighter so fg-3 on it is 4.51:1): selected nav item tint, info chip bg | primary on it 16.07:1 |
 | `--action` | `#18181b` | Primary button fill (near-black CTA) | white on it 17.7:1 |
 | `--action-hover` | `#2c2c31` | | |
-| `--row-selected` | `#f5f9ff` | Selected table row | primary 4.8:1 |
+| `--row-selected` | `#f5f9ff` | Selected table row | primary 17.03:1 |
+| `--brand-ink` | `#0d1530` | Logo letters only (`components/brand`) | logo, exempt |
+| `--brand-sun` | `#ffa928` | Logo sun only; amber is never a UI colour | logo, exempt |
 
 Status (reserved — never used as series colours). Each has a mark (icon/dot), an ink (text, ≥ 4.5:1 on its soft)
 and a soft (chip bg):
@@ -141,8 +144,10 @@ marks ≥ 3:1 on white (3.38 / 3.79 / 4.36) except Stopped/Unknown, which are al
 | `--fg-2` | `#a8a8b1` | 6.96:1 |
 | `--fg-3` | `#8e8e98` | 5.06:1 card, 4.64:1 raised |
 | `--fg-4` | `#5d5d66` | decorative |
-| `--primary` | `#5aa6ff` | 6.52:1 |
-| `--primary-soft` | `#18233a` | primary on it 6.22:1 |
+| `--primary` | `#c9d3f0` (text `#0d1530`) | navy tint: 11.00:1 card, 12.91:1 bg; navy on it 12.05:1 |
+| `--primary-hover` | `#dde3f6` | navy on it 14.05:1 |
+| `--primary-soft` | `#18233a` | primary on it 10.49:1 |
+| `--brand-ink` / `--brand-sun` | `#ffffff` / `#ffa928` | logo only (dark version of the kit) |
 | `--action` | `#f2f2f3` (text `#151517`) | the CTA inverts to white in dark |
 | `--row-selected` | `#172033` | |
 | Healthy | mark `#3ec27e` · ink `#4cc98a` · soft `#143323` | ink/soft 6.57:1 |

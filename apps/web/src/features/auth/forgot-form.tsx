@@ -53,7 +53,7 @@ export function ForgotForm() {
           </Button>
         </form>
       )}
-      <Link href="/login" className="text-label text-primary-ink hover:underline">Back to sign in</Link>
+      <Link href="/login" className="text-label text-primary-ink underline underline-offset-4 hover:decoration-2">Back to sign in</Link>
     </AuthCard>
   );
 }

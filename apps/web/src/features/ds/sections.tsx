@@ -2,7 +2,7 @@
 
 import { BarChart, CHART_HEIGHT, HBarChart, Heatmap } from "@starterkit/ui/charts";
 import {
-  ActionMenu, Avatar, AvatarStack, BlockedButton, CategoryChip, Checkbox, ConfirmActionDialog, CountBadge, DataTable, EmptyState, ErrorState, Field, FilterChip, FilterMenu,
+  ActionMenu, Avatar, AvatarStack, BlockedButton, Brand, CategoryChip, Checkbox, ConfirmActionDialog, CountBadge, DataTable, EmptyState, ErrorState, Field, FilterChip, FilterMenu,
   Kbd, LazyMount, Meter, Panel, QueryInput, SecretOnceDialog, Segmented, Spec, StatusChip, TickMeter, Toolbar, Truncate,
   type Column, type SortDir,
 } from "@starterkit/ui/ds";
@@ -17,6 +17,7 @@ import { Skeleton } from "@starterkit/ui/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@starterkit/ui/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@starterkit/ui/ui/tooltip";
 import { useCallback, useState } from "react";
+import { SunnyGoMark, SunnyGoWordmark } from "@/components/brand";
 import { DAYS, HEAT, RESULTS, ROWS, type Row, TOP_ERRORS } from "./fixtures";
 import { MotionSection } from "./motion-section";
 
@@ -100,6 +101,7 @@ export function GallerySections() {
               <Button>Create user</Button><Button variant="secondary">Export CSV</Button><Button variant="ghost">Clear filters</Button>
               <Button variant="destructive">Delete 2 users</Button><Button variant="secondary" disabled>Unlock</Button>
               <Button size="sm" variant="secondary">Compact 28</Button><Button size="icon" variant="secondary" aria-label="Refresh now"><Icon icon={RefreshIcon} /></Button>
+              <Button variant="link">Forgot password?</Button>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="grid gap-1.5"><label htmlFor="ds-email" className="text-label text-fg-2">Email</label><Input id="ds-email" defaultValue="alex@example.com" className="font-mono" /><span className="text-body-sm text-fg-3">Used to sign in and to reset the password.</span></div>
@@ -218,9 +220,26 @@ const TYPE = [
   { name: "mono 12/16", cls: "font-mono text-mono", sample: "alex.rivers · 10.0.0.14" },
 ] as const;
 
+/** The Brand slot at the sizes the app uses (the logo itself lives in components/brand). */
+const LOGOS = [
+  { name: "sidebar · wordmark 104 px", collapsed: false, wordmark: <SunnyGoWordmark className="w-26" /> },
+  { name: "sign-in card · wordmark 120 px", collapsed: false, wordmark: <SunnyGoWordmark className="w-30" /> },
+  { name: "rail · mark 28 px", collapsed: true, wordmark: null },
+] as const;
+
 function Tokens() {
   return (
     <div className="grid grid-cols-12 gap-gutter">
+      <Panel title="Brand" description="Wordmark when expanded, mark in the rail; clear space = the sun's diameter" className="col-span-12">
+        <ul className="flex flex-wrap items-end gap-12">
+          {LOGOS.map((l) => (
+            <li key={l.name} className="grid justify-items-start gap-4">
+              <Brand collapsed={l.collapsed} mark={<SunnyGoMark className="size-7" />} wordmark={l.wordmark} />
+              <span className="font-mono text-caption text-fg-3">{l.name}</span>
+            </li>
+          ))}
+        </ul>
+      </Panel>
       <Panel icon={SurfacesIcon} title="Surfaces" description="bg → sheet → tray → card → inset" className="col-span-12 xl:col-span-6">
         <ul className="grid grid-cols-3 gap-2">{SURFACES.map((s) => <Swatch key={s.name} {...s} />)}</ul>
       </Panel>

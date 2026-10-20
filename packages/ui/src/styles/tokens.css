@@ -21,12 +21,15 @@
   --fg-2: #55555c;
   --fg-3: #6e6e77;
   --fg-4: #a1a1aa;
-  /* selection, primary, action */
-  --primary: #0a6bdb;
-  --primary-hover: #0959b8;
+  /* logo only (brand kit): letters and the sun; amber is never a UI colour */
+  --brand-ink: #0d1530;
+  --brand-sun: #ffa928;
+  /* selection, primary (navy family, from the brand), action */
+  --primary: #0d1530;
+  --primary-hover: #1b2547;
   --primary-foreground: #ffffff;
-  --primary-soft: #ebf4ff;
-  --primary-ink: #0a6bdb;
+  --primary-soft: #eff2fa; /* Mist #eef2fa, one step lighter: fg-3 on Mist is 4.4995:1 */
+  --primary-ink: #0d1530;
   --action: #18181b;
   --action-fg: #ffffff;
   --action-hover: #2c2c31;
@@ -119,11 +122,13 @@
   --fg-2: #a8a8b1;
   --fg-3: #8e8e98;
   --fg-4: #5d5d66;
-  --primary: #5aa6ff;
-  --primary-hover: #7ab8ff;
-  --primary-foreground: #0b1230;
+  --primary: #c9d3f0;
+  --primary-hover: #dde3f6;
+  --primary-foreground: #0d1530;
   --primary-soft: #18233a;
-  --primary-ink: #5aa6ff;
+  --primary-ink: #c9d3f0;
+  --brand-ink: #ffffff;
+  --brand-sun: #ffa928;
   --action: #f2f2f3;
   --action-fg: #151517;
   --action-hover: #d9d9dc;

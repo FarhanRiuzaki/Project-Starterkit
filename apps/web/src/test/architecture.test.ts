@@ -1,6 +1,7 @@
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { pagePerm } from "@/lib/shared/nav";
+import { BRAND } from "@starterkit/shared/brand";
 import { importsIn, importsOf, read, REPO, repoRel, scan, SHARED_SRC, strip, UI_SRC, WEB_SRC } from "./scan";
 
 type F = { r: string; src: string; imp: string[] };
@@ -160,7 +161,8 @@ function legendViolations(fs: F[]): string[] {
 
 /** The product name is one constant (BRAND in packages/shared/src/brand.ts); titles, error sources and the logo read it. */
 const BRAND_HOME = `${SHARED}brand.ts`;
-const brandViolations = (fs: F[]) => fs.filter(({ r, src }) => r !== BRAND_HOME && /\bStarterkit\b/.test(src)).map(({ r }) => `${r}: write BRAND.name, not the product name`);
+const NAME = new RegExp(`\\b${BRAND.name}\\b`);
+const brandViolations = (fs: F[]) => fs.filter(({ r, src }) => r !== BRAND_HOME && NAME.test(src)).map(({ r }) => `${r}: write BRAND.name, not the product name`);
 
 /** Each signed-in page.tsx guards with the permission pagePerm gives its path (the layout's 404 check uses pagePerm). */
 function pageGuardViolations(fs: F[]): string[] {
@@ -454,9 +456,9 @@ describe("architecture checkers (fixtures)", () => {
 
   it("a literal product name outside brand.ts is reported; BRAND.name and the package scope pass", () => {
     expect(brandViolations([
-      f(`${WEB}app/(main)/users/page.tsx`, `export const metadata = { title: "Users · Starterkit" };`),
+      f(`${WEB}app/(main)/users/page.tsx`, `export const metadata = { title: "Users · ${BRAND.name}" };`),
       f(`${WEB}features/x/a.tsx`, `<Failure source={BRAND.name} />; import { Panel } from "@starterkit/ui/ds";`),
-      f(BRAND_HOME, `export const BRAND = { name: "Starterkit" } as const;`),
+      f(BRAND_HOME, `export const BRAND = { name: "${BRAND.name}" } as const;`),
     ])).toEqual([`${WEB}app/(main)/users/page.tsx: write BRAND.name, not the product name`]);
   });
 

@@ -77,3 +77,14 @@ test("sign out, then a signed-in page sends to sign-in with the page as next", a
   await expect(page).toHaveURL("/login?next=%2Fusers");
   await heading(page, "Sign in");
 });
+
+test("signed out, the icons and the social image load (no sign-in redirect, CSP allows them)", async ({ page, request }) => {
+  for (const [p, type] of [["/icon.svg", "image/svg+xml"], ["/favicon.ico", "image/x-icon"], ["/apple-icon.png", "image/png"], ["/opengraph-image.png", "image/png"]]) {
+    const res = await request.get(p!, { maxRedirects: 0 });
+    expect(res.status(), p).toBe(200);
+    expect(res.headers()["content-type"], p).toContain(type);
+  }
+  await page.goto("/login");
+  await expect(page.locator('link[rel="icon"][href^="/icon.svg"]')).toHaveCount(1);
+  await expect(page.locator('meta[property="og:image"]')).toHaveCount(1);
+});

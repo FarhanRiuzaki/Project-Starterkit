@@ -3,6 +3,7 @@
 // Not ported: wrong csrf token (the web checks CSRF, Task 9). Time moves by editing rows, the database clock decides.
 // Added: "PATCH /me with the same values writes no activity", "recovery codes are 8 distinct 19-char codes and each works once at /v1/auth/2fa".
 import { beforeEach, describe, expect, it } from "bun:test";
+import { BRAND } from "@starterkit/shared/brand";
 import type { Page } from "@starterkit/shared/contracts/common";
 import { asc, eq, sql } from "drizzle-orm";
 import { call, resetData } from "../../../../../test/helpers/app";
@@ -136,6 +137,7 @@ describe("/api/me/2fa", () => {
     expect(s.status).toBe(200);
     const { secret, otpauthUrl } = (await s.json()) as { secret: string; otpauthUrl: string };
     expect(otpauthUrl).toContain(`secret=${secret}`);
+    expect(otpauthUrl).toContain(`issuer=${BRAND.name}`);
     let row = await userRow("admin");
     expect(row.totp_secret).toBeNull();
     expect(row.pending_totp_secret).not.toBe(secret); // encrypted at rest
@@ -391,7 +393,7 @@ describe("product name", () => {
   it("modules/me/service.ts reads BRAND and has no product-name literal", async () => {
     const src = await Bun.file(new URL("../../service.ts", import.meta.url)).text();
     expect(src).toMatch(/import \{ BRAND \} from "@starterkit\/shared\/brand"/);
-    expect(src).not.toMatch(/\bStarterkit\b/);
+    expect(src).not.toMatch(new RegExp(`\\b${BRAND.name}\\b`));
   });
 });
 

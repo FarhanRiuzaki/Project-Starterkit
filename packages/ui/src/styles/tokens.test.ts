@@ -40,7 +40,7 @@ const TEXT: [string, string][] = [
   ...INKS.flatMap((ink) => SURFACES.map((s) => [ink, s] as [string, string])),
   ...STATES.map((s) => [`${s}-ink`, `${s}-soft`] as [string, string]),
   ...STATES.map((s) => ["fg", `${s}-soft`] as [string, string]),
-  ["primary-foreground", "primary"], ["action-fg", "action"], ["action-fg", "action-hover"], ["on-crit", "down-ink"],
+  ["primary-foreground", "primary"], ["primary-foreground", "primary-hover"], ["action-fg", "action"], ["action-fg", "action-hover"], ["on-crit", "down-ink"],
   // Active segment / tab thumb: only fg (label) and fg-2 (count pill) sit on it — fg-3 is 4.28:1 in dark, so
   // ds/segmented.tsx never uses fg-3 inside the active segment.
   ["fg", "seg-active"], ["fg-2", "seg-active"],
@@ -50,6 +50,8 @@ const MARKS: [string, string][] = [
   ...["healthy-mark", "degraded-mark", "down-mark"].flatMap((m) => [[m, "card"], [m, "sheet"]] as [string, string][]),
   ...[1, 2, 3, 4, 5, 6].map((i) => [`chart-${i}`, "card"] as [string, string]),
   ["primary", "card"],
+  // Focus ring (2 px outline) against the surfaces it sits on.
+  ["ring", "bg"], ["ring", "sheet"], ["ring", "card"],
   // StatusChip draws Stopped and Unknown shapes in stopped-mark (unknown-mark is decorative only, < 3:1).
   ["stopped-mark", "card"], ["stopped-mark", "sheet"],
 ];
@@ -82,6 +84,12 @@ describe.each([["light", false], ["dark", true]] as const)("tokens (%s)", (name,
     const l = seq.map((h) => lum(h!));
     // Magnitude reads as contrast against the card: monotonic in the theme's direction.
     for (let i = 1; i < l.length; i++) expect(dark ? l[i]! > l[i - 1]! : l[i]! < l[i - 1]!).toBe(true);
+  });
+  it("brand: navy (light) / white (dark) letters, amber sun in both; amber nowhere else; primary is navy in light", () => {
+    expect(t["brand-ink"]).toBe(dark ? "#ffffff" : "#0d1530");
+    expect(t["brand-sun"]).toBe("#ffa928");
+    expect(Object.keys(t).filter((k) => t[k] === "#ffa928")).toEqual(["brand-sun"]);
+    if (!dark) expect([t.primary, t["primary-ink"], t["primary-soft"]]).toEqual(["#0d1530", "#0d1530", "#eff2fa"]);
   });
   it("surfaces step: bg ≠ sheet ≠ tray, card distinct from tray", () => {
     expect(new Set([t.bg, t.sheet, t.tray]).size).toBe(3);

@@ -1,13 +1,10 @@
+import type { ReactNode } from "react";
 import { cn } from "../lib/cn";
 
-/** Placeholder brand mark: a square monogram (first letter of `name`) + the name. Replace per product. */
-export function Brand({ name, className, textClassName }: { name: string; className?: string; textClassName?: string }) {
-  return (
-    <span className={cn("inline-flex items-center gap-2 text-title-3 text-fg", className)}>
-      <span aria-hidden="true" className="grid size-6 place-items-center rounded-md bg-primary text-label text-primary-foreground">
-        {name.trim().charAt(0).toUpperCase()}
-      </span>
-      <span className={textClassName}>{name}</span>
-    </span>
-  );
+/**
+ * Brand slot: the app passes its logo nodes (apps/web/src/components/brand); the wordmark when there is room, the
+ * mark in a collapsed rail. The nodes carry their own size and accessible name.
+ */
+export function Brand({ mark, wordmark, collapsed, className }: { mark: ReactNode; wordmark: ReactNode; collapsed?: boolean; className?: string }) {
+  return <span className={cn("inline-flex shrink-0 items-center", className)}>{collapsed ? mark : wordmark}</span>;
 }

@@ -47,7 +47,7 @@ export function ResetForm({ token }: { token: string | null }) {
     return (
       <AuthCard title="Set a new password">
         <FormError id="reset-error" message="This reset link is incomplete. Request a new link." />
-        <Link href="/forgot-password" className="text-label text-primary-ink hover:underline">Request a new link</Link>
+        <Link href="/forgot-password" className="text-label text-primary-ink underline underline-offset-4 hover:decoration-2">Request a new link</Link>
       </AuthCard>
     );
   }
@@ -55,7 +55,7 @@ export function ResetForm({ token }: { token: string | null }) {
     return (
       <AuthCard title="Password changed">
         <Notice live>Your new password is set, and other sessions of this account were signed out.</Notice>
-        <Link href="/login" className="text-label text-primary-ink hover:underline">Sign in</Link>
+        <Link href="/login" className="text-label text-primary-ink underline underline-offset-4 hover:decoration-2">Sign in</Link>
       </AuthCard>
     );
   }
@@ -83,7 +83,7 @@ export function ResetForm({ token }: { token: string | null }) {
           {busy && <Icon icon={SpinnerIcon} className="motion-safe:animate-spin" />}Set new password
         </Button>
       </form>
-      {error && <Link href="/forgot-password" className="text-label text-primary-ink hover:underline">Request a new link</Link>}
+      {error && <Link href="/forgot-password" className="text-label text-primary-ink underline underline-offset-4 hover:decoration-2">Request a new link</Link>}
     </AuthCard>
   );
 }

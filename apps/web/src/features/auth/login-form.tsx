@@ -62,7 +62,7 @@ export function LoginForm({ next, providers, error: initialError = null }: { nex
         <div className="grid gap-1.5">
           <div className="flex items-baseline">
             <label htmlFor="password" className="text-label text-fg">{method === "ldap" ? "Directory password" : "Password"}</label>
-            {method === "password" && <Link href="/forgot-password" className="ml-auto text-label text-primary-ink hover:underline">Forgot password?</Link>}
+            {method === "password" && <Link href="/forgot-password" className="ml-auto text-label text-primary-ink underline underline-offset-4 hover:decoration-2">Forgot password?</Link>}
           </div>
           <Input id="password" className="h-10" type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} {...described} />
         </div>
