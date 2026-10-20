@@ -16,8 +16,6 @@ export type Column<T> = {
   key: string; header: string; cell: (r: T) => ReactNode;
   /** Shown in the header cell instead of `header` (e.g. a select-all checkbox); `header` still names the column elsewhere. */
   headerCell?: ReactNode;
-  /** Optional 14 px icon before the header label (spec §5.7). */
-  icon?: IconData;
   /** Server-sorted column: the header button toggles `sort` (with `aria-sort`); the rows are never re-sorted here. */
   sortable?: boolean;
   align?: "left" | "right"; className?: string;
@@ -191,9 +189,9 @@ export function DataTable<T>({ columns, rows, rowKey, label, loading, error, emp
                   aria-sort={active ? (sort?.dir === "asc" ? "ascending" : "descending") : undefined}>
                   {c.sortable && onSortChange ? (
                     <button type="button" onClick={() => toggle(c)} className={cn("inline-flex cursor-pointer items-center gap-1 rounded-xs hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary outline-none", active && "text-fg-2")}>
-                      {c.icon && <Icon icon={c.icon} className="size-3.5" />}{c.header}<Icon icon={sortIcon} className="size-3" />
+                      {c.header}<Icon icon={sortIcon} className="size-3" />
                     </button>
-                  ) : c.headerCell ?? (c.icon ? <span className="inline-flex items-center gap-1"><Icon icon={c.icon} className="size-3.5" />{c.header}</span> : c.header)}
+                  ) : c.headerCell ?? c.header}
                 </TableHead>
               );
             })}

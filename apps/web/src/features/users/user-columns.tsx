@@ -1,7 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { Avatar, type Column, RelativeTime, StatusChip, Truncate } from "@starterkit/ui/ds";
-import { UsersIcon } from "@starterkit/ui/ui/icons";
 import { RoleChips } from "@/components/role-chips";
 import type { UserDto, UserRowDto } from "@starterkit/shared/contracts/users";
 import { userStatus } from "@/lib/shared/user-status";
@@ -20,7 +19,7 @@ export function UserStatusChip({ user }: { user: UserDto }) {
  */
 export function userColumns(select?: { has: (id: string) => boolean; toggle: (id: string) => void; all: { checked: boolean; count: number; toggle: () => void } }): Column<UserRowDto>[] {
   const cols: Column<UserRowDto>[] = [
-    { key: "name", header: "User", icon: UsersIcon, sortable: true, mobile: "title", className: "min-w-48", cell: (u) => (
+    { key: "name", header: "User", sortable: true, mobile: "title", className: "min-w-48", cell: (u) => (
       <span className="flex min-w-0 max-w-72 items-center gap-2.5">
         <Avatar name={u.name} />
         <span className="grid min-w-0">

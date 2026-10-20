@@ -32,7 +32,7 @@ type Filters = { q: string; module: string };
 
 /** Phone card: the name is the title (it already says module and action), the roles a line under it. */
 const COLUMNS: Column<PermissionDto>[] = [
-  { key: "name", header: "Permission", icon: SecureIcon, sortable: true, mobile: "title", cell: (p) => <span className="font-mono text-mono text-fg">{p.name}</span> },
+  { key: "name", header: "Permission", sortable: true, mobile: "title", cell: (p) => <span className="font-mono text-mono text-fg">{p.name}</span> },
   { key: "module", header: "Module", sortable: true, mobile: "hidden", cell: (p) => permissionLabel(p.name.split(".")[0]!) },
   { key: "action", header: "Action", sortable: true, mobile: "hidden", cell: (p) => permissionLabel(p.name.split(".")[1]!) },
   { key: "roles", header: "Roles", cell: (p) => <RoleChips roles={p.roles} total={p.roleCount} /> },

@@ -54,7 +54,7 @@ export function GallerySections() {
   const [perms, setPerms] = useState<ReadonlySet<string>>(() => new Set(MATRIX_START));
 
   const columns: Column<Row>[] = [
-    { key: "name", header: "User", icon: UsersIcon, sortable: true,
+    { key: "name", header: "User", sortable: true,
       cell: (r) => (
         <span className="flex min-w-0 max-w-72 items-center gap-2.5">
           <Avatar name={r.name} />
