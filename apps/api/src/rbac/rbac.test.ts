@@ -201,15 +201,33 @@ describe("PATCH /v1/roles/{id}", () => {
 });
 
 describe("the actor's permissions are read inside the transaction", () => {
-  it("a stale session token can't add a permission revoked from the actor's own role", async () => {
-    const custom = await giveOnlyRole("admin", ["role.view", "role.edit", "user.view", "audit.view"]);
-    const admin = await signIn("admin"); // token from before the revoke
-    expect((await call("PATCH", `/v1/roles/${custom}`, { token: sa, body: { remove: ["audit.view"] } })).status).toBe(200);
-    expect(await code(await patch("Viewer", { add: ["audit.view"] }, admin))).toBe("forbidden");
-    expect(await code(await create({ name: "Ops", permissions: ["audit.view"] }, admin))).toBe("forbidden");
-    expect(await permsOf(await idOf("Viewer"))).toEqual(["user.view", "audit.view"]); // Viewer already had it; nothing else moved
-    expect(await acts("role.update")).toHaveLength(1);
+  // guard (fresh per request) already passed with the permission held; the revoke commits while the PATCH waits for the role lock.
+  it("a PATCH that was waiting on the role lock can't add a permission revoked from the actor meanwhile", async () => {
+    const custom = await giveOnlyRole("admin", ["role.view", "role.edit", "user.view", "user.create"]);
+    const admin = await signIn("admin");
+    const viewer = await idOf("Viewer");
+    const holder = await sql.reserve();
+    try {
+      await holder`begin`;
+      await holder`select 1 from roles where id = ${viewer} for update`;
+      const pending = call("PATCH", `/v1/roles/${viewer}`, { token: admin, body: { add: ["user.create"] } });
+      for (let i = 0; ; i++) {
+        const [w] = await sql`select 1 as n from pg_stat_activity where wait_event_type = 'Lock' and query like '%for update%' and pid <> pg_backend_pid()`;
+        if (w) break;
+        if (i > 100) throw new Error("the PATCH never waited on the role lock");
+        await Bun.sleep(20);
+      }
+      await holder`delete from role_permissions where role_id = ${custom} and permission = 'user.create'`;
+      await holder`commit`;
+      expect(await code(await pending)).toBe("forbidden");
+    } finally {
+      await holder`rollback`.catch(() => {});
+      holder.release();
+    }
+    expect(await permsOf(await idOf("Viewer"))).toEqual(["user.view", "audit.view"]);
+    expect(await acts("role.update")).toHaveLength(0);
   });
+  // ponytail: no POST variant: POST /roles locks no row the test could hold, so the race can't be staged deterministically.
 });
 
 describe("PATCH applies add/remove to the current set", () => {
