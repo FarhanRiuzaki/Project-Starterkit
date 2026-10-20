@@ -1,5 +1,5 @@
 // The Google/Apple round trip: state rows, sign-in by a linked identity, linking an identity to the signed-in user.
-import { and, count, eq, ne, sql } from "drizzle-orm";
+import { and, count, eq, lte, ne, sql } from "drizzle-orm";
 import { ConnectionProvider } from "@starterkit/shared/contracts/me";
 import { afterSignIn } from "@starterkit/ui/lib/safe-path";
 import type { z } from "zod";
@@ -113,4 +113,9 @@ export async function unlinkIdentity(tx: Tx, userId: string, provider: Connectio
   const gone = await tx.delete(userIdentities).where(and(eq(userIdentities.userId, userId), eq(userIdentities.provider, provider)))
     .returning({ userId: userIdentities.userId });
   return gone.length > 0;
+}
+
+/** Janitor: deletes state rows past expiry (a round trip never finished). Rows deleted. */
+export async function purgeOAuth(tx: Tx): Promise<Record<string, number>> {
+  return { oauth_states: (await tx.delete(oauthStates).where(lte(oauthStates.expiresAt, sql`now()`)).returning({ one: sql`1` })).length };
 }

@@ -1,0 +1,91 @@
+import { beforeEach, describe, expect, it } from "bun:test";
+import { asc, sql } from "drizzle-orm";
+import { runJanitor } from "../../src/db/janitor";
+import { config } from "../../src/kernel/config";
+import { db } from "../../src/kernel/db";
+import { xactLock } from "../../src/kernel/locks";
+import { activity, authLog } from "../../src/modules/audit";
+import { authChallenges, loginBackoff, rateLimits, sessions, userTokens } from "../../src/modules/auth";
+import { oauthStates } from "../../src/modules/oauth";
+import { users } from "../../src/modules/users";
+import { holdTx, truncateAll } from "../helpers/db";
+
+const ago = (minutes: number) => sql`now() - make_interval(mins => ${minutes})`;
+const ahead = (minutes: number) => sql`now() + make_interval(mins => ${minutes})`;
+const DAY = 24 * 60;
+
+/** One row that has ended and one that hasn't, in every table the janitor cleans; ids say which. */
+async function seedRows() {
+  const [u1, u2] = [Bun.randomUUIDv7(), Bun.randomUUIDv7()];
+  await db.insert(users).values([u1, u2].map((id, i) => ({ id, name: `U${i}`, username: `u${i}`, email: `u${i}@example.test`, passwordHash: "x" })));
+  const s = (id: string, expiresAt = ahead(60), lastSeenAt = ago(0)) => ({ id, tokenHash: Buffer.from(id), userId: u1, method: "password", device: "d", ip: "1.1.1.1", expiresAt, lastSeenAt });
+  const live = Bun.randomUUIDv7();
+  await db.insert(sessions).values([s(live), s(Bun.randomUUIDv7(), ago(1)), s(Bun.randomUUIDv7(), ahead(60), ago(config().SESSION_IDLE_MINUTES + 1))]);
+  await db.insert(authChallenges).values([
+    { id: "00000000-0000-7000-8000-000000000001", tokenHash: Buffer.from("c-live"), userId: u1, method: "password", expiresAt: ahead(5) },
+    { id: "00000000-0000-7000-8000-000000000002", tokenHash: Buffer.from("c-old"), userId: u1, method: "password", expiresAt: ago(1) },
+  ]);
+  await db.insert(userTokens).values([
+    { tokenHash: Buffer.from("t-live"), userId: u1, kind: "reset", expiresAt: ahead(5) },
+    { tokenHash: Buffer.from("t-old"), userId: u2, kind: "invite", expiresAt: ago(1) },
+  ]);
+  await db.insert(rateLimits).values([
+    { key: "live", count: 1, windowStart: ago(10) },
+    { key: "old", count: 1, windowStart: ago(61) },
+  ]);
+  await db.insert(loginBackoff).values([
+    { key: "live", failures: 4, blockedUntil: ahead(1), lastFailureAt: ago(5) },
+    { key: "old", failures: 4, blockedUntil: ago(15), lastFailureAt: ago(16) },
+  ]);
+  const st = (key: string, expiresAt: ReturnType<typeof sql>) => ({ stateHash: Buffer.from(key), provider: "google", mode: "login", bindingHash: Buffer.from("b"), codeVerifier: "v", nonce: "n", expiresAt });
+  await db.insert(oauthStates).values([st("live", ahead(5)), st("old", ago(1))]);
+  const keep = ago((config().AUDIT_RETENTION_DAYS - 1) * DAY);
+  const old = ago((config().AUDIT_RETENTION_DAYS + 1) * DAY);
+  const a = (targetId: string, at: ReturnType<typeof sql>) => ({ id: Bun.randomUUIDv7(), at, actorName: "x", action: "user.edit", targetType: "user", targetId, targetLabel: "x" });
+  await db.insert(activity).values([a("live", keep), a("old", old)]);
+  const l = (login: string, at: ReturnType<typeof sql>) => ({ id: Bun.randomUUIDv7(), at, event: "login_failed", login, method: "password", ip: "1.1.1.1", device: "d" });
+  await db.insert(authLog).values([l("live", keep), l("old", old)]);
+  return { live };
+}
+
+/** What is left of every table the janitor cleans. */
+const left = async () => ({
+  sessions: (await db.select({ id: sessions.id }).from(sessions)).map((r) => r.id),
+  challenges: (await db.select({ id: authChallenges.id }).from(authChallenges)).map((r) => r.id),
+  tokens: (await db.select({ h: userTokens.tokenHash }).from(userTokens)).map((r) => r.h.toString()),
+  limits: (await db.select({ k: rateLimits.key }).from(rateLimits)).map((r) => r.k),
+  backoff: (await db.select({ k: loginBackoff.key }).from(loginBackoff)).map((r) => r.k),
+  states: (await db.select({ h: oauthStates.stateHash }).from(oauthStates)).map((r) => r.h.toString()),
+  activity: (await db.select({ t: activity.targetId }).from(activity).orderBy(asc(activity.targetId))).map((r) => r.t),
+  authLog: (await db.select({ l: authLog.login }).from(authLog)).map((r) => r.l),
+});
+
+beforeEach(truncateAll);
+
+describe("runJanitor", () => {
+  it("deletes only the rows that ended and returns how many per table", async () => {
+    const { live } = await seedRows();
+    expect(await runJanitor()).toEqual({
+      sessions: 2, auth_challenges: 1, user_tokens: 1, rate_limits: 1, login_backoff: 1, oauth_states: 1, activity: 1, auth_log: 1,
+    });
+    expect(await left()).toEqual({
+      sessions: [live], challenges: ["00000000-0000-7000-8000-000000000001"], tokens: ["t-live"], limits: ["live"], backoff: ["live"],
+      states: ["live"], activity: ["live"], authLog: ["live"],
+    });
+    // Nothing left to clean: every count is 0.
+    expect(Object.values((await runJanitor())!)).toEqual([0, 0, 0, 0, 0, 0, 0, 0]);
+  });
+
+  it("skips while another instance holds the janitor lock, and runs once it is free", async () => {
+    await seedRows();
+    const before = await left();
+    const holder = await holdTx((tx) => xactLock(tx, "janitor"));
+    try {
+      expect(await runJanitor()).toBeNull();
+      expect(await left()).toEqual(before);
+    } finally {
+      await holder.rollback();
+    }
+    expect((await runJanitor())?.sessions).toBe(2);
+  });
+});

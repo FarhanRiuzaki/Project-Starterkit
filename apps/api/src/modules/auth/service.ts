@@ -1,6 +1,6 @@
 // Sign-in (password, LDAP, second factor), sign-out, reset links and re-authentication. Port of
 // apps/web/src/lib/server/sign-in.ts.
-import { and, eq, getTableColumns, isNotNull, not, or, type SQL, sql } from "drizzle-orm";
+import { and, eq, getTableColumns, isNotNull, lt, lte, not, or, type SQL, sql } from "drizzle-orm";
 import type { AuthLogDto } from "@starterkit/shared/contracts/audit";
 import type { AuthMethod, LoginBody, ResetPasswordBody, TwoFactorBody } from "@starterkit/shared/contracts/auth";
 import { afterSignIn } from "@starterkit/ui/lib/safe-path";
@@ -17,8 +17,8 @@ import { directory } from "./ldap";
 import { forgotLimits, loginGate, loginLimits, passwordFails, retryText } from "./limits";
 import { hashPassword, verifyPassword } from "./password";
 import { isTotpCode, twoFactorPath } from "./rules";
-import { authChallenges, sessions, userTokens } from "./schema";
-import { createSession, deviceOf, endUserSessions, providersOf, rolesOf, toUserRow, type UserRow } from "./sessions";
+import { authChallenges, loginBackoff, rateLimits, sessions, userTokens } from "./schema";
+import { createSession, deviceOf, endUserSessions, providersOf, rolesOf, sessionLive, toUserRow, type UserRow } from "./sessions";
 import { matchTotpStep } from "./totp";
 
 const BAD_LOGIN = "The sign-in details don't match an account. Check them and the sign-in method, then try again.";
@@ -264,4 +264,22 @@ export async function reset(b: ResetPasswordBody, client: Client): Promise<void>
     await logAuth(tx, client, "password_reset", "password", u.email, u.id);
   });
   log.info({ userId: u.id }, "password reset");
+}
+
+const ONE = { one: sql`1` };
+
+/**
+ * Janitor: deletes ended sessions (expired or idle), second-factor challenges and reset/invite links past expiry,
+ * rate-limit windows older than 1 h (the longest window is 15 min) and backoff rows that block nothing (quiet for
+ * 15 min, the backoff's decay, or released to 0). Rows deleted per table.
+ */
+export async function purgeAuth(tx: Tx): Promise<Record<string, number>> {
+  return {
+    sessions: (await tx.delete(sessions).where(not(sessionLive())).returning(ONE)).length,
+    auth_challenges: (await tx.delete(authChallenges).where(lte(authChallenges.expiresAt, sql`now()`)).returning(ONE)).length,
+    user_tokens: (await tx.delete(userTokens).where(lte(userTokens.expiresAt, sql`now()`)).returning(ONE)).length,
+    rate_limits: (await tx.delete(rateLimits).where(lt(rateLimits.windowStart, sql`now() - interval '1 hour'`)).returning(ONE)).length,
+    login_backoff: (await tx.delete(loginBackoff)
+      .where(or(lt(loginBackoff.lastFailureAt, sql`now() - interval '15 minutes'`), lte(loginBackoff.failures, 0))).returning(ONE)).length,
+  };
 }

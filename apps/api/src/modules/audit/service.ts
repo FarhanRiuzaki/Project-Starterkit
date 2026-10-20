@@ -1,12 +1,13 @@
 // The read side of the activity and sign-in logs: the logic of /v1/audit/* (page or CSV) and the newest entries the
-// dashboard shows. Read-only, so nothing is recorded.
-import { and, type Column, desc, eq, exists, ilike, or, type SQL, sql } from "drizzle-orm";
+// dashboard shows (read-only, so nothing is recorded), and the retention purge the janitor runs.
+import { and, type Column, desc, eq, exists, ilike, lt, or, type SQL, sql } from "drizzle-orm";
 import { changeText, CSV_MAX_ROWS } from "@starterkit/shared/audit";
 import type { ActivityDto, ActivityQuery, AuthLogDto, AuthLogQuery } from "@starterkit/shared/contracts/audit";
 import type { Page } from "@starterkit/shared/contracts/common";
 import { CSV_BOM, toCsv } from "@starterkit/ui/lib/csv";
 import { APP_TIME_ZONE } from "@starterkit/ui/lib/format";
-import { db } from "../../kernel/db";
+import { config } from "../../kernel/config";
+import { db, type Tx } from "../../kernel/db";
 import { likeEscape, one, pageQuery, sortSql } from "../../kernel/pagination";
 import { users } from "../users";
 import { activity, authLog } from "./schema";
@@ -91,4 +92,17 @@ export async function authLogCsv(q: AuthLogQuery): Promise<string> {
     ["Time (UTC)", "Login", "User ID", "Event", "Method", "IP", "Device", "Location"],
     ...rows.map(toAuthLog).map((e) => [e.at, e.login, e.userId, e.event, e.method, e.ip, e.device, e.location]),
   ]);
+}
+
+/**
+ * Janitor: deletes activity and sign-in log entries older than AUDIT_RETENTION_DAYS (the append-only trigger refuses
+ * UPDATE only). Rows deleted per table.
+ */
+// ponytail: one DELETE per table under the 5 s statement timeout; delete in batches if a retention backlog ever times out.
+export async function purgeAudit(tx: Tx): Promise<Record<string, number>> {
+  const before = sql`now() - make_interval(days => ${config().AUDIT_RETENTION_DAYS})`;
+  return {
+    activity: (await tx.delete(activity).where(lt(activity.at, before)).returning({ one: sql`1` })).length,
+    auth_log: (await tx.delete(authLog).where(lt(authLog.at, before)).returning({ one: sql`1` })).length,
+  };
 }
