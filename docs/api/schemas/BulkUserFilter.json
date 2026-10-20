@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "BulkUserFilter",
+  "type": "object",
+  "properties": {
+    "q": {
+      "type": "string",
+      "maxLength": 200
+    },
+    "role": {
+      "type": "string",
+      "maxLength": 64
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "inactive"
+      ]
+    }
+  },
+  "additionalProperties": false
+}

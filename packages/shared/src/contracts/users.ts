@@ -57,11 +57,24 @@ export const UpdateUserBody = z.object({
 });
 export type UpdateUserBody = z.infer<typeof UpdateUserBody>;
 
+/** Most users one bulk action with `filter` ("select all that match") acts on; more is 400: narrow the filters. */
+export const BULK_ALL_MAX = 1000;
+/** The users list's search and filters (UserListQuery without paging or sort): which users a bulk action with `filter` takes. */
+export const BulkUserFilter = z.object({
+  q: z.string().max(200).optional(),
+  role: z.string().max(64).optional(),
+  status: z.enum(["active", "inactive"]).optional(),
+}).strict();
+export type BulkUserFilter = z.infer<typeof BulkUserFilter>;
+
+/** `ids` (rows picked on a page, at most 100) or `filter` (every user the list matches, at most BULK_ALL_MAX), never both. */
 export const BulkUserBody = z.object({
   action: z.enum(["activate", "deactivate", "delete", "assignRole"]),
-  ids: z.array(z.string().min(1)).min(1).max(100),
+  ids: z.array(z.string().min(1)).min(1).max(100).optional(),
+  filter: BulkUserFilter.optional(),
   role: z.string().min(1).max(64).optional(),
-}).refine((b) => b.action !== "assignRole" || !!b.role, { message: "assignRole needs a role." });
+}).refine((b) => b.action !== "assignRole" || !!b.role, { message: "assignRole needs a role." })
+  .refine((b) => (b.ids === undefined) !== (b.filter === undefined), { message: "Send ids or filter, not both." });
 export type BulkUserBody = z.infer<typeof BulkUserBody>;
 
 /** One activity row on the user detail page: no before/after. */

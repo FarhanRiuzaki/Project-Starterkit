@@ -5,11 +5,11 @@
 // the actor's permissions are read (never the request's earlier ctx.perms), and last the Superadmin count takes its
 // advisory lock.
 import {
-  and, desc, eq, exists, getTableColumns, ilike, inArray, isNotNull, isNull, lt, ne, or, sql, type SQLWrapper,
+  and, asc, desc, eq, exists, getTableColumns, ilike, inArray, isNotNull, isNull, lt, ne, or, sql, type SQLWrapper,
 } from "drizzle-orm";
 import type { BulkResult, ErrorCode, Page } from "@starterkit/shared/contracts/common";
 import {
-  type ActivityBrief, type BulkUserBody, type CreateUserBody, MAX_USER_ROLES, type UpdateUserBody, UserDto, type UserDetailDto, type UserListQuery,
+  type ActivityBrief, BULK_ALL_MAX, type BulkUserBody, type BulkUserFilter, type CreateUserBody, MAX_USER_ROLES, type UpdateUserBody, UserDto, type UserDetailDto, type UserListQuery,
   type UserRowDto,
 } from "@starterkit/shared/contracts/users";
 import type { PermissionName } from "@starterkit/shared/permissions";
@@ -152,10 +152,11 @@ const USER_SORTS = {
  * exact. The page is paged by id first, then one query reads those rows: on an index-ordered scan PostgreSQL would
  * run the sub-selects for every row the OFFSET skips (497 ms for page 1000 × 100 on 100k users).
  */
-export async function userPage(q: UserListQuery): Promise<Page<UserRowDto>> {
+/** The users list's search and filters as a WHERE clause (the list and a bulk action with `filter` share it). */
+function userWhere(q: BulkUserFilter) {
   const needle = q.q?.trim();
   const like = `%${likeEscape(needle ?? "")}%`;
-  const where = and(
+  return and(
     needle ? or(ilike(users.name, like), ilike(users.username, like), ilike(users.email, like)) : undefined,
     q.role
       ? exists(db.select(one).from(userRoles).innerJoin(roles, eq(roles.id, userRoles.roleId))
@@ -163,6 +164,10 @@ export async function userPage(q: UserListQuery): Promise<Page<UserRowDto>> {
       : undefined,
     q.status ? eq(users.isActive, q.status === "active") : undefined,
   );
+}
+
+export async function userPage(q: UserListQuery): Promise<Page<UserRowDto>> {
+  const where = userWhere(q);
   const page = await pageQuery({
     rows: db.select({ id: users.id }).from(users).where(where).$dynamic(),
     count: db.select(one).from(users).where(where).$dynamic(),
@@ -290,10 +295,18 @@ export async function createUser(ctx: Ctx, b: CreateUserBody): Promise<UserDto> 
 // ponytail: one transaction per bulk request: up to 100 row locks and ~400 statements (lock, read, per-row Superadmin
 // count, change, entry), and the Superadmin lock held until commit once a Superadmin target is checked. Chunk the ids if
 // bulk requests start queueing other user edits.
+/** Ids of every user `filter` matches (by name), or 400 when more than BULK_ALL_MAX do: nothing is changed then. */
+async function matchingIds(tx: InTx, filter: BulkUserFilter): Promise<string[]> {
+  const found = await tx.select({ id: users.id }).from(users).where(userWhere(filter)).orderBy(asc(users.name), asc(users.id)).limit(BULK_ALL_MAX + 1);
+  if (found.length > BULK_ALL_MAX) throw new ApiError("bad_request", `More than ${BULK_ALL_MAX.toLocaleString("en-US")} users match. Narrow the search or filters.`);
+  return found.map((u) => u.id);
+}
+
+/** A bulk action on `ids`, or on every user `filter` matches (resolved inside the transaction, at most BULK_ALL_MAX). */
 export async function bulkUsers(ctx: Ctx, b: BulkUserBody): Promise<BulkResult> {
   const { action, role: roleName } = b;
-  const ids = [...new Set(b.ids)];
   return db.transaction(async (tx) => {
+    const ids = b.filter ? await matchingIds(tx, b.filter) : [...new Set(b.ids)];
     const role = roleName === undefined ? undefined : (await rolesByName(tx, [roleName])).get(roleName.toLowerCase());
     if (action === "assignRole" && !role) throw new ApiError("bad_request", "This role doesn't exist. Pick a role from the list.");
     const found = await lockUsers(tx, ids.filter(isUuid));

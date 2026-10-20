@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
 import { ActionMenu, BlockedButton, ColumnsMenu, DataTable, FilterMenu, Notice, Panel, QueryInput, Toolbar, ToolbarFilters } from "@starterkit/ui/ds";
 import { cn } from "@starterkit/ui/lib/cn";
+import { formatNumber } from "@starterkit/ui/lib/format";
 import { HEALTH } from "@starterkit/ui/lib/status";
 import { Button } from "@starterkit/ui/ui/button";
 import { Icon } from "@starterkit/ui/ui/icon";
@@ -18,6 +19,7 @@ import { useAuth } from "@/lib/client/auth-context";
 import { useTableQuery } from "@/lib/client/use-table-query";
 import type { BulkResult } from "@starterkit/shared/contracts/common";
 import type { UserRowDto } from "@starterkit/shared/contracts/users";
+import { BULK_ALL_MAX } from "@/lib/shared/bulk";
 import { USER_STATUSES, type UserFilters, USERS } from "@/lib/shared/queries";
 import { RoleSearch } from "./role-search";
 import type { Pending } from "./users-action-dialog";
@@ -56,8 +58,10 @@ export function UsersPage() {
   // Selection belongs to the rows on screen: another page, size, sort or filter starts empty.
   const shown = `${f.page}|${f.pageSize}|${f.sort}|${t.filterQuery}`;
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
+  // "Select all N users" (Polaris, Carbon): every user the search and filters match, not only this page's rows.
+  const [everyMatch, setEveryMatch] = useState(false);
   const [selectedOn, setSelectedOn] = useState(shown);
-  if (selectedOn !== shown) { setSelectedOn(shown); setSelected(new Set()); }
+  if (selectedOn !== shown) { setSelectedOn(shown); setSelected(new Set()); setEveryMatch(false); }
   const [pending, setPending] = useState<Pending | null>(null);
   const [role, setRole] = useState("");
   const [changing, setChanging] = useState<string | null>(null);
@@ -68,9 +72,10 @@ export function UsersPage() {
   const set = t.set;
   const onSearch = useCallback((q: string) => set({ q }), [set]);
   const onRole = useCallback((role: string) => set({ role }), [set]);
-  const toggle = (id: string) => setSelected((s) => { const n = new Set(s); if (!n.delete(id)) n.add(id); return n; });
+  const toggle = (id: string) => { setEveryMatch(false); setSelected((s) => { const n = new Set(s); if (!n.delete(id)) n.add(id); return n; }); };
   const allOn = selected.size > 0 && rows.every((u) => selected.has(u.id));
-  const toggleAll = useCallback(() => setSelected(allOn ? new Set() : new Set(rows.map((u) => u.id))), [allOn, rows]);
+  const toggleAll = useCallback(() => { setEveryMatch(false); setSelected(allOn ? new Set() : new Set(rows.map((u) => u.id))); }, [allOn, rows]);
+  const total = t.total ?? 0;
   const columns = useMemo(() => userColumns(canAct ? { has: (id) => selected.has(id), toggle, all: { checked: allOn, count: rows.length, toggle: toggleAll } } : undefined),
     [canAct, selected, allOn, rows.length, toggleAll]);
 
@@ -83,12 +88,13 @@ export function UsersPage() {
       toast(`Deleted ${p.user.name}.`);
     } else {
       if (p.action === "assignRole" && !role) throw new Error("Pick a role: type its name and choose it from the list.");
-      const r = await api<BulkResult>("/api/users/bulk", { method: "POST", body: JSON.stringify({ action: p.action, ids: p.ids, ...(p.action === "assignRole" ? { role } : {}) }) });
+      const r = await api<BulkResult>("/api/users/bulk", { method: "POST", body: JSON.stringify({ action: p.action, ...(p.filter ? { filter: p.filter } : { ids: p.ids }), ...(p.action === "assignRole" ? { role } : {}) }) });
       const reasons = [...new Set(r.skipped.map((s) => skipReason(s.code)))].join(", ");
       const text = `${r.done.length} updated, ${r.skipped.length} skipped`;
       if (r.skipped.length && !r.done.length) toast.error(text, { description: `Skipped: ${reasons}.` });
       else toast(text, { description: r.skipped.length ? `Skipped: ${reasons}.` : undefined });
       setSelected(new Set());
+      setEveryMatch(false);
     }
     await refresh();
   }
@@ -107,6 +113,10 @@ export function UsersPage() {
   }
 
   const ids = [...selected];
+  // What a bulk button acts on: the picked rows, or every match ("Select all N users"; the list's own search and filters).
+  const scope = everyMatch
+    ? { ids: [], count: total, filter: { ...(f.q ? { q: f.q } : {}), ...(f.role ? { role: f.role } : {}), ...(f.status ? { status: f.status } : {}) } }
+    : { ids, count: ids.length };
 
   return (
     <div className="grid gap-section" onPointerDown={preloadDialog} onFocus={preloadDialog}>
@@ -131,16 +141,21 @@ export function UsersPage() {
             selected.size > 0 ? "max-md:sticky max-md:top-(--topbar-h) max-md:z-20" : "md:hidden")}>
             <label className="flex items-center gap-2 text-body-sm text-fg-2">
               <input type="checkbox" className="size-4 cursor-pointer accent-primary" checked={allOn} onChange={toggleAll} />
-              {selected.size > 0 ? `${selected.size} selected` : `Select all ${rows.length} on this page`}
+              {everyMatch ? `All ${formatNumber(total)} selected` : selected.size > 0 ? `${selected.size} selected` : `Select all ${rows.length} on this page`}
             </label>
+            {allOn && total > rows.length && (everyMatch
+              ? <Button size="sm" variant="link" className="mx-1" onClick={() => setEveryMatch(false)}>Select this page only</Button>
+              : total <= BULK_ALL_MAX
+                ? <Button size="sm" variant="link" className="mx-1" onClick={() => setEveryMatch(true)}>Select all {formatNumber(total)} users</Button>
+                : <span className="text-caption text-fg-3">Up to {formatNumber(BULK_ALL_MAX)} users at a time. Narrow the search or filters to select them all.</span>)}
             {selected.size > 0 && <>
               {can("user.edit") && <>
-                <Button size="sm" variant="secondary" onClick={() => setPending({ kind: "bulk", action: "activate", ids })}>Activate</Button>
-                <Button size="sm" variant="secondary" onClick={() => setPending({ kind: "bulk", action: "deactivate", ids })}>Deactivate</Button>
-                <Button size="sm" variant="secondary" onClick={() => { setRole(roles.more ? "" : roles.names[0] ?? ""); setPending({ kind: "bulk", action: "assignRole", ids }); }}>Assign role</Button>
+                <Button size="sm" variant="secondary" onClick={() => setPending({ kind: "bulk", action: "activate", ...scope })}>Activate</Button>
+                <Button size="sm" variant="secondary" onClick={() => setPending({ kind: "bulk", action: "deactivate", ...scope })}>Deactivate</Button>
+                <Button size="sm" variant="secondary" onClick={() => { setRole(roles.more ? "" : roles.names[0] ?? ""); setPending({ kind: "bulk", action: "assignRole", ...scope }); }}>Assign role</Button>
               </>}
-              {can("user.delete") && <Button size="sm" variant="destructive" onClick={() => setPending({ kind: "bulk", action: "delete", ids })}>Delete</Button>}
-              <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>Clear selection</Button>
+              {can("user.delete") && <Button size="sm" variant="destructive" onClick={() => setPending({ kind: "bulk", action: "delete", ...scope })}>Delete</Button>}
+              <Button size="sm" variant="ghost" onClick={() => { setSelected(new Set()); setEveryMatch(false); }}>Clear selection</Button>
             </>}
           </div>
         )}
