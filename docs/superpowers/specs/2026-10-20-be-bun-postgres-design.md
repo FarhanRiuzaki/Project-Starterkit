@@ -227,3 +227,16 @@ Pemilik meninjau source `apps/api` dan meminta: framework yang rapi (referensi *
   `@starterkit/shared` (satu kontrak untuk web dan API).
 - **Urutan cek kontrak tetap:** query 400 → sesi/izin 401/403 → body 400 → 404 → aturan → ubah → activity.
 - Semua perilaku dan tes yang sudah ada dipertahankan; refaktor ini tidak mengubah jawaban API.
+
+### Tes di folder terpisah (keputusan pemilik 2026-10-20)
+
+Tes API tidak lagi berdampingan dengan kode, tetapi di `apps/api/test/`, mengikuti struktur `src/`:
+```
+apps/api/test/
+  unit/<area>/…test.ts          # murni, tanpa DB/HTTP: rules, crypto, totp, config, pagination, masking
+  integration/<modul>/…test.ts  # lewat HTTP (app.handle) + PostgreSQL tes: kontrak, guard, konkurensi
+  helpers/                      # app, db reset, sign-in, fixture
+```
+`src/**` tidak berisi berkas `*.test.ts` (dijaga tes konformitas). Setiap `rules.ts` dan helper murni punya tes unit
+sendiri. `bun run test:unit` / `test:integration` menjalankan masing-masing. Web dan `packages/*` tetap berdampingan
+(aturan AGENTS.md saat ini) kecuali pemilik meminta lain **(Claude)**.

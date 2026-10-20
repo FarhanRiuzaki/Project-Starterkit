@@ -298,3 +298,10 @@ Move the last modules; delete Hono and every `routes.ts`; rewrite `conformance.t
 table from `app.routes`; scan of `modules/*/index.ts`: guard before service calls, activity on mutations via service,
 pageQuery in list GETs, no 404 before body; and a new rule: no full SQL statement text in `src/**` outside migrations).
 Full `bun run check`, build, E2E, budget green.
+
+### Tests layout for 15–18 (owner decision 2026-10-20)
+API tests move out of `src/` into `apps/api/test/{unit,integration,helpers}` mirroring `src/` (spec "Tes di folder
+terpisah"). Task 15 creates the layout, moves the kernel/config/db tests and the helpers, adds `test:unit` and
+`test:integration` scripts, and adds unit tests for every pure helper that has none. Tasks 16–17 move each module's tests
+as the module moves and add unit tests for its `rules.ts`. Task 18 adds the conformance rule "no `*.test.ts` under
+`apps/api/src`". Test names and assertions stay the same when moved.
