@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { ageReauth, SEED, signIn } from "./helpers";
+import { ageReauth, SEED, settleAnimations, signIn } from "./helpers";
 
 /**
  * Connecting Google adds a way to sign in, so a session that hasn't proved the user within 10 minutes asks for the
@@ -18,7 +18,8 @@ test("connect Google from an older session asks for the password, then goes thro
   const dialog = page.getByRole("dialog", { name: "Connect Google" });
   await expect(dialog).toBeVisible();
   if (info.project.name === "mobile") {
-    // Below 768 px the dialog is a bottom sheet: full width, flush with the bottom edge.
+    // Below 768 px the dialog is a bottom sheet: full width, flush with the bottom edge (measured once it stops sliding).
+    await settleAnimations(page);
     const box = (await dialog.boundingBox())!;
     const view = page.viewportSize()!;
     expect(Math.round(box.width)).toBe(view.width);

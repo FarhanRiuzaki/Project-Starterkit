@@ -30,9 +30,11 @@ export function totp(secret: string, t = Date.now()): string {
 /**
  * Moves the last proof of every session of `email` 11 minutes back, as if the sign-in were older: connecting Google or
  * Apple then needs the password again. Bun's SQL client against the E2E database (playwright.config.ts `E2E_DB`), the
- * way the API tests move time by editing rows.
+ * way the API tests move time by editing rows. Refused unless that database's name ends in `_e2e`.
  */
 export function ageReauth(email: string) {
+  const db = URL.parse(process.env.E2E_DB ?? "");
+  if (!db?.pathname.endsWith("_e2e")) throw new Error("ageReauth runs only against the E2E database (E2E_DB, name ending in _e2e).");
   const script = "const db = new Bun.SQL(process.env.E2E_DB); await db`update sessions set reauth_at = now() - interval '11 minutes' "
     + "where user_id in (select id from users where lower(email) = lower(${process.env.AGE_EMAIL}))`; await db.close();";
   execFileSync("bun", ["-e", script], { env: { ...process.env, AGE_EMAIL: email }, stdio: "inherit" });

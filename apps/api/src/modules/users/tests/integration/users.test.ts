@@ -238,6 +238,16 @@ describe("POST /v1/users", () => {
     expect(await verifyPassword("Chosen-Pass-123!", (await userRow(id)).password_hash)).toBe(true);
   });
 
+  it("an invite for an inactive user is 400: no user, no link mailed", async () => {
+    const { password: _p, ...rest } = NEW;
+    const before = await userCount();
+    const r = await create({ ...rest, isActive: false, invite: true }, await signIn("admin"));
+    expect(r.status).toBe(400);
+    expect(await code(r)).toBe("bad_request");
+    expect(await userCount()).toBe(before);
+    expect(sentMail()).toHaveLength(0);
+  });
+
   it("LDAP user with password or invite is 400; non-LDAP needs exactly one of password / invite", async () => {
     const admin = await signIn("admin");
     const { password: _p, ...rest } = NEW;

@@ -107,7 +107,7 @@ other schema describes the answer exactly (`additionalProperties: false`).
   `format=csv` answers `text/csv` (attachment) with the whole filtered list, newest first, up to 10,000 rows; a cell
   that starts with `=`, `+`, `-`, `@`, tab or CR (after optional spaces) gets a leading `'`.
 - [CreateUserBody](schemas/CreateUserBody.json): a directory (LDAP) user has neither `password` nor `invite`; any
-  other user has exactly one of them.
+  other user has exactly one of them; `invite` needs `isActive` true (an inactive user gets a password instead).
 - [UpdateRoleBody](schemas/UpdateRoleBody.json): `add` and `remove` apply to the role's current permissions and may
   not share a name. Nothing to change → 200 with the role, no activity entry.
 - [CreatePermissionsBody](schemas/CreatePermissionsBody.json): the part before the dot is a module of the catalog

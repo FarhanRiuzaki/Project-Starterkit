@@ -44,6 +44,8 @@ export const CreateUserBody = z.object({
   invite: z.boolean().optional(),
 }).refine((b) => (b.isLdap ? b.password === undefined && !b.invite : (b.password !== undefined) !== !!b.invite), {
   message: "A directory user has no password or invite; any other user needs exactly one of them.",
+}).refine((b) => !(b.invite && !b.isActive), {
+  message: "An invitation needs an active user. Set the user active, or set a password instead.",
 });
 export type CreateUserBody = z.infer<typeof CreateUserBody>;
 

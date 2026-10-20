@@ -114,7 +114,7 @@ function UserForm({ user }: { user?: UserDetailDto }) {
           {self && <span className="text-caption text-fg-3">You can&apos;t change your own roles. Ask another administrator.</span>}
         </fieldset>
         <label className="flex items-center gap-2 text-body text-fg">
-          <input type="checkbox" className={CHECK} checked={isActive} disabled={self} onChange={(e) => setActive(e.target.checked)} />Active
+          <input type="checkbox" className={CHECK} checked={isActive} disabled={self} onChange={(e) => { setActive(e.target.checked); if (!e.target.checked) setHow("password"); }} />Active
           {self && <span className="text-caption text-fg-3">You can&apos;t deactivate your own account.</span>}
         </label>
         {!user && (
@@ -127,7 +127,10 @@ function UserForm({ user }: { user?: UserDetailDto }) {
               <fieldset className="grid gap-2">
                 <legend className="mb-1.5 text-label text-fg">First sign-in</legend>
                 <label className="flex items-center gap-2 text-body text-fg"><input type="radio" name="how" className={CHECK} checked={how === "password"} onChange={() => setHow("password")} />Set a password now</label>
-                <label className="flex items-center gap-2 text-body text-fg"><input type="radio" name="how" className={CHECK} checked={how === "invite"} onChange={() => setHow("invite")} />Send an invitation link (valid 72 hours)</label>
+                <label className="flex items-center gap-2 text-body text-fg">
+                  <input type="radio" name="how" className={CHECK} checked={how === "invite"} disabled={!isActive} onChange={() => setHow("invite")} aria-describedby={isActive ? undefined : "u-invite-note"} />Send an invitation link (valid 72 hours)
+                </label>
+                {!isActive && <span id="u-invite-note" className="text-caption text-fg-3">An inactive user can&apos;t use an invitation. Set the user active to send one.</span>}
                 {how === "password" && (
                   <Field id="u-password" label="Password" note="At least 12 characters.">
                     <Input id="u-password" type="password" value={password} minLength={12} maxLength={128} required onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" />

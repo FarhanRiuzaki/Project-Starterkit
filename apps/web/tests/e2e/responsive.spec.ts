@@ -223,6 +223,7 @@ test.describe("phone", () => {
     await open(page, "/");
     await menuButton(page).click();
     await expect(drawer(page)).toBeVisible();
+    await settleAnimations(page); // a tap while the drawer still slides in can land on it, not the scrim
     const vw = page.viewportSize()!.width;
     await page.touchscreen.tap(vw - 16, 400);
     await expect(drawer(page)).toBeHidden();
