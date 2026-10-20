@@ -263,3 +263,38 @@ The owner asked for their brand in the starterkit. Source (read-only; copy only 
 - [ ] Tests first: `brand.test` (logo has role img + accessible name; collapsed shows mark, expanded wordmark), `tokens.test` (new tokens exist in both themes; contrast pairs for primary meet AA).
 - [ ] `bun run check`; `NEXT_DIST_DIR=.next-e2e bun run build`; `bun run e2e` (a11y on 10 pages light/dark must pass; update `ds` snapshots only for the brand/colour change and say so); `bun run budget`.
 - [ ] Commit `feat(brand): SunnyGo logo, name, favicon and navy accent`.
+
+## Refactor tasks (owner decision 2026-10-20: Elysia + Drizzle + module folders)
+
+Execution order after Task 10: 15 → 16 → 17 → 18 → 11 → 12 → 14 → 13. Spec: "Amandemen 2026-10-20" in the spec file.
+Binding for 15–18: behaviour-preserving — every existing API test keeps its name and assertions (only the harness may
+change), every E2E stays green, the contract and check order are unchanged. Pin `elysia` 1.4.30, `drizzle-orm` 0.45.4,
+`drizzle-kit` 0.31.11 exactly. Hono is removed in Task 18. Raw full SQL statements are forbidden in app code (spec rule);
+tests also use Drizzle to move rows/time.
+
+### Task 15: Elysia + Drizzle foundation and kernel
+
+Files: `apps/api/src/{app.ts,index.ts}`, `config/`, `db/{client.ts,schema/*.ts,migrate.ts}`, `drizzle.config.ts`,
+`drizzle/` (generated + custom SQL), `common/{errors.ts,log.ts,crypto.ts,mailer.ts,locks.ts,pagination.ts,plugins/*}`,
+the kernel modules (sessions, password, totp, limits, audit writer, seeds) moved to the new layout on Drizzle.
+- Drizzle schema mirrors 0001+0002 exactly (tables, columns, FKs, unique `lower()` indexes, trigram GIN, btree list
+  indexes, UNLOGGED tables, append-only trigger via custom SQL). Migration history restarts: generated `0000` + custom
+  `0001`; the runner (advisory lock + checksum) applies `drizzle/*.sql`. Reset local dev/test/e2e DBs and reseed (allowed).
+- Elysia app: plugins `context` (requestId, client ip/ua), `internalAuth`, body limit 64 KB, `errorHandler` (same mapping
+  as `onError`), `guard(perm)` usable as `beforeHandle`; query validated before the guard, body parsed after it.
+- Transitional: the existing Hono routers are mounted inside the Elysia app (`app.mount`) so every test stays green
+  while modules move (removed in Task 18).
+- `pageQuery` becomes a Drizzle helper (rows + capped count, sort whitelist → column objects).
+- Tests: all kernel tests ported and green; `bun run check`; E2E green.
+
+### Task 16: Modules auth, oauth, me on Elysia + Drizzle
+`modules/{auth,oauth,me}/{index.ts,service.ts,rules.ts?}`; delete their Hono routers; tests unchanged and green; E2E auth specs green.
+
+### Task 17: Modules rbac, users on Elysia + Drizzle
+Same for `modules/{rbac,users}`; the lock-staged concurrency tests (TOCTOU, last Superadmin) stay and pass.
+
+### Task 18: Modules audit, dashboard, health; Hono removed; conformance on Elysia
+Move the last modules; delete Hono and every `routes.ts`; rewrite `conformance.test.ts` for the Elysia layout (endpoint
+table from `app.routes`; scan of `modules/*/index.ts`: guard before service calls, activity on mutations via service,
+pageQuery in list GETs, no 404 before body; and a new rule: no full SQL statement text in `src/**` outside migrations).
+Full `bun run check`, build, E2E, budget green.

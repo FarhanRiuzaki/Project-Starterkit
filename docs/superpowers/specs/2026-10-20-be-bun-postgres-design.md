@@ -191,3 +191,39 @@ browser ──/api/*──▶ apps/web (Next, BFF) ──HTTP /v1/* + token laya
 
 Nama berkas dan pembagian modul di `apps/api`, urutan task, bentuk helper route (`route(perm, handler)`), detail
 query per endpoint (perilaku acuannya adalah mock + tesnya + `docs/api/README.md`).
+
+## Amandemen 2026-10-20: Elysia + Drizzle + struktur modul (keputusan pemilik)
+
+Pemilik meninjau source `apps/api` dan meminta: framework yang rapi (referensi **Elysia**), **ORM** (tidak menulis
+`select` mentah), dan folder yang terstruktur matang. Ini menggantikan "Hono" dan "`Bun.sql` tanpa ORM" di atas.
+
+- **Framework: Elysia 1.4** (stabil; bukan 2.0 rc) **(pemilik)**. Satu instance Elysia per modul (controller), disusun
+  di `app.ts`. Plugin bersama: request context, token layanan, batas body, pemetaan error, guard.
+- **ORM: Drizzle** (`drizzle-orm` + `drizzle-kit`, driver `bun-sql`) **(Claude)**: type-safe, ringan, dekat ke SQL
+  sehingga kunci baris (`.for("update")`), `onConflictDo…`, subquery dan agregat tetap bisa diekspresikan; skema di
+  TypeScript adalah sumber kebenaran. Prisma tidak dipilih (codegen berat, dukungan Bun lebih lemah).
+- **Aturan query:** semua query lewat query builder / relational API Drizzle. Tidak ada statement SQL utuh yang
+  ditulis tangan (`select …`, `insert …`, `update …`, `delete …`) di kode aplikasi. Helper `sql` Drizzle hanya untuk
+  fungsi PostgreSQL tanpa padanan ORM (advisory lock, `now()`/interval, `array_agg`, `greatest`, `at time zone`) di
+  dalam ekspresi builder. Trigger, tabel UNLOGGED dan indeks trigram ada di berkas migrasi SQL. Dijaga tes konformitas.
+- **Migrasi:** `drizzle-kit generate` dari skema + berkas SQL kustom untuk yang tidak bisa dihasilkan; diterapkan
+  oleh runner yang sudah ada (advisory lock + checksum). Riwayat migrasi dimulai ulang (belum ada produksi); DB lokal
+  dev/test/e2e di-reset dan di-seed ulang.
+- **Struktur:**
+  ```
+  apps/api/src/
+    index.ts                 # boot: server, janitor, shutdown
+    app.ts                   # createApp(): plugin + modul
+    config/                  # skema env
+    db/  client.ts  schema/<aggregate>.ts  migrate.ts  seed/
+    common/                  # errors, plugins/ (context, internal-auth, error, guard), pagination, crypto, mailer, log, locks
+    modules/<modul>/
+      index.ts               # controller (Elysia): route, urutan cek kontrak
+      service.ts             # logika bisnis + akses data (Drizzle)
+      rules.ts               # aturan murni (tanpa I/O), bila ada
+      <modul>.test.ts
+  ```
+  Modul: `auth`, `oauth`, `me`, `users`, `rbac`, `audit`, `dashboard`, `health`. Validasi memakai skema zod di
+  `@starterkit/shared` (satu kontrak untuk web dan API).
+- **Urutan cek kontrak tetap:** query 400 → sesi/izin 401/403 → body 400 → 404 → aturan → ubah → activity.
+- Semua perilaku dan tes yang sudah ada dipertahankan; refaktor ini tidak mengubah jawaban API.
