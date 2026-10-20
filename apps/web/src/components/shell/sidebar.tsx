@@ -4,6 +4,7 @@ import { Brand, Kbd } from "@starterkit/ui/ds";
 import { cn } from "@starterkit/ui/lib/cn";
 import { Icon } from "@starterkit/ui/ui/icon";
 import { SearchIcon, SidebarCollapseIcon, SidebarExpandIcon } from "@starterkit/ui/ui/icons";
+import { ScrollArea } from "@starterkit/ui/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@starterkit/ui/ui/tooltip";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
@@ -41,6 +42,8 @@ export function Sidebar({ mark, wordmark }: { mark: ReactNode; wordmark: ReactNo
   const toggle = (sidebar: "collapsed" | "expanded") => { toggled.current = true; update({ sidebar }); };
   // Labels keep `hidden` in the rail (never animated out); on expand they fade in as the width opens.
   const label = (cls: string) => (collapsed ? "hidden" : cn(cls, "animate-reveal-in"));
+  // The rail (below 1280 px, or collapsed): every control is a centred 36 px square; expanded, a full-width row.
+  const square = collapsed ? "mx-auto size-9" : "max-xl:mx-auto max-xl:size-9";
   return (
     <aside data-print="hide" aria-label="Main navigation" className={cn("animate-shell-side motion-safe:transition-sidebar sticky top-0 flex h-svh w-16 shrink-0 flex-col px-3 py-4 max-md:hidden", !collapsed && "xl:w-62")}>
       <div className={cn("flex h-9 items-center justify-center px-1.5", !collapsed && "xl:justify-start")}>
@@ -59,8 +62,8 @@ export function Sidebar({ mark, wordmark }: { mark: ReactNode; wordmark: ReactNo
       <Tooltip>
         <TooltipTrigger asChild>
           <button type="button" onClick={openPalette} aria-label="Search pages"
-            className={cn("mt-3 flex h-8 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-md border border-line-strong bg-card px-2 text-body-sm text-fg-3 shadow-xs transition-colors duration-(--dur-fast) hover:border-fg-4 hover:text-fg-2",
-              !collapsed && "xl:justify-start xl:pr-1.5 xl:pl-2.5")}>
+            className={cn("mt-3 flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-md border border-line-strong bg-card text-body-sm text-fg-3 shadow-xs transition-colors duration-(--dur-fast) hover:border-fg-4 hover:text-fg-2",
+              square, !collapsed && "xl:h-8 xl:justify-start xl:pr-1.5 xl:pl-2.5")}>
             <Icon icon={SearchIcon} className="size-4 shrink-0" />
             <span className={cn("hidden min-w-0 flex-1 truncate text-left", !collapsed && "xl:inline")}>Search pages…</span>
             <span className={cn("hidden", !collapsed && "xl:contents")}><Kbd keys={["⌘K"]} /></span>
@@ -68,9 +71,14 @@ export function Sidebar({ mark, wordmark }: { mark: ReactNode; wordmark: ReactNo
         </TooltipTrigger>
         <TooltipContent side="right" className={cn(!collapsed && "xl:hidden")}>Search pages (⌘K)</TooltipContent>
       </Tooltip>
-      <nav aria-label="Menu" className="-mx-1 mt-1 flex-1 overflow-y-auto px-1">
+      {/* ScrollArea: its thumb takes no room, so the menu is exactly as wide as the search and the account row above and
+          below it on every system (classic or overlay scrollbars); the thumb sits in the sidebar's padding. */}
+      <nav aria-label="Menu" className="mt-1 flex min-h-0 flex-1 flex-col">
+        <ScrollArea className="-mx-1 px-1" thumbClassName="-right-2">
         {navFor(perms).map((s, si) => (
-          <div key={s.id} role="group" aria-labelledby={`nav-section-${s.id}`} className={cn("grid gap-0.5", si > 0 && "mt-4")}>
+          <div key={s.id} role="group" aria-labelledby={`nav-section-${s.id}`} className={cn("grid gap-0.5", si > 0 && "mt-3")}>
+            {/* The rail has no group labels: a hairline separates the groups instead. */}
+            {si > 0 && <div aria-hidden="true" className={cn("mx-2 mb-2 border-t border-line", !collapsed && "xl:hidden")} />}
             {/* Hidden in the rail, still names the group (aria-labelledby reads hidden text). */}
             <span key={`${s.id}-${collapsed}`} id={`nav-section-${s.id}`} className={cn("eyebrow hidden px-2.5 pt-2 pb-2 text-fg-3", label("xl:block"))}>{s.label}</span>
             {s.items.map((n) => {
@@ -84,7 +92,7 @@ export function Sidebar({ mark, wordmark }: { mark: ReactNode; wordmark: ReactNo
                     {/* With a child view open (expanded sidebar), the child carries the highlight and the item just reads fg. */}
                     <Link href={viewHref(n.href, prefs)} aria-label={n.label} aria-current={active && !(child && !collapsed) ? "page" : undefined}
                       className={cn("relative flex h-9 items-center justify-center gap-2.5 rounded-md border px-2.5 text-body text-fg-2 transition-colors duration-(--dur-fast)",
-                        !collapsed && "xl:justify-start",
+                        square, !collapsed && "xl:justify-start",
                         active ? "border-line bg-raised text-fg shadow-sm" : "border-transparent hover:bg-tray hover:text-fg",
                         active && child && !collapsed && "xl:border-transparent xl:bg-transparent xl:shadow-none")}>
                       <NavGlyph icon={n.icon} className="size-4 shrink-0" />
@@ -109,6 +117,7 @@ export function Sidebar({ mark, wordmark }: { mark: ReactNode; wordmark: ReactNo
             })}
           </div>
         ))}
+        </ScrollArea>
       </nav>
       <div className="grid gap-2 border-t border-line pt-3">
         {collapsed && (

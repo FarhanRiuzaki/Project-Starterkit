@@ -15,7 +15,7 @@ export function EntryDialog({ title, rows, children, onClose }: {
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>Log entries are add-only: they can&apos;t be edited or deleted.</DialogDescription>
         </DialogHeader>
-        <div className="grid max-h-[calc(100vh-12rem)] gap-5 overflow-y-auto px-6 py-5">
+        <div className="scroll-quiet grid max-h-[calc(100vh-12rem)] gap-5 overflow-y-auto px-6 py-5">
           <dl className="grid">
             {rows.map(([k, v]) => (
               <div key={k} className="grid grid-cols-[9rem_minmax(0,1fr)] gap-4 border-b border-line py-2 last:border-b-0">

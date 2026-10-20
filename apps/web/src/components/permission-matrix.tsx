@@ -98,7 +98,7 @@ export function PermissionMatrix({ label, value, onChange, allowed, catalog }: {
     <>
     {/* Scrolls inside its card when wider (or taller) than the screen; `relative` keeps the sr-only reasons of read-only
         checkboxes (absolutely positioned) inside the scroll box instead of widening the page. */}
-    <div className="relative max-h-[70dvh] overflow-auto overscroll-x-contain">
+    <div className="scroll-quiet relative max-h-[70dvh] overflow-auto overscroll-x-contain">
       <table ref={gridRef} role="grid" aria-label={label} onKeyDown={onKeyDown} onFocus={onFocus} onClick={onClick} className="w-full border-separate border-spacing-0 text-body">
         <thead className="bg-tray">
           <tr>

@@ -29,7 +29,7 @@ const tabsListVariants = cva("relative inline-flex w-full items-center", {
     variant: {
       // The 1 px baseline is an inset shadow, not border-b: the list scrolls (overflow clips at the padding box), so an
       // underline at `bottom: -1px` over a border would be cut off. Drawn inside, the underline (bottom 0) covers it.
-      line: "gap-5 overflow-x-auto shadow-[inset_0_-1px_0_var(--line)]",
+      line: "scroll-quiet gap-5 overflow-x-auto shadow-[inset_0_-1px_0_var(--line)]",
       default: "w-fit gap-0 rounded-ctl border border-line bg-tray p-0.5",
     },
   },

@@ -16,6 +16,11 @@ Every page works fully on a phone, a tablet and a desktop (design-system §0). P
 - Targets: drawn 28 px minimum, 32 px default; under a coarse pointer every control's hit area is at least 44 × 44 px
   without changing the drawn size (`base.css`); anything shown on hover is always shown on touch.
 - Inputs: 16 px text or more under a coarse pointer (no iOS zoom), from the `--text-input-touch` token.
+- Inner scroll areas (sidebar, phone menu, palette, matrix, wide tables, dialogs, menus, tab rows) use `scroll-quiet`
+  (`packages/ui/src/styles/base.css`): a 6 px rounded thumb, no arrow buttons, shown only while the area is hovered
+  or holds keyboard focus; the page keeps the native scrollbar. Where the box must stay exactly as wide as its
+  neighbours (the sidebar menu), `ScrollArea` hides the native bar (`scroll-none`) and draws a 4 px thumb that takes no
+  room, shown on hover, focus or while scrolling. `architecture.test.ts` fails an `overflow-*-auto` without one of them.
 - Decide per width in CSS (`max-md:` / `md:` / `xl:`), never with `matchMedia` in render: the server HTML is the
   first paint, so a JS width switch would flicker or shift.
 
@@ -74,7 +79,8 @@ Detail pages add `Tabs` (line variant) directly under the header; the tab value 
 
 ## 2. Grid, spacing, sizing
 
-- Content max 1376px inside the sheet (padding 32 px horizontal, 24 top, 40 bottom). Rhythm tokens (spec §2.2):
+- Content fills the sheet's width, no max (padding 32 px horizontal, 24 top, 40 bottom): a collapsed sidebar or a wide
+  screen widens the grid instead of leaving empty margins. Rhythm tokens (spec §2.2):
   page sections `gap-section` (24), sibling panels/tiles `gap-gutter` (16; `--gap-grid` in tokens.css), tray padding `p-tray` (4), inside a card
   `gap-panel` (16), dense rows `gap-dense` (8).
 - Content padding: 32 px sides from 768 px, 16 px on a phone (the sheet is edge to edge there).

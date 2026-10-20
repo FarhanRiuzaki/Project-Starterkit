@@ -127,3 +127,17 @@ describe("token aliases", () => {
     expect(Object.values(d).filter((v) => v.startsWith("var("))).toEqual([]);
   });
 });
+
+describe("scroll-quiet (inner scroll areas)", () => {
+  const BASE = readFileSync(path.resolve(import.meta.dirname, "./base.css"), "utf8");
+  const rule = BASE.slice(BASE.indexOf("@utility scroll-quiet"), BASE.indexOf("@utility scroll-none"));
+  it("a 6 px thumb without arrow buttons, hidden until the area is hovered or focused", () => {
+    expect(rule).toMatch(/::-webkit-scrollbar \{ width: 6px; height: 6px; \}/);
+    expect(rule).toMatch(/::-webkit-scrollbar-button \{ display: none;/);
+    expect(rule).toMatch(/::-webkit-scrollbar-thumb \{ border-radius: 9999px; background-color: transparent; \}/);
+    expect(rule).toMatch(/&:hover::-webkit-scrollbar-thumb, &:focus-within::-webkit-scrollbar-thumb \{ background-color: var\(--line-strong\); \}/);
+  });
+  it("nothing outside it sets scrollbar-color (inherited, it would switch Chromium's ::-webkit-scrollbar off)", () => {
+    expect(BASE.replace(rule, "").replace(/\/\*[\s\S]*?\*\//g, "")).not.toMatch(/scrollbar-color/);
+  });
+});

@@ -86,7 +86,7 @@ export function ConfirmActionDialog(p: Props) {
             <DialogTitle>{p.title}</DialogTitle>
             <DialogDescription>{p.description}</DialogDescription>
           </DialogHeader>
-          <div className="grid min-h-0 gap-4 overflow-y-auto px-6 pt-0.75 pb-5" onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 0)}>
+          <div className="scroll-quiet grid min-h-0 gap-4 overflow-y-auto px-6 pt-0.75 pb-5" onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 0)}>
             {p.lead}
             {p.impact.length > 0 && (
               <div className="grid gap-1.5 rounded-lg border border-line bg-tray px-3 py-2.5 text-body-sm text-fg-2">

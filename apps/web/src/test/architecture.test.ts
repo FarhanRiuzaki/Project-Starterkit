@@ -187,7 +187,20 @@ const passwordFieldViolations = (fs: F[]) => fs.filter(({ r, src }) => r !== PAS
 const newPasswordViolations = (fs: F[]) => fs.filter(({ r, src }) => r.startsWith(WEB) && /autoComplete=["']new-password["']/.test(src) && !/<PasswordChecks\b/.test(strip(src)))
   .map(({ r }) => `${r}: a new-password field without PasswordChecks`);
 
+/**
+ * Inner scroll areas use the quiet scrollbar (base.css `scroll-quiet`), or none with ScrollArea's own thumb
+ * (`scroll-none`): a class string with overflow-*-auto names one of them too.
+ */
+const OVERFLOW_AUTO = /\boverflow(?:-[xy])?-auto\b/;
+const scrollViolations = (fs: F[]) => fs.filter(({ r }) => r.endsWith(".tsx")).flatMap(({ r, src }) =>
+  [...strip(src).matchAll(/"[^"\n]*"|`[^`]*`/g)].map((m) => m[0]).filter((c) => OVERFLOW_AUTO.test(c) && !/\bscroll-(?:quiet|none)\b/.test(c))
+    .map((c) => `${r}: ${c.match(OVERFLOW_AUTO)![0]} without scroll-quiet`));
+
 describe("architecture", () => {
+  it("inner scroll areas use the quiet scrollbar (scroll-quiet next to overflow-*-auto)", () => {
+    expect(scrollViolations(files)).toEqual([]);
+  });
+
   it("password fields are PasswordInput; a new-password field shows PasswordChecks", () => {
     expect(passwordFieldViolations(files)).toEqual([]);
     expect(newPasswordViolations(files)).toEqual([]);
@@ -466,6 +479,14 @@ describe("architecture checkers (fixtures)", () => {
       `${WEB}app/(main)/roles/page.tsx: guards with user.view, pagePerm("/roles") is role.view`,
       `${WEB}app/(main)/audit/auth/page.tsx: guards with nothing, pagePerm("/audit/auth") is audit.view`,
     ]);
+  });
+
+  it("overflow-*-auto without scroll-quiet is reported; with it, or overflow-hidden, passes", () => {
+    expect(scrollViolations([
+      f(`${UI}ui/a.tsx`, `<div className="max-h-80 overflow-y-auto" />`),
+      f(`${WEB}features/x/b.tsx`, "<div className={`grid ${x} overflow-x-auto`} />"),
+      f(`${UI}ui/ok.tsx`, `<div className="scroll-quiet overflow-auto" /><div className="overflow-hidden" />`),
+    ])).toEqual([`${UI}ui/a.tsx: overflow-y-auto without scroll-quiet`, `${WEB}features/x/b.tsx: overflow-x-auto without scroll-quiet`]);
   });
 
   it("a raw password input and a new-password field without its checklist are reported; PasswordInput passes", () => {

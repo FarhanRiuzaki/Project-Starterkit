@@ -40,7 +40,7 @@ export function MobileNav({ wordmark }: { wordmark: ReactNode }) {
             <button type="button" aria-label="Close navigation" className={ICON_BUTTON}><Icon icon={CloseIcon} className="size-4" /></button>
           </DrawerClose>
         </div>
-        <nav aria-label="Menu" className="flex-1 overflow-y-auto px-3 pb-4">
+        <nav aria-label="Menu" className="scroll-quiet flex-1 overflow-y-auto px-3 pb-4">
           {navFor(perms).map((s, si) => (
             <div key={s.id} role="group" aria-labelledby={`drawer-section-${s.id}`} className={cn("grid gap-0.5", si > 0 && "mt-4")}>
               <span id={`drawer-section-${s.id}`} className="eyebrow px-2.5 pt-2 pb-2 text-fg-3">{s.label}</span>

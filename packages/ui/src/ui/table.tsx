@@ -30,7 +30,7 @@ export function useScrollsX<T extends HTMLElement>(): [React.RefCallback<T>, boo
 function Table({ className, ...props }: React.ComponentProps<"table">) {
   const [ref, scrolls] = useScrollsX<HTMLDivElement>();
   return (
-    <div ref={ref} data-slot="table-container" className="relative w-full overflow-x-auto"
+    <div ref={ref} data-slot="table-container" className="scroll-quiet relative w-full overflow-x-auto"
       {...(scrolls ? { tabIndex: 0, role: "region", "aria-label": props["aria-label"] } : {})}>
       <table data-slot="table" className={cn("w-full border-separate border-spacing-0 text-body", className)} {...props} />
     </div>

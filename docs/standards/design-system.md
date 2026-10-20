@@ -103,7 +103,7 @@ starterkit.
 │┌ sidebar 248 ──────┐ 8 ┌ sheet (radius 16, line) ─────────────────────────────────────────┐ 8│
 ││ logo · collapse   │   │ top bar 56: breadcrumb ............ search ⌘K · bell · account   │  │
 ││ MAIN              │   ├──────────────────────────────────────────────────────────────────┤  │
-││  Dashboard        │   │ content: padding 32 / 24 top, max-width 1376, 12 col, gap 16     │  │
+││  Dashboard        │   │ content: padding 32 / 24 top, full width, 12 col, gap 16         │  │
 ││  Users        24  │   │                                                                  │  │
 ││ ...               │   │                                                                  │  │
 ││ SETTINGS (bottom) │   │                                                                  │  │
@@ -114,7 +114,8 @@ starterkit.
 - Sidebar 248 px expanded, 64 px collapsed (icon rail, tooltips); collapse state persists per viewer.
 - Sheet inset 8 px top/right/bottom; content padding 32 px horizontal, 24 px top, 40 px bottom.
 - At 1440: content width 1440 − 248 − 8 − 8 − 64 = 1112 px; 12 columns, 16 px gutters → column 78.0 px.
-- At 1920: content capped at 1376 px and centred in the sheet. At 1280: 952 px content, same 12 columns.
+- The content fills the sheet at every width (no max width): at 1920, or with the sidebar collapsed, the grid widens
+  instead of leaving empty margins. At 1280: 952 px content, same 12 columns.
 - Tablet, 768–1279: the sidebar is always the 64 px rail; 12-col spans of 3 become 6, 4 become 6 (2 per row).
 - Phone, below 768: no sidebar (drawer), the sheet fills the window edge to edge (no inset, no radius), content padding
   16 px, top bar sticky; every span becomes 12 (one column) and a KPI tray shows 2 tiles per row; tables are stacked
@@ -365,7 +366,12 @@ CSS, so it never shifts on first paint.
 Rules: the nav is exactly Dashboard, Users, Roles, Permissions, Activity log, Sign-in log, Design system and Profile
 (own sessions live at /me/sessions and on a user's detail page; there is no global Sessions page). Nav items carry no
 badges; count badges elsewhere are counts, never words ("New" pills are not used). A hairline separates the logo from
-the nav. An item may have `children` (`NavItem.children` in `apps/web/src/lib/shared/nav.ts`): views of its own page
+the nav. The nav scrolls inside the sidebar when the menu is longer than the window, in a `ScrollArea`
+(`packages/ui/src/ui/scroll-area.tsx`): no native scrollbar, a 4 px thumb drawn in the sidebar's padding, shown on
+hover, focus or while scrolling, so the search, the menu and the account row share one width on every system. In the
+rail (below 1280 px, or collapsed) every control, the search included, is a centred 36 px square, and a hairline
+separates the groups in place of their hidden labels. An item may have `children`
+(`NavItem.children` in `apps/web/src/lib/shared/nav.ts`): views of its own page
 (Users → All users, Active users, Inactive users), shown under it on a guide line while the page is open, in the
 expanded sidebar (≥ 1280 px) and the phone menu; the open child carries the highlight (`activeChild`).
 
