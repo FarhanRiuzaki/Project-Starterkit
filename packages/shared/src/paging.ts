@@ -8,7 +8,7 @@ export const DEFAULT_PAGE_SIZE: PageSize = 15;
 export const MAX_PAGE = 1000;
 
 // Sort keys each list endpoint whitelists (the zod contracts take them through `sortParam`; screens put them in their
-// TableSpec). The audit logs keep theirs in lib/shared/audit.ts.
+// TableSpec). The audit logs keep theirs in audit.ts.
 export const USER_SORTS = ["name", "email", "lastLoginAt", "createdAt"] as const;
 export const ROLE_SORTS = ["name", "permissions", "users"] as const;
 /** GET /api/users/roles (role options for pickers). */

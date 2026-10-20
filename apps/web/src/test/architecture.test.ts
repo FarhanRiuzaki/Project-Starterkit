@@ -33,7 +33,6 @@ function layerViolations(fs: F[]): string[] {
   });
 }
 
-/** sonner (~10 kB gz) loads on demand: `toast` from ui/toast.ts, the Toaster through next/dynamic (providers.tsx). */
 /** packages/shared/src stays pure: no React, Next, apps/, the @/ alias; the only @starterkit import is @starterkit/ui/lib/*. */
 function sharedViolations(fs: F[]): string[] {
   const bad = (s: string) => /^(react|next)(\/|$)/.test(s) || s.startsWith("@/") || /(^|\/)apps\//.test(s)
@@ -41,6 +40,7 @@ function sharedViolations(fs: F[]): string[] {
   return fs.filter(({ r }) => r.startsWith(SHARED)).flatMap(({ r, imp }) => imp.filter(bad).map((s) => `${r} → ${s}`));
 }
 
+/** sonner (~10 kB gz) loads on demand: `toast` from ui/toast.ts, the Toaster through next/dynamic (providers.tsx). */
 function sonnerViolations(fs: F[]): string[] {
   const own = [`${UI}ui/sonner.tsx`, `${UI}ui/toast.ts`];
   return fs.filter(({ r, src, imp }) => (imp.includes("sonner") && !own.includes(r)) || /from\s+["']@starterkit\/ui\/ui\/sonner["']/.test(src)).map((f) => f.r);

@@ -16,7 +16,7 @@ export function apiError(status: number, code: ErrorCode, message: string): Resp
   return json({ error: { code, message } }, status);
 }
 
-/** 400 for a request value outside the contract (the zod schemas in lib/shared/contracts). */
+/** 400 for a request value outside the contract (the zod schemas in @starterkit/shared/contracts). */
 export const badRequest = () => apiError(400, "bad_request", "A request parameter has an unsupported value.");
 
 /** 404 for a record that doesn't exist; `noun` names it in the message ("user", "role"). */
