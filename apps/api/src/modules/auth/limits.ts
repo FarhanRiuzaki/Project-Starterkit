@@ -1,4 +1,4 @@
-// Rate limits and backoff in PostgreSQL, shared by every API process. Every time comes from the database clock (now()).
+// Rate limits and backoff in PostgreSQL, shared by every API process. Every time comes from the database clock (now(), clock_timestamp()).
 // Old rows are removed by the janitor, not here.
 import { eq, or, isNull, lte, type SQL, sql } from "drizzle-orm";
 import { db } from "../../kernel/db";
@@ -19,7 +19,9 @@ export async function hit(key: string, limit: number, windowMs: number): Promise
       count: sql`case when ${over} then 1 else least(${r.count} + 1, ${limit}::int + 1) end`,
       windowStart: sql`case when ${over} then now() else ${r.windowStart} end`,
     },
-  }).returning({ count: r.count, left: sql<number>`extract(epoch from ${r.windowStart} + ${ms(windowMs)} - now())::float8` });
+    // clock_timestamp(), not now(): now() is this transaction's start, which can be older than a window_start written
+    // by a concurrent hit that committed first, and the wait would come out longer than the window (61 s of 60).
+  }).returning({ count: r.count, left: sql<number>`extract(epoch from ${r.windowStart} + ${ms(windowMs)} - clock_timestamp())::float8` });
   return row!.count > limit ? Math.max(1, Math.ceil(row!.left)) : null;
 }
 
