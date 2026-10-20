@@ -9,7 +9,7 @@ describe("self-hosted fonts", () => {
   const srcs = [...SRC.matchAll(/src:\s*"([^"]+)"/g)].map((m) => m[1]!);
 
   it("every next/font/local src resolves from apps/web (the build would fail on a missing file)", () => {
-    expect(srcs).toHaveLength(3);
+    expect(srcs).toHaveLength(2);
     expect(srcs.filter((s) => !existsSync(path.resolve(import.meta.dirname, s)))).toEqual([]);
   });
 

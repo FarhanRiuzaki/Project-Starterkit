@@ -8,8 +8,7 @@ import { useEffect, useState } from "react";
 import { BlockedButton, type Column, DataTable, Failure, Facts, Notice, Panel, RelativeTime } from "@starterkit/ui/ds";
 import { Stagger, StaggerItem, useDelayedFlag } from "@starterkit/ui/motion";
 import { Button } from "@starterkit/ui/ui/button";
-import { Icon } from "@starterkit/ui/ui/icon";
-import { ActivityIcon, KeyIcon, LogIcon, SecureIcon, SpinnerIcon, UsersIcon } from "@starterkit/ui/ui/icons";
+import { ActivityIcon, KeyIcon, LogIcon, SecureIcon, UsersIcon } from "@starterkit/ui/ui/icons";
 import { toast } from "@starterkit/ui/ui/toast";
 import { DetailNotFound } from "@/components/detail-not-found";
 import { RoleChips } from "@/components/role-chips";
@@ -18,13 +17,13 @@ import { SessionsTable } from "@/components/sessions-table";
 import { PageHeader } from "@/components/shell/page-header";
 import { api, errorText, isNotFound } from "@/lib/client/api";
 import { useAuth } from "@/lib/client/auth-context";
-import type { SessionDto } from "@/lib/shared/contracts/me";
-import type { ActivityBrief } from "@/lib/shared/contracts/users";
-import { MODULES, permissionLabel } from "@/lib/shared/permissions";
+import type { SessionDto } from "@starterkit/shared/contracts/me";
+import type { ActivityBrief } from "@starterkit/shared/contracts/users";
+import { MODULES, permissionLabel } from "@starterkit/shared/permissions";
 import { userDetail, userSessions } from "@/lib/shared/queries";
-import { BRAND } from "@/lib/shared/brand";
+import { BRAND } from "@starterkit/shared/brand";
 import { UserStatusChip } from "./user-columns";
-import { USERS_KEY, protection, rankBlock, useLastSuperadminId, useUserDetail } from "./use-users";
+import { USERS_KEY, protection, rankBlock, useLastSuperadminId, userGone, useUserDetail } from "./use-users";
 import { USER_DETAIL_SHAPE } from "./shapes";
 
 const PROVIDER = { google: "Google", apple: "Apple" } as const;
@@ -36,7 +35,7 @@ const SecretOnceDialog = dynamic(() => import("@starterkit/ui/ds").then((m) => m
 const ACTIVITY_COLUMNS: Column<ActivityBrief>[] = [
   { key: "at", header: "When", cell: (a) => <RelativeTime at={Date.parse(a.at)} /> },
   { key: "actor", header: "By", cell: (a) => a.actor.name },
-  { key: "action", header: "Action", cell: (a) => <span className="font-mono text-mono">{a.action}</span> },
+  { key: "action", header: "Action", mobile: "title", cell: (a) => <span className="font-mono text-mono">{a.action}</span> },
 ];
 
 type Dialog = "deactivate" | "delete" | "reset" | { end: SessionDto } | null;
@@ -90,20 +89,21 @@ export function UserDetail({ id }: { id: string }) {
   return (
     <div className="grid gap-section">
       <PageHeader title={u.name} status={<UserStatusChip user={u} />} description={`${u.username} · ${u.email}`}
-        actions={<>
-          {can("user.edit") && (rank
-            ? <BlockedButton variant="secondary" reason={rank}>Edit user</BlockedButton>
-            : <Button asChild variant="secondary"><Link href={`/users/${id}/edit`}>Edit user</Link></Button>)}
-          {can("user.edit") && <BlockedButton variant="secondary" reason={resetBlock} onClick={() => setDialog("reset")}>Reset password</BlockedButton>}
-          {can("user.edit") && (u.isActive
-            ? <BlockedButton variant="secondary" reason={block} onClick={() => setDialog("deactivate")}>Deactivate user</BlockedButton>
-            : <BlockedButton variant="secondary" reason={rank} disabled={activating} aria-busy={activating || undefined} onClick={() => void activate()}>
-              {activating && <Icon icon={SpinnerIcon} className="motion-safe:animate-spin" />}Activate user</BlockedButton>)}
-          {can("user.delete") && <BlockedButton variant="destructive" reason={block} onClick={() => setDialog("delete")}>Delete user</BlockedButton>}
-        </>} />
+        actions={can("user.edit") && (rank
+          ? <BlockedButton variant="secondary" reason={rank}>Edit user</BlockedButton>
+          : <Button asChild variant="secondary"><Link href={`/users/${id}/edit`}>Edit user</Link></Button>)}
+        more={[
+          ...(can("user.edit") ? [
+            { label: "Reset password", reason: resetBlock, onSelect: () => setDialog("reset") },
+            u.isActive
+              ? { label: "Deactivate user", reason: block, onSelect: () => setDialog("deactivate") }
+              : { label: "Activate user", reason: rank, busy: activating, onSelect: () => void activate() },
+          ] : []),
+          ...(can("user.delete") ? [{ label: "Delete user", reason: block, destructive: true, onSelect: () => setDialog("delete") }] : []),
+        ]} />
       {q.error && <Notice tone="warn" live>Couldn&apos;t refresh this user; showing the last loaded details.</Notice>}
       {/* First data reveal: the cards rise in one after another (a refetch keeps them, so nothing replays). */}
-      <Stagger className="grid items-start gap-gutter lg:grid-cols-2">
+      <Stagger className="grid items-start gap-gutter md:grid-cols-2">
         <StaggerItem index={0} className="grid"><Panel icon={UsersIcon} title="Details" description="Account facts">
           <Facts items={[
             { label: "Sign-in", value: u.isLdap ? "Directory" : "Password" },
@@ -118,7 +118,7 @@ export function UserDetail({ id }: { id: string }) {
             <p className="text-body-sm text-fg-2">Connected accounts: {u.connected.length ? u.connected.map((c) => PROVIDER[c]).join(", ") : "none"}</p>
           </div>
         </Panel></StaggerItem>
-        <StaggerItem index={2} className="grid lg:col-span-2"><Panel icon={KeyIcon} title="Effective permissions" description="Combined from all roles, by module">
+        <StaggerItem index={2} className="grid md:col-span-2"><Panel icon={KeyIcon} title="Effective permissions" description="Combined from all roles, by module">
           <dl className="grid gap-2">
             {MODULES.map((m) => {
               const have = m.actions.filter((a) => granted.has(`${m.key}.${a}`));
@@ -132,9 +132,10 @@ export function UserDetail({ id }: { id: string }) {
           </dl>
         </Panel></StaggerItem>
       </Stagger>
-      <SessionsTable table={userSessions(id)} title="Active sessions" description="Where this user is signed in"
+      {/* End session: no touch caption in the row; the same `rank` reason is the caption of the header's Edit user. */}
+      <SessionsTable table={userSessions(id)} enabled={!userGone(q.error, deleted)} title="Active sessions" description="Where this user is signed in"
         current="Your session" emptyHint="Sessions appear here when this user signs in."
-        action={can("user.edit") ? (s) => (s.current ? <span className="text-caption text-fg-3">Your session</span> : <BlockedButton size="sm" variant="ghost" reason={rank} onClick={() => setDialog({ end: s })}>End session</BlockedButton>) : undefined} />
+        action={can("user.edit") ? (s) => (s.current ? <span className="text-caption text-fg-3">Your session</span> : <BlockedButton size="sm" variant="ghost" reason={rank} caption={false} onClick={() => setDialog({ end: s })}>End session</BlockedButton>) : undefined} />
       {u.recentActivity && (
       <Panel flush icon={LogIcon} title="Recent activity" description="The last 20 actions on this user" count={u.recentActivity.length}>
         <DataTable label="Recent activity" columns={ACTIVITY_COLUMNS} rows={u.recentActivity} rowKey={(a) => a.id}

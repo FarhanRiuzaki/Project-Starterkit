@@ -5,7 +5,7 @@ import { type Column, DataTable, Notice, Panel, RelativeTime } from "@starterkit
 import { SessionsIcon } from "@starterkit/ui/ui/icons";
 import { errorText } from "@/lib/client/api";
 import { useTableQuery } from "@/lib/client/use-table-query";
-import type { SessionDto } from "@/lib/shared/contracts/me";
+import type { SessionDto } from "@starterkit/shared/contracts/me";
 import type { NoFilters, TableDef } from "@/lib/shared/queries";
 
 /**
@@ -13,15 +13,17 @@ import type { NoFilters, TableDef } from "@/lib/shared/queries";
  * address, last active; page, size and sort in the URL. `table` = MY_SESSIONS or userSessions(id) (lib/shared/queries);
  * its key is the prefix the caller invalidates after ending a session; `current` labels the session making the request.
  */
-export function SessionsTable({ table, title, description, current, emptyHint, action }: {
+export function SessionsTable({ table, title, description, current, emptyHint, action, enabled }: {
   table: TableDef<NoFilters>; title: string; description: string; current: string;
   /** Empty state: when sessions appear. */
   emptyHint: string;
   action?: (s: SessionDto) => ReactNode;
+  /** false = don't fetch (the user is gone). */
+  enabled?: boolean;
 }) {
-  const t = useTableQuery<SessionDto, NoFilters>(table);
+  const t = useTableQuery<SessionDto, NoFilters>(table, enabled);
   const columns: Column<SessionDto>[] = [
-    { key: "device", header: "Device", sortable: true, cell: (s) => <span className="font-medium text-fg">{s.device}{s.current && <span className="ml-2 text-caption font-normal text-primary-ink">{current}</span>}</span> },
+    { key: "device", header: "Device", sortable: true, mobile: "title", cell: (s) => <span className="font-medium text-fg">{s.device}{s.current && <span className="ml-2 text-caption font-normal text-primary-ink">{current}</span>}</span> },
     { key: "ip", header: "IP address", cell: (s) => <span className="font-mono text-mono">{s.ip}</span> },
     { key: "lastSeenAt", header: "Last active", sortable: true, cell: (s) => <RelativeTime at={Date.parse(s.lastSeenAt)} /> },
   ];

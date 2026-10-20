@@ -1,4 +1,4 @@
-// API contract for the backend: one JSON Schema (draft 2020-12) per zod contract in src/lib/shared/contracts/*, written
+// API contract for the backend: one JSON Schema (draft 2020-12) per zod contract in packages/shared/src/contracts/*, written
 // to docs/api/schemas/<Name>.json with zod's own z.toJSONSchema. Request schemas (names ending in Body or Query) are
 // emitted as the client sends them (fields with a default are optional); every other schema as the server answers.
 // Page answers and the two answer shapes no screen parses are composed below from the contracts.
@@ -11,14 +11,14 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
-import { ACTION_LABEL } from "../src/lib/shared/audit";
-import * as audit from "../src/lib/shared/contracts/audit";
-import * as auth from "../src/lib/shared/contracts/auth";
-import * as common from "../src/lib/shared/contracts/common";
-import * as dashboard from "../src/lib/shared/contracts/dashboard";
-import * as me from "../src/lib/shared/contracts/me";
-import * as rbac from "../src/lib/shared/contracts/rbac";
-import * as users from "../src/lib/shared/contracts/users";
+import { ACTION_LABEL } from "@starterkit/shared/audit";
+import * as audit from "@starterkit/shared/contracts/audit";
+import * as auth from "@starterkit/shared/contracts/auth";
+import * as common from "@starterkit/shared/contracts/common";
+import * as dashboard from "@starterkit/shared/contracts/dashboard";
+import * as me from "@starterkit/shared/contracts/me";
+import * as rbac from "@starterkit/shared/contracts/rbac";
+import * as users from "@starterkit/shared/contracts/users";
 
 export const SCHEMA_DIR = path.resolve(import.meta.dirname, "../../../docs/api/schemas");
 

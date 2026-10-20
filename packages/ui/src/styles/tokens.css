@@ -21,12 +21,15 @@
   --fg-2: #55555c;
   --fg-3: #6e6e77;
   --fg-4: #a1a1aa;
-  /* selection, primary, action */
-  --primary: #0a6bdb;
-  --primary-hover: #0959b8;
+  /* logo only (brand kit): letters and the sun; amber is never a UI colour */
+  --brand-ink: #0d1530;
+  --brand-sun: #ffa928;
+  /* selection, primary (navy family, from the brand), action */
+  --primary: #0d1530;
+  --primary-hover: #1b2547;
   --primary-foreground: #ffffff;
-  --primary-soft: #ebf4ff;
-  --primary-ink: #0a6bdb;
+  --primary-soft: #eff2fa; /* Mist #eef2fa, one step lighter: fg-3 on Mist is 4.4995:1 */
+  --primary-ink: #0d1530;
   --action: #18181b;
   --action-fg: #ffffff;
   --action-hover: #2c2c31;
@@ -69,6 +72,12 @@
   --gap-dense: 8px;
   --row-h: 44px; /* table row, single line (spec §5.7) */
   --row-h-identity: 52px; /* identity row: avatar 28 + name + secondary line (DataTable rowHeight="identity") */
+  /* touch (pointer: coarse; base.css): the smallest hit area of a control, and the smallest input text (iOS Safari
+     zooms the page into an input whose text is under 16 px) */
+  --touch-min: 44px;
+  --text-input-touch: 16px;
+  /* phone top bar (below 768 px): its 56 px row under the safe-area inset; also where sticky bars under it stop */
+  --topbar-h: calc(3.5rem + env(safe-area-inset-top));
   /* motion (spec §7.1; mirrored in components/motion/tokens.ts) */
   --dur-instant: 100ms;
   --dur-fast: 150ms;
@@ -119,18 +128,20 @@
   --fg-2: #a8a8b1;
   --fg-3: #8e8e98;
   --fg-4: #5d5d66;
-  --primary: #5aa6ff;
-  --primary-hover: #7ab8ff;
-  --primary-foreground: #0b1230;
+  --primary: #c9d3f0;
+  --primary-hover: #dde3f6;
+  --primary-foreground: #0d1530;
   --primary-soft: #18233a;
-  --primary-ink: #5aa6ff;
+  --primary-ink: #c9d3f0;
+  --brand-ink: #ffffff;
+  --brand-sun: #ffa928;
   --action: #f2f2f3;
   --action-fg: #151517;
   --action-hover: #d9d9dc;
   --row-selected: #172033;
   --seg-active: #2c2c31;
   --healthy-mark: #3ec27e;  --healthy-ink: #4cc98a;  --healthy-soft: #143323;
-  --degraded-mark: #f0a040; --degraded-ink: #f5a25a; --degraded-soft: #3a2614;
+  --degraded-mark: #ea7a3a; --degraded-ink: #ee8548; --degraded-soft: #3a2614;
   --down-mark: #ff6b70;     --down-ink: #ff7a7f;     --down-soft: #3d1a1d;
   --stopped-mark: #7d7d86;  --stopped-ink: #a8a8b1;  --stopped-soft: #2a2a2f;
   --unknown-mark: #5d5d66;  --unknown-ink: #a8a8b1;  --unknown-soft: #2a2a2f;

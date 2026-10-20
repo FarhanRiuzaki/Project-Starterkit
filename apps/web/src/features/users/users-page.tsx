@@ -1,42 +1,47 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
-import { ActionMenu, BlockedButton, ConfirmActionDialog, DataTable, Field, FilterMenu, Notice, Panel, QueryInput, Toolbar } from "@starterkit/ui/ds";
+import { ActionMenu, BlockedButton, DataTable, FilterMenu, Notice, Panel, QueryInput, Toolbar, ToolbarFilters } from "@starterkit/ui/ds";
+import { cn } from "@starterkit/ui/lib/cn";
 import { HEALTH } from "@starterkit/ui/lib/status";
 import { Button } from "@starterkit/ui/ui/button";
 import { Icon } from "@starterkit/ui/ui/icon";
 import { SpinnerIcon, UsersIcon } from "@starterkit/ui/ui/icons";
-import { Select } from "@starterkit/ui/ui/select";
 import { toast } from "@starterkit/ui/ui/toast";
 import { PageHeader } from "@/components/shell/page-header";
 import { api, errorText } from "@/lib/client/api";
 import { useAuth } from "@/lib/client/auth-context";
 import { useTableQuery } from "@/lib/client/use-table-query";
-import type { BulkResult } from "@/lib/shared/contracts/common";
-import type { UserRowDto } from "@/lib/shared/contracts/users";
+import type { BulkResult } from "@starterkit/shared/contracts/common";
+import type { UserRowDto } from "@starterkit/shared/contracts/users";
 import { USER_STATUSES, type UserFilters, USERS } from "@/lib/shared/queries";
 import { RoleSearch } from "./role-search";
+import type { Pending } from "./users-action-dialog";
 import { userColumns } from "./user-columns";
 import { skipReason, USERS_KEY, protection, rankBlock, useLastSuperadminId, useRoleNames } from "./use-users";
 
 const STATUS_LABEL = { "": "Any", active: "Active", inactive: "Inactive" } as const;
 const STATUSES = USER_STATUSES.map((value) => ({ value, label: STATUS_LABEL[value] }));
+/**
+ * The Deactivate / Activate row button is a desktop shortcut (from 1280 px). Below that (phone card, and the tablet
+ * table, where it would push the name column into a sideways scroll) and on any touch screen it is an item of the
+ * row's Actions menu instead, with its reason inline.
+ */
+const ROW_ONLY = "max-xl:hidden";
+const MENU_ON_TOUCH = "hidden max-xl:flex pointer-coarse:flex";
 const LEGEND = (["healthy", "stopped"] as const).map((h) => ({ health: h, label: h === "healthy" ? "Active" : "Inactive", description: h === "healthy" ? "Can sign in." : HEALTH.stopped.description }));
 
-type BulkAction = "activate" | "deactivate" | "delete" | "assignRole";
-type Pending = { kind: "bulk"; action: BulkAction; ids: string[] } | { kind: "one"; action: "deactivate" | "delete"; user: UserRowDto };
-
-const VERB: Record<BulkAction, string> = { activate: "Activate", deactivate: "Deactivate", delete: "Delete", assignRole: "Assign role to" };
-const BULK_NOTE: Record<BulkAction, string> = {
-  activate: "Users who are already active stay as they are. Users with permissions your role doesn't hold are skipped.",
-  deactivate: "Your own account, the last active Superadmin and users with permissions your role doesn't hold are skipped.",
-  delete: "Your own account, the last active Superadmin and users with permissions your role doesn't hold are skipped.",
-  assignRole: "Your own account and users with permissions your role doesn't hold are skipped, and so is everyone when your role doesn't hold every permission of the chosen role.",
-};
-const LABEL: Record<BulkAction, string> = { activate: "Activate users", deactivate: "Deactivate users", delete: "Delete users", assignRole: "Assign role" };
+/**
+ * The confirm dialog is opened on click only: its own chunk, out of the route's first load (AGENTS.md §9). The import
+ * starts on the first press or focus in the page (intent), so it is there by the time a dialog opens.
+ */
+const loadDialog = () => import("./users-action-dialog");
+const UsersActionDialog = dynamic(() => loadDialog().then((m) => m.UsersActionDialog), { ssr: false });
+const preloadDialog = () => void loadDialog();
 
 export function UsersPage() {
   const { user: me, perms, can } = useAuth();
@@ -95,30 +100,27 @@ export function UsersPage() {
   }
 
   const ids = [...selected];
-  const dialog = pending && (pending.kind === "bulk"
-    ? { title: `${VERB[pending.action]} ${pending.ids.length} ${pending.ids.length === 1 ? "user" : "users"}`, description: BULK_NOTE[pending.action], label: LABEL[pending.action] }
-    : { title: `${pending.action === "delete" ? "Delete" : "Deactivate"} ${pending.user.name}`, description: pending.user.email, label: pending.action === "delete" ? "Delete user" : "Deactivate user" });
-  const destructive = pending?.action === "delete";
-  const impact = !pending ? [] : pending.action === "delete" ? ["The account is removed and its sessions end.", "This can't be undone."]
-    : pending.action === "deactivate" ? ["They are signed out and can't sign in until reactivated."]
-    : pending.action === "assignRole" ? ["The role is added to each user's current roles."] : ["They can sign in again."];
 
   return (
-    <div className="grid gap-section">
+    <div className="grid gap-section" onPointerDown={preloadDialog} onFocus={preloadDialog}>
       <PageHeader title="Users" description="Accounts that can sign in, their roles and status."
         actions={can("user.create") ? <Button asChild><Link href="/users/new">Create user</Link></Button> : undefined} />
       {t.staleError && <Notice tone="warn" live>Couldn&apos;t refresh the users; showing the ones loaded before. {errorText(t.staleError)}</Notice>}
       <Toolbar>
-        <div className="w-full max-w-80"><QueryInput value={f.q} onChange={onSearch} keys={[]} label="Search users" placeholder="Search name, username or email" /></div>
-        {roles.more
-          ? <RoleSearch label="Role" value={f.role} onChange={onRole} />
-          : <FilterMenu label="Role" value={f.role} options={[{ value: "", label: "Any" }, ...roles.names.map((r) => ({ value: r, label: r }))]} onChange={onRole} />}
-        <FilterMenu label="Status" value={f.status} options={STATUSES} onChange={(status) => set({ status })} />
-        {filtered && <Button variant="ghost" size="sm" onClick={() => set({ q: "", role: "", status: "" })}>Clear filters</Button>}
+        <div className="w-full max-w-80 max-md:max-w-none"><QueryInput value={f.q} onChange={onSearch} keys={[]} label="Search users" placeholder="Search name, username or email" /></div>
+        <ToolbarFilters active={(f.role ? 1 : 0) + (f.status ? 1 : 0)}>
+          {roles.more
+            ? <RoleSearch label="Role" value={f.role} onChange={onRole} />
+            : <FilterMenu label="Role" value={f.role} options={[{ value: "", label: "Any" }, ...roles.names.map((r) => ({ value: r, label: r }))]} onChange={onRole} />}
+          <FilterMenu label="Status" value={f.status} options={STATUSES} onChange={(status) => set({ status })} />
+          {filtered && <Button variant="ghost" size="sm" onClick={() => set({ q: "", role: "", status: "" })}>Clear filters</Button>}
+        </ToolbarFilters>
       </Toolbar>
       <Panel flush icon={UsersIcon} title="Users" count={t.count} description="Select rows for bulk actions" legend={LEGEND}>
         {canAct && rows.length > 0 && (
-          <div role="region" aria-label="Bulk actions" className="flex min-h-12 flex-wrap items-center gap-2 border-b border-line px-3 py-2">
+          // On a phone, with rows selected, the bar sticks under the top bar so the actions stay in reach while scrolling the cards.
+          <div role="region" aria-label="Bulk actions" className={cn("flex min-h-12 flex-wrap items-center gap-2 border-b border-line bg-card px-3 py-2",
+            selected.size > 0 && "max-md:sticky max-md:top-(--topbar-h) max-md:z-20")}>
             <label className="flex items-center gap-2 text-body-sm text-fg-2">
               <input type="checkbox" className="size-4 cursor-pointer accent-primary" checked={selected.size > 0 && rows.every((u) => selected.has(u.id))}
                 onChange={(e) => setSelected(e.target.checked ? new Set(rows.map((u) => u.id)) : new Set())} />
@@ -144,34 +146,28 @@ export function UsersPage() {
           rowActions={(u) => {
             const block = protection(u, me.id, perms, lastSuperId);
             const rank = rankBlock(u, perms);
+            // No touch caption in the row (it would stretch the row). Below 1280 px the Deactivate / Activate button
+            // moves into the Actions menu, and on any touch screen the menu has it too: there each item shows its reason
+            // under the label (Deactivate: `block`, Activate and Edit user: `rank`, Delete user: `block`).
+            const busy = activating === u.id;
             return <>
               {can("user.edit") && (u.isActive
-                ? <BlockedButton reason={block} size="sm" variant="ghost" onClick={() => setPending({ kind: "one", action: "deactivate", user: u })}>Deactivate</BlockedButton>
-                : <BlockedButton reason={rank} size="sm" variant="ghost" disabled={activating === u.id} aria-busy={activating === u.id || undefined} onClick={() => void activate(u)}>
-                  {activating === u.id && <Icon icon={SpinnerIcon} className="motion-safe:animate-spin" />}Activate</BlockedButton>)}
+                ? <BlockedButton reason={block} caption={false} size="sm" variant="ghost" className={ROW_ONLY} wrapClassName={ROW_ONLY} onClick={() => setPending({ kind: "one", action: "deactivate", user: u })}>Deactivate</BlockedButton>
+                // While it runs the button stays on the card too: its spinner and aria-busy are the pending state.
+                : <BlockedButton reason={rank} caption={false} size="sm" variant="ghost" className={cn(!busy && ROW_ONLY)} wrapClassName={ROW_ONLY} disabled={busy} aria-busy={busy || undefined} onClick={() => void activate(u)}>
+                  {busy && <Icon icon={SpinnerIcon} className="motion-safe:animate-spin" />}Activate</BlockedButton>)}
               <ActionMenu label={`Actions for ${u.name}`} actions={[
                 { id: "open", label: "View user", onSelect: () => router.push(`/users/${u.id}`) },
+                ...(can("user.edit") ? [u.isActive
+                  ? { id: "status", label: "Deactivate user", className: MENU_ON_TOUCH, disabled: !!block, hint: block ?? undefined, onSelect: () => setPending({ kind: "one", action: "deactivate", user: u }) }
+                  : { id: "status", label: busy ? "Activating…" : "Activate user", className: MENU_ON_TOUCH, disabled: !!rank || busy, hint: rank ?? undefined, onSelect: () => void activate(u) }] : []),
                 ...(can("user.edit") ? [{ id: "edit", label: "Edit user", disabled: !!rank, hint: rank ?? undefined, onSelect: () => router.push(`/users/${u.id}/edit`) }] : []),
                 ...(can("user.delete") ? [{ id: "delete", label: "Delete user", destructive: true, disabled: !!block, hint: block ?? undefined, onSelect: () => setPending({ kind: "one", action: "delete", user: u }) }] : []),
               ]} />
             </>;
           }} />
       </Panel>
-      {dialog && (
-        <ConfirmActionDialog open onOpenChange={(o) => { if (!o) setPending(null); }} auditFields={false} reasons={[]} destructive={destructive}
-          title={dialog.title} description={dialog.description} impact={impact} actionLabel={dialog.label} onConfirm={confirm}
-          extra={pending?.action === "assignRole" && (
-            <Field id="bulk-role" label="Role">
-              {roles.more
-                ? <RoleSearch id="bulk-role" label="Role" value={role} onChange={setRole} />
-                : <Select id="bulk-role" value={role} onChange={(e) => setRole(e.target.value)} disabled={roles.names.length === 0}>
-                  {roles.names.length === 0
-                    ? <option value="">No roles yet. Create one on the Roles page.</option>
-                    : roles.names.map((r) => <option key={r} value={r}>{r}</option>)}
-                </Select>}
-            </Field>
-          )} />
-      )}
+      {pending && <UsersActionDialog pending={pending} role={role} onRole={setRole} roles={roles} onClose={() => setPending(null)} onConfirm={confirm} />}
     </div>
   );
 }

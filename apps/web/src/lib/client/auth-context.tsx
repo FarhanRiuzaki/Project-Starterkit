@@ -2,8 +2,8 @@
 
 import { createContext, type ReactNode, useCallback, useContext, useMemo } from "react";
 import { setCsrf } from "@/lib/client/api";
-import type { UserDto } from "@/lib/shared/contracts/users";
-import type { PermissionName } from "@/lib/shared/permissions";
+import type { UserDto } from "@starterkit/shared/contracts/users";
+import type { PermissionName } from "@starterkit/shared/permissions";
 
 type Auth = { user: UserDto; perms: ReadonlySet<PermissionName>; can: (p: PermissionName) => boolean };
 const Ctx = createContext<Auth | null>(null);

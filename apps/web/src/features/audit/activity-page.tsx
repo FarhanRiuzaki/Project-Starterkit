@@ -3,18 +3,19 @@
 import { Avatar, type Column, CopyValue, FilterMenu, Truncate } from "@starterkit/ui/ds";
 import { formatDateTimeLong } from "@starterkit/ui/lib/format";
 import { LogIcon } from "@starterkit/ui/ui/icons";
-import { actionLabel } from "@/lib/shared/audit";
-import type { ActivityDto } from "@/lib/shared/contracts/audit";
+import { actionLabel } from "@starterkit/shared/audit";
+import type { ActivityDto } from "@starterkit/shared/contracts/audit";
 import { ACTIONS, ACTIVITY, type ActivityFilters } from "@/lib/shared/queries";
 import { AuditTable, timeCell } from "./audit-table";
 import { DiffView } from "./diff-view";
 
+/** Phone card: the action is the title, then user, target and time. */
 const COLUMNS: Column<ActivityDto>[] = [
   { key: "at", header: "Time", sortable: true, cell: (r) => timeCell(r.at) },
   { key: "actor", header: "User", sortable: true, className: "min-w-48", cell: (r) => (
     <span className="flex min-w-0 max-w-56 items-center gap-2.5"><Avatar name={r.actor.name} seed={r.actor.id} /><Truncate title={r.actor.name}>{r.actor.name}</Truncate></span>
   ) },
-  { key: "action", header: "Action", sortable: true, cell: (r) => actionLabel(r.action) },
+  { key: "action", header: "Action", sortable: true, mobile: "title", cell: (r) => actionLabel(r.action) },
   { key: "target", header: "Target", cell: (r) => (
     <span className="grid max-w-64 min-w-0"><Truncate title={r.target.label}>{r.target.label}</Truncate><span className="text-caption text-fg-3">{r.target.type}</span></span>
   ) },

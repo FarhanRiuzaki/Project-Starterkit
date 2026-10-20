@@ -3,10 +3,10 @@
 // for and the browser never fetches it again. Pure (no React, no zod).
 // Key scheme: the first element is the module that owns the data (users, rbac, me, audit, dashboard), then what
 // identifies the read (a table's URL, "detail" + id, …), so invalidating a module's key refreshes all of it.
-import { ACTION_OPTIONS, ACTIVITY_SORTS, AUDIT_RANGES, AUTH_EVENTS, AUTH_LOG_SORTS, AUTH_METHODS, presetRange, rangeProblem } from "./audit";
-import type { AuthLogDto } from "./contracts/audit";
-import { PERMISSION_SORTS, ROLE_SORTS, SESSION_SORTS, USER_SORTS } from "./paging";
-import { MODULES } from "./permissions";
+import { ACTION_OPTIONS, ACTIVITY_SORTS, AUDIT_RANGES, AUTH_EVENTS, AUTH_LOG_SORTS, AUTH_METHODS, presetRange, rangeProblem } from "@starterkit/shared/audit";
+import type { AuthLogDto } from "@starterkit/shared/contracts/audit";
+import { PERMISSION_SORTS, ROLE_SORTS, SESSION_SORTS, USER_SORTS } from "@starterkit/shared/paging";
+import { MODULES } from "@starterkit/shared/permissions";
 import { type FilterParser, isoDate, oneOf, type TableSpec, text } from "./table-state";
 
 /** A server-driven table: query-key prefix, API path, URL state spec, and (optionally) URL filters → API params. */

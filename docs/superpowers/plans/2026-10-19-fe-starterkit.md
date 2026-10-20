@@ -31,7 +31,7 @@ Singkatan path sumber: `BILIK` = `/Users/riuzaki/Private Space/Sunny Go/PROJECT-
 - Kata terlarang di `apps/**` dan `packages/**` (selain `package.json`/lockfile): `jumpserver|jms|squid|egress|prometheus|loki|bifrost|bilik|tibsdev|bankmega|workspace|koko|megacode`
   (case-insensitive). Ditegakkan oleh `apps/web/src/test/no-domain.test.ts` (Task 3).
 - `packages/ui/src/**` tidak boleh mengimpor dari `apps/` atau alias `@/`; import internal package pakai path relatif.
-- Desktop-first seperti Bilik (`BILIK_DOCS/console-ui-standard.md` §0).
+- Desktop-first seperti Bilik (`BILIK_DOCS/console-ui-standard.md` §0). (Diganti 2026-10-20: responsive, `docs/superpowers/specs/2026-10-20-responsive-design.md`.)
 - Setiap commit diakhiri baris: `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
 
 ## Kontrak bersama (dipakai banyak task)

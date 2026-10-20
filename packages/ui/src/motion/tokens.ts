@@ -13,7 +13,10 @@ export const OVERLAY_MOTION = {
   /** Dropdown menus and popovers. */
   menu: { open: "pop", close: "instant" },
   tooltip: { open: "instant", close: "instant" },
+  /** Dialogs; below 768 px the same panel rises from the bottom as a sheet (translate instead of scale). */
   dialog: { open: "slow", close: "exit" },
+  /** Phone navigation drawer: slides in from the left. */
+  drawer: { open: "slow", close: "exit" },
   scrim: { open: "enter", close: "exit" },
 } as const satisfies Record<string, { open: keyof typeof DUR; close: keyof typeof DUR }>;
 

@@ -12,9 +12,9 @@ import { ColumnChartIcon, FailedIcon, IdentityIcon, LogIcon, SessionsIcon, Users
 import { PageHeader } from "@/components/shell/page-header";
 import { api, errorText } from "@/lib/client/api";
 import { useAuth } from "@/lib/client/auth-context";
-import { actionLabel } from "@/lib/shared/audit";
-import type { ActivityDto } from "@/lib/shared/contracts/audit";
-import type { DashboardDto } from "@/lib/shared/contracts/dashboard";
+import { actionLabel } from "@starterkit/shared/audit";
+import type { ActivityDto } from "@starterkit/shared/contracts/audit";
+import type { DashboardDto } from "@starterkit/shared/contracts/dashboard";
 import { DASHBOARD_KEY } from "@/lib/shared/queries";
 
 const SERIES = [{ label: "Successful" }, { label: "Failed", tone: "down" as const }];
@@ -24,7 +24,7 @@ const RECENT: Column<ActivityDto>[] = [
   { key: "actor", header: "User", className: "min-w-48", cell: (r) => (
     <span className="flex min-w-0 max-w-56 items-center gap-2.5"><Avatar name={r.actor.name} seed={r.actor.id} /><Truncate title={r.actor.name}>{r.actor.name}</Truncate></span>
   ) },
-  { key: "action", header: "Action", cell: (r) => actionLabel(r.action) },
+  { key: "action", header: "Action", mobile: "title", cell: (r) => actionLabel(r.action) },
   { key: "target", header: "Target", cell: (r) => <span className="block max-w-64"><Truncate title={r.target.label}>{r.target.label}</Truncate></span> },
 ];
 

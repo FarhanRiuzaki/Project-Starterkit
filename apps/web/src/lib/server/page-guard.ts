@@ -3,25 +3,24 @@ import { signInHref } from "@starterkit/ui/lib/safe-path";
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import type { Metadata } from "next";
-import type { UserDto } from "@/lib/shared/contracts/users";
+import type { UserDto } from "@starterkit/shared/contracts/users";
 import { pagePerm } from "@/lib/shared/nav";
-import type { PermissionName } from "@/lib/shared/permissions";
-import { toUserDto } from "./mock/db";
-import { authOf, getSession } from "./session";
+import type { PermissionName } from "@starterkit/shared/permissions";
+import { authContext, getSession } from "./session";
 
 /**
  * Page guard for server components (layouts, pages). No live session → sign-in, returning to the requested path
  * (proxy.ts sets `x-pathname`; signInHref keeps it only when internal). Missing permission → "Page not found", with
- * no hint that the page exists. Returns what the shell needs: the user (as a DTO), permissions, and the CSRF token.
+ * no hint that the page exists. Returns what the shell needs: the user, permissions, and the CSRF token. The user and
+ * permissions come from authContext (one API call per request, shared with the layout and the title).
  */
 export async function requirePagePermission(
   perm: PermissionName | null,
 ): Promise<{ user: UserDto; perms: PermissionName[]; csrf: string }> {
-  const s = await getSession();
-  const ctx = authOf(s);
+  const ctx = await authContext();
   if (!ctx) redirect(signInHref((await headers()).get("x-pathname")));
-  if (perm && !ctx.perms.has(perm)) notFound();
-  return { user: toUserDto(ctx.user), perms: [...ctx.perms], csrf: s.csrf! };
+  if (perm && !ctx.perms.includes(perm)) notFound();
+  return { user: ctx.user, perms: ctx.perms, csrf: (await getSession()).csrf! };
 }
 
 /**
@@ -30,6 +29,6 @@ export async function requirePagePermission(
  */
 export async function guardedTitle(title: string): Promise<Metadata> {
   const need = pagePerm((await headers()).get("x-pathname") ?? "/");
-  const ctx = authOf(await getSession());
-  return { title: !need || ctx?.perms.has(need) ? title : "Page not found" };
+  const ctx = need ? await authContext() : null;
+  return { title: !need || ctx?.perms.includes(need) ? title : "Page not found" };
 }

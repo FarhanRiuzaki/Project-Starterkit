@@ -57,6 +57,9 @@
     },
     "hasPassword": {
       "type": "boolean"
+    },
+    "reauthFresh": {
+      "type": "boolean"
     }
   },
   "required": [
@@ -72,7 +75,8 @@
     "connected",
     "lastLoginAt",
     "createdAt",
-    "hasPassword"
+    "hasPassword",
+    "reauthFresh"
   ],
   "additionalProperties": false
 }

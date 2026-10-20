@@ -33,6 +33,15 @@ export function contrast(a: string, b: string): number {
   return (hi + 0.05) / (lo + 0.05);
 }
 
+/** HSL hue (degrees) and saturation of a hex colour. */
+function hueSat(hex: string): [number, number] {
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255) as [number, number, number];
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
+  if (!d) return [0, 0];
+  const h = max === r ? ((g - b) / d + 6) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return [h * 60, d / (1 - Math.abs(max + min - 1))];
+}
+
 const SURFACES = ["bg", "sheet", "tray", "card", "inset", "raised", "row-selected", "primary-soft"];
 const INKS = ["fg", "fg-2", "fg-3", "primary", "primary-ink", "healthy-ink", "degraded-ink", "down-ink", "stopped-ink", "unknown-ink"];
 const STATES = ["healthy", "degraded", "down", "stopped", "unknown"];
@@ -40,7 +49,7 @@ const TEXT: [string, string][] = [
   ...INKS.flatMap((ink) => SURFACES.map((s) => [ink, s] as [string, string])),
   ...STATES.map((s) => [`${s}-ink`, `${s}-soft`] as [string, string]),
   ...STATES.map((s) => ["fg", `${s}-soft`] as [string, string]),
-  ["primary-foreground", "primary"], ["action-fg", "action"], ["action-fg", "action-hover"], ["on-crit", "down-ink"],
+  ["primary-foreground", "primary"], ["primary-foreground", "primary-hover"], ["action-fg", "action"], ["action-fg", "action-hover"], ["on-crit", "down-ink"],
   // Active segment / tab thumb: only fg (label) and fg-2 (count pill) sit on it — fg-3 is 4.28:1 in dark, so
   // ds/segmented.tsx never uses fg-3 inside the active segment.
   ["fg", "seg-active"], ["fg-2", "seg-active"],
@@ -50,6 +59,8 @@ const MARKS: [string, string][] = [
   ...["healthy-mark", "degraded-mark", "down-mark"].flatMap((m) => [[m, "card"], [m, "sheet"]] as [string, string][]),
   ...[1, 2, 3, 4, 5, 6].map((i) => [`chart-${i}`, "card"] as [string, string]),
   ["primary", "card"],
+  // Focus ring (2 px outline) against the surfaces it sits on.
+  ["ring", "bg"], ["ring", "sheet"], ["ring", "card"],
   // StatusChip draws Stopped and Unknown shapes in stopped-mark (unknown-mark is decorative only, < 3:1).
   ["stopped-mark", "card"], ["stopped-mark", "sheet"],
 ];
@@ -82,6 +93,21 @@ describe.each([["light", false], ["dark", true]] as const)("tokens (%s)", (name,
     const l = seq.map((h) => lum(h!));
     // Magnitude reads as contrast against the card: monotonic in the theme's direction.
     for (let i = 1; i < l.length; i++) expect(dark ? l[i]! > l[i - 1]! : l[i]! < l[i - 1]!).toBe(true);
+  });
+  it("brand: navy (light) / white (dark) letters, amber sun in both; amber nowhere else; primary is navy in light", () => {
+    expect(t["brand-ink"]).toBe(dark ? "#ffffff" : "#0d1530");
+    expect(t["brand-sun"]).toBe("#ffa928");
+    expect(Object.keys(t).filter((k) => t[k] === "#ffa928")).toEqual(["brand-sun"]);
+    if (!dark) expect([t.primary, t["primary-ink"], t["primary-soft"]]).toEqual(["#0d1530", "#0d1530", "#eff2fa"]);
+  });
+  it("amber only for the sun: no amber/orange status token within 1.3:1 of --brand-sun", () => {
+    // Hue-scoped: luminance contrast alone ignores hue, and green or grey status inks at the sun's lightness are no amber.
+    const [sunHue] = hueSat(t["brand-sun"]!);
+    const near = Object.keys(t).filter((k) => /^(healthy|degraded|down|stopped|unknown)-(mark|ink|soft)$/.test(k)).filter((k) => {
+      const [h, sat] = hueSat(t[k]!);
+      return sat > 0.3 && Math.abs(h - sunHue) <= 30 && contrast(t[k]!, t["brand-sun"]!) < 1.3;
+    });
+    expect(near).toEqual([]);
   });
   it("surfaces step: bg ≠ sheet ≠ tray, card distinct from tray", () => {
     expect(new Set([t.bg, t.sheet, t.tray]).size).toBe(3);

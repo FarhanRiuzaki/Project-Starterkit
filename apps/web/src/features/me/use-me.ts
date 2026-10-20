@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/client/api";
-import type { MeDto } from "@/lib/shared/contracts/me";
+import type { MeDto } from "@starterkit/shared/contracts/me";
 import { ME_KEY } from "@/lib/shared/queries";
 
 export { ME_KEY };

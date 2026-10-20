@@ -1,6 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { AUTH_STATE } from "./global-setup";
-import { collectErrors, heading, settleAnimations } from "./helpers";
+import { collectErrors, heading, settleAnimations, withIds } from "./helpers";
 
 /**
  * Motion end to end (AGENTS.md §8, design-system §7): a client navigation runs the page transition; under reduced
@@ -146,11 +146,11 @@ for (const reducedMotion of ["no-preference", "reduce"] as const) {
 test.describe("console", () => {
   test.use({ storageState: AUTH_STATE });
 
-  test("no console error or page error on any screen, loaded or navigated to", async ({ page }) => {
+  test("no console error or page error on any screen, loaded or navigated to", async ({ page, baseURL }) => {
     const errors = collectErrors(page);
-    for (const p of ["/", "/users", "/users/u-002", "/users/u-002/edit", "/users/new", "/roles", "/roles/role-admin", "/permissions",
+    for (const p of ["/", "/users", "/users/{admin}", "/users/{admin}/edit", "/users/new", "/roles", "/roles/{adminRole}", "/permissions",
       "/audit/activity", "/audit/auth", "/me", "/me/security", "/me/sessions", "/ds"]) {
-      await page.goto(p);
+      await page.goto(await withIds(p, baseURL));
       await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
       await page.waitForLoadState("networkidle");
     }

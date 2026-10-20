@@ -1,0 +1,95 @@
+# The stack as it runs in production: PostgreSQL 18, one-shot migrations, the API (reachable only inside the compose
+# network) and the web on http://localhost:3001 (never :3000, the dev server's port).
+#   cp .env.compose.example .env.compose   # then replace every change-me and fill the secrets
+#   docker compose --env-file .env.compose up -d --build   # migrate also seeds the first Superadmin (SEED_SUPERADMIN_*)
+#   docker compose --env-file .env.compose down
+# Every compose command needs `--env-file .env.compose`: the values are interpolated into each service's own
+# allow-list below, so a service sees only the keys it names. A required key that is unset or empty stops compose.
+name: starterkit
+
+services:
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_DB: starterkit
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set in .env.compose}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?set in .env.compose}
+    volumes:
+      - pgdata:/var/lib/postgresql
+      # Runs once, when the volume is new: creates the app role of DATABASE_URL (DML only).
+      - ./scripts/compose-app-role.sh:/docker-entrypoint-initdb.d/app-role.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d starterkit"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  # Applies pending migrations as the schema owner (MIGRATION_DATABASE_URL), then the system seed through the same URL
+  # (catalog, system roles; idempotent: an existing role is left as it is; the SEED_SUPERADMIN_* user only while no
+  # active Superadmin exists, so the first Superadmin is created once and later runs leave users alone), then exits.
+  # Neither needs the server's secrets (kernel/db.ts reads only the pool keys).
+  migrate:
+    build: { context: ., dockerfile: apps/api/Dockerfile }
+    image: starterkit-api:local
+    command: ["sh", "-c", "bun run db:migrate && bun run db:seed"]
+    environment:
+      MIGRATION_DATABASE_URL: ${MIGRATION_DATABASE_URL:?set in .env.compose}
+      DATABASE_URL: ${DATABASE_URL:?set in .env.compose}
+      SEED_SUPERADMIN_NAME: ${SEED_SUPERADMIN_NAME:-}
+      SEED_SUPERADMIN_EMAIL: ${SEED_SUPERADMIN_EMAIL:-}
+      SEED_SUPERADMIN_USERNAME: ${SEED_SUPERADMIN_USERNAME:-}
+      SEED_SUPERADMIN_PASSWORD: ${SEED_SUPERADMIN_PASSWORD:-}
+    depends_on:
+      postgres: { condition: service_healthy }
+    restart: "no"
+
+  api:
+    build: { context: ., dockerfile: apps/api/Dockerfile }
+    image: starterkit-api:local
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?set in .env.compose}
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:?set in .env.compose}
+      DATA_ENCRYPTION_KEY: ${DATA_ENCRYPTION_KEY:?set in .env.compose}
+      MAIL_TRANSPORT: ${MAIL_TRANSPORT:-smtp}
+      SMTP_URL: ${SMTP_URL:?set in .env.compose}
+      MAIL_FROM: ${MAIL_FROM:?set in .env.compose}
+      APP_URL: ${APP_URL:?set in .env.compose (the public origin, e.g. https://app.example.com)}
+      # Optional sign-in methods (apps/api/.env.example); empty = off.
+      LDAP_URL: ${LDAP_URL:-}
+      LDAP_BIND_DN: ${LDAP_BIND_DN:-}
+      LDAP_BIND_PASSWORD: ${LDAP_BIND_PASSWORD:-}
+      LDAP_BASE_DN: ${LDAP_BASE_DN:-}
+      LDAP_USER_FILTER: ${LDAP_USER_FILTER:-}
+      LDAP_STARTTLS: ${LDAP_STARTTLS:-}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      APPLE_CLIENT_ID: ${APPLE_CLIENT_ID:-}
+      APPLE_TEAM_ID: ${APPLE_TEAM_ID:-}
+      APPLE_KEY_ID: ${APPLE_KEY_ID:-}
+      APPLE_PRIVATE_KEY: ${APPLE_PRIVATE_KEY:-}
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    restart: unless-stopped
+
+  web:
+    build: { context: ., dockerfile: apps/web/Dockerfile }
+    image: starterkit-web:local
+    environment:
+      API_BASE_URL: http://api:4000
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:?set in .env.compose}
+      SESSION_SECRET: ${SESSION_SECRET:?set in .env.compose}
+      # Public origin users open (metadataBase); the web refuses to start in production without it.
+      APP_URL: ${APP_URL:?set in .env.compose (the public origin, e.g. https://app.example.com)}
+      # true once the site is served over HTTPS (behind a proxy: TRUSTED_PROXY=true too).
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      TRUSTED_PROXY: ${TRUSTED_PROXY:-}
+    ports:
+      - "3001:3000"
+    depends_on:
+      api: { condition: service_healthy }
+    restart: unless-stopped
+
+volumes:
+  pgdata:

@@ -1,196 +1,14 @@
-import { sealData } from "iron-session";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { z } from "zod";
-import { ERROR_CODES } from "@/lib/shared/contracts/common";
+import { describe, expect, it, vi } from "vitest";
 
 const SECRET = vi.hoisted(() => (process.env.SESSION_SECRET = "s".repeat(40)));
-/** The cookie jar behind the mocked `cookies()`: iron-session reads and writes `sk_session` here. */
-const jar = vi.hoisted(() => new Map<string, string>());
-vi.mock("next/headers", () => ({
-  cookies: async () => ({
-    get: (name: string) => (jar.has(name) ? { name, value: jar.get(name)! } : undefined),
-    set: (name: string, value: string) => void (value ? jar.set(name, value) : jar.delete(name)),
-  }),
-}));
 
-import { db, resetDb } from "./mock/db";
-import { signInAs, TEST_CSRF } from "@/test/session";
-import { apiError, clientIp, handleError, json, sameOrigin, tooManyAttempts, withPermission } from "./api";
-import { SESSION_COOKIE, sessionOptions } from "./session";
-
-const CSRF = TEST_CSRF;
-
-/** A signed-in browser: a store session for `username` plus the sealed cookie that points at it. */
-const signIn = (username: string, cookie?: Record<string, unknown>) => signInAs(jar, username, cookie);
-
-const req = (method = "GET", headers: Record<string, string> = {}) => new Request("http://c/api/x", { method, headers });
-const ok = vi.fn(async () => json({ ok: true }));
-const body = async (r: Response) => (await r.json()) as { error: { code: string; message: string } };
-
-beforeEach(() => {
-  resetDb();
-  jar.clear();
-  ok.mockClear();
-});
-
-describe("withPermission", () => {
-  it("401 without session", async () => {
-    const r = await withPermission(req(), "user.view", ok);
-    expect(r.status).toBe(401);
-    expect((await body(r)).error.code).toBe("unauthenticated");
-    expect(ok).not.toHaveBeenCalled();
-  });
-
-  it("401 when sid was terminated in the store, and the cookie is cleared", async () => {
-    const { sid } = await signIn("admin");
-    db().sessions.delete(sid);
-    const r = await withPermission(req(), "user.view", ok);
-    expect(r.status).toBe(401);
-    expect(jar.has(SESSION_COOKIE)).toBe(false);
-    expect(ok).not.toHaveBeenCalled();
-  });
-
-  it("401 when the user was deactivated mid-session", async () => {
-    const { user } = await signIn("admin");
-    expect((await withPermission(req(), "user.view", ok)).status).toBe(200);
-    user.isActive = false;
-    const r = await withPermission(req(), "user.view", ok);
-    expect(r.status).toBe(401);
-    expect(jar.has(SESSION_COOKIE)).toBe(false);
-  });
-
-  it("401 for a session still waiting for its second factor", async () => {
-    await signIn("twofa", { pending2fa: { userId: "u-004", method: "password" } });
-    expect((await withPermission(req(), null, ok)).status).toBe(401);
-    jar.set(SESSION_COOKIE, await sealData({ pending2fa: { userId: "u-004", method: "password" } }, { password: SECRET, ttl: 3600 }));
-    expect((await withPermission(req(), null, ok)).status).toBe(401);
-    expect(ok).not.toHaveBeenCalled();
-  });
-
-  it("401 for a cookie sealed with another secret", async () => {
-    const { sid } = await signIn("admin");
-    jar.set(SESSION_COOKIE, await sealData({ sid, csrf: CSRF }, { password: "x".repeat(40), ttl: 3600 }));
-    expect((await withPermission(req(), "user.view", ok)).status).toBe(401);
-  });
-
-  it("403 csrf on POST without or with wrong x-csrf-token", async () => {
-    await signIn("admin");
-    for (const h of [{}, { "x-csrf-token": "wrong" }, { "x-csrf-token": CSRF.slice(1) + "d" }] as Record<string, string>[]) {
-      for (const m of ["POST", "PATCH", "PUT", "DELETE"]) {
-        const r = await withPermission(req(m, h), "user.edit", ok);
-        expect(r.status, `${m} ${JSON.stringify(h)}`).toBe(403);
-        expect((await body(r)).error.code).toBe("csrf");
-      }
-    }
-    expect(ok).not.toHaveBeenCalled();
-    expect((await withPermission(req("POST", { "x-csrf-token": CSRF }), "user.edit", ok)).status).toBe(200);
-  });
-
-  it("401 comes before csrf: no session and no token is unauthenticated", async () => {
-    expect((await body(await withPermission(req("POST"), "user.edit", ok))).error.code).toBe("unauthenticated");
-  });
-
-  it("403 forbidden when permission missing, handler not called", async () => {
-    await signIn("viewer");
-    const r = await withPermission(req("POST", { "x-csrf-token": CSRF }), "user.create", ok);
-    expect(r.status).toBe(403);
-    expect((await body(r)).error.code).toBe("forbidden");
-    expect(ok).not.toHaveBeenCalled();
-  });
-
-  it("csrf is checked before the permission (a viewer's tokenless POST is csrf, not forbidden)", async () => {
-    await signIn("viewer");
-    expect((await body(await withPermission(req("POST"), "user.create", ok))).error.code).toBe("csrf");
-  });
-
-  it("permission removed from role takes effect on next request", async () => {
-    await signIn("admin");
-    expect((await withPermission(req(), "user.view", ok)).status).toBe(200);
-    const role = db().roles.get("role-admin")!;
-    role.permissions = role.permissions.filter((p) => p !== "user.view");
-    expect((await withPermission(req(), "user.view", ok)).status).toBe(403);
-  });
-
-  it("null permission = signed in is enough; the handler gets the user, sid and permissions", async () => {
-    const { user, sid } = await signIn("viewer");
-    let seen: unknown;
-    const r = await withPermission(req(), null, async (ctx) => {
-      seen = { id: ctx.user.id, sid: ctx.sid, edit: ctx.perms.has("user.edit"), view: ctx.perms.has("user.view") };
-      return json({});
-    });
-    expect(r.status).toBe(200);
-    expect(seen).toEqual({ id: user.id, sid, edit: false, view: true });
-  });
-
-  it("handler errors do not leak messages", async () => {
-    await signIn("admin");
-    const r = await withPermission(req(), "user.view", async () => { throw new Error("db secret"); });
-    expect(r.status).toBe(500);
-    const b = await body(r);
-    expect(JSON.stringify(b)).not.toContain("db secret");
-    expect(ERROR_CODES).toContain(b.error.code);
-  });
-
-  it("each authenticated request stamps the store session's lastSeenAt; a 401 touches no session", async () => {
-    vi.useFakeTimers({ toFake: ["Date"] });
-    try {
-      vi.setSystemTime(new Date("2026-10-19T10:00:00.000Z"));
-      const { sid } = await signIn("viewer");
-      await withPermission(req(), null, ok);
-      expect(db().sessions.get(sid)!.lastSeenAt).toBe("2026-10-19T10:00:00.000Z");
-      vi.setSystemTime(new Date("2026-10-19T10:05:00.000Z"));
-      await withPermission(req(), "role.create", ok); // 403 forbidden still passed the session check
-      expect(db().sessions.get(sid)!.lastSeenAt).toBe("2026-10-19T10:05:00.000Z");
-      const before = JSON.stringify([...db().sessions.values()]);
-      jar.clear();
-      vi.setSystemTime(new Date("2026-10-19T10:10:00.000Z"));
-      expect((await withPermission(req(), null, ok)).status).toBe(401);
-      expect(JSON.stringify([...db().sessions.values()])).toBe(before);
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-});
-
-describe("session lifetime (SESSION_TTL_HOURS absolute, SESSION_IDLE_MINUTES idle)", () => {
-  const T0 = Date.parse("2026-10-19T10:00:00.000Z");
-  const MIN = 60_000;
-  const at = async (ms: number) => { vi.setSystemTime(T0 + ms); return (await withPermission(req(), null, ok)).status; };
-  beforeEach(() => vi.useFakeTimers({ toFake: ["Date"], now: T0 }));
-  afterEach(() => vi.useRealTimers());
-
-  it("an active session still ends 12 hours after sign-in: 401 and the store record is removed", async () => {
-    const { sid } = await signIn("admin");
-    expect(db().sessions.get(sid)!.expiresAt).toBe(new Date(T0 + 12 * 60 * MIN).toISOString());
-    for (let m = 60; m < 12 * 60; m += 60) expect(await at(m * MIN)).toBe(200);
-    expect(await at(12 * 60 * MIN - 1)).toBe(200);
-    expect(await at(12 * 60 * MIN)).toBe(401);
-    expect(db().sessions.has(sid)).toBe(false);
-  });
-
-  it("a session ends after 120 minutes without a request: 401 and the record is removed", async () => {
-    const { sid } = await signIn("admin");
-    expect(await at(120 * MIN)).toBe(200); // exactly the limit still counts
-    expect(await at(240 * MIN + 1)).toBe(401);
-    expect(db().sessions.has(sid)).toBe(false);
-  });
-
-  it("lastSeenAt is written at most once per minute", async () => {
-    const { sid } = await signIn("admin");
-    const seen = () => db().sessions.get(sid)!.lastSeenAt;
-    await at(30_000);
-    expect(seen()).toBe(new Date(T0).toISOString());
-    await at(60_000);
-    expect(seen()).toBe(new Date(T0 + 60_000).toISOString());
-    await at(90_000);
-    expect(seen()).toBe(new Date(T0 + 60_000).toISOString());
-  });
-});
+import { apiError, clientIp, json, sameOrigin } from "./api";
+import { sessionOptions } from "./session";
 
 describe("session cookie", () => {
   it("httpOnly, sameSite strict, secure follows COOKIE_SECURE, ttl = hours × 3600", () => {
     for (const secure of [true, false]) {
-      const o = sessionOptions({ SESSION_SECRET: SECRET, SESSION_TTL_HOURS: 5, SESSION_IDLE_MINUTES: 120, COOKIE_SECURE: secure });
+      const o = sessionOptions({ SESSION_SECRET: SECRET, SESSION_TTL_HOURS: 5, COOKIE_SECURE: secure, API_BASE_URL: "http://a", INTERNAL_API_TOKEN: "t".repeat(32), APP_URL: "http://w", OAUTH_MOCK: false });
       expect(o).toMatchObject({ cookieName: "sk_session", ttl: 5 * 3600, cookieOptions: { httpOnly: true, sameSite: "strict", secure, path: "/" } });
     }
   });
@@ -204,19 +22,9 @@ describe("responses", () => {
     expect(await r.json()).toEqual({ error: { code: "not_found", message: "No such user." } });
     expect(json({}).headers.get("Cache-Control")).toBe("no-store");
   });
-
-  it("handleError: zod error → 400 bad_request, anything else → generic 500", async () => {
-    const e = z.string().safeParse(1).error!;
-    const bad = handleError(e);
-    expect(bad.status).toBe(400);
-    expect((await body(bad)).error.code).toBe("bad_request");
-    const r = handleError(new Error("detail internal"));
-    expect(r.status).toBe(500);
-    expect(JSON.stringify(await r.json())).not.toContain("detail internal");
-  });
 });
 
-describe("clientIp (rate-limit key)", () => {
+describe("clientIp (sent to the API as X-Client-Ip)", () => {
   const r = (h: Record<string, string>) => new Request("http://c/api/auth/login", { headers: h });
   it("X-Forwarded-For is client-controlled and ignored without TRUSTED_PROXY: one shared bucket", () => {
     expect(clientIp(r({ "x-forwarded-for": "9.9.9.9" }), false)).toBe("unknown");
@@ -225,22 +33,29 @@ describe("clientIp (rate-limit key)", () => {
   it("TRUSTED_PROXY: the right-most XFF hop (what the trusted proxy saw), not a client-chosen first value", () => {
     expect(clientIp(r({ "x-forwarded-for": "6.6.6.6, 10.190.7.31" }), true)).toBe("10.190.7.31");
   });
-  it("429 carries Retry-After", () => {
-    const res = tooManyAttempts(8, "Too many attempts. Try again in 8 seconds.");
-    expect(res.status).toBe(429);
-    expect(res.headers.get("Retry-After")).toBe("8");
-  });
 });
 
-describe("sameOrigin behind a proxy that rewrites Host", () => {
-  const at = (headers: Record<string, string>) => new Request("http://127.0.0.1:3000/api/auth/login", { method: "POST", headers });
+describe("sameOrigin", () => {
+  // The standalone server binds HOSTNAME=0.0.0.0, so the request URL names the bind address, never the site.
+  const at = (headers: Record<string, string>) => new Request("http://0.0.0.0:3000/api/auth/login", { method: "POST", headers });
+  const APP = "http://localhost:3001";
 
-  it("X-Forwarded-Host (and -Proto) count only when TRUSTED_PROXY=true", () => {
+  it("Sec-Fetch-Site same-origin or none passes; else the Origin must be APP_URL's origin, whatever the request URL says", () => {
+    expect(sameOrigin(at({ "sec-fetch-site": "same-origin" }), false, APP)).toBe(true);
+    expect(sameOrigin(at({ "sec-fetch-site": "none" }), false, APP)).toBe(true);
+    expect(sameOrigin(at({ origin: APP }), false, APP)).toBe(true); // a client that sends no Sec-Fetch-Site
+    expect(sameOrigin(at({ origin: APP }), false, `${APP}/`)).toBe(true);
+    expect(sameOrigin(at({ origin: "http://0.0.0.0:3000" }), false, APP)).toBe(false); // the bind address isn't the site
+    expect(sameOrigin(at({ origin: "https://evil.example" }), false, APP)).toBe(false);
+    expect(sameOrigin(at({ "sec-fetch-site": "cross-site", origin: "https://evil.example" }), false, APP)).toBe(false);
+    expect(sameOrigin(at({}), false, APP)).toBe(false);
+  });
+
+  it("behind a proxy (TRUSTED_PROXY=true) X-Forwarded-Host (and -Proto) name the origin too; without it they are ignored", () => {
     const proxied = { origin: "https://app.example.com", "x-forwarded-host": "app.example.com", "x-forwarded-proto": "https" };
-    expect(sameOrigin(at(proxied), true)).toBe(true);
-    expect(sameOrigin(at(proxied), false)).toBe(false);
-    expect(sameOrigin(at({ origin: "https://evil.example", "x-forwarded-host": "app.example.com", "x-forwarded-proto": "https" }), true)).toBe(false);
-    expect(sameOrigin(at({ origin: "http://127.0.0.1:3000" }), false)).toBe(true);
-    expect(sameOrigin(at({ origin: "http://127.0.0.1:3000" }), true)).toBe(true); // no forwarded host: the request URL
+    expect(sameOrigin(at(proxied), true, APP)).toBe(true);
+    expect(sameOrigin(at(proxied), false, APP)).toBe(false);
+    expect(sameOrigin(at({ origin: "https://evil.example", "x-forwarded-host": "app.example.com", "x-forwarded-proto": "https" }), true, APP)).toBe(false);
+    expect(sameOrigin(at({ origin: APP }), true, APP)).toBe(true); // no forwarded host: APP_URL
   });
 });

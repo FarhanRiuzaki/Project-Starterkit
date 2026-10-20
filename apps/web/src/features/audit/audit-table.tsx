@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { type ReactNode, useCallback, useId, useState } from "react";
-import { BlockedButton, type Column, DataTable, type LegendItem, Notice, Panel, QueryInput, RelativeTime, TimeRangePicker, Toolbar } from "@starterkit/ui/ds";
+import { BlockedButton, type Column, DataTable, type LegendItem, Notice, Panel, QueryInput, RelativeTime, TimeRangePicker, Toolbar, ToolbarFilters } from "@starterkit/ui/ds";
 import { APP_TIME_ZONE_LABEL, appDayStart, formatDateTimeLong, formatDate, formatNumber } from "@starterkit/ui/lib/format";
 import { Button } from "@starterkit/ui/ui/button";
 import { Icon, type IconData } from "@starterkit/ui/ui/icon";
@@ -12,7 +12,7 @@ import { toast } from "@starterkit/ui/ui/toast";
 import { PageHeader } from "@/components/shell/page-header";
 import { download, errorText } from "@/lib/client/api";
 import { useTableQuery } from "@/lib/client/use-table-query";
-import { AUDIT_RANGES, CSV_MAX_ROWS, MAX_RANGE_DAYS, RANGE_LABEL, rangeProblem } from "@/lib/shared/audit";
+import { AUDIT_RANGES, CSV_MAX_ROWS, MAX_RANGE_DAYS, RANGE_LABEL, rangeProblem } from "@starterkit/shared/audit";
 import { type AuditFilters, customRange, type TableDef } from "@/lib/shared/queries";
 import type { FilterParser, TableState } from "@/lib/shared/table-state";
 
@@ -65,7 +65,7 @@ function CustomRange({ from, to, onCommit }: { from: string; to: string; onCommi
 
 /** Time column cell: relative, with the absolute time under it. */
 export const timeCell = (at: string) => (
-  <span className="grid"><RelativeTime at={Date.parse(at)} /><span className="font-mono text-caption text-fg-3">{formatDateTimeLong(Date.parse(at))}</span></span>
+  <span className="grid"><RelativeTime at={Date.parse(at)} touchDate={false} /><span className="font-mono text-caption text-fg-3">{formatDateTimeLong(Date.parse(at))}</span></span>
 );
 
 const day = (d: string) => formatDate(appDayStart(d));
@@ -133,11 +133,14 @@ export function AuditTable<T extends { id: string; at: string }, F extends Audit
           <Icon icon={ExportIcon} />{exporting ? "Exporting…" : "Export CSV"}
         </BlockedButton>
       </>}>
-        <div className="w-full max-w-80"><QueryInput value={f.user} onChange={onUser} keys={[]} label="Search by user" placeholder="Search by user name or email" /></div>
-        {filters(f, set)}
-        {narrowed.length > 0 && <Button variant="ghost" size="sm" onClick={clear}>Clear filters</Button>}
-        {/* Keyed by the preset: picking another one drops a half-filled custom pair and its hint. */}
-        <CustomRange key={f.range} from={f.from} to={f.to} onCommit={(from, to) => set({ from, to } as Partial<TableState<F>>)} />
+        <div className="w-full max-w-80 max-md:max-w-none"><QueryInput value={f.user} onChange={onUser} keys={[]} label="Search by user" placeholder="Search by user name or email" /></div>
+        {/* Phone: in the Filters sheet; its count = the log's own filters + a custom date range. */}
+        <ToolbarFilters active={narrowed.filter(([k]) => k !== "user").length + (custom ? 1 : 0)}>
+          {filters(f, set)}
+          {narrowed.length > 0 && <Button variant="ghost" size="sm" onClick={clear}>Clear filters</Button>}
+          {/* Keyed by the preset: picking another one drops a half-filled custom pair and its hint. */}
+          <CustomRange key={f.range} from={f.from} to={f.to} onCommit={(from, to) => set({ from, to } as Partial<TableState<F>>)} />
+        </ToolbarFilters>
       </Toolbar>
       <Panel flush icon={icon} title={title} legend={legend} count={t.count}
         description={`${custom ? rangeText(custom) : RANGE_LABEL[f.range]} · times in ${APP_TIME_ZONE_LABEL}`}

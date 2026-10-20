@@ -12,6 +12,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Icon } from "@starterkit/ui/ui/icon";
 import { CheckIcon, RefreshIcon, SessionsIcon } from "@starterkit/ui/ui/icons";
 import { Skeleton } from "@starterkit/ui/ui/skeleton";
+import { useScrollsX } from "@starterkit/ui/ui/table";
 import { toast } from "@starterkit/ui/ui/toast";
 
 type Spring = { stiffness: number; damping: number; mass: number };
@@ -49,6 +50,7 @@ export const PATTERNS: readonly Pattern[] = [
 /** Rules-only rows: patterns that have no replay demo here (they live on real surfaces), so the table is the full inventory. */
 export const RULES_ONLY: readonly Pattern[] = [
   { id: "tooltip", name: "tooltip", layer: "CSS", duration: inOut(OVERLAY_MOTION.tooltip), reduced: REDUCED_FADE, use: "Labels of icon buttons and blocked actions; opens after 300 ms" },
+  { id: "drawer", name: "drawer and bottom sheet", layer: "CSS", duration: `${inOut(OVERLAY_MOTION.drawer)}; scrim ${inOut(OVERLAY_MOTION.scrim)}`, reduced: `${REDUCED_FADE}, no slide`, use: "Phone navigation drawer from the left; below 768 px a dialog rises from the bottom as a sheet (dialog tokens)" },
   { id: "tab-reveal", name: "tab and sign-in step reveal", layer: "CSS", duration: fmtMs(DUR.enter), reduced: REDUCED_FADE, use: "A tab panel or a sign-in step appearing; the reveal, not a slide" },
   { id: "card-lift", name: "card lift", layer: "CSS", duration: fmtMs(DUR.fast), reduced: "No lift", use: "Hover and press on clickable cards" },
   { id: "page-swap", name: "page exit", layer: "Motion", duration: `${fmtMs(DUR.exit)} out · ${fmtMs(DUR.page)} in`, reduced: REDUCED_FADE, use: "Route change once the deferred layer has loaded; the old page fades out without moving" },
@@ -270,6 +272,7 @@ function TokenRows({ rows }: { rows: readonly (readonly [string, string])[] }) {
 
 /** The /ds Motion section: tokens rendered from code, replayable patterns, the rules, and a reduced-motion preview. */
 export function MotionSection() {
+  const [rulesBox, rulesScroll] = useScrollsX<HTMLDivElement>();
   const [preview, setPreview] = useState<"off" | "reduced">("off");
   return (
     <section data-motion-section="" data-motion-preview={preview === "reduced" ? "reduced" : undefined} aria-labelledby="motion-title" className="grid gap-section">
@@ -286,7 +289,7 @@ export function MotionSection() {
         </div>
       </div>
       <div className="grid grid-cols-12 gap-gutter">
-        <Panel title="Tokens" description="Rendered from the constants in code" className="col-span-12" bodyClassName="grid grid-cols-3 gap-6">
+        <Panel title="Tokens" description="Rendered from the constants in code" className="col-span-12" bodyClassName="grid grid-cols-3 gap-6 max-md:grid-cols-1">
           <div className="grid content-start gap-1"><h3 className="eyebrow text-fg-3">Durations</h3><TokenRows rows={Object.entries(DUR).map(([k, v]) => [`--dur-${k}`, fmtMs(v)] as const)} /></div>
           <div className="grid content-start gap-1"><h3 className="eyebrow text-fg-3">Easings</h3><TokenRows rows={Object.entries(EASE).map(([k, v]) => [`--ease-${k}`, fmtEase(v)] as const)} /></div>
           <div className="grid content-start gap-1"><h3 className="eyebrow text-fg-3">Springs</h3>
@@ -294,13 +297,14 @@ export function MotionSection() {
           </div>
         </Panel>
         <Panel title="Patterns" description="Replay re-runs the pattern" className="col-span-12">
-          <ul aria-label="Motion patterns" className="grid grid-cols-3 gap-3">
+          <ul aria-label="Motion patterns" className="grid grid-cols-3 gap-3 max-md:grid-cols-1">
             <PageEnterDemo /><StaggerDemo /><RevealDemo /><DialogDemo /><MenuDemo /><ToastDemo /><BadgePopDemo /><ChipChangeDemo />
             <NewRowDemo /><NumberTweenDemo /><IndicatorDemo /><SidebarWidthDemo /><CopyCheckDemo /><DisclosureDemo />
           </ul>
         </Panel>
         <Panel title="When to use which" description="Transform and opacity only; native details animate height" className="col-span-12" flush>
-          <table aria-label="Motion rules" className="w-full text-body-sm">
+          {/* Scrolls inside the card below 768 px until the stacked layout (Task 20). */}
+          <div ref={rulesBox} className="overflow-x-auto" {...(rulesScroll ? { tabIndex: 0, role: "region", "aria-label": "Motion rules" } : {})}><table aria-label="Motion rules" className="w-full text-body-sm">
             <thead>
               <tr className="text-left text-label text-fg-3">
                 <th scope="col" className="px-4 py-2 font-medium">Pattern</th><th scope="col" className="px-4 py-2 font-medium">Layer</th>
@@ -317,7 +321,7 @@ export function MotionSection() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         </Panel>
       </div>
     </section>

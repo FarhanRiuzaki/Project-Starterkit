@@ -91,6 +91,8 @@ describe("tableView (what a server table shows; no flicker)", () => {
   const page = (items: string[], total = 40, totalCapped = false) => ({ items, total, page: 1, pageSize: 15, totalCapped });
   const base = { isPending: false, isPlaceholderData: false, isFetching: false, error: null as unknown };
   it("first load: loading, nothing to count yet", () => {
+    // disabled query, nothing cached: idle, so no permanent skeleton
+    expect(tableView({ ...base, isPending: true, fetchStatus: "idle" }, 1)).toMatchObject({ rows: [], loading: false });
     expect(tableView({ ...base, isPending: true, isFetching: true }, 1)).toMatchObject({ rows: [], loading: true, busy: false, count: undefined });
   });
   it("next page or sort loading: the previous rows stay, dimmed busy, never back to the skeleton", () => {

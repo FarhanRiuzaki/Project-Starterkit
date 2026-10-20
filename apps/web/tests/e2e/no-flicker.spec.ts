@@ -2,6 +2,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { expect, type Page, test } from "@playwright/test";
 import { AUTH_STATE, SCRATCH } from "./global-setup";
+import { demoIds, withIds } from "./helpers";
 
 /**
  * No flicker (spec "Tanpa flicker", AGENTS.md §8). A probe installed before any page script records every interval in
@@ -23,12 +24,12 @@ const CLS_MAX = 0.01;
 const OUT = SCRATCH;
 const STATE = AUTH_STATE;
 
-/** Each page and a string only its loaded data renders into the server HTML. */
+/** Each page and a string only its loaded data renders into the server HTML (`{name}` = a demo id, helpers.ts demoIds). */
 const PAGES = [
   { path: "/", filled: 'data-slot="stat-tile"' },
-  { path: "/users", filled: 'href="/users/u-002"' },
-  { path: "/users/u-002", filled: "Effective permissions" },
-  { path: "/roles", filled: 'href="/roles/role-viewer"' },
+  { path: "/users", filled: 'href="/users/{admin}"' },
+  { path: "/users/{admin}", filled: "Effective permissions" },
+  { path: "/roles", filled: 'href="/roles/{viewerRole}"' },
   { path: "/audit/activity", filled: "View entry" },
   { path: "/me", filled: 'id="me-username"' },
 ] as const;
@@ -150,15 +151,16 @@ for (const mode of [{ name: "light", colorScheme: "light", reducedMotion: "no-pr
     test.use({ storageState: STATE, colorScheme: mode.colorScheme, reducedMotion: mode.reducedMotion });
 
     for (const p of PAGES) {
-      test(`${p.path} renders filled on first paint: no flash, no shift, no /api read`, async ({ page }) => {
+      test(`${p.path} renders filled on first paint: no flash, no shift, no /api read`, async ({ page, baseURL }) => {
+        const filled = await withIds(p.filled, baseURL);
         await page.addInitScript(installProbe);
         const api: string[] = [];
         page.on("request", (r) => { if (new URL(r.url()).pathname.startsWith("/api/")) api.push(`${r.method()} ${r.url()}`); });
-        const res = await page.goto(p.path);
+        const res = await page.goto(await withIds(p.path, baseURL));
         const html = await res!.text();
         const m = await settle(page);
-        save(`load ${mode.name} ${p.path}`, { cls: cls(m.shifts), intervals: m.intervals, gaps: m.gaps, api, filledInHtml: html.includes(p.filled) });
-        expect(html, "the server HTML carries the page's data").toContain(p.filled);
+        save(`load ${mode.name} ${p.path}`, { cls: cls(m.shifts), intervals: m.intervals, gaps: m.gaps, api, filledInHtml: html.includes(filled) });
+        expect(html, "the server HTML carries the page's data").toContain(filled);
         expect(flashes(m.intervals), "loading states shown for 1–300 ms").toEqual([]);
         expect(blank(m.gaps), "blank page region longer than a frame, not under a fade").toEqual([]);
         expect(m.doubled, "frames with the old page doubled (frozen copy over a leaving page)").toBe(0);
@@ -172,8 +174,12 @@ for (const mode of [{ name: "light", colorScheme: "light", reducedMotion: "no-pr
 
 test.describe("client navigation and table changes", () => {
   test.use({ storageState: STATE });
+  /** The navigations below click the sidebar ("Menu"): desktop only; a phone has it in the drawer (responsive.spec). */
+  const PHONE = "sidebar navigation: a phone has the drawer (responsive.spec)";
 
-  test("fast client-side navigation between pages: no flash, no shift, no /api read", async ({ page }) => {
+  test("fast client-side navigation between pages: no flash, no shift, no /api read", async ({ page, baseURL }) => {
+    test.skip(!!test.info().project.use.isMobile, PHONE);
+    const { admin } = await demoIds(baseURL);
     await page.addInitScript(installProbe);
     await page.goto("/");
     await settle(page);
@@ -187,7 +193,7 @@ test.describe("client navigation and table changes", () => {
       await expect(page.getByRole("heading", { level: 1, name: title })).toBeVisible();
     };
     await go(() => menu.getByRole("link", { name: "Users" }).click(), "Users");
-    await go(() => page.locator('a[href="/users/u-002"]').first().click(), "Admin User");
+    await go(() => page.locator(`a[href="/users/${admin}"]`).first().click(), "Admin User");
     await go(() => menu.getByRole("link", { name: "Roles" }).click(), "Roles");
     await go(() => menu.getByRole("link", { name: "Activity log" }).click(), "Activity log");
     await go(() => menu.getByRole("link", { name: "Profile" }).click(), "Profile");
@@ -207,6 +213,7 @@ test.describe("client navigation and table changes", () => {
   });
 
   test("chained navigation within 150 ms: the copy of the first page stays up, no gap, no flash", async ({ page }) => {
+    test.skip(!!test.info().project.use.isMobile, PHONE);
     await page.addInitScript(installProbe);
     await page.route("**/*", async (route) => {
       const h = route.request().headers();
@@ -231,6 +238,7 @@ test.describe("client navigation and table changes", () => {
   });
 
   test("navigating from a scrolled page: the copy stands exactly where the old page was on screen", async ({ page }) => {
+    test.skip(!!test.info().project.use.isMobile, PHONE);
     await page.route("**/*", async (route) => {
       const h = route.request().headers();
       if (h.rsc === "1" && !h["next-router-prefetch"]) await new Promise((r) => setTimeout(r, 400));
@@ -258,6 +266,7 @@ test.describe("client navigation and table changes", () => {
   });
 
   test("revisiting a page after its cache went stale: the server's fresh data is used, no /api refetch", async ({ page }) => {
+    test.skip(!!test.info().project.use.isMobile, PHONE);
     test.setTimeout(60_000);
     await page.addInitScript(installProbe);
     await page.goto("/users");
@@ -280,7 +289,9 @@ test.describe("client navigation and table changes", () => {
 
   for (const reducedMotion of ["no-preference", "reduce"] as const) {
     for (const delay of [0, 250]) {
-      test(`same-segment navigation (${reducedMotion === "reduce" ? "reduced motion" : "motion"}, page payload +${delay} ms): no flash, no blank gap`, async ({ page }) => {
+      test(`same-segment navigation (${reducedMotion === "reduce" ? "reduced motion" : "motion"}, page payload +${delay} ms): no flash, no blank gap`, async ({ page, baseURL }) => {
+        test.skip(!!test.info().project.use.isMobile, PHONE);
+        const { admin } = await demoIds(baseURL);
         await page.emulateMedia({ reducedMotion });
         await page.addInitScript(installProbe);
         await page.route("**/*", async (route) => {
@@ -293,7 +304,7 @@ test.describe("client navigation and table changes", () => {
         await page.evaluate(() => { window.__flicker.intervals = []; window.__flicker.gaps = []; });
         const menu = page.getByRole("navigation", { name: "Menu" });
         const steps: [() => Promise<void>, string][] = [
-          [() => page.locator('a[href="/users/u-002"]').first().click(), "Admin User"], // users → users/[id]
+          [() => page.locator(`a[href="/users/${admin}"]`).first().click(), "Admin User"], // users → users/[id]
           [() => menu.getByRole("link", { name: "Profile" }).click(), "Profile"],
           [() => page.locator('a[href="/me/security"]').first().click(), "Security"], // me → me/security
           [() => menu.getByRole("link", { name: "Activity log" }).click(), "Activity log"],
@@ -316,6 +327,7 @@ test.describe("client navigation and table changes", () => {
 
   for (const delay of [100, 250, 600]) {
     test(`slow server (${delay} ms per page): the route loading shape shows only after 150 ms and then stays at least 300 ms`, async ({ page }) => {
+      test.skip(!!test.info().project.use.isMobile, PHONE);
       await page.addInitScript(installProbe);
       // Slows the page payload of each client navigation (not the prefetches) as a slow backend would.
       await page.route("**/*", async (route) => {
@@ -343,6 +355,7 @@ test.describe("client navigation and table changes", () => {
   }
 
   test("navigating again while a loading shape is held: no blank, no flash, no doubled page", async ({ page }) => {
+    test.skip(!!test.info().project.use.isMobile, PHONE);
     await page.addInitScript(installProbe);
     await page.route("**/*", async (route) => {
       const h = route.request().headers();
@@ -365,6 +378,7 @@ test.describe("client navigation and table changes", () => {
   });
 
   test("a chart chunk that fails to load takes down only its panel, which offers Reload page", async ({ page }) => {
+    test.skip(!!test.info().project.use.isMobile, PHONE);
     await page.addInitScript(installProbe);
     let hydrated = false;
     await page.route("**/_next/static/chunks/*.js", async (route) => {
@@ -388,6 +402,11 @@ test.describe("client navigation and table changes", () => {
     await expect(page.locator("svg.recharts-surface").first()).toBeVisible();
   });
 
+  /** Sort users by last sign-in: the column header, or on a phone (no header row) the Sort by select. */
+  const sortByLastSignIn = (page: Page) => (test.info().project.use.isMobile
+    ? page.getByLabel("Sort by").selectOption("lastLoginAt:asc")
+    : page.getByRole("button", { name: "Last sign-in" }).click());
+
   test("sort and page change keep the previous rows on screen, no flash", async ({ page }) => {
     await page.addInitScript(installProbe);
     await page.goto("/users");
@@ -397,10 +416,12 @@ test.describe("client navigation and table changes", () => {
     const before = await rows.count();
     // The list API answers after 250 ms, so there is a window in which the next rows are still loading.
     await page.route("**/api/users?*", async (r) => { await new Promise((x) => setTimeout(x, 250)); await r.continue(); });
-    const first = () => rows.first().innerText();
+    // The first row's identity (its user link), not its text: a relative time in the row ("1 min ago") can tick over
+    // between two reads and would look like a different row.
+    const first = () => rows.first().locator('a[href^="/users/"]').first().getAttribute("href");
 
     const page1 = await first();
-    await page.getByRole("button", { name: "Last sign-in" }).click();
+    await sortByLastSignIn(page);
     await expect(page).toHaveURL(/sort=lastLoginAt/);
     expect(await first(), "the previous rows stay while the sorted page loads").toBe(page1);
     expect(await rows.count()).toBe(before);
@@ -435,7 +456,7 @@ test.describe("client navigation and table changes", () => {
     });
     await page.evaluate(() => { window.__flicker.intervals = []; window.__flicker.gaps = []; });
     const table = page.getByRole("table", { name: "Users" });
-    await page.getByRole("button", { name: "Last sign-in" }).click();
+    await sortByLastSignIn(page);
     await expect(table, "busy feedback within the 150 ms delay plus a frame").toHaveAttribute("aria-busy", "true", { timeout: 450 });
     expect(await table.locator("tbody tr").count(), "the previous rows stay").toBe(15);
     expect(await page.locator('[data-slot="skeleton"]:visible').count(), "no skeleton").toBe(0);

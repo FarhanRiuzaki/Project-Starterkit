@@ -27,7 +27,8 @@ export function Panel({ title, description, actions, children, flush, className,
       {icon && <Icon icon={icon} className="size-4 shrink-0 text-fg-3" />}
       {title && <h2 className="text-title-2 text-fg">{title}</h2>}
       {count != null && <CountBadge inTray={variant === "tray"}>{count}</CountBadge>}
-      {description && <p className="text-body-sm text-fg-3"><span aria-hidden="true" className="mr-2 text-fg-4">·</span>{description}</p>}
+      {/* Phone: the description takes its own line under the title row, without the middot. */}
+      {description && <p className="text-body-sm text-fg-3 max-md:order-last max-md:basis-full"><span aria-hidden="true" className="mr-2 text-fg-4 max-md:hidden">·</span>{description}</p>}
       {(actions || legend) && <div className="ml-auto flex flex-wrap items-center gap-2">{actions}{legend && <StatusLegend items={legend} />}</div>}
     </header>
   );
@@ -45,7 +46,7 @@ export function Panel({ title, description, actions, children, flush, className,
     <section className={cn("flex min-w-0 flex-col rounded-xl border border-line bg-tray p-tray", className)}>
       {header}
       {cards ? <div className={cn("min-w-0 flex-1", bodyClassName)}>{children}</div> : (
-        <div className={cn("min-w-0 flex-1 rounded-lg border border-line bg-card shadow-card", flush ? "overflow-hidden" : "p-4", bodyClassName)}>{children}</div>
+        <div className={cn("min-w-0 flex-1 rounded-lg border border-line bg-card shadow-card", flush ? "overflow-clip" /* clip, not hidden: a sticky bar inside (bulk actions) sticks to the page */ : "p-4", bodyClassName)}>{children}</div>
       )}
       {foot}
     </section>

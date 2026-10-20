@@ -1,31 +1,29 @@
 import "server-only";
 import { getIronSession, type SessionOptions } from "iron-session";
-import { cookies } from "next/headers";
-import type { AuthMethod } from "@/lib/shared/contracts/auth";
-import type { PermissionName } from "@/lib/shared/permissions";
+import { cookies, headers } from "next/headers";
+import { cache } from "react";
+import type { AuthContextDto } from "@starterkit/shared/contracts/auth";
+import type { UserDto } from "@starterkit/shared/contracts/users";
+import type { PermissionName } from "@starterkit/shared/permissions";
+import { backend, backendJson } from "./backend";
 import { type Config, config } from "./config";
-import { db, type SessionRecord, type UserRecord } from "./mock/db";
-import { effectivePermissions } from "./mock/rules";
+import { newCsrfToken } from "./csrf";
 
 export const SESSION_COOKIE = "sk_session";
 
 /**
- * The sealed cookie holds only pointers: `sid` = key into db().sessions (user, device, IP, times live there),
- * `csrf` = mutation token, `pending2fa` = password passed, second factor not yet. Permissions are never stored here.
+ * The sealed cookie holds only `{ token, csrf }` (a full session: the API's session token and the mutation token) or
+ * `{ challenge, challengeAt }` (password passed at `challengeAt`, second factor due). The user, permissions and session times live in the API.
  */
-export type AppSession = { sid?: string; csrf?: string; pending2fa?: { userId: string; method: AuthMethod; at: number } };
+export type AppSession = { token?: string; csrf?: string; challenge?: string; challengeAt?: number };
 
-/** A password-passed sign-in waits this long for its second factor. */
+/** A password-passed sign-in waits this long for its second factor (the API's challenge lifetime). */
 export const PENDING_2FA_TTL_MS = 10 * 60_000;
 
-/** The pending second-factor step when it is still within PENDING_2FA_TTL_MS (`at` = when the password passed). */
-export function pending2faOf(s: AppSession, now = Date.now()): AppSession["pending2fa"] | null {
-  const p = s.pending2fa;
-  return p && now - p.at <= PENDING_2FA_TTL_MS ? p : null; // a missing `at` gives NaN: expired
+/** The cookie's pending second factor while it is under PENDING_2FA_TTL_MS old (`challengeAt` = when the password passed); else null. */
+export function pendingChallenge(s: AppSession, now = Date.now()): string | null {
+  return s.challenge && now - (s.challengeAt ?? NaN) <= PENDING_2FA_TTL_MS ? s.challenge : null; // no `challengeAt`: NaN, expired
 }
-
-/** The signed-in user of one request, read fresh from the store. */
-export type AuthCtx = { user: UserRecord; sid: string; perms: Set<PermissionName> };
 
 export function sessionOptions(c: Config = config()): SessionOptions {
   return {
@@ -40,43 +38,38 @@ export async function getSession() {
   return getIronSession<AppSession>(await cookies(), sessionOptions());
 }
 
-/** lastSeenAt is written at most this often (one store write per minute per session, not one per request). */
-export const LAST_SEEN_EVERY_MS = 60_000;
-
-/** A new store session (sign-in): lasts SESSION_TTL_HOURS from now at most. */
-export function newSessionRecord(id: string, userId: string, method: AuthMethod, origin: { device: string; ip: string }, now = Date.now(), c: Config = config()): SessionRecord {
-  const at = new Date(now).toISOString();
-  return { id, userId, method, ...origin, createdAt: at, lastSeenAt: at, expiresAt: new Date(now + c.SESSION_TTL_HOURS * 3_600_000).toISOString() };
-}
-
-/** Before its absolute end and seen within SESSION_IDLE_MINUTES. */
-export function sessionLive(rec: SessionRecord, now = Date.now(), c: Config = config()): boolean {
-  return now < Date.parse(rec.expiresAt) && now - Date.parse(rec.lastSeenAt) <= c.SESSION_IDLE_MINUTES * 60_000;
-}
-
-/** Drops ended sessions from the store; reads that list or count sessions call it first. */
-// ponytail: full scan per read, fine for the in-memory mock; a database expires rows with a WHERE on expires_at/last_seen_at.
-export function pruneSessions(now = Date.now()): void {
-  for (const [id, rec] of db().sessions) if (!sessionLive(rec, now)) db().sessions.delete(id);
-}
-
 /**
- * The user behind a session, or null: no sid or csrf, second factor still pending, the sid ended in the store
- * (sign-out, terminated), the session expired or went idle (its record is removed), or the user is gone or inactive.
- * A live session is marked seen (lastSeenAt, at most once per LAST_SEEN_EVERY_MS); every caller (API guard, page
- * guard, prefetch) goes through here, so any request keeps it alive. Permissions are computed from the current roles.
+ * The signed-in user and their permissions (catalog order) from `GET /v1/auth/context`, or null: no full session in
+ * the cookie, or the API answers 401 (ended, expired, idle, user gone or inactive; the cookie is then cleared where
+ * cookies can be written). Any other answer throws, so a down API shows the error page, not the sign-in page.
+ * Memoized per request (React.cache): the layout, the page guard and the title share one call.
  */
-export function authOf(s: AppSession, now = Date.now()): AuthCtx | null {
-  if (!s.sid || !s.csrf || s.pending2fa) return null;
-  const store = db();
-  const rec = store.sessions.get(s.sid);
-  if (!rec) return null;
-  if (!sessionLive(rec, now)) {
-    store.sessions.delete(rec.id);
+export const authContext = cache(async (): Promise<{ user: UserDto; perms: PermissionName[] } | null> => {
+  const s = await getSession();
+  if (!s.token || !s.csrf) return null;
+  const { status, data } = await backendJson<AuthContextDto>("/v1/auth/context", { token: s.token, req: { headers: await headers() } });
+  if (status === 401) {
+    try {
+      s.destroy();
+    } catch {
+      // A server component can't write cookies; the next /api call or sign-in replaces it.
+    }
     return null;
   }
-  const user = store.users.get(rec.userId);
-  if (!user?.isActive) return null;
-  if (now - Date.parse(rec.lastSeenAt) >= LAST_SEEN_EVERY_MS) rec.lastSeenAt = new Date(now).toISOString();
-  return { user, sid: s.sid, perms: effectivePermissions(user, store.roles) };
+  if (!data) throw new Error(`auth context answered ${status}`);
+  return { user: data.user, perms: data.permissions };
+});
+
+/**
+ * Stores a sign-in in the cookie: a full session (`token` + a new CSRF token) or a pending second factor
+ * (`challenge`). A session or pending sign-in the browser already held ends at the API first (best effort), so one
+ * browser holds one session.
+ */
+export async function storeSignIn(s: Awaited<ReturnType<typeof getSession>>, got: { token?: string; challenge?: string }, req: Request): Promise<void> {
+  if (s.token || s.challenge) await backend("/v1/auth/logout", { method: "POST", token: s.token, challenge: s.challenge, req });
+  s.token = got.token;
+  s.csrf = got.token ? newCsrfToken() : undefined;
+  s.challenge = got.challenge;
+  s.challengeAt = got.challenge ? Date.now() : undefined;
+  await s.save();
 }

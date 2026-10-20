@@ -39,6 +39,27 @@ test("OAuth: Continue with Google signs in as the connected seed user", async ({
   await expect(page.getByRole("button", { name: account("Google User") })).toBeVisible();
 });
 
+test("connect Google from /me/security shows the connected state and a toast", async ({ page }) => {
+  await page.goto("/api/auth/oauth/apple"); // Apple User, connected to Apple only
+  await expect(page).toHaveURL("/");
+  await page.goto("/me/security");
+  const google = page.getByRole("listitem").filter({ hasText: /^Google/ }); // not the toast ("Connected Google.")
+  await expect(google).toContainText("Not connected");
+  await google.getByRole("link", { name: "Connect Google" }).click(); // the mock provider's redirect round trip
+  await expect(page.getByText("Connected Google.")).toBeVisible();
+  await expect(page).toHaveURL("/me/security"); // the parameter is dropped once toasted
+  await expect(google).not.toContainText("Not connected");
+  await expect(google.getByRole("button", { name: "Disconnect Google" })).toBeVisible();
+});
+
+test("a failed Google/Apple sign-in shows its message once, then drops ?error= from the URL", async ({ page }) => {
+  await page.goto("/login?error=oauth&next=%2Fusers");
+  await expect(page.locator("#login-error")).toContainText("Google or Apple sign-in didn't complete."); // not Next's route announcer (also role=alert)
+  await expect(page).toHaveURL("/login?next=%2Fusers");
+  await page.reload();
+  await expect(page.locator("#login-error")).toHaveCount(0);
+});
+
 test("LDAP: directory username and directory password", async ({ page }) => {
   await signIn(page, "ldap", SEED.ldapPassword, "LDAP");
   await expect(page).toHaveURL("/");
@@ -55,4 +76,16 @@ test("sign out, then a signed-in page sends to sign-in with the page as next", a
   await page.goto("/users");
   await expect(page).toHaveURL("/login?next=%2Fusers");
   await heading(page, "Sign in");
+});
+
+test("signed out, the icons and the social image load (no sign-in redirect, CSP allows them)", async ({ page, request }) => {
+  for (const [p, type] of [["/icon.svg", "image/svg+xml"], ["/favicon.ico", "image/x-icon"], ["/apple-icon.png", "image/png"], ["/opengraph-image.png", "image/png"]]) {
+    const res = await request.get(p!, { maxRedirects: 0 });
+    expect(res.status(), p).toBe(200);
+    expect(res.headers()["content-type"], p).toContain(type);
+  }
+  await page.goto("/login");
+  await expect(page.locator('link[rel="icon"][href^="/icon.svg"]')).toHaveCount(1);
+  // metadataBase = APP_URL (playwright.config.ts): the social image URL is absolute on the site's origin.
+  await expect(page.locator('meta[property="og:image"]')).toHaveAttribute("content", /^http:\/\/localhost:\d+\/opengraph-image\.png/);
 });

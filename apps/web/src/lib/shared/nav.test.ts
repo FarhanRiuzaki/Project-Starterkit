@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { crumbs, isActive, NAV, navFor, pagePerm } from "./nav";
-import { PERMISSIONS } from "./permissions";
+import { PERMISSIONS } from "@starterkit/shared/permissions";
 
 const labels = (perms: Parameters<typeof navFor>[0]) => navFor(perms).flatMap((s) => s.items.map((i) => i.label));
 

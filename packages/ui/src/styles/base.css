@@ -3,7 +3,6 @@
 @theme inline {
   /* next/font variables from app/fonts.ts, set on <html> by both root layouts (layout.tsx, global-error.tsx). */
   --font-sans: var(--font-inter), "Inter Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-brand: var(--font-geist), "Geist Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: var(--font-geist-mono), "Geist Mono Variable", ui-monospace, "SFMono-Regular", Menlo, monospace;
 
   /* v3 surfaces, lines, ink */
@@ -94,11 +93,6 @@
   --text-body-sm: 13px;   --text-body-sm--line-height: 18px;
   --text-label: 12px;     --text-label--line-height: 16px;     --text-label--font-weight: 500;
   --text-caption: 11px;   --text-caption--line-height: 16px;   --text-caption--letter-spacing: 0.01em;
-  /* Brand wordmark, Geist via font-brand; -desc = the "Console" descriptor, 0.62 × the hero size. */
-  --text-wordmark-sm: 15px; --text-wordmark-sm--line-height: 1; --text-wordmark-sm--letter-spacing: -0.01em;  --text-wordmark-sm--font-weight: 640;
-  --text-wordmark-md: 26px; --text-wordmark-md--line-height: 1; --text-wordmark-md--letter-spacing: -0.03em;  --text-wordmark-md--font-weight: 620;
-  --text-wordmark-lg: 30px; --text-wordmark-lg--line-height: 1; --text-wordmark-lg--letter-spacing: -0.032em; --text-wordmark-lg--font-weight: 620;
-  --text-wordmark-desc: 19px; --text-wordmark-desc--line-height: 1; --text-wordmark-desc--letter-spacing: 0; --text-wordmark-desc--font-weight: 400;
   --text-mono: 12px;      --text-mono--line-height: 16px;
 
   /* motion easings (spec §7.1), same values as tokens.css (literal: a var() here would reference itself);
@@ -117,6 +111,18 @@
   body { @apply bg-bg text-body text-fg antialiased; font-feature-settings: "cv11" 0, "ss01" 0; font-variant-numeric: tabular-nums; }
   :focus-visible { @apply outline-2 outline-offset-2 outline-primary; }
   ::selection { @apply bg-primary-soft text-fg; }
+  /* Touch (design-system §0): under a coarse pointer every control gets a hit area of at least --touch-min (44 px)
+     without changing its drawn size: a transparent ::before centred on it (::after is taken by the tab underline and
+     chip buttons). A native checkbox or radio can't carry one, so its label does. Text fields and selects can't
+     either; they grow to 44 px instead. Position utilities win over the `relative` here (base layer). Checked by
+     tests/e2e/responsive.spec.ts "touch targets". */
+  @media (pointer: coarse) {
+    :where(button, [role="button"], [data-slot="button"], [role="tab"], [role="checkbox"], [role="radio"], [role="switch"], [role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"], [role="option"], summary, nav a, label:has(> input:is([type="checkbox"], [type="radio"]))) {
+      position: relative;
+      &::before { content: ""; position: absolute; top: 50%; left: 50%; width: max(100%, var(--touch-min)); height: max(100%, var(--touch-min)); transform: translate(-50%, -50%); }
+    }
+    :where(input:not([type="checkbox"], [type="radio"], [type="hidden"]), select, textarea) { min-height: var(--touch-min); }
+  }
   /* Spec §7.6: no translate, scale, spring or sweep; opacity fades stay, shortened to 100 ms. Keyframe enters
      swap to fade-in in their own utilities; tw-animate (menus, dialogs, tooltips) loses its scale/slide;
      looping indicators stop instead of spinning at 100 ms. An element without a transition of its own gets one for
@@ -145,6 +151,16 @@
   [data-motion-preview="reduced"] .skeleton-shimmer::after { display: none !important; }
   [data-motion-preview="reduced"] .card-lift:hover, [data-motion-preview="reduced"] .card-lift:active { transform: none !important; }
 }
+
+/* Touch: input text at 16 px or more, so iOS Safari doesn't zoom the page on focus. Unlayered, so it wins over the
+   type-scale utilities (text-body) the inputs carry; fine pointers keep the 14 px desktop size. */
+@media (pointer: coarse) { :is(input, select, textarea) { font-size: max(var(--text-input-touch), 1em); } }
+
+/* Safe-area insets (notch, home indicator; app/layout.tsx sets viewport-fit=cover): 0 where there is none. */
+@utility pt-safe { padding-top: env(safe-area-inset-top); }
+@utility pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+@utility pl-safe { padding-left: env(safe-area-inset-left); }
+@utility px-safe { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); }
 
 /* Native disclosures (R9): open and close animate block-size + opacity where the browser supports interpolate-size
    and ::details-content; elsewhere they are instant. The one height animation in the console, and it is native. */

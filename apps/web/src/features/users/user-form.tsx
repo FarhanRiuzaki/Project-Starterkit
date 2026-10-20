@@ -3,7 +3,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useState } from "react";
-import { Failure, Field, Panel } from "@starterkit/ui/ds";
+import { BlockedButton, Failure, Field, Notice, Panel } from "@starterkit/ui/ds";
 import { Button } from "@starterkit/ui/ui/button";
 import { Icon } from "@starterkit/ui/ui/icon";
 import { SpinnerIcon, UsersIcon } from "@starterkit/ui/ui/icons";
@@ -16,9 +16,9 @@ import { LoadingShape } from "@/components/route-skeleton";
 import { PageHeader } from "@/components/shell/page-header";
 import { api, errorText, isNotFound } from "@/lib/client/api";
 import { useAuth } from "@/lib/client/auth-context";
-import type { UserDto } from "@/lib/shared/contracts/users";
-import { BRAND } from "@/lib/shared/brand";
-import { USERS_KEY, useRoleNames, useUserDetail } from "./use-users";
+import type { UserDetailDto, UserDto } from "@starterkit/shared/contracts/users";
+import { BRAND } from "@starterkit/shared/brand";
+import { rankBlock, USERS_KEY, useRoleNames, useUserDetail } from "./use-users";
 import { useDebounced } from "@/lib/client/use-debounced";
 import { EDIT_USER_SHAPE } from "./shapes";
 
@@ -34,10 +34,10 @@ export function CreateUser() {
 }
 
 /** Create (no `user`) or edit one user. LDAP users have no password or invite; the LDAP choice is fixed after creation. */
-function UserForm({ user }: { user?: UserDto }) {
+function UserForm({ user }: { user?: UserDetailDto }) {
   const router = useRouter();
   const qc = useQueryClient();
-  const { user: me } = useAuth();
+  const { user: me, perms } = useAuth();
   const [roleText, setRoleText] = useState("");
   const roleTerm = useDebounced(roleText.trim());
   const roleNames = useRoleNames(roleTerm);
@@ -52,6 +52,8 @@ function UserForm({ user }: { user?: UserDto }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const self = !!user && user.id === me.id;
+  // Same rank rule as the list and detail: fields stay readable, nothing can be changed or saved.
+  const blocked = user ? rankBlock(user, perms) : null;
   // More roles than one page: type to search; the roles already picked stay listed first.
   const searchable = roleNames.more || roleTerm !== "";
   const shownRoles = searchable ? [...new Set([...roles, ...roleNames.names])] : roleNames.names;
@@ -59,6 +61,7 @@ function UserForm({ user }: { user?: UserDto }) {
 
   async function save(e: FormEvent) {
     e.preventDefault();
+    if (blocked) return;
     setBusy(true);
     setError(null);
     try {
@@ -69,7 +72,7 @@ function UserForm({ user }: { user?: UserDto }) {
       } else {
         const body = { name: name.trim(), username: username.trim(), email: email.trim(), roles, isActive, isLdap, ...(isLdap ? {} : how === "invite" ? { invite: true } : { password }) };
         const created = await api<UserDto>("/api/users", { method: "POST", body: JSON.stringify(body) });
-        toast(`Created ${created.name}.`, { description: !isLdap && how === "invite" ? "The set-password link was written to the server log (mock email)." : undefined });
+        toast(`Created ${created.name}.`, { description: !isLdap && how === "invite" ? `An invitation link was sent to ${created.email}. It works for 72 hours.` : undefined });
         id = created.id;
       }
       await qc.invalidateQueries({ queryKey: USERS_KEY });
@@ -84,7 +87,9 @@ function UserForm({ user }: { user?: UserDto }) {
 
   return (
     <Panel icon={UsersIcon} title={user ? "Edit user" : "New user"} description={user ? "Name, sign-in names, roles and status" : "They sign in with the method you choose below"}>
+      {blocked && <div className="mb-4"><Notice>{blocked}</Notice></div>}
       <form onSubmit={save} className="grid max-w-md gap-4">
+        <fieldset disabled={!!blocked} className="contents">
         <Field id="u-name" label="Name"><Input id="u-name" value={name} maxLength={100} required onChange={(e) => setName(e.target.value)} autoComplete="off" /></Field>
         <Field id="u-username" label="Username" note="3–32 characters: letters, numbers, dot, dash or underscore.">
           <Input id="u-username" value={username} minLength={3} maxLength={32} pattern="[a-zA-Z0-9._\-]+" required onChange={(e) => setUsername(e.target.value)} autoComplete="off" className="font-mono" />
@@ -109,7 +114,7 @@ function UserForm({ user }: { user?: UserDto }) {
           {self && <span className="text-caption text-fg-3">You can&apos;t change your own roles. Ask another administrator.</span>}
         </fieldset>
         <label className="flex items-center gap-2 text-body text-fg">
-          <input type="checkbox" className={CHECK} checked={isActive} disabled={self} onChange={(e) => setActive(e.target.checked)} />Active
+          <input type="checkbox" className={CHECK} checked={isActive} disabled={self} onChange={(e) => { setActive(e.target.checked); if (!e.target.checked) setHow("password"); }} />Active
           {self && <span className="text-caption text-fg-3">You can&apos;t deactivate your own account.</span>}
         </label>
         {!user && (
@@ -122,7 +127,10 @@ function UserForm({ user }: { user?: UserDto }) {
               <fieldset className="grid gap-2">
                 <legend className="mb-1.5 text-label text-fg">First sign-in</legend>
                 <label className="flex items-center gap-2 text-body text-fg"><input type="radio" name="how" className={CHECK} checked={how === "password"} onChange={() => setHow("password")} />Set a password now</label>
-                <label className="flex items-center gap-2 text-body text-fg"><input type="radio" name="how" className={CHECK} checked={how === "invite"} onChange={() => setHow("invite")} />Send an invitation link (valid 72 hours)</label>
+                <label className="flex items-center gap-2 text-body text-fg">
+                  <input type="radio" name="how" className={CHECK} checked={how === "invite"} disabled={!isActive} onChange={() => setHow("invite")} aria-describedby={isActive ? undefined : "u-invite-note"} />Send an invitation link (valid 72 hours)
+                </label>
+                {!isActive && <span id="u-invite-note" className="text-caption text-fg-3">An inactive user can&apos;t use an invitation. Set the user active to send one.</span>}
                 {how === "password" && (
                   <Field id="u-password" label="Password" note="At least 12 characters.">
                     <Input id="u-password" type="password" value={password} minLength={12} maxLength={128} required onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" />
@@ -132,9 +140,10 @@ function UserForm({ user }: { user?: UserDto }) {
             )}
           </>
         )}
+        </fieldset>
         {error && <p role="alert" className="text-body-sm text-down-ink">{error}</p>}
         <div className="flex items-center gap-3">
-          <Button type="submit" disabled={busy}>{busy && <Icon icon={SpinnerIcon} className="motion-safe:animate-spin" />}{user ? "Save user" : "Create user"}</Button>
+          <BlockedButton type="submit" reason={blocked} disabled={busy}>{busy && <Icon icon={SpinnerIcon} className="motion-safe:animate-spin" />}{user ? "Save user" : "Create user"}</BlockedButton>
           <Button type="button" variant="ghost" onClick={() => router.back()} disabled={busy}>Cancel</Button>
         </div>
       </form>

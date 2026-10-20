@@ -4,8 +4,8 @@ import { type Column, CopyValue, FilterMenu, StatusChip, Truncate } from "@start
 import { formatDateTimeLong } from "@starterkit/ui/lib/format";
 import type { Health } from "@starterkit/ui/lib/status";
 import { SessionsIcon } from "@starterkit/ui/ui/icons";
-import { AUTH_EVENTS, AUTH_METHODS, EVENT_LABEL, METHOD_LABEL } from "@/lib/shared/audit";
-import type { AuthLogDto } from "@/lib/shared/contracts/audit";
+import { AUTH_EVENTS, AUTH_METHODS, EVENT_LABEL, METHOD_LABEL } from "@starterkit/shared/audit";
+import type { AuthLogDto } from "@starterkit/shared/contracts/audit";
 import { AUTH_LOG, type AuthLogFilters } from "@/lib/shared/queries";
 import { AuditTable, timeCell } from "./audit-table";
 
@@ -24,16 +24,17 @@ const LEGEND = [
 ];
 const EventChip = ({ event }: { event: Event }) => <StatusChip health={HEALTH[event]} label={EVENT_LABEL[event]} />;
 
+/** Phone card: the sign-in name is the title, then event, time, method and IP; device and location are in the entry. */
 const COLUMNS: Column<AuthLogDto>[] = [
   { key: "at", header: "Time", sortable: true, cell: (r) => timeCell(r.at) },
-  { key: "login", header: "User", sortable: true, className: "min-w-48", cell: (r) => (
+  { key: "login", header: "User", sortable: true, className: "min-w-48", mobile: "title", cell: (r) => (
     <span className="grid max-w-64 min-w-0"><Truncate title={r.login}>{r.login}</Truncate>{!r.userId && <span className="text-caption text-fg-3">No matching user</span>}</span>
   ) },
   { key: "event", header: "Event", sortable: true, cell: (r) => <EventChip event={r.event} /> },
   { key: "method", header: "Method", cell: (r) => METHOD_LABEL[r.method] },
   { key: "ip", header: "IP", cell: (r) => <span className="font-mono">{r.ip}</span> },
-  { key: "device", header: "Device", cell: (r) => <span className="block max-w-48"><Truncate title={r.device}>{r.device}</Truncate></span> },
-  { key: "location", header: "Location", cell: (r) => r.location ?? "–" },
+  { key: "device", header: "Device", mobile: "hidden", cell: (r) => <span className="block max-w-48"><Truncate title={r.device}>{r.device}</Truncate></span> },
+  { key: "location", header: "Location", mobile: "hidden", cell: (r) => r.location ?? "–" },
 ];
 
 /** Sign-in log: sign-ins, failed attempts, one-time codes and sign-outs, with method, IP, device and location. */

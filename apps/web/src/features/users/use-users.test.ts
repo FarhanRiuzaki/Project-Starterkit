@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { PERMISSIONS, type PermissionName } from "@/lib/shared/permissions";
-import { protection, rankBlock, skipReason } from "./use-users";
+import { PERMISSIONS, type PermissionName } from "@starterkit/shared/permissions";
+import { ApiError } from "@/lib/client/api";
+import { protection, rankBlock, skipReason, userGone } from "./use-users";
 
 const ADMIN = new Set<PermissionName>(PERMISSIONS.filter((p) => !p.startsWith("role.") && !p.startsWith("permission.")));
 const row = (id: string, permissions: readonly PermissionName[]) => ({
@@ -25,5 +26,12 @@ describe("users: client mirror of the server's protection rules", () => {
   it("skipReason: every code the bulk route skips with has words; an unknown code never shows raw", () => {
     for (const c of ["self_action", "last_superadmin", "not_found", "forbidden", "bad_request"]) expect(skipReason(c)).not.toMatch(/_|^couldn't/);
     expect(skipReason("weird_code")).toBe("couldn't be changed");
+  });
+
+  it("userGone: sessions stay off once the detail answered 404 or this page deleted the user; other errors keep them on", () => {
+    expect(userGone(new ApiError(404, "not_found", "x"), false)).toBe(true);
+    expect(userGone(null, true)).toBe(true);
+    expect(userGone(new ApiError(500, "internal", "x"), false)).toBe(false);
+    expect(userGone(null, false)).toBe(false);
   });
 });

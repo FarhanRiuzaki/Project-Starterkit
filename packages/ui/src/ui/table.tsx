@@ -3,10 +3,35 @@
 import * as React from "react";
 import { cn } from "../lib/cn";
 
-/** Table (spec §5.7): header 40 px on the tray tint, rows --row-h (44 / compact 36), 1 px dividers, no zebra, no vertical rules. */
+/**
+ * True while the element is wider inside than its box (it scrolls sideways): such a box must be reachable by keyboard
+ * (a named, focusable region; axe scrollable-region-focusable), and only then, so a table that fits adds no tab stop.
+ */
+export function useScrollsX<T extends HTMLElement>(): [React.RefCallback<T>, boolean] {
+  const [el, setEl] = React.useState<T | null>(null);
+  const [scrolls, setScrolls] = React.useState(false);
+  React.useEffect(() => {
+    if (!el) return;
+    const check = () => setScrolls(el.scrollWidth > el.clientWidth);
+    check();
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(check);
+    ro.observe(el);
+    if (el.firstElementChild) ro.observe(el.firstElementChild);
+    return () => ro.disconnect();
+  }, [el]);
+  return [setEl, scrolls];
+}
+
+/**
+ * Table (spec §5.7): header 40 px on the tray tint, rows --row-h (44 / compact 36), 1 px dividers, no zebra, no vertical rules.
+ * Wider than the screen (a phone), it scrolls sideways inside its card; the box is then a focusable region named after the table.
+ */
 function Table({ className, ...props }: React.ComponentProps<"table">) {
+  const [ref, scrolls] = useScrollsX<HTMLDivElement>();
   return (
-    <div data-slot="table-container" className="relative w-full overflow-x-auto">
+    <div ref={ref} data-slot="table-container" className="relative w-full overflow-x-auto"
+      {...(scrolls ? { tabIndex: 0, role: "region", "aria-label": props["aria-label"] } : {})}>
       <table data-slot="table" className={cn("w-full border-separate border-spacing-0 text-body", className)} {...props} />
     </div>
   );

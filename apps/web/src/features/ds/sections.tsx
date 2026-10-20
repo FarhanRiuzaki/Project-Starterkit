@@ -2,8 +2,8 @@
 
 import { BarChart, CHART_HEIGHT, HBarChart, Heatmap } from "@starterkit/ui/charts";
 import {
-  ActionMenu, Avatar, AvatarStack, BlockedButton, CategoryChip, Checkbox, ConfirmActionDialog, CountBadge, DataTable, EmptyState, ErrorState, Field, FilterChip, FilterMenu,
-  Kbd, LazyMount, Meter, Panel, QueryInput, SecretOnceDialog, Segmented, Spec, StatusChip, TickMeter, Toolbar, Truncate,
+  ActionMenu, Avatar, AvatarStack, BlockedButton, Brand, CategoryChip, Checkbox, ConfirmActionDialog, CountBadge, DataTable, EmptyState, ErrorState, Field, FilterChip, FilterMenu,
+  Kbd, LazyMount, Meter, Panel, QueryInput, SecretOnceDialog, Segmented, Spec, StatusChip, TickMeter, Toolbar, ToolbarFilters, Truncate,
   type Column, type SortDir,
 } from "@starterkit/ui/ds";
 import { formatNumber } from "@starterkit/ui/lib/format";
@@ -17,8 +17,15 @@ import { Skeleton } from "@starterkit/ui/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@starterkit/ui/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@starterkit/ui/ui/tooltip";
 import { useCallback, useState } from "react";
+import { SunnyGoMark, SunnyGoWordmark } from "@/components/brand";
+import { PermissionMatrix } from "@/components/permission-matrix";
+import { PERMISSIONS, type PermissionName } from "@starterkit/shared/permissions";
 import { DAYS, HEAT, RESULTS, ROWS, type Row, TOP_ERRORS } from "./fixtures";
 import { MotionSection } from "./motion-section";
+
+/** Matrix sample: the viewer holds every permission but role.delete and permission.create (those cells say why). */
+const MATRIX_ALLOWED: ReadonlySet<PermissionName> = new Set(PERMISSIONS.filter((p) => p !== "role.delete" && p !== "permission.create"));
+const MATRIX_START: PermissionName[] = ["user.view", "user.create", "user.edit", "role.view", "role.delete", "audit.view"];
 
 /** Fixed, obviously fake sample for the one-time secret demo (the gallery has no backend). */
 const SAMPLE_SECRET = "Sample-Pw-Not-Real-0000";
@@ -43,6 +50,7 @@ export function GallerySections() {
   const [server, setServer] = useState({ page: 1, pageSize: 15, sort: { key: "name", dir: "asc" as SortDir } });
   const [dialog, setDialog] = useState(false);
   const [secret, setSecret] = useState(false);
+  const [perms, setPerms] = useState<ReadonlySet<PermissionName>>(() => new Set(MATRIX_START));
 
   const columns: Column<Row>[] = [
     { key: "name", header: "User", icon: UsersIcon, sortable: true,
@@ -62,9 +70,11 @@ export function GallerySections() {
     <>
       <SectionTitle>Toolbar and data table</SectionTitle>
       <Toolbar>
-        <div className="w-full max-w-80"><QueryInput value={query} onChange={setQuery} keys={["status", "city"]} label="Search users" placeholder="status:degraded city:oslo" /></div>
-        <Segmented label="Status" value={status} onChange={setStatus} options={STATUS_OPTIONS} />
-        <FilterMenu label="Role" value={role} options={ROLES} onChange={setRole} />
+        <div className="w-full max-w-80 max-md:max-w-none"><QueryInput value={query} onChange={setQuery} keys={["status", "city"]} label="Search users" placeholder="status:degraded city:oslo" /></div>
+        <ToolbarFilters active={(status !== "all" ? 1 : 0) + (role ? 1 : 0)}>
+          <Segmented label="Status" value={status} onChange={setStatus} options={STATUS_OPTIONS} />
+          <FilterMenu label="Role" value={role} options={ROLES} onChange={setRole} />
+        </ToolbarFilters>
         {chip && <FilterChip removeLabel="Remove filter role:viewer" onRemove={() => setChip(false)}>role:viewer</FilterChip>}
       </Toolbar>
       <Panel flush icon={UsersIcon} title="Users" count="12,345" legend={LEGEND}
@@ -83,23 +93,28 @@ export function GallerySections() {
         </div>
       </Panel>
 
+      <Panel flush title="Permission matrix" description="Sticky header and module column; on a phone it scrolls inside the card. Press a read-only cell for its reason">
+        <PermissionMatrix label="Permissions of Sample role" value={perms} allowed={MATRIX_ALLOWED} onChange={(edit) => setPerms((v) => edit(v))} />
+      </Panel>
+
       <SectionTitle>Charts</SectionTitle>
       <div className="grid grid-cols-12 gap-gutter">
-        <Panel title="Requests per day" description="Stacked bars · LazyMount" className="col-span-12 lg:col-span-6">
+        <Panel title="Requests per day" description="Stacked bars · LazyMount" className="col-span-12 md:col-span-6">
           <LazyMount minHeight={CHART_HEIGHT.standard}><BarChart label="Requests per day" categories={DAYS} series={RESULTS} stacked format={formatNumber} /></LazyMount>
         </Panel>
-        <Panel title="Top errors" description="Ranking · 7 days" className="col-span-12 lg:col-span-6"><HBarChart label="Top errors" items={TOP_ERRORS} format={formatNumber} /></Panel>
+        <Panel title="Top errors" description="Ranking · 7 days" className="col-span-12 md:col-span-6"><HBarChart label="Top errors" items={TOP_ERRORS} format={formatNumber} /></Panel>
         <Panel icon={HeatmapIcon} title="Load heatmap" description="One tile per node" className="col-span-12"><Heatmap label="Load per node" cells={HEAT} /></Panel>
       </div>
 
       <SectionTitle>Components</SectionTitle>
       <div className="grid grid-cols-12 gap-gutter">
-        <Panel title="Buttons and inputs" className="col-span-12 lg:col-span-6">
+        <Panel title="Buttons and inputs" className="col-span-12 md:col-span-6">
           <div className="grid gap-4">
             <div className="flex flex-wrap items-center gap-2">
               <Button>Create user</Button><Button variant="secondary">Export CSV</Button><Button variant="ghost">Clear filters</Button>
               <Button variant="destructive">Delete 2 users</Button><Button variant="secondary" disabled>Unlock</Button>
               <Button size="sm" variant="secondary">Compact 28</Button><Button size="icon" variant="secondary" aria-label="Refresh now"><Icon icon={RefreshIcon} /></Button>
+              <Button variant="link">Forgot password?</Button>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="grid gap-1.5"><label htmlFor="ds-email" className="text-label text-fg-2">Email</label><Input id="ds-email" defaultValue="alex@example.com" className="font-mono" /><span className="text-body-sm text-fg-3">Used to sign in and to reset the password.</span></div>
@@ -108,7 +123,7 @@ export function GallerySections() {
             </div>
           </div>
         </Panel>
-        <Panel title="Chips, badges and tabs" className="col-span-12 lg:col-span-6">
+        <Panel title="Chips, badges and tabs" className="col-span-12 md:col-span-6">
           <div className="grid gap-4">
             <div className="flex flex-wrap gap-2">{HEALTHS.map((h) => <StatusChip key={h} health={h} label={HEALTH[h].label} description={HEALTH[h].description} />)}<StatusChip health="healthy" label="Starting" pending /></div>
             <div className="flex flex-wrap gap-2" data-status-static="">{HEALTHS.map((h) => <StatusChip key={h} health={h} label={HEALTH[h].label} strong />)}</div>
@@ -127,7 +142,7 @@ export function GallerySections() {
             </Tabs>
           </div>
         </Panel>
-        <Panel title="Meters, avatars and facts" className="col-span-12 lg:col-span-6">
+        <Panel title="Meters, avatars and facts" className="col-span-12 md:col-span-6">
           <div className="grid gap-4">
             <Meter label="Load" ratio={0.52} value="52%" />
             <Meter label="Storage" ratio={0.86} value="17.2 GB / 20 GB" limitRatio={0.9} />
@@ -141,11 +156,11 @@ export function GallerySections() {
           </div>
         </Panel>
         <RevealDemo />
-        <Panel title="Empty and error" className="col-span-12 lg:col-span-6" bodyClassName="grid gap-2 sm:grid-cols-2">
+        <Panel title="Empty and error" className="col-span-12 md:col-span-6" bodyClassName="grid gap-2 sm:grid-cols-2">
           <EmptyState icon={UsersIcon} title="No users yet" description="Users appear here after you create the first one." />
           <ErrorState title="Couldn't load metrics" cause="The metrics source isn't responding. Try again in a minute." lastGood={Date.UTC(2026, 9, 16, 7, 2)} onRetry={() => undefined} />
         </Panel>
-        <Panel title="Menus, tooltips and dialogs" className="col-span-12 lg:col-span-6">
+        <Panel title="Menus, tooltips and dialogs" className="col-span-12 md:col-span-6">
           <div className="grid gap-4">
             <div className="flex flex-wrap items-center gap-2">
               <ActionMenu label="Sample actions" actions={[{ id: "edit", label: "Edit user" }, { id: "delete", label: "Delete user", destructive: true }]} />
@@ -185,7 +200,7 @@ function RevealDemo() {
   const [loading, setLoading] = useState(false);
   const reload = useCallback(() => { setLoading(true); setTimeout(() => setLoading(false), 1200); }, []);
   return (
-    <Panel title="Loading → content crossfade" description="No layout shift" className="col-span-12 lg:col-span-6"
+    <Panel title="Loading → content crossfade" description="No layout shift" className="col-span-12 md:col-span-6"
       actions={<Button size="sm" variant="secondary" onClick={reload} disabled={loading}><Icon icon={RefreshIcon} />Reload</Button>}>
       <Reveal loading={loading} skeleton={<div className="grid gap-3"><Skeleton className="h-2.5 w-1/3" /><Skeleton className="h-7 w-1/2" /><Skeleton className="h-2.5 w-full" /><Skeleton className="h-2.5 w-2/3" /></div>}>
         <div className="grid gap-2">
@@ -218,19 +233,36 @@ const TYPE = [
   { name: "mono 12/16", cls: "font-mono text-mono", sample: "alex.rivers · 10.0.0.14" },
 ] as const;
 
+/** The Brand slot at the sizes the app uses (the logo itself lives in components/brand). */
+const LOGOS = [
+  { name: "sidebar · wordmark 104 px", collapsed: false, wordmark: <SunnyGoWordmark className="w-26" /> },
+  { name: "sign-in card · wordmark 120 px", collapsed: false, wordmark: <SunnyGoWordmark className="w-30" /> },
+  { name: "rail · mark 28 px", collapsed: true, wordmark: null },
+] as const;
+
 function Tokens() {
   return (
     <div className="grid grid-cols-12 gap-gutter">
-      <Panel icon={SurfacesIcon} title="Surfaces" description="bg → sheet → tray → card → inset" className="col-span-12 xl:col-span-6">
+      <Panel title="Brand" description="Wordmark when expanded, mark in the rail; clear space = the sun's diameter" className="col-span-12">
+        <ul className="flex flex-wrap items-end gap-12">
+          {LOGOS.map((l) => (
+            <li key={l.name} className="grid justify-items-start gap-4">
+              <Brand collapsed={l.collapsed} mark={<SunnyGoMark className="size-7" />} wordmark={l.wordmark} />
+              <span className="font-mono text-caption text-fg-3">{l.name}</span>
+            </li>
+          ))}
+        </ul>
+      </Panel>
+      <Panel icon={SurfacesIcon} title="Surfaces" description="bg → sheet → tray → card → inset" className="col-span-12 md:col-span-6">
         <ul className="grid grid-cols-3 gap-2">{SURFACES.map((s) => <Swatch key={s.name} {...s} />)}</ul>
       </Panel>
-      <Panel title="Color" description="Ink is neutral; color is information" className="col-span-12 xl:col-span-6">
+      <Panel title="Color" description="Ink is neutral; color is information" className="col-span-12 md:col-span-6">
         <ul className="grid grid-cols-4 gap-2">{COLOURS.map((s) => <Swatch key={s.name} {...s} />)}</ul>
       </Panel>
       <Panel title="Type scale" description="Inter Variable + Geist Mono" className="col-span-12">
         <dl className="grid">
           {TYPE.map((t) => (
-            <div key={t.name} className="flex items-baseline gap-4 border-b border-dashed border-line py-2 last:border-b-0">
+            <div key={t.name} className="flex min-w-0 items-baseline gap-4 border-b border-dashed border-line py-2 last:border-b-0">
               <dt className="w-32 shrink-0 font-mono text-caption text-fg-3">{t.name}</dt><dd className={`${t.cls} min-w-0 truncate text-fg`} title={t.sample}>{t.sample}</dd>
             </div>
           ))}

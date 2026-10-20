@@ -21,6 +21,11 @@ describe("overlays use the duration tokens OVERLAY_MOTION names (and the /ds inv
     expect(tokens(s, "open")).toEqual([OVERLAY_MOTION.scrim.open, OVERLAY_MOTION.dialog.open]);
     expect(tokens(s, "closed")).toEqual([OVERLAY_MOTION.scrim.close, OVERLAY_MOTION.dialog.close]);
   });
+  it("drawer: scrim, then panel", () => {
+    const s = src("drawer-impl.tsx");
+    expect(tokens(s, "open")).toEqual([OVERLAY_MOTION.scrim.open, OVERLAY_MOTION.drawer.open]);
+    expect(tokens(s, "closed")).toEqual([OVERLAY_MOTION.scrim.close, OVERLAY_MOTION.drawer.close]);
+  });
   it("tooltip", () => {
     const s = src("tooltip.tsx");
     expect(s).toContain(`animate-in fade-in-0 duration-(--dur-${OVERLAY_MOTION.tooltip.open})`);

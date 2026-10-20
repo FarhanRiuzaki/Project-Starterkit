@@ -8,7 +8,7 @@ import { toast } from "@starterkit/ui/ui/toast";
 import { SessionsTable } from "@/components/sessions-table";
 import { PageHeader } from "@/components/shell/page-header";
 import { api } from "@/lib/client/api";
-import type { SessionDto } from "@/lib/shared/contracts/me";
+import type { SessionDto } from "@starterkit/shared/contracts/me";
 import { MY_SESSIONS } from "@/lib/shared/queries";
 import { MeNav } from "./me-nav";
 

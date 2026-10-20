@@ -4,13 +4,20 @@ Binding for every page in `apps/web`. Companion to `docs/standards/design-system
 `docs/standards/copy-guide.md`. When a page needs something this standard does not cover, extend the standard
 (and the gallery) first, then use it — never invent a one-off.
 
-## 0. Desktop only
+## 0. Widths: phone, tablet, desktop
 
-The app runs in a desktop browser and is never opened on a phone (design-system §0). Design for 1280–1920 px,
-**1440 px is the reference width, 1280 px the minimum**. 768–1279 px only has to avoid horizontal page scroll
-(the sidebar becomes the icon rail, grids drop to fewer columns); there is no tablet or mobile layout, no bottom bar,
-no stacked-list tables and no 375 px rule. Targets are sized for mouse and keyboard: **28 px minimum, 32 px default**
-for buttons, icon buttons, segments and pagination; no `pointer-coarse:` variants.
+Every page works fully on a phone, a tablet and a desktop (design-system §0). Phone 360–767 px (reference 390,
+`max-md:`), tablet 768–1279 px (reference 834, the 64 px rail), desktop ≥ 1280 px (reference 1440, `xl:`).
+
+- No horizontal page scroll from 360 px; a wide component (matrix, wide table, tablist) scrolls inside its card
+  (`tests/e2e/responsive.spec.ts`, `expectNoHorizontalScroll`).
+- Phone shell: top bar with menu button, logo mark, page title, search and account; the sidebar is a drawer
+  (design-system §4). A dialog is a bottom sheet below 768 px (§5.14).
+- Targets: drawn 28 px minimum, 32 px default; under a coarse pointer every control's hit area is at least 44 × 44 px
+  without changing the drawn size (`base.css`); anything shown on hover is always shown on touch.
+- Inputs: 16 px text or more under a coarse pointer (no iOS zoom), from the `--text-input-touch` token.
+- Decide per width in CSS (`max-md:` / `md:` / `xl:`), never with `matchMedia` in render: the server HTML is the
+  first paint, so a JS width switch would flicker or shift.
 
 ## 0a. Surfaces (bg → sheet → tray → card)
 
@@ -35,7 +42,9 @@ through `next/font`.
 
 1. **PageHeader** — breadcrumb (detail pages only: `Users / <name>`), title (noun), aggregate `StatusChip` if the
    page has a health concept, `actions` slot right-aligned in this order: `TimeRangePicker` (if the page is
-   time-scoped) → one primary action or `ActionMenu`. Description = one sentence: scope + freshness. No status
+   time-scoped) → one primary action or `ActionMenu`. Secondary actions go in `more` (`HeaderAction[]`: label, `href`
+   or `onSelect`, `reason` when blocked, `destructive`, `busy`): buttons after the primary from 768 px, one "More
+   actions" menu below. Title and description wrap. Description = one sentence: scope + freshness. No status
    legend here: legends belong to the card that shows the statuses (item 5).
 2. **Page-level banners** — stale/partial-source `Notice` (one per page, aggregated), never inside panels.
 3. **StatTiles** — one KPI tray of 4 (or 3) tiles, the page's headline numbers; same order and units everywhere the
@@ -45,7 +54,7 @@ through `next/font`.
    for today-counters. One icon per metric on every page, by meaning from `packages/ui/src/ui/icons.ts` (Hugeicons Stroke Rounded). A new
    meaning gets a new export there first; never import `@hugeicons/core-free-icons` elsewhere (architecture test).
 4. **Toolbar** — `QueryInput` (left, grows) · saved views / filters as chips · view `Segmented` (right) ·
-   export (right-most). One row; wraps only when the content column is too narrow (below 1280).
+   export (right-most). One row; wraps when the content column is too narrow (below 1280, and on a phone).
 5. **Panels** — `Panel` with title (noun phrase), optional description (sentence case), optional actions slot.
    Charts above tables. Below-the-fold charts in `LazyMount`. The **description is the scope** (period and
    granularity, one shape everywhere: "Last 24 hours · per hour, WIB" or "Last 7 days"); the **footnote is provenance** (`StaleNote`, source notes).
@@ -65,13 +74,16 @@ Detail pages add `Tabs` (line variant) directly under the header; the tab value 
 - Content max 1376px inside the sheet (padding 32 px horizontal, 24 top, 40 bottom). Rhythm tokens (spec §2.2):
   page sections `gap-section` (24), sibling panels/tiles `gap-gutter` (16; `--gap-grid` in tokens.css), tray padding `p-tray` (4), inside a card
   `gap-panel` (16), dense rows `gap-dense` (8).
+- Content padding: 32 px sides from 768 px, 16 px on a phone (the sheet is edge to edge there).
 - 12-column grid at every desktop width; siblings in a row share width and height. Spans: KPI strip = one tray of
   4 (or 3) equal tiles; primary chart 8 + 4 companion; paired charts 6 + 6; card grids 3 col (4 per row) ≥ 1440,
   4 col (3 per row) 1280–1439; tables 12. Never 5 or 7 equal items in a row. 768–1279: spans of 3 and 4 become 6.
+  Below 768: one column (spans become 12), a KPI tray 2 tiles per row.
 - Chart heights only from `CHART_HEIGHT` (sm 160 / md 240 / lg 320). Sparklines 28px. Never ad-hoc heights.
 - Tokens only: colors, radii, shadows, type scale (`text-title-1`, `text-body-sm`, `text-label`, `text-caption`),
   no arbitrary px except those defined in the tokens.
-- Targets: ≥ 28 px (`h-7` / `size-7`), 32 px default (`h-8` / `size-8`); nav items 36 px.
+- Targets: ≥ 28 px (`h-7` / `size-7`), 32 px default (`h-8` / `size-8`); nav items 36 px (44 px in the phone drawer);
+  44 × 44 px hit area under a coarse pointer (§0).
 
 ## 3. State matrix (every data region implements all five)
 
@@ -87,10 +99,11 @@ Detail pages add `Tabs` (line variant) directly under the header; the tab value 
 
 - Tables (spec "Standar tabel & skalabilitas"): every list a user pages through is server-driven, for any number of
   rows. One pattern, no table builds its own paging:
-  - Server: the GET route parses `ListQuery` (extended with its `sortParam(KEYS)` and filters) before the guard
-    and answers `paginate(rows, q, SORTERS, defaultSort)` → `Page<T>`; `page` 1–1000 (deeper is 400: narrow the
-    filters), `pageSize` 15 | 25 | 50 | 100 (default 15), `totalCapped` when the backend stops counting
-    (shown "100,000+"). The architecture test fails a list GET without `paginate(`; the non-list allowlist is exact.
+  - Server: the API's GET route parses its `…ListQuery` (`ListQuery` extended with `sortParam(KEYS)` and filters)
+    before the guard and answers `pageQuery(…)` (`apps/api/src/kernel/pagination.ts`) → `Page<T>`; `page` 1–1000
+    (deeper is 400: narrow the filters), `pageSize` 15 | 25 | 50 | 100 (default 15), `totalCapped` when the count
+    stops at 100,000 (shown "100,000+"). `apps/api/test/architecture/conformance.test.ts` (d) fails a list GET without
+    `pageQuery`; the non-list allowlist is exact.
   - Client: `useTableQuery({ key, path, spec })` (spec = sort whitelist, default sort, filter parsers, `search`
     keys) → `DataTable` with `paging={t.paging}`, `sort`/`onSortChange` and `sortable` columns (header buttons with
     `aria-sort`); footer "Showing 1–15 of 312" + rows-per-page select + first / previous / numbers / next / last.
@@ -103,9 +116,14 @@ Detail pages add `Tabs` (line variant) directly under the header; the tab value 
   tabular figures. First column = identity (28 px `Avatar` + name + secondary id), with a `min-w-*` on the column so
   auto layout never squeezes it. `Avatar seed={id}`: the tint follows the stable id, the initials the display name, so one user looks
   the same on every page. Status column uses `StatusChip`. Timestamps use
-  `RelativeTime` (absolute in tooltip). Long values `Truncate` with title. Desktop only: no stacked-list fallback.
+  `RelativeTime` (absolute in tooltip; on touch a second line). Long values `Truncate` with title. On a phone the rows
+  are stacked cards: give every column a `mobile` role (`title` exactly once, `meta`, `hidden`, `lead` for the row
+  checkbox); sorting becomes the "Sort by" select and the pagination compact (design-system §0 "Data surfaces"). Put
+  every toolbar filter but the search in `ToolbarFilters` with its active count (the phone's "Filters" sheet).
+  A row button that a card drops (`max-md:hidden`, `className` + `wrapClassName` on a `BlockedButton`) gets a
+  phone/touch item in the row's `ActionMenu` with its reason as the hint.
 - Row actions (`DataTable` `rowActions`) are secondary shortcuts: they show on row hover, on keyboard focus anywhere in
-  the row and while one of their menus is open, and always stay in the DOM and the tab order (opacity only, never
+  the row, while one of their menus is open and always on a touch screen (`pointer-coarse:`), and always stay in the DOM and the tab order (opacity only, never
   `hidden`). Their names say the target ("Revoke the session started …"), so a screen reader hears them in place.
 - Metric formats (same metric → same format): counts `formatNumber` exact in tables and facts, compact
   (`formatCompact` / `compactParts`) in tiles and charts; bytes "16.4 GB / 20 GB" in table cells, "19 GB of 20 GB ·
@@ -115,15 +133,15 @@ Detail pages add `Tabs` (line variant) directly under the header; the tab value 
   Never colored text alone. Every card that shows status passes its `legend` (§1 item 5).
 - Charts: from `@/components/charts` only; fixed categorical order per entity (never by rank); legend for ≥ 2
   series; tooltips on hover and focus; one y-axis; time axes on round ticks in WIB.
-- Numbers: through `lib/shared/format.ts` only.
+- Numbers: through `packages/ui/src/lib/format.ts` only.
 
 ## 5. Interaction
 
 - State that a user would share or bookmark (filters, tab, range, view, page) lives in the URL; tables through
   `useTableQuery` + `TableSpec` (one parser per key, each with its own fallback; `apps/web/src/lib/shared/table-state.ts`).
-  zod schemas live in `apps/web/src/lib/shared/contracts/*` and are imported by route handlers; client code never imports zod
-  into a route's first load (≤ 250 kB gz, `bun run budget`).
-- Disabled actions always explain why (tooltip / menu label).
+  zod schemas live in `packages/shared/src/contracts/*` and are imported by the API and the web's server code; client
+  code imports them as types only, so zod never reaches a route's first load (≤ 250 kB gz, `bun run budget`).
+- Disabled actions always explain why (tooltip / menu label; on touch the `BlockedButton` caption).
 - Keyboard: every action reachable; one tab stop per card; roving focus in segmented controls; focus moves to
   the region after pagination; ⌘K palette reaches every page.
 - Motion: see §5a.
@@ -159,5 +177,7 @@ Detail pages add `Tabs` (line variant) directly under the header; the tab value 
 5. Lazy-load rule (§1 item 5, §5a bundle) followed?
 6. URL state for filters/tab/range/page?
 7. Copy passes the copy guide checklist?
-8. 1280 / 1440 / 1920 light + dark (and no horizontal page scroll at 768–1279): no clipped labels, axe 0 serious or critical?
+8. Phone 390 (and 360), tablet 834, desktop 1440 / 1920, light + dark: no horizontal page scroll, no clipped labels,
+   axe 0 serious or critical, touch targets ≥ 44 px on the phone? (`bun run e2e`: `responsive.spec.ts` on the
+   desktop, tablet and mobile projects; `a11y.spec.ts` on the same three.)
 9. Surfaces follow §0a (sheet → tray → card), siblings symmetric (§2), motion per §5a?

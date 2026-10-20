@@ -1,7 +1,7 @@
 import { hashKey, type QueryKey, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { api, retryUnlessNotFound } from "@/lib/client/api";
-import type { RoleDto } from "@/lib/shared/contracts/rbac";
+import type { RoleDto } from "@starterkit/shared/contracts/rbac";
 import { RBAC_KEY, roleKey, roleUrl } from "@/lib/shared/queries";
 
 /** One place that encodes a role id: its API URL and query key (lib/shared/queries), and its page. */

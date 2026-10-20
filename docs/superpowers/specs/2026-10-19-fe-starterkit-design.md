@@ -81,7 +81,7 @@ npm; dipilih Bun karena backend condong ke Bun — keputusan Claude).
 
 ## Layar
 
-Semua layar desktop-first mengikuti Bilik.
+Semua layar desktop-first mengikuti Bilik. (Diganti 2026-10-20: responsive ponsel, tablet, desktop; lihat `2026-10-20-responsive-design.md`.)
 
 **Auth (publik)**
 - `/login` — email/username + password; tombol Google, Apple; tab/opsi LDAP (username + password direktori). Error
