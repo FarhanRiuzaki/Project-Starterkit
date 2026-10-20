@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "bun:test";
-import { asc, sql } from "drizzle-orm";
-import { runJanitor } from "../../src/db/janitor";
+import { asc, count, sql } from "drizzle-orm";
+import { runJanitor, startJanitor } from "../../src/db/janitor";
 import { config } from "../../src/kernel/config";
 import { db } from "../../src/kernel/db";
 import { xactLock } from "../../src/kernel/locks";
@@ -8,7 +8,7 @@ import { activity, authLog } from "../../src/modules/audit";
 import { authChallenges, loginBackoff, rateLimits, sessions, userTokens } from "../../src/modules/auth";
 import { oauthStates } from "../../src/modules/oauth";
 import { users } from "../../src/modules/users";
-import { holdTx, truncateAll } from "../helpers/db";
+import { holdTx, lockWaiters, truncateAll } from "../helpers/db";
 
 const ago = (minutes: number) => sql`now() - make_interval(mins => ${minutes})`;
 const ahead = (minutes: number) => sql`now() + make_interval(mins => ${minutes})`;
@@ -87,5 +87,45 @@ describe("runJanitor", () => {
       await holder.rollback();
     }
     expect((await runJanitor())?.sessions).toBe(2);
+  });
+
+  it("a retention backlog bigger than one batch (10,000 rows per table) drains over the next runs", async () => {
+    const old = ago((config().AUDIT_RETENTION_DAYS + 1) * DAY);
+    await db.insert(activity).select(db.select({
+      id: sql`gen_random_uuid()`.as("id"), at: sql`${old} - g * interval '1 second'`.as("at"), actorId: sql`null`.as("actorId"), actorName: sql`'x'`.as("actorName"),
+      action: sql`'user.edit'`.as("action"), targetType: sql`'user'`.as("targetType"), targetId: sql`'old'`.as("targetId"), targetLabel: sql`'x'`.as("targetLabel"),
+      before: sql`null`.as("before"), after: sql`null`.as("after"),
+    }).from(sql`generate_series(1, 10003) g`));
+    await db.insert(authLog).select(db.select({
+      id: sql`gen_random_uuid()`.as("id"), at: sql`${old} - g * interval '1 second'`.as("at"), event: sql`'login_failed'`.as("event"), login: sql`'old'`.as("login"),
+      userId: sql`null`.as("userId"), method: sql`'password'`.as("method"), ip: sql`'1.1.1.1'`.as("ip"), device: sql`'d'`.as("device"), location: sql`null`.as("location"),
+    }).from(sql`generate_series(1, 10001) g`));
+    const audit = async () => { const r = await runJanitor(); return [r?.activity, r?.auth_log]; };
+    expect(await audit()).toEqual([10_000, 10_000]);
+    expect(await audit()).toEqual([3, 1]);
+    expect(await audit()).toEqual([0, 0]);
+    expect((await db.select({ n: count() }).from(activity))[0]!.n + (await db.select({ n: count() }).from(authLog))[0]!.n).toBe(0);
+  });
+});
+
+describe("startJanitor", () => {
+  it("runs at once; its stop function stops the timer and resolves only when the run in flight has finished", async () => {
+    await seedRows();
+    // An uncommitted change to the expired session: the janitor's DELETE of sessions waits for it.
+    const holder = await holdTx((tx) => tx.select({ one: sql`1` }).from(sessions).where(sql`${sessions.expiresAt} < now()`).for("update"));
+    let stopped = false;
+    try {
+      const stop = startJanitor();
+      expect(await lockWaiters(1, "%delete from \"sessions\"%")).toBe(true);
+      const done = stop().then(() => (stopped = true));
+      await Bun.sleep(100);
+      expect(stopped).toBe(false); // still waiting on the row lock
+      await holder.rollback();
+      await done;
+    } finally {
+      await holder.rollback();
+    }
+    expect(stopped).toBe(true);
+    expect((await left()).sessions).toHaveLength(1); // the run finished: both ended sessions are gone
   });
 });

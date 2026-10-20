@@ -1,6 +1,6 @@
 // The read side of the activity and sign-in logs: the logic of /v1/audit/* (page or CSV) and the newest entries the
 // dashboard shows (read-only, so nothing is recorded), and the retention purge the janitor runs.
-import { and, type Column, desc, eq, exists, ilike, lt, or, type SQL, sql } from "drizzle-orm";
+import { and, type Column, desc, eq, exists, ilike, inArray, lt, or, type SQL, sql } from "drizzle-orm";
 import { changeText, CSV_MAX_ROWS } from "@starterkit/shared/audit";
 import type { ActivityDto, ActivityQuery, AuthLogDto, AuthLogQuery } from "@starterkit/shared/contracts/audit";
 import type { Page } from "@starterkit/shared/contracts/common";
@@ -94,15 +94,19 @@ export async function authLogCsv(q: AuthLogQuery): Promise<string> {
   ]);
 }
 
+/** Rows each table loses per janitor run at most (each DELETE stays well under the 5 s statement timeout). */
+const PURGE_BATCH = 10_000;
+
 /**
- * Janitor: deletes activity and sign-in log entries older than AUDIT_RETENTION_DAYS (the append-only trigger refuses
- * UPDATE only). Rows deleted per table.
+ * Janitor: deletes activity and sign-in log entries older than AUDIT_RETENTION_DAYS, at most PURGE_BATCH per table
+ * (the append-only trigger refuses UPDATE only). Rows deleted per table.
  */
-// ponytail: one DELETE per table under the 5 s statement timeout; delete in batches if a retention backlog ever times out.
+// ponytail: 10,000 rows per table per 5-minute run (2.88 M a day) drains any realistic backlog; loop within a run if not.
 export async function purgeAudit(tx: Tx): Promise<Record<string, number>> {
   const before = sql`now() - make_interval(days => ${config().AUDIT_RETENTION_DAYS})`;
+  const oldest = (t: typeof activity | typeof authLog) => tx.select({ id: t.id }).from(t).where(lt(t.at, before)).limit(PURGE_BATCH);
   return {
-    activity: (await tx.delete(activity).where(lt(activity.at, before)).returning({ one: sql`1` })).length,
-    auth_log: (await tx.delete(authLog).where(lt(authLog.at, before)).returning({ one: sql`1` })).length,
+    activity: (await tx.delete(activity).where(inArray(activity.id, oldest(activity))).returning({ one: sql`1` })).length,
+    auth_log: (await tx.delete(authLog).where(inArray(authLog.id, oldest(authLog))).returning({ one: sql`1` })).length,
   };
 }

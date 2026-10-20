@@ -31,11 +31,24 @@ export async function runJanitor(): Promise<Record<string, number> | null> {
   }
 }
 
-/** Runs the janitor now and every 5 minutes (the timer never keeps the process alive); returns the function that stops it. */
-export function startJanitor(): () => void {
-  const tick = () => void runJanitor().catch((err: unknown) => log.error({ err }, "janitor failed"));
+/**
+ * Runs the janitor now and every 5 minutes (the timer never keeps the process alive; a tick while a run is in flight
+ * is skipped). Returns the stop function: it clears the timer and resolves once the run in flight, if any, has ended,
+ * so the shutdown can close the pool after it.
+ */
+export function startJanitor(): () => Promise<void> {
+  let running: Promise<void> | null = null;
+  const tick = () => {
+    running ??= runJanitor().then(
+      () => {},
+      (err: unknown) => log.error({ err }, "janitor failed"),
+    ).finally(() => (running = null));
+  };
   tick();
   const timer = setInterval(tick, 5 * 60_000);
   timer.unref();
-  return () => clearInterval(timer);
+  return async () => {
+    clearInterval(timer);
+    await running;
+  };
 }

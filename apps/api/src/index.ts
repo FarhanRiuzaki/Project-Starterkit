@@ -13,13 +13,13 @@ log.info({ url: server.url.href }, "api listening");
 const stopJanitor = startJanitor();
 
 let stopping = false;
-/** Stop the janitor and accepting, let in-flight requests finish (at most 10 s), close the pool, exit 0. */
+/** Stop the janitor and accepting; let its run and the requests in flight (max 10 s) end; close the pool; exit 0. */
 async function shutdown(signal: string) {
   if (stopping) return;
   stopping = true;
   log.info({ signal }, "shutting down");
-  stopJanitor();
-  await Promise.race([server.stop(), Bun.sleep(10_000).then(() => server.stop(true))]);
+  // The janitor's run in flight and the requests in flight both end before the pool closes.
+  await Promise.all([stopJanitor(), Promise.race([server.stop(), Bun.sleep(10_000).then(() => server.stop(true))])]);
   await client.close();
   process.exit(0);
 }
