@@ -1,0 +1,80 @@
+# check + build + E2E + bundle budget + secret scan, on every push and pull request.
+# No secret lives here: PostgreSQL trusts connections (the service is reachable only from this job), the API tests use
+# the fixed test values of apps/api/test/helpers/preload.ts, and the E2E run draws a random internal token, encryption
+# key and session secret per run (apps/web/playwright.config.ts).
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      # Both databases are created on first use; the E2E name must end in _e2e (its schema is dropped at start).
+      TEST_DATABASE_URL: postgresql://postgres@localhost:5432/starterkit_test
+      E2E_DATABASE_URL: postgresql://postgres@localhost:5432/starterkit_e2e
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0 # gitleaks scans the history
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.3
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      - run: bun install --frozen-lockfile
+
+      - run: bun run check
+
+      - run: bun run build
+        env:
+          NEXT_DIST_DIR: .next-e2e
+
+      # The browser matching apps/web's @playwright/test; CI only (never on a developer machine).
+      - run: bunx playwright install --with-deps chromium
+        working-directory: apps/web
+
+      - run: bun run e2e
+
+      - run: bun run budget
+        env:
+          NEXT_DIST_DIR: .next-e2e
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright
+          path: .superpowers/scratch/e2e/
+          retention-days: 7
+
+      - uses: gitleaks/gitleaks-action@v2.3.9
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_VERSION: 8.30.1

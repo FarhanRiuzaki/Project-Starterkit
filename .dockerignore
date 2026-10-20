@@ -1,0 +1,16 @@
+# Build context of apps/api/Dockerfile and apps/web/Dockerfile (both built from the repo root).
+**/node_modules
+**/.next
+**/.next-*
+**/*.tsbuildinfo
+**/.env*
+.git
+.github
+.superpowers
+docs
+**/.DS_Store
+# Tests never reach an image (apps/api: modules/*/tests, kernel/tests, test/; web: e2e and the *.test.ts beside the source).
+**/tests
+apps/api/test
+**/*.test.ts
+**/*.test.tsx
