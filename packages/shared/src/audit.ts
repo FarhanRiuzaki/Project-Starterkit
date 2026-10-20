@@ -44,7 +44,7 @@ export function presetRange(range: AuditRange, now: number): { from: string; to:
 }
 
 /** The activity action vocabulary (docs/api/README.md generates its action table from these keys). */
-export const ACTION_LABEL: Record<string, string> = {
+export const ACTION_LABEL = {
   "user.create": "User created", "user.update": "User updated", "user.activate": "User activated", "user.deactivate": "User deactivated",
   "user.delete": "User deleted", "user.assign_role": "Role assigned", "user.reset_password": "Password reset by admin",
   "user.session_end": "User session ended",
@@ -52,9 +52,11 @@ export const ACTION_LABEL: Record<string, string> = {
   "me.update": "Profile updated", "me.password": "Own password changed", "me.connect": "Account connected", "me.disconnect": "Account disconnected",
   "me.session_end": "Own session ended", "me.2fa_setup": "Two-factor setup started", "me.2fa_enable": "Two-factor turned on",
   "me.2fa_disable": "Two-factor turned off",
-};
+} satisfies Record<string, string>;
+/** An action of the vocabulary (what the API records). */
+export type ActivityAction = keyof typeof ACTION_LABEL;
 /** Readable name of an activity action; an action this build doesn't know shows as recorded. */
-export const actionLabel = (action: string) => ACTION_LABEL[action] ?? action;
+export const actionLabel = (action: string) => (ACTION_LABEL as Record<string, string>)[action] ?? action;
 /** Actions the activity filter offers, in label order. */
 export const ACTION_OPTIONS = Object.entries(ACTION_LABEL).map(([value, label]) => ({ value, label })).sort((a, b) => a.label.localeCompare(b.label));
 

@@ -65,10 +65,6 @@ const url = await readEnv(apiEnv, "DATABASE_URL");
 if (!url) throw new Error("apps/api/.env has no DATABASE_URL.");
 console.log((await createDatabase(url)) ? "Database created." : "Database exists.");
 await run("bun", "run", "db:migrate");
-if (existsSync(join(api, "src/seed/cli.ts"))) {
-  await run("bun", "run", "db:seed");
-  await run("bun", "run", "db:seed:demo");
-} else {
-  console.log("Seeding skipped: the seed scripts (apps/api/src/seed/cli.ts) don't exist yet.");
-}
+await run("bun", "run", "db:seed");
+await run("bun", "run", "db:seed:demo");
 console.log("Setup done. Start web and API with `bun run dev`.");

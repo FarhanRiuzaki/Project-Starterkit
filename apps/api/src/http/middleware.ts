@@ -1,15 +1,13 @@
-import { createHash, timingSafeEqual } from "node:crypto";
 import type { MiddlewareHandler } from "hono";
 import { bodyLimit as honoBodyLimit } from "hono/body-limit";
 import { routePath } from "hono/route";
+import { safeEqual } from "../auth/crypto";
 import { config } from "../config";
 import { log } from "../log";
 import { ApiError, onError } from "./errors";
 
 /** Per-request values every handler can read (`c.var`). `client` is trusted only behind `internalAuth`. */
 export type AppEnv = { Variables: { requestId: string; client: { ip: string; ua: string } } };
-
-const sha256 = (s: string) => createHash("sha256").update(s).digest();
 
 /**
  * Request id (`X-Request-Id` from Next, else a new UUIDv7), client ip/ua from `X-Client-Ip`/`X-Client-Ua`, then one
@@ -33,8 +31,7 @@ export const requestContext: MiddlewareHandler<AppEnv> = async (c, next) => {
 
 /** `X-Internal-Token` must equal INTERNAL_API_TOKEN (compared as SHA-256 digests, constant time); else 401. */
 export const internalAuth: MiddlewareHandler<AppEnv> = async (c, next) => {
-  const given = sha256(c.req.header("x-internal-token") ?? "");
-  if (!timingSafeEqual(given, sha256(config().INTERNAL_API_TOKEN))) throw new ApiError("unauthenticated");
+  if (!safeEqual(c.req.header("x-internal-token") ?? "", config().INTERNAL_API_TOKEN)) throw new ApiError("unauthenticated");
   await next();
 };
 
