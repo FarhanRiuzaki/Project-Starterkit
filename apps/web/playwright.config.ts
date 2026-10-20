@@ -9,7 +9,8 @@ import { SCRATCH } from "./tests/e2e/global-setup";
  * start, and a production build of the web on E2E_PORT (3123) in .next-e2e; never the dev servers (:3000, :4000) or
  * their .next. Three projects (design-system §0): `desktop` 1440 × 900 runs every spec; `tablet` 834 × 1112 runs
  * responsive.spec, responsive-data.spec and a11y.spec; `mobile` 390 × 844 (touch, mobile emulation, 3× pixels) runs
- * those, no-flicker.spec (its sidebar navigations are desktop and tablet only) and ds.spec (the phone baselines). One worker (the database and the sign-in rate limits are shared by every test),
+ * those, no-flicker.spec (its sidebar navigations are desktop and tablet only), ds.spec (the phone baselines) and
+ * reauth.spec (the password sheet before connecting an account). One worker (the database and the sign-in rate limits are shared by every test),
  * artifacts under .superpowers/scratch/ (gitignored; E2E_SCRATCH names the folder). Screenshot baselines are
  * committed next to their spec (`*.spec.ts-snapshots/`). E2E_REUSE=1 reuses servers already running on those ports.
  */
@@ -35,6 +36,8 @@ function e2eDatabaseUrl(): string {
 /** One random internal token and encryption key per run, shared by both servers. */
 const INTERNAL_API_TOKEN = randomBytes(32).toString("base64url");
 const DB = e2eDatabaseUrl();
+/** For the specs that move the database clock's view of a row (helpers.ts `ageReauth`); never another database. */
+process.env.E2E_DB = DB;
 
 export default defineConfig({
   testDir: "tests/e2e",
@@ -46,7 +49,7 @@ export default defineConfig({
   projects: [
     { name: "desktop", use: { viewport: { width: 1440, height: 900 } } },
     { name: "tablet", testMatch: /(responsive|responsive-data|a11y)\.spec\.ts/, use: { viewport: { width: 834, height: 1112 } } },
-    { name: "mobile", testMatch: /(responsive|responsive-data|a11y|no-flicker|ds)\.spec\.ts/, use: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 3 } },
+    { name: "mobile", testMatch: /(responsive|responsive-data|a11y|no-flicker|ds|reauth)\.spec\.ts/, use: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 3 } },
   ],
   webServer: [
     {

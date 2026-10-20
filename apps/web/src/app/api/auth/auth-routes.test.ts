@@ -4,6 +4,7 @@ vi.hoisted(() => {
   process.env.SESSION_SECRET = "s".repeat(40);
   process.env.INTERNAL_API_TOKEN = "i".repeat(40);
   process.env.OAUTH_MOCK = "true";
+  process.env.APP_URL = "http://c"; // the site's public origin: what sameOrigin compares Origin with
 });
 const jar = vi.hoisted(() => new Map<string, string>());
 /** The options of the last `set` per cookie name (a clearing set included). */
@@ -213,6 +214,17 @@ describe("/api/auth/oauth (Google and Apple: browser binding, landing page)", ()
     r = await oauthStart(startUrl(), ctx("google"));
     expect([r.status, r.headers.get("location")]).toEqual([303, "/login?error=oauth"]);
     expect(jar.has("sk_oauth")).toBe(false);
+  });
+
+  it("start: a link the API refuses for want of a recent proof (403) lands on /me/security?oauth=reauth; other refusals on oauth=failed", async () => {
+    await sealCookie(jar);
+    fakeApi(() => fail(403, "forbidden"));
+    let r = await oauthStart(startUrl("?mode=link"), ctx("google"));
+    expect([r.status, r.headers.get("location")]).toEqual([303, "/me/security?oauth=reauth"]);
+    expect(jar.has("sk_oauth")).toBe(false);
+    fakeApi(() => fail(429, "rate_limited"));
+    r = await oauthStart(startUrl("?mode=link"), ctx("google"));
+    expect(r.headers.get("location")).toBe("/me/security?oauth=failed");
   });
 
   it("callback sets the session and answers a meta-refresh page to a safe next", async () => {

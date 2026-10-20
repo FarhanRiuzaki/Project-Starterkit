@@ -144,6 +144,7 @@ function TwoFactorCard({ user }: { user: MeDto }) {
           <StatusChip health={user.twoFactorEnabled ? "healthy" : "stopped"} label={user.twoFactorEnabled ? "On" : "Off"} />
           <span className="text-body-sm text-fg-2">{user.twoFactorEnabled ? "Sign-in asks for a code after your password." : "Sign-in asks for your password only."}</span>
         </div>
+        {user.connected.length > 0 && <p className="text-body-sm text-fg-3">Signing in with Google or Apple doesn&apos;t ask for the code: the provider checks you.</p>}
         <div>
           {user.twoFactorEnabled
             ? <Button variant="secondary" onClick={() => setDisabling(true)}>Turn off two-factor authentication</Button>

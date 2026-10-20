@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { createHmac } from "node:crypto";
 import { existsSync, statSync } from "node:fs";
 import AxeBuilder from "@axe-core/playwright";
@@ -24,6 +25,17 @@ export function totp(secret: string, t = Date.now()): string {
   const h = createHmac("sha1", base32(secret)).update(counter).digest();
   const o = (h[h.length - 1] ?? 0) & 15;
   return String((h.readUInt32BE(o) & 0x7fffffff) % 1_000_000).padStart(6, "0");
+}
+
+/**
+ * Moves the last proof of every session of `email` 11 minutes back, as if the sign-in were older: connecting Google or
+ * Apple then needs the password again. Bun's SQL client against the E2E database (playwright.config.ts `E2E_DB`), the
+ * way the API tests move time by editing rows.
+ */
+export function ageReauth(email: string) {
+  const script = "const db = new Bun.SQL(process.env.E2E_DB); await db`update sessions set reauth_at = now() - interval '11 minutes' "
+    + "where user_id in (select id from users where lower(email) = lower(${process.env.AGE_EMAIL}))`; await db.close();";
+  execFileSync("bun", ["-e", script], { env: { ...process.env, AGE_EMAIL: email }, stdio: "inherit" });
 }
 
 /**

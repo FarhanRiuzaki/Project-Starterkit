@@ -72,7 +72,7 @@ function UserForm({ user }: { user?: UserDetailDto }) {
       } else {
         const body = { name: name.trim(), username: username.trim(), email: email.trim(), roles, isActive, isLdap, ...(isLdap ? {} : how === "invite" ? { invite: true } : { password }) };
         const created = await api<UserDto>("/api/users", { method: "POST", body: JSON.stringify(body) });
-        toast(`Created ${created.name}.`, { description: !isLdap && how === "invite" ? "The set-password link was written to the server log (mock email)." : undefined });
+        toast(`Created ${created.name}.`, { description: !isLdap && how === "invite" ? `An invitation link was sent to ${created.email}. It works for 72 hours.` : undefined });
         id = created.id;
       }
       await qc.invalidateQueries({ queryKey: USERS_KEY });

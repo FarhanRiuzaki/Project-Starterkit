@@ -1,5 +1,6 @@
 import "server-only";
 import type { ErrorCode } from "@starterkit/shared/contracts/common";
+import { config } from "./config";
 
 export function json(data: unknown, status = 200): Response {
   return Response.json(data, { status, headers: { "Cache-Control": "no-store" } });
@@ -25,18 +26,20 @@ export function clientIp(req: { headers: Headers }, trustedProxy = process.env.T
 
 /**
  * The request comes from this app's own pages: `Sec-Fetch-Site` is same-origin / none (typed URL), or the `Origin`
- * header equals the request's origin. Guards the cookie-setting /api/auth POSTs against cross-site forms (login CSRF).
- * Behind a proxy that rewrites Host (TRUSTED_PROXY=true), the public origin is `X-Forwarded-Proto`://`X-Forwarded-Host`
- * (first entry each); without TRUSTED_PROXY those headers are client-controlled and ignored.
+ * header equals APP_URL's origin (the site's public origin; the request URL names the bind address, 0.0.0.0 in the
+ * standalone server). Guards the cookie-setting /api/auth POSTs against cross-site forms (login CSRF). Behind a proxy
+ * (TRUSTED_PROXY=true), `X-Forwarded-Proto`://`X-Forwarded-Host` (first entry each) counts too; without TRUSTED_PROXY
+ * those headers are client-controlled and ignored.
  */
-export function sameOrigin(req: Request, trustedProxy = process.env.TRUSTED_PROXY === "true"): boolean {
+export function sameOrigin(req: Request, trustedProxy = process.env.TRUSTED_PROXY === "true", appUrl = config().APP_URL): boolean {
   const site = req.headers.get("sec-fetch-site");
   if (site === "same-origin" || site === "none") return true;
-  const url = new URL(req.url);
+  const origin = req.headers.get("origin");
+  const app = new URL(appUrl);
+  if (origin === app.origin) return true;
   const first = (h: string) => req.headers.get(h)?.split(",")[0]?.trim() || null;
   const host = trustedProxy ? first("x-forwarded-host") : null;
-  const origin = host ? `${first("x-forwarded-proto") ?? url.protocol.slice(0, -1)}://${host}` : url.origin;
-  return req.headers.get("origin") === origin;
+  return !!host && origin === `${first("x-forwarded-proto") ?? app.protocol.slice(0, -1)}://${host}`;
 }
 
 export const crossSite = () => apiError(403, "forbidden", "The request didn't come from this app. Reload the page and try again.");

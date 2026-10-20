@@ -10,7 +10,8 @@ import { getSession } from "@/lib/server/session";
  * Start a Google/Apple sign-in (`mode=login`, default; `next` for afterwards) or a link to the signed-in user
  * (`mode=link`, full session required, else sign-in). A navigation, so another site can link here; that's harmless:
  * a new random binding goes into `sk_oauth`, the API stores its hash with the state, and only this browser can finish.
- * Then 303 to the provider (or the mock authorize page). A refusal lands on the sign-in or security screen.
+ * Then 303 to the provider (or the mock authorize page). A refusal lands on the sign-in or security screen; a link
+ * from a session that hasn't proved the user within 10 minutes lands on `/me/security?oauth=reauth`.
  */
 export async function GET(req: Request, { params }: { params: Promise<{ provider: string }> }): Promise<Response> {
   const { provider } = await params;
@@ -29,7 +30,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ provider
   });
   if (!res.ok) {
     await res.body?.cancel();
-    return seeOther(mode === "link" ? "/me/security?oauth=failed" : "/login?error=oauth");
+    // 403 on a link: the session hasn't proved the user within 10 minutes; the security screen asks for the proof.
+    if (mode === "link") return seeOther(res.status === 403 ? "/me/security?oauth=reauth" : "/me/security?oauth=failed");
+    return seeOther("/login?error=oauth");
   }
   const { url } = (await res.json()) as { url: string };
   (await cookies()).set(OAUTH_COOKIE, `${mode}.${binding}`, oauthCookieOptions());

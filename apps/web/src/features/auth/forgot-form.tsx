@@ -36,8 +36,7 @@ export function ForgotForm() {
     <AuthCard title="Reset your password" description="Enter the email of your account. A link to set a new password goes to that address.">
       {sent ? (
         <Notice live>
-          If an account uses {email}, a reset link is on its way. The link works for 30 minutes. In this demo no email
-          is sent: the link is written to the server log.
+          If an account uses {email}, a reset link is on its way. The link works for 30 minutes.
         </Notice>
       ) : (
         <form onSubmit={submit} className="grid gap-4">

@@ -35,15 +35,27 @@ describe("clientIp (sent to the API as X-Client-Ip)", () => {
   });
 });
 
-describe("sameOrigin behind a proxy that rewrites Host", () => {
-  const at = (headers: Record<string, string>) => new Request("http://127.0.0.1:3000/api/auth/login", { method: "POST", headers });
+describe("sameOrigin", () => {
+  // The standalone server binds HOSTNAME=0.0.0.0, so the request URL names the bind address, never the site.
+  const at = (headers: Record<string, string>) => new Request("http://0.0.0.0:3000/api/auth/login", { method: "POST", headers });
+  const APP = "http://localhost:3001";
 
-  it("X-Forwarded-Host (and -Proto) count only when TRUSTED_PROXY=true", () => {
+  it("Sec-Fetch-Site same-origin or none passes; else the Origin must be APP_URL's origin, whatever the request URL says", () => {
+    expect(sameOrigin(at({ "sec-fetch-site": "same-origin" }), false, APP)).toBe(true);
+    expect(sameOrigin(at({ "sec-fetch-site": "none" }), false, APP)).toBe(true);
+    expect(sameOrigin(at({ origin: APP }), false, APP)).toBe(true); // a client that sends no Sec-Fetch-Site
+    expect(sameOrigin(at({ origin: APP }), false, `${APP}/`)).toBe(true);
+    expect(sameOrigin(at({ origin: "http://0.0.0.0:3000" }), false, APP)).toBe(false); // the bind address isn't the site
+    expect(sameOrigin(at({ origin: "https://evil.example" }), false, APP)).toBe(false);
+    expect(sameOrigin(at({ "sec-fetch-site": "cross-site", origin: "https://evil.example" }), false, APP)).toBe(false);
+    expect(sameOrigin(at({}), false, APP)).toBe(false);
+  });
+
+  it("behind a proxy (TRUSTED_PROXY=true) X-Forwarded-Host (and -Proto) name the origin too; without it they are ignored", () => {
     const proxied = { origin: "https://app.example.com", "x-forwarded-host": "app.example.com", "x-forwarded-proto": "https" };
-    expect(sameOrigin(at(proxied), true)).toBe(true);
-    expect(sameOrigin(at(proxied), false)).toBe(false);
-    expect(sameOrigin(at({ origin: "https://evil.example", "x-forwarded-host": "app.example.com", "x-forwarded-proto": "https" }), true)).toBe(false);
-    expect(sameOrigin(at({ origin: "http://127.0.0.1:3000" }), false)).toBe(true);
-    expect(sameOrigin(at({ origin: "http://127.0.0.1:3000" }), true)).toBe(true); // no forwarded host: the request URL
+    expect(sameOrigin(at(proxied), true, APP)).toBe(true);
+    expect(sameOrigin(at(proxied), false, APP)).toBe(false);
+    expect(sameOrigin(at({ origin: "https://evil.example", "x-forwarded-host": "app.example.com", "x-forwarded-proto": "https" }), true, APP)).toBe(false);
+    expect(sameOrigin(at({ origin: APP }), true, APP)).toBe(true); // no forwarded host: APP_URL
   });
 });
