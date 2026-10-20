@@ -244,3 +244,22 @@ Everything a route needs before the first module: secrets handling, seeds, sessi
 - [ ] Every rule added to AGENTS.md names the file/test that enforces it (AGENTS.md preamble rule).
 - [ ] Final verification: `bun run check`, `bun run build`, `bun run e2e`, `bun run budget`, `bun run api:schemas && git diff --exit-code docs/api`, `gitleaks detect --no-banner` (local binary), banned-word scan (`no-domain.test.ts`), `bun run setup` on a fresh clone path is not required. Record the numbers in the report.
 - [ ] Commit `docs: backend rules, setup and operations`.
+
+### Task 14: SunnyGo brand (owner request 2026-10-20)
+
+The owner asked for their brand in the starterkit. Source (read-only; copy only these files, never anything else from that folder — it also holds certificates and keys): `/Users/riuzaki/Private Space/Sunny Go/SunnyGo-Legal/SunnyGo-Brand/logo/` (`README.md` = brand rules, `svg/`, `favicon/`, `social/`).
+
+**Files:** `packages/shared/src/brand.ts`; `packages/ui/src/ds/brand.tsx` (+ test); `packages/ui/src/styles/tokens.css` (+ `tokens.test.ts`); `apps/web/src/components/brand/` (new: the SunnyGo mark and wordmark as React SVG components — the one folder to swap for another brand); `apps/web/src/app/{icon.svg,favicon.ico,apple-icon.png,opengraph-image.png}` (Next file conventions); `sidebar.tsx`, `auth-card.tsx`; `/ds` gallery brand section; `ds` E2E snapshots.
+
+**Rules (from the brand README, binding):**
+- Product name `SunnyGo` (`BRAND.name`); the logo is never retyped in a font — the wordmark `sunnygo` and the mark `go` are the outline SVG paths from `svg/`, inlined as React components with `role="img"` and `aria-label={BRAND.name}`.
+- Four colour versions only: main (navy `#0D1530` letters + amber `#FFA928` sun) on light, dark (white letters + amber sun) on dark; mono black/white not needed in the app. Add tokens `--brand-ink` (light `#0D1530`, dark `#FFFFFF`) and `--brand-sun` (`#FFA928` both) in `:root`/`.dark`; logo paths use them. Amber is for the sun only — never a UI colour. Never green.
+- Clear space = sun diameter; minimum sizes: wordmark 72 px wide, transparent mark 24 px; below 24 px use the tile favicon.
+- Sidebar expanded → wordmark; collapsed rail → mark; sign-in card → wordmark. The `ds` `Brand` component becomes a layout slot that takes the logo nodes (no monogram placeholder).
+- Favicon: `favicon/favicon.svg` as `app/icon.svg` (it switches colour in dark mode), `favicon.ico`, `apple-touch-icon-180.png` as `app/apple-icon.png`, `social/og-image-1200x630.png` as `app/opengraph-image.png`.
+- Accent palette (ruling, Claude): the README reserves sky blue for another product (Hushtop) and makes navy the trust colour, so `--primary` moves from blue to the navy family in light mode, with a dark-mode primary that keeps WCAG AA (4.5:1 for text on/with primary, 3:1 for focus ring and controls against their background). Links and focus states must stay distinguishable from body text (underline or weight where colour alone no longer separates them). `chart-*` series colours stay.
+- API TOTP issuer follows `BRAND` automatically.
+
+- [ ] Tests first: `brand.test` (logo has role img + accessible name; collapsed shows mark, expanded wordmark), `tokens.test` (new tokens exist in both themes; contrast pairs for primary meet AA).
+- [ ] `bun run check`; `NEXT_DIST_DIR=.next-e2e bun run build`; `bun run e2e` (a11y on 10 pages light/dark must pass; update `ds` snapshots only for the brand/colour change and say so); `bun run budget`.
+- [ ] Commit `feat(brand): SunnyGo logo, name, favicon and navy accent`.
