@@ -103,7 +103,10 @@ Make them on that platform (for CI: in the same Linux image the runner uses) wit
 
 ## Backend setup
 
-The API (`apps/api`, Bun + Hono + PostgreSQL); the web forwards every `/api/x` call to it at `/v1/x`.
+The API (`apps/api`, Bun + Elysia + Drizzle on PostgreSQL); the web forwards every `/api/x` call to it at `/v1/x`.
+It is a modular monolith: `src/kernel/` (config, db, errors, plugins), `src/modules/<module>/` (`index.ts` public API,
+`controller.ts` routes, `service.ts` logic on Drizzle, `schema.ts` tables, `rules.ts` pure rules, `tests/`) mounted by
+the registry `src/modules/index.ts`, and `src/db/` (migration runner, seeds).
 With a local PostgreSQL server:
 
 ```sh
