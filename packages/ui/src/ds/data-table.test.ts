@@ -186,6 +186,12 @@ describe("DataTable sort by select (phone)", () => {
     ]);
   });
 
+  it("a sort the select doesn't list (a key without a sortable column) shows the placeholder, not a wrong option", () => {
+    const out = renderToStaticMarkup(h(DataTable<S>, { ...base, sort: { key: "city", dir: "asc" }, onSortChange: () => {} }));
+    expect(out).toMatch(/<option value="" disabled="" selected="">Choose a column<\/option>/);
+    expect(out).not.toMatch(/<option value="[^"]+" selected="">/);
+  });
+
   it("no select without sortable columns or without onSortChange", () => {
     expect(renderToStaticMarkup(h(DataTable<S>, { ...base, sort: { key: "at", dir: "desc" } }))).not.toContain("Sort by");
   });

@@ -76,6 +76,8 @@
      zooms the page into an input whose text is under 16 px) */
   --touch-min: 44px;
   --text-input-touch: 16px;
+  /* phone top bar (below 768 px): its 56 px row under the safe-area inset; also where sticky bars under it stop */
+  --topbar-h: calc(3.5rem + env(safe-area-inset-top));
   /* motion (spec §7.1; mirrored in components/motion/tokens.ts) */
   --dur-instant: 100ms;
   --dur-fast: 150ms;

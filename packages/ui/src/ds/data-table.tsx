@@ -159,12 +159,14 @@ export function DataTable<T>({ columns, rows, rowKey, label, loading, error, emp
   }
 
   const sortable = onSortChange ? columns.filter((c) => c.sortable) : [];
+  // A sort the select doesn't list (none, or a key without a sortable column) shows the placeholder, not a wrong option.
+  const sortValue = sort && sortable.some((c) => c.key === sort.key) ? `${sort.key}:${sort.dir}` : "";
   const sortBy = sortable.length > 0 && (
     <div className="flex items-center gap-2 border-b border-line px-3 py-2 md:hidden">
       <label htmlFor={sortId} className="text-body-sm text-fg-3">Sort by</label>
-      <Select id={sortId} className="min-w-0 flex-1 text-body-sm" value={sort ? `${sort.key}:${sort.dir}` : ""}
+      <Select id={sortId} className="min-w-0 flex-1 text-body-sm" value={sortValue}
         onChange={(e) => { const [key, dir] = e.target.value.split(":"); onSortChange?.({ key: key!, dir: dir as SortDir }); }}>
-        {!sort && <option value="" disabled>Choose a column</option>}
+        {!sortValue && <option value="" disabled>Choose a column</option>}
         {sortable.flatMap((c) => [
           <option key={`${c.key}:asc`} value={`${c.key}:asc`}>{c.header}, ascending</option>,
           <option key={`${c.key}:desc`} value={`${c.key}:desc`}>{c.header}, descending</option>,

@@ -162,7 +162,24 @@ test.describe("phone", () => {
       for (const sh of document.styleSheets) walk(sh.cssRules, false);
       return out;
     });
-    expect(minHeights.some((v) => /calc\(3\.5rem \+ env\(safe-area-inset-top\)\)/.test(v)), minHeights.join(" | ")).toBe(true);
+    // Through the --topbar-h token (tokens.css), which the users bulk bar sticks under too.
+    expect(minHeights, minHeights.join(" | ")).toContain("var(--topbar-h)");
+    // The declared value (the computed one has env() resolved to 0 px here).
+    const token = await page.evaluate(() => {
+      const find = (rules: CSSRuleList): string => {
+        for (const r of rules) {
+          const v = (r as CSSStyleRule).style?.getPropertyValue("--topbar-h");
+          if (v) return v.trim();
+          const inner = (r as CSSGroupingRule).cssRules;
+          const got = inner ? find(inner) : "";
+          if (got) return got;
+        }
+        return "";
+      };
+      for (const sh of document.styleSheets) { const v = find(sh.cssRules); if (v) return v; }
+      return "";
+    });
+    expect(token).toMatch(/^calc\(3\.5rem \+ env\(safe-area-inset-top\)\)$/);
   });
 
   test("the drawer opens from the menu button and reaches every nav item", async ({ page }) => {

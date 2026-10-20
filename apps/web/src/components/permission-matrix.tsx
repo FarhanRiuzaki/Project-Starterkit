@@ -77,10 +77,11 @@ function useGridKeys() {
 export function PermissionMatrix({ label, value, onChange, allowed }: {
   label: string; value: ReadonlySet<PermissionName>; onChange?: (edit: Edit) => void; allowed?: ReadonlySet<PermissionName>;
 }) {
-  const set = (edit: Edit) => onChange?.(edit);
-  const { ref: gridRef, onKeyDown, onFocus } = useGridKeys();
-  // Touch path for a read-only cell's reason (its tooltip needs hover): a press shows it under the matrix.
+  // Touch path for a read-only cell's reason (its tooltip needs hover): a press shows it under the matrix; any change
+  // to the set (a press on a cell that toggles) clears it.
   const [note, setNote] = useState("");
+  const set = (edit: Edit) => { setNote(""); onChange?.(edit); };
+  const { ref: gridRef, onKeyDown, onFocus } = useGridKeys();
   const onClick = (e: MouseEvent<HTMLTableElement>) => {
     const box = (e.target as HTMLElement).closest<HTMLElement>(`${BOX}[aria-describedby]`);
     const reason = box && document.getElementById(box.getAttribute("aria-describedby")!)?.textContent;

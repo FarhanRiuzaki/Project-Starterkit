@@ -28,8 +28,9 @@ starterkit.
    - **Hover-only details have a touch path**, CSS only (`pointer-coarse:`, both versions in the server HTML): row
      actions are always shown; `RelativeTime` adds the short absolute time as a second line in fg-3; a `BlockedButton`
      shows its reason as a caption under it (`caption={false}` only in table row actions whose reason is also shown
-     elsewhere on touch: the users list's Actions menu, which on a touch screen also carries Deactivate / Activate
-     user with the reason under the label, and the user detail's Edit user caption); `className` stays on the button
+     elsewhere on touch: the users list's Actions menu, which below 1280 px and on a touch screen carries Deactivate /
+     Activate user with the reason under the label (the row button then shows only while its action runs, as the
+     pending state), and the user detail's Edit user caption); `className` stays on the button
      and `wrapClassName` places the button + caption box (`w-full`, `ml-auto items-end`); on a tablet with a touch
      screen (768–1279) the top bar shows the menu button, so the rail's labels are reachable in the drawer; from 1280
      the full sidebar has them and the button hides.
@@ -57,8 +58,11 @@ starterkit.
      - The toolbar keeps the search in the row; the other filters go in `ToolbarFilters`: inline from 768, below it a
        "Filters" button with the active count opening a bottom sheet (deferred chunk) where `FilterMenu` is a labelled
        select. The controls write the URL as inline; "Show results" closes.
-     - The users list's bulk bar sticks under the top bar while rows are selected (`Panel flush` clips with
-       `overflow: clip`, so a sticky child sticks to the page).
+     - The users list's bulk bar sticks under the top bar (`--topbar-h`, the token the top bar's height uses) while
+       rows are selected (`Panel flush` clips with `overflow: clip`, so a sticky child sticks to the page).
+     - A `Panel` description takes its own line under the title row, without the middot.
+     - Tablet: identity columns keep a `min-w-*`; the users table hides Sign-in and Created below 1280 so it fits its
+       card (`responsive-data.spec.ts` "identity columns keep their text").
      - The permission matrix scrolls inside its card (at most 70 dvh) with a sticky header row and module column
        (a rule marks the column edge on a phone), 44 px rows under a coarse pointer; a press on a read-only cell shows
        its reason under the matrix (`role="status"`).

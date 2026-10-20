@@ -14,11 +14,13 @@ export function UserStatusChip({ user }: { user: UserDto }) {
 /**
  * Table columns for the user list; keys of sortable columns are the server's sort keys. `select` (when the viewer can
  * act on rows) is the leading checkbox column. On a phone card: the user is the title, roles, status and last sign-in
- * are lines under it; sign-in type and created stay on the detail page.
+ * are lines under it; sign-in type and created stay on the detail page. On a tablet (below 1280) those two columns
+ * hide too (and the row's Deactivate / Activate button moves into its menu, users-page.tsx), so the name keeps its
+ * 192 px (`min-w-48`) without the table scrolling sideways.
  */
 export function userColumns(select?: { has: (id: string) => boolean; toggle: (id: string) => void }): Column<UserRowDto>[] {
   const cols: Column<UserRowDto>[] = [
-    { key: "name", header: "User", icon: UsersIcon, sortable: true, mobile: "title", cell: (u) => (
+    { key: "name", header: "User", icon: UsersIcon, sortable: true, mobile: "title", className: "min-w-48", cell: (u) => (
       <span className="flex min-w-0 max-w-72 items-center gap-2.5">
         <Avatar name={u.name} />
         <span className="grid min-w-0">
@@ -29,9 +31,9 @@ export function userColumns(select?: { has: (id: string) => boolean; toggle: (id
     ) },
     { key: "roles", header: "Roles", cell: (u) => <RoleChips roles={u.roles} /> },
     { key: "status", header: "Status", cell: (u) => <UserStatusChip user={u} /> },
-    { key: "type", header: "Sign-in", mobile: "hidden", cell: (u): ReactNode => (u.isLdap ? "Directory" : "Password") },
+    { key: "type", header: "Sign-in", mobile: "hidden", className: "max-xl:hidden", cell: (u): ReactNode => (u.isLdap ? "Directory" : "Password") },
     { key: "lastLoginAt", header: "Last sign-in", sortable: true, cell: (u) => <RelativeTime at={u.lastLoginAt ? Date.parse(u.lastLoginAt) : null} /> },
-    { key: "createdAt", header: "Created", sortable: true, mobile: "hidden", cell: (u) => <RelativeTime at={Date.parse(u.createdAt)} /> },
+    { key: "createdAt", header: "Created", sortable: true, mobile: "hidden", className: "max-xl:hidden", cell: (u) => <RelativeTime at={Date.parse(u.createdAt)} /> },
   ];
   if (!select) return cols;
   return [{ key: "select", header: "Select", className: "w-8", mobile: "lead", cell: (u) => (

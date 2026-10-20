@@ -26,9 +26,13 @@ import { skipReason, USERS_KEY, protection, rankBlock, useLastSuperadminId, useR
 
 const STATUS_LABEL = { "": "Any", active: "Active", inactive: "Inactive" } as const;
 const STATUSES = USER_STATUSES.map((value) => ({ value, label: STATUS_LABEL[value] }));
-/** Row buttons that stand in a phone card's Actions menu instead (there, with their reason inline), and on any touch screen too. */
-const ROW_ONLY = "max-md:hidden";
-const MENU_ON_TOUCH = "hidden max-md:flex pointer-coarse:flex";
+/**
+ * The Deactivate / Activate row button is a desktop shortcut (from 1280 px). Below that (phone card, and the tablet
+ * table, where it would push the name column into a sideways scroll) and on any touch screen it is an item of the
+ * row's Actions menu instead, with its reason inline.
+ */
+const ROW_ONLY = "max-xl:hidden";
+const MENU_ON_TOUCH = "hidden max-xl:flex pointer-coarse:flex";
 const LEGEND = (["healthy", "stopped"] as const).map((h) => ({ health: h, label: h === "healthy" ? "Active" : "Inactive", description: h === "healthy" ? "Can sign in." : HEALTH.stopped.description }));
 
 /**
@@ -116,7 +120,7 @@ export function UsersPage() {
         {canAct && rows.length > 0 && (
           // On a phone, with rows selected, the bar sticks under the top bar so the actions stay in reach while scrolling the cards.
           <div role="region" aria-label="Bulk actions" className={cn("flex min-h-12 flex-wrap items-center gap-2 border-b border-line bg-card px-3 py-2",
-            selected.size > 0 && "max-md:sticky max-md:top-[calc(3.5rem+env(safe-area-inset-top))] max-md:z-20")}>
+            selected.size > 0 && "max-md:sticky max-md:top-(--topbar-h) max-md:z-20")}>
             <label className="flex items-center gap-2 text-body-sm text-fg-2">
               <input type="checkbox" className="size-4 cursor-pointer accent-primary" checked={selected.size > 0 && rows.every((u) => selected.has(u.id))}
                 onChange={(e) => setSelected(e.target.checked ? new Set(rows.map((u) => u.id)) : new Set())} />
@@ -142,14 +146,15 @@ export function UsersPage() {
           rowActions={(u) => {
             const block = protection(u, me.id, perms, lastSuperId);
             const rank = rankBlock(u, perms);
-            // No touch caption in the row (it would stretch the row). On a phone card the Deactivate / Activate button
+            // No touch caption in the row (it would stretch the row). Below 1280 px the Deactivate / Activate button
             // moves into the Actions menu, and on any touch screen the menu has it too: there each item shows its reason
             // under the label (Deactivate: `block`, Activate and Edit user: `rank`, Delete user: `block`).
             const busy = activating === u.id;
             return <>
               {can("user.edit") && (u.isActive
                 ? <BlockedButton reason={block} caption={false} size="sm" variant="ghost" className={ROW_ONLY} wrapClassName={ROW_ONLY} onClick={() => setPending({ kind: "one", action: "deactivate", user: u })}>Deactivate</BlockedButton>
-                : <BlockedButton reason={rank} caption={false} size="sm" variant="ghost" className={ROW_ONLY} wrapClassName={ROW_ONLY} disabled={busy} aria-busy={busy || undefined} onClick={() => void activate(u)}>
+                // While it runs the button stays on the card too: its spinner and aria-busy are the pending state.
+                : <BlockedButton reason={rank} caption={false} size="sm" variant="ghost" className={cn(!busy && ROW_ONLY)} wrapClassName={ROW_ONLY} disabled={busy} aria-busy={busy || undefined} onClick={() => void activate(u)}>
                   {busy && <Icon icon={SpinnerIcon} className="motion-safe:animate-spin" />}Activate</BlockedButton>)}
               <ActionMenu label={`Actions for ${u.name}`} actions={[
                 { id: "open", label: "View user", onSelect: () => router.push(`/users/${u.id}`) },

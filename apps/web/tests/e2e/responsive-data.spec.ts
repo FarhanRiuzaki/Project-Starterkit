@@ -1,6 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { AUTH_STATE } from "./global-setup";
-import { axeSerious, csrfOf, expectNoHorizontalScroll, settleAnimations, signIn, withIds } from "./helpers";
+import { axeSerious, csrfOf, demoIds, expectNoHorizontalScroll, settleAnimations, signIn, withIds } from "./helpers";
 
 /**
  * Data surfaces per width (responsive spec "Pola per komponen"): on the phone (mobile project) every server table is
@@ -153,6 +153,24 @@ test.describe("phone: stacked rows", () => {
     await expect(item).toContainText("You can't do this to your own account.");
   });
 
+  test("users: Activate from a card's menu keeps a pending state on the card while it runs", async ({ page }) => {
+    await open(page, "/users?q=inactive%40example.com");
+    const id = (await page.getByRole("table", { name: "Users" }).getByRole("link", { name: "Inactive User" }).getAttribute("href"))!.split("/").pop()!;
+    const token = await csrfOf(page);
+    await page.route("**/api/users/*/status", async (r) => { await new Promise((x) => setTimeout(x, 1500)); await r.continue(); });
+    try {
+      await page.getByRole("button", { name: "Actions for Inactive User" }).tap();
+      await page.getByRole("menuitem", { name: "Activate user" }).tap();
+      const busy = page.getByRole("table", { name: "Users" }).locator('button[aria-busy="true"]');
+      await expect(busy, "the card's Activate button, with its spinner").toBeVisible();
+      await expect(busy).toContainText("Activate");
+      await expect(page.getByText("Activated Inactive User.")).toBeVisible();
+    } finally {
+      await page.unrouteAll({ behavior: "ignoreErrors" });
+      await page.request.post(`/api/users/${id}/status`, { headers: { "x-csrf-token": token }, data: { active: false } });
+    }
+  });
+
   test("roles: Sort by, a card's menu opens the role", async ({ page }) => {
     await open(page, "/roles");
     await page.getByLabel("Sort by").selectOption("users:desc");
@@ -272,7 +290,30 @@ test.describe("tablet and desktop: the table stays a table", () => {
     const pager = page.getByRole("navigation", { name: "Users pages" });
     await expect(pager.getByRole("button", { name: "Page 2", exact: true })).toBeVisible();
     await expect(pager.getByText(/^Page 1 of/)).toBeHidden();
-    await expect(table.getByRole("button", { name: "Deactivate", exact: true }).first()).toBeAttached();
+    // Below 1280 the row's Deactivate / Activate is a menu item (the table fits); from 1280 it is a row button.
+    if (test.info().project.name === "tablet") {
+      await expect(table.getByRole("button", { name: "Deactivate", exact: true }).first()).toBeHidden();
+      await table.getByRole("button", { name: /^Actions for / }).first().click();
+      await expect(page.getByRole("menuitem", { name: /Deactivate user/ })).toBeVisible();
+    } else {
+      await expect(table.getByRole("button", { name: "Deactivate", exact: true }).first()).toBeVisible();
+    }
+  });
+
+  test("identity columns keep their text: names are not cut to a letter, and the users table fits its card", async ({ page, baseURL }) => {
+    const sessions = `/users/${(await demoIds(baseURL)).superadmin}`;
+    for (const [path, name] of [["/users", "Users"], ["/roles", "Roles"], ["/permissions", "Permissions"], ["/me/sessions", "My sessions"], [sessions, "Active sessions"]] as const) {
+      await open(page, path);
+      const cut = await page.getByRole("table", { name }).locator('[data-mobile="title"]').evaluateAll((cells) =>
+        // The name itself; a secondary caption line (an email under the name) may truncate with its title.
+        cells.flatMap((c) => [...c.querySelectorAll<HTMLElement>("*")].filter((el) => !el.closest(".text-caption") && el.scrollWidth > el.clientWidth + 1).map((el) => el.textContent ?? "")));
+      expect(cut, `${path}: truncated identity text`).toEqual([]);
+      await expectNoHorizontalScroll(page);
+    }
+    await open(page, "/users");
+    const box = await page.locator('[data-slot="table-container"]').first().evaluate((el) => ({ sw: el.scrollWidth, cw: el.clientWidth,
+      cols: [...el.querySelectorAll("thead th")].map((th) => `${th.textContent}:${Math.round(th.getBoundingClientRect().width)}`).join(" ") }));
+    expect(box.sw, `the users table fits without sideways scroll (${box.cols})`).toBeLessThanOrEqual(box.cw);
   });
 
   test("the matrix fits and has no phone rule on the module column", async ({ page, baseURL }) => {
