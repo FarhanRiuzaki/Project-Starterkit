@@ -3,8 +3,8 @@
 import { Avatar, type Column, CopyValue, FilterMenu, Truncate } from "@starterkit/ui/ds";
 import { formatDateTimeLong } from "@starterkit/ui/lib/format";
 import { LogIcon } from "@starterkit/ui/ui/icons";
-import { actionLabel } from "@/lib/shared/audit";
-import type { ActivityDto } from "@/lib/shared/contracts/audit";
+import { actionLabel } from "@starterkit/shared/audit";
+import type { ActivityDto } from "@starterkit/shared/contracts/audit";
 import { ACTIONS, ACTIVITY, type ActivityFilters } from "@/lib/shared/queries";
 import { AuditTable, timeCell } from "./audit-table";
 import { DiffView } from "./diff-view";

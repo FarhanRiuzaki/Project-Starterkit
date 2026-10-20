@@ -5,8 +5,8 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo } from "react";
 import type { DataTablePaging } from "@starterkit/ui/ds";
 import { api } from "@/lib/client/api";
-import type { Page } from "@/lib/shared/contracts/common";
-import { MAX_PAGE, PAGE_SIZES, type PageSize } from "@/lib/shared/paging";
+import type { Page } from "@starterkit/shared/contracts/common";
+import { MAX_PAGE, PAGE_SIZES, type PageSize } from "@starterkit/shared/paging";
 import { historyMode, readTable, type SortState, sortState, tableRequest, tableView, type TableSpec, type TableState, toSortParam, writeTable } from "@/lib/shared/table-state";
 
 /**

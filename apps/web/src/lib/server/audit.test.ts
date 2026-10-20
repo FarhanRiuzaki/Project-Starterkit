@@ -30,7 +30,7 @@ describe("audit", () => {
 
 describe("recordActivity masks credentials at store time", () => {
   it("any credential-named field, at any depth, is stored as MASK; null stays null; other fields stay", async () => {
-    const { MASK } = await import("@/lib/shared/audit");
+    const { MASK } = await import("@starterkit/shared/audit");
     const user = db().users.get("u-002")!;
     const ctx: AuthCtx = { user, sid: "s", perms: new Set() };
     recordActivity(ctx, {

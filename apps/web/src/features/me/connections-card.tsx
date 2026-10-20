@@ -6,7 +6,7 @@ import { BlockedButton, ConfirmActionDialog, Panel } from "@starterkit/ui/ds";
 import { InternetIcon } from "@starterkit/ui/ui/icons";
 import { toast } from "@starterkit/ui/ui/toast";
 import { api, errorText } from "@/lib/client/api";
-import type { ConnectionProvider, MeDto } from "@/lib/shared/contracts/me";
+import type { ConnectionProvider, MeDto } from "@starterkit/shared/contracts/me";
 import { ME_KEY } from "./use-me";
 
 const PROVIDERS: { id: ConnectionProvider; label: string }[] = [{ id: "google", label: "Google" }, { id: "apple", label: "Apple" }];

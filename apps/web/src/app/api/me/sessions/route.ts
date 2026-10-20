@@ -1,6 +1,6 @@
 import { handleError, json, withPermission } from "@/lib/server/api";
 import { sessionPage } from "@/lib/server/users";
-import { SessionListQuery } from "@/lib/shared/contracts/me";
+import { SessionListQuery } from "@starterkit/shared/contracts/me";
 
 /** One page of the caller's own sessions, newest activity first unless `sort` says otherwise. */
 export async function GET(req: Request): Promise<Response> {

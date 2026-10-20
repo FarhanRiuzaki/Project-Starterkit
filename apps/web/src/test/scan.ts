@@ -4,6 +4,7 @@ import path from "node:path";
 export const SRC = path.resolve(import.meta.dirname, "..");
 export const WEB_SRC = SRC;
 export const UI_SRC = path.resolve(SRC, "../../../packages/ui/src");
+export const SHARED_SRC = path.resolve(SRC, "../../../packages/shared/src");
 export const REPO = path.resolve(SRC, "../../..");
 
 /** All files under `roots` whose name matches `ext` (default ts/tsx, tests excluded). */

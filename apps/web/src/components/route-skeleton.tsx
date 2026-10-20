@@ -7,8 +7,8 @@ import { DUR, LOADING, useDelayedFlag, useHoldShape } from "@starterkit/ui/motio
 import { Skeleton } from "@starterkit/ui/ui/skeleton";
 import { useAuth } from "@/lib/client/auth-context";
 import { scrubCopy } from "./frozen-copy";
-import { DEFAULT_PAGE_SIZE, PAGE_SIZES } from "@/lib/shared/paging";
-import type { PermissionName } from "@/lib/shared/permissions";
+import { DEFAULT_PAGE_SIZE, PAGE_SIZES } from "@starterkit/shared/paging";
+import type { PermissionName } from "@starterkit/shared/permissions";
 
 /**
  * Route loading shapes (UI standard §3, spec §5.13; the reference app's pattern). Each route's `loading.tsx` lists its

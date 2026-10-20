@@ -121,7 +121,7 @@ Detail pages add `Tabs` (line variant) directly under the header; the tab value 
 
 - State that a user would share or bookmark (filters, tab, range, view, page) lives in the URL; tables through
   `useTableQuery` + `TableSpec` (one parser per key, each with its own fallback; `apps/web/src/lib/shared/table-state.ts`).
-  zod schemas live in `apps/web/src/lib/shared/contracts/*` and are imported by route handlers; client code never imports zod
+  zod schemas live in `packages/shared/src/contracts/*` and are imported by route handlers; client code never imports zod
   into a route's first load (≤ 250 kB gz, `bun run budget`).
 - Disabled actions always explain why (tooltip / menu label).
 - Keyboard: every action reachable; one tab stop per card; roving focus in segmented controls; focus moves to

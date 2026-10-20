@@ -3,7 +3,7 @@ import { recordActivity } from "@/lib/server/audit";
 import { toMeDto } from "@/lib/server/mock/db";
 import { oauthOnly, reauth } from "@/lib/server/sign-in";
 import { duplicateOf } from "@/lib/server/users";
-import { UpdateProfileBody } from "@/lib/shared/contracts/me";
+import { UpdateProfileBody } from "@starterkit/shared/contracts/me";
 
 export async function GET(req: Request): Promise<Response> {
   return withPermission(req, null, async (ctx) => json(toMeDto(ctx.user)));

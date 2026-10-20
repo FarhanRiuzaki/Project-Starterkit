@@ -1,9 +1,9 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { api, retryUnlessNotFound } from "@/lib/client/api";
-import type { Page } from "@/lib/shared/contracts/common";
-import type { RoleOption } from "@/lib/shared/contracts/rbac";
-import type { UserDetailDto, UserDto, UserRowDto } from "@/lib/shared/contracts/users";
-import type { PermissionName } from "@/lib/shared/permissions";
+import type { Page } from "@starterkit/shared/contracts/common";
+import type { RoleOption } from "@starterkit/shared/contracts/rbac";
+import type { UserDetailDto, UserDto, UserRowDto } from "@starterkit/shared/contracts/users";
+import type { PermissionName } from "@starterkit/shared/permissions";
 import { roleOptions, SUPERADMINS, userDetail, USERS_KEY } from "@/lib/shared/queries";
 
 export { USERS_KEY };

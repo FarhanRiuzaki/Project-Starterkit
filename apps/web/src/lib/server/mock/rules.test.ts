@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { PERMISSIONS, type PermissionName } from "@/lib/shared/permissions";
+import { PERMISSIONS, type PermissionName } from "@starterkit/shared/permissions";
 import type { RoleRecord, UserRecord } from "./db";
 import { bulk, checkPasswordOp, checkPermissionGrant, checkRoleChange, checkRoleGrant, checkTargetRank, checkUserChange, effectivePermissions } from "./rules";
 

@@ -5,7 +5,7 @@ import { type Column, DataTable, Notice, Panel, RelativeTime } from "@starterkit
 import { SessionsIcon } from "@starterkit/ui/ui/icons";
 import { errorText } from "@/lib/client/api";
 import { useTableQuery } from "@/lib/client/use-table-query";
-import type { SessionDto } from "@/lib/shared/contracts/me";
+import type { SessionDto } from "@starterkit/shared/contracts/me";
 import type { NoFilters, TableDef } from "@/lib/shared/queries";
 
 /**

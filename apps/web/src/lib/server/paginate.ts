@@ -1,5 +1,5 @@
 import "server-only";
-import type { Page } from "@/lib/shared/contracts/common";
+import type { Page } from "@starterkit/shared/contracts/common";
 
 /** Sort keys an endpoint offers → the value each row sorts by. null / "" = no value (sorts last both ways). */
 export type Sorters<T> = Record<string, (row: T) => string | number | null>;

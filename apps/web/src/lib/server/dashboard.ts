@@ -1,6 +1,6 @@
 import { appDate, shiftDate } from "@starterkit/ui/lib/format";
-import { FULL_SIGN_INS } from "@/lib/shared/audit";
-import { DASHBOARD_DAYS, type DashboardDto } from "@/lib/shared/contracts/dashboard";
+import { FULL_SIGN_INS } from "@starterkit/shared/audit";
+import { DASHBOARD_DAYS, type DashboardDto } from "@starterkit/shared/contracts/dashboard";
 import { ACTIVITY_SORTERS } from "./audit-log";
 import { db } from "./mock/db";
 import { sortRows } from "./paginate";

@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { Avatar, type Column, RelativeTime, StatusChip, Truncate } from "@starterkit/ui/ds";
 import { UsersIcon } from "@starterkit/ui/ui/icons";
 import { RoleChips } from "@/components/role-chips";
-import type { UserDto, UserRowDto } from "@/lib/shared/contracts/users";
+import type { UserDto, UserRowDto } from "@starterkit/shared/contracts/users";
 import { userStatus } from "@/lib/shared/user-status";
 
 export function UserStatusChip({ user }: { user: UserDto }) {

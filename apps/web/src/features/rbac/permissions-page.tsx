@@ -13,8 +13,8 @@ import { PageHeader } from "@/components/shell/page-header";
 import { api, errorText } from "@/lib/client/api";
 import { useAuth } from "@/lib/client/auth-context";
 import { useTableQuery } from "@/lib/client/use-table-query";
-import type { CreatePermissionsResult, PermissionDto } from "@/lib/shared/contracts/rbac";
-import { MODULES, PERMISSION_KEY, permissionLabel } from "@/lib/shared/permissions";
+import type { CreatePermissionsResult, PermissionDto } from "@starterkit/shared/contracts/rbac";
+import { MODULES, PERMISSION_KEY, permissionLabel } from "@starterkit/shared/permissions";
 import { PERMISSION_MODULES, PERMISSIONS_TABLE } from "@/lib/shared/queries";
 import { useAfterRbacChange } from "./use-rbac";
 

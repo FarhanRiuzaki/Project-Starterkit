@@ -4,7 +4,7 @@ import { log } from "@/lib/server/logger";
 import { db } from "@/lib/server/mock/db";
 import { hashToken } from "@/lib/server/mock/password";
 import { forgotLimits } from "@/lib/server/ratelimit";
-import { ForgotPasswordBody } from "@/lib/shared/contracts/auth";
+import { ForgotPasswordBody } from "@starterkit/shared/contracts/auth";
 
 const TTL_MS = 30 * 60_000;
 

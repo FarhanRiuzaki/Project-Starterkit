@@ -6,7 +6,7 @@ import { hashRecoveryCode } from "@/lib/server/mock/password";
 import { oauthOnly, reauth } from "@/lib/server/sign-in";
 import { matchTotpStep, newTotpSecret, otpauthUrl } from "@/lib/server/totp";
 import { BRAND } from "@/lib/shared/brand";
-import { DisableTwoFactorBody, TwoFactorEnableBody } from "@/lib/shared/contracts/me";
+import { DisableTwoFactorBody, TwoFactorEnableBody } from "@starterkit/shared/contracts/me";
 
 const target = (u: UserRecord) => ({ type: "user", id: u.id, label: u.name });
 

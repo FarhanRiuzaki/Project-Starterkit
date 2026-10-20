@@ -1,6 +1,6 @@
 import { handleError, json, withPermission } from "@/lib/server/api";
 import { ACTIVITY_CSV, ACTIVITY_SORTERS, activityPage, activityRows, auditCsv } from "@/lib/server/audit-log";
-import { ActivityQuery } from "@/lib/shared/contracts/audit";
+import { ActivityQuery } from "@starterkit/shared/contracts/audit";
 
 /** Activity log: one page (JSON) or the filtered list as CSV (`format=csv`). Read-only, so nothing is recorded. */
 export async function GET(req: Request): Promise<Response> {

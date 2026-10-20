@@ -1,8 +1,8 @@
 import "server-only";
 import { getIronSession, type SessionOptions } from "iron-session";
 import { cookies } from "next/headers";
-import type { AuthMethod } from "@/lib/shared/contracts/auth";
-import type { PermissionName } from "@/lib/shared/permissions";
+import type { AuthMethod } from "@starterkit/shared/contracts/auth";
+import type { PermissionName } from "@starterkit/shared/permissions";
 import { type Config, config } from "./config";
 import { db, type SessionRecord, type UserRecord } from "./mock/db";
 import { effectivePermissions } from "./mock/rules";

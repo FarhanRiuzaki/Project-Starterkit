@@ -5,7 +5,7 @@ import { hashPassword } from "@/lib/server/mock/password";
 import { checkPasswordOp } from "@/lib/server/mock/rules";
 import { reauth } from "@/lib/server/sign-in";
 import { dropTokens } from "@/lib/server/users";
-import { ChangePasswordBody } from "@/lib/shared/contracts/me";
+import { ChangePasswordBody } from "@starterkit/shared/contracts/me";
 
 /** Change own password, then end this user's other sessions (the current one stays) and spend their reset links. */
 export async function POST(req: Request): Promise<Response> {

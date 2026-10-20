@@ -4,8 +4,8 @@ import { type Column, CopyValue, FilterMenu, StatusChip, Truncate } from "@start
 import { formatDateTimeLong } from "@starterkit/ui/lib/format";
 import type { Health } from "@starterkit/ui/lib/status";
 import { SessionsIcon } from "@starterkit/ui/ui/icons";
-import { AUTH_EVENTS, AUTH_METHODS, EVENT_LABEL, METHOD_LABEL } from "@/lib/shared/audit";
-import type { AuthLogDto } from "@/lib/shared/contracts/audit";
+import { AUTH_EVENTS, AUTH_METHODS, EVENT_LABEL, METHOD_LABEL } from "@starterkit/shared/audit";
+import type { AuthLogDto } from "@starterkit/shared/contracts/audit";
 import { AUTH_LOG, type AuthLogFilters } from "@/lib/shared/queries";
 import { AuditTable, timeCell } from "./audit-table";
 

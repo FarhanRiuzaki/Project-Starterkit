@@ -62,7 +62,7 @@ apps/web/                 Next.js 16 App Router app
   src/app/                pages; (auth) sign-in screens, (main) the signed-in shell; api/ the mock route handlers
   src/features/<domain>/  screens per domain (users, rbac, audit, me, auth, dashboard, ds); never import each other
   src/components/         shell and shared app components
-  src/lib/shared/         pure code shared by browser and server: zod contracts, permissions, nav, table state
+  src/lib/shared/         pure web-only code: nav, table state, queries (contracts and permissions: packages/shared)
   src/lib/server/         session, CSRF, guards, rate limits, logger, mock store
   src/lib/client/         API client, auth context, table query hook
   tests/e2e/              Playwright specs

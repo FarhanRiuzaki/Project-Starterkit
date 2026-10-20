@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { importsIn, read, scan, UI_SRC, WEB_SRC } from "./scan";
+import { importsIn, read, scan, SHARED_SRC, UI_SRC, WEB_SRC } from "./scan";
 
 const BANNED = /jumpserver|\bjms\b|squid|egress|prometheus|\bloki\b|bifrost|bilik|tibsdev|bankmega|workspace|\bkoko\b|megacode/i;
 const SELF = /no-domain\.test\.ts$/;
@@ -10,8 +10,8 @@ const intoApp = (spec: string) => spec.startsWith("@/") || /(^|\/)apps\//.test(s
 const uiImportViolations = (files: { f: string; src: string }[]) => files.filter(({ src }) => importsIn(src).some(intoApp)).map(({ f }) => f);
 
 describe("domain guard", () => {
-  it("no source-app domain word in apps/web/src or packages/ui/src", () => {
-    const hits = scan([WEB_SRC, UI_SRC], /\.(ts|tsx|css|md)$/, true).filter((f) => !SELF.test(f) && BANNED.test(read(f)));
+  it("no source-app domain word in apps/web/src, packages/ui/src or packages/shared/src", () => {
+    const hits = scan([WEB_SRC, UI_SRC, SHARED_SRC], /\.(ts|tsx|css|md)$/, true).filter((f) => !SELF.test(f) && BANNED.test(read(f)));
     expect(hits).toEqual([]);
   });
   it("packages/ui never imports apps/ or @/", () => {

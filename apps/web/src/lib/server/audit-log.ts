@@ -1,10 +1,10 @@
 import "server-only";
 import { CSV_BOM, csvFileName, toCsv } from "@starterkit/ui/lib/csv";
 import { appDayStart, shiftDate } from "@starterkit/ui/lib/format";
-import { changeText, CSV_MAX_ROWS } from "@/lib/shared/audit";
-import type { ActivityDto, ActivityQuery, AuthLogDto, AuthLogQuery } from "@/lib/shared/contracts/audit";
+import { changeText, CSV_MAX_ROWS } from "@starterkit/shared/audit";
+import type { ActivityDto, ActivityQuery, AuthLogDto, AuthLogQuery } from "@starterkit/shared/contracts/audit";
 import { db } from "./mock/db";
-import type { Page } from "@/lib/shared/contracts/common";
+import type { Page } from "@starterkit/shared/contracts/common";
 import { paginate, type Sorters, sortRows } from "./paginate";
 
 /** Both logs sort newest first unless the query asks otherwise; CSV is always newest first. */

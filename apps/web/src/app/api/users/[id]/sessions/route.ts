@@ -1,7 +1,7 @@
 import { handleError, json, notFound, withPermission } from "@/lib/server/api";
 import { db } from "@/lib/server/mock/db";
 import { sessionPage } from "@/lib/server/users";
-import { SessionListQuery } from "@/lib/shared/contracts/me";
+import { SessionListQuery } from "@starterkit/shared/contracts/me";
 
 /** One page of a user's sessions, newest activity first unless `sort` says otherwise; the caller's own is marked current. */
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }): Promise<Response> {

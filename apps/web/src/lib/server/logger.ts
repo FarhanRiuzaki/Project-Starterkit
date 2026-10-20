@@ -1,49 +1,6 @@
 import "server-only";
 import pino, { type DestinationStream } from "pino";
-
-const CENSOR = "[redacted]";
-
-/** Field names whose values never reach the log, at the top level and one level down. */
-const SECRET_FIELDS = [
-  "password", "passwordHash", "token", "cookie", "code", "csrf",
-  "otpauth", "otpauthUri", "uri", "secret", "totpSecret", "recoveryCodes", "formToken", "phone", "email",
-];
-
-/** OTP secrets inside free text: an otpauth URI, a `secret=` query value, a "Secret: <B32>" line. */
-const SECRET_TEXT: Array<[RegExp, string]> = [
-  [/otpauth:\/\/\S+/gi, `otpauth://${CENSOR}`],
-  [/secret=[A-Z2-7]+/gi, `secret=${CENSOR}`],
-  [/Secret: [A-Z2-7]{8,}=*/g, `Secret: ${CENSOR}`],
-];
-
-export function maskText(s: string): string {
-  let out = s;
-  for (const [re, by] of SECRET_TEXT) out = out.replace(re, by);
-  return out;
-}
-
-/** Copy of `v` with every string masked; plain objects and arrays only (depth-limited, cycle-safe). */
-function maskDeep(v: unknown, depth = 0, seen = new WeakSet<object>()): unknown {
-  if (typeof v === "string") return maskText(v);
-  if (v instanceof URL) return maskUrl(v); // as a string: redaction would otherwise poke URL's private fields
-  if (v === null || typeof v !== "object" || depth > 8 || seen.has(v)) return v;
-  if (Array.isArray(v)) {
-    seen.add(v);
-    return v.map((x) => maskDeep(x, depth + 1, seen));
-  }
-  const proto = Object.getPrototypeOf(v);
-  if (proto !== Object.prototype && proto !== null) return v; // Error, Date, Buffer…: serializers handle `err`
-  seen.add(v);
-  const out: Record<string, unknown> = {};
-  for (const [k, x] of Object.entries(v)) out[k] = maskDeep(x, depth + 1, seen);
-  return out;
-}
-
-function maskUrl(u: URL): string {
-  const c = new URL(u.href);
-  if (c.password) c.password = CENSOR;
-  return maskText(c.href);
-}
+import { formatLog, maskDeep, maskText, REDACT } from "@starterkit/shared/log-redact";
 
 /**
  * The err serializer, masked. An identifier-like `code` ("wrong_code", "ECONNREFUSED") is kept as `errCode`, because
@@ -76,8 +33,8 @@ export function createLogger(destination?: DestinationStream) {
   const logger = pino({
     level: process.env.LOG_LEVEL ?? "info",
     base: { app: "web" },
-    redact: { paths: [...SECRET_FIELDS, ...SECRET_FIELDS.map((f) => `*.${f}`)], censor: CENSOR },
-    formatters: { log: (o) => maskDeep(o) as Record<string, unknown> },
+    redact: REDACT,
+    formatters: { log: formatLog },
     serializers: { err: serializeErr },
     hooks: {
       logMethod(args, method) {

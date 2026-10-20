@@ -1,6 +1,6 @@
 import { handleError, json, withPermission } from "@/lib/server/api";
 import { roleOptionPage } from "@/lib/server/users";
-import { RoleOptionQuery } from "@/lib/shared/contracts/rbac";
+import { RoleOptionQuery } from "@starterkit/shared/contracts/rbac";
 
 /** Role options for the user filter and forms, under user.view: one page of { id, name }, name A–Z; `q` matches the name. */
 export async function GET(req: Request): Promise<Response> {

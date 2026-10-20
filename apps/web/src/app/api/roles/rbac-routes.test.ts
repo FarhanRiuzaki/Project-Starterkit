@@ -11,9 +11,9 @@ vi.mock("next/headers", () => ({
 
 import { db, resetDb } from "@/lib/server/mock/db";
 import { signInAs, TEST_CSRF } from "@/test/session";
-import type { Page } from "@/lib/shared/contracts/common";
-import type { PermissionDto, RoleDto } from "@/lib/shared/contracts/rbac";
-import { PERMISSIONS, type PermissionName } from "@/lib/shared/permissions";
+import type { Page } from "@starterkit/shared/contracts/common";
+import type { PermissionDto, RoleDto } from "@starterkit/shared/contracts/rbac";
+import { PERMISSIONS, type PermissionName } from "@starterkit/shared/permissions";
 import { GET as meGet } from "../me/route";
 import { GET as permsGet, POST as permsPost } from "../permissions/route";
 import { GET as userRolesGet } from "../users/roles/route";

@@ -10,8 +10,8 @@ vi.mock("next/headers", () => ({
 }));
 
 import { db, resetDb } from "@/lib/server/mock/db";
-import type { ActivityDto, AuthLogDto } from "@/lib/shared/contracts/audit";
-import type { Page } from "@/lib/shared/contracts/common";
+import type { ActivityDto, AuthLogDto } from "@starterkit/shared/contracts/audit";
+import type { Page } from "@starterkit/shared/contracts/common";
 import { signInAs, TEST_CSRF } from "@/test/session";
 import { POST as resetPassword } from "../users/[id]/reset-password/route";
 import { PATCH as userPatch } from "../users/[id]/route";

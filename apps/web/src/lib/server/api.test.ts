@@ -1,7 +1,7 @@
 import { sealData } from "iron-session";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
-import { ERROR_CODES } from "@/lib/shared/contracts/common";
+import { ERROR_CODES } from "@starterkit/shared/contracts/common";
 
 const SECRET = vi.hoisted(() => (process.env.SESSION_SECRET = "s".repeat(40)));
 /** The cookie jar behind the mocked `cookies()`: iron-session reads and writes `sk_session` here. */

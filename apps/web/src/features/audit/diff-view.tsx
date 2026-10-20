@@ -1,4 +1,4 @@
-import { diffFields } from "@/lib/shared/audit";
+import { diffFields } from "@starterkit/shared/audit";
 
 /**
  * Before/after of an activity entry: field | before | after, changed fields only. Credential-named fields show

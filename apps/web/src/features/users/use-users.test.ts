@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PERMISSIONS, type PermissionName } from "@/lib/shared/permissions";
+import { PERMISSIONS, type PermissionName } from "@starterkit/shared/permissions";
 import { protection, rankBlock, skipReason } from "./use-users";
 
 const ADMIN = new Set<PermissionName>(PERMISSIONS.filter((p) => !p.startsWith("role.") && !p.startsWith("permission.")));

@@ -3,7 +3,7 @@ import { log } from "@/lib/server/logger";
 import { db } from "@/lib/server/mock/db";
 import { hashPassword, hashToken } from "@/lib/server/mock/password";
 import { logAuth } from "@/lib/server/sign-in";
-import { ResetPasswordBody } from "@/lib/shared/contracts/auth";
+import { ResetPasswordBody } from "@starterkit/shared/contracts/auth";
 
 /** Set a new password with a reset token. The token is spent on first use, even when expired; the user's sessions end. */
 export async function POST(req: Request): Promise<Response> {

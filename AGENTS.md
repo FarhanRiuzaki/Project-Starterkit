@@ -5,6 +5,7 @@ code, tests and docs of the app this starterkit was extracted from; do not add a
 
 ## 1. Repo map and layers
 
+- `packages/shared/src` = zod contracts, paging, permissions, audit vocabulary, log redaction (`@starterkit/shared`); web and the API import it. Source-only.
 - `packages/ui/src/{ui,motion,styles,lib}` = primitives, motion, tokens, helpers; `ds` and `charts` (Task 3) sit above them. Source-only, transpiled by Next.
 - `apps/web/src/{app,components/shell,features,lib/{shared,server,client},test}` = Next.js 16 App Router app.
 - Layers import downward only: `ui`/`motion` → `ds` → `charts` → `components/shell` → `features/*`. (`apps/web/src/test/architecture.test.ts`)
@@ -13,6 +14,7 @@ code, tests and docs of the app this starterkit was extracted from; do not add a
 - `page.tsx` stays thin: `features/<domain>` → React Query hook → `fetch('/api/...')` → route handler (zod → `withPermission` → store); the page wraps its screen in `<Prefetch reads={[…]}>` (`lib/server/prefetch.tsx`), which runs the route's own read function on the server under the hook's key (`lib/shared/queries.ts`). (`apps/web/src/lib/server/prefetch.test.ts`)
 - Client code (`"use client"`) never imports `lib/server`. (`architecture.test.ts`)
 - `lib/shared` is pure: no React, Next, `lib/server` or components. (`architecture.test.ts`)
+- `packages/shared/src/**` is pure: no React, Next, `apps/`, `@/`; the only workspace import is `@starterkit/ui/lib/*`. Contracts, paging, permissions, audit vocabulary and log redaction live there. (`architecture.test.ts`, `no-domain.test.ts`)
 - Only `charts` imports `recharts`; only `packages/ui/src/motion/framer.tsx` imports `motion`; only `packages/ui/src/ui/icons.ts` imports `@hugeicons/core-free-icons`; no `lucide-react`. (`architecture.test.ts`, `packages/ui/src/motion/layer.test.ts`)
 - Radix DropdownMenu and Popover are imported only in their `*-impl` file; nothing imports it statically. (`packages/ui/src/ui/deferred-overlay.test.ts`)
 - Only `lib/cn.ts` imports the raw class-merge package. (`packages/ui/src/lib/cn.test.ts`)
@@ -51,7 +53,7 @@ Package manager is Bun 1.4.3; runtime for Next is Node 24.
 - Bound every in-memory `Map` (default 10,000 keys) and evict the oldest key on overflow; never clear all. (`ratelimit.ts`)
 - Never use `dangerouslySetInnerHTML`. (`architecture.test.ts`)
 - The browser calls only same-origin `/api/*` on the Next server, never the backend: every `fetch(`/`api(` literal in client code starts with `/api/`, and no `NEXT_PUBLIC_*API*`/`*URL*` variable exists; `API_BASE_URL` is server env only. `api()` throws at runtime unless the path starts with `/api/`; the static test cannot see non-literal `fetch(` arguments: the `api()` guard covers `api()` calls, and a raw `fetch(` with a non-literal argument is covered only by CSP `connect-src 'self'`. (`apps/web/src/lib/client/api.ts`) (CSP `connect-src 'self'` in `apps/web/src/security-headers.ts`, `architecture.test.ts`)
-- Redact `password, token, cookie, code, csrf, otpauth, uri, secret, formToken, phone, email` in logs, top level and one level down, and mask `otpauth://` and `secret=` inside strings. (`apps/web/src/lib/server/logger.ts`, `logger-redact.test.ts`)
+- Redact `password, token, cookie, code, csrf, otpauth, uri, secret, formToken, phone, email` in logs, top level and one level down, and mask `otpauth://` and `secret=` inside strings. (`packages/shared/src/log-redact.ts`, `apps/web/src/lib/server/logger.ts`, `logger-redact.test.ts`)
 - Commit no secret; `gitleaks` scans the tree. (`.gitleaks.toml`)
 - Call `recordActivity` in every non-GET handler outside `/api/auth/*`. (`architecture.test.ts`)
 - Neutralize CSV cells: prefix `'` when a cell starts with `=`, `+`, `-`, `@` (after optional spaces) or tab/CR. (`packages/ui/src/lib/csv.ts`, `csv.test.ts`)
@@ -92,7 +94,7 @@ A change that touches routes, guards, redirects or exports needs a test for each
 - Desktop-first: 1440 px reference, 1280 px minimum, no horizontal scroll at 768–1279; targets 28 px minimum, 32 px default.
 - Same metric, same label, unit, format and icon on every page; numbers only through `format.ts`.
 - Status uses `StatusChip` plus the card's legend, never color alone. Shareable state (filters, tab, range, page) lives in the URL. Query keys start with the owning module (`users`, `rbac`, `me`, `audit`, `dashboard`), built only in `apps/web/src/lib/shared/queries.ts`. (`queries.test.ts`)
-- Every list is server-side: the GET route calls `paginate()` with whitelisted sorters (`sortParam`), the screen uses `useTableQuery` + `DataTable` server mode (sortable headers, page-size select, numbered pagination); page size 15 | 25 | 50 | 100 (default 15), page ≤ 1000 (deeper is 400), `totalCapped` shows "N+"; page, size, sort, search and filters live in the URL (any change but the page goes to page 1, Back undoes it). (`apps/web/src/lib/shared/contracts/common.ts`, `apps/web/src/lib/server/paginate.test.ts`, `apps/web/src/lib/shared/table-state.test.ts`, `architecture.test.ts` "every GET route that answers a list")
+- Every list is server-side: the GET route calls `paginate()` with whitelisted sorters (`sortParam`), the screen uses `useTableQuery` + `DataTable` server mode (sortable headers, page-size select, numbered pagination); page size 15 | 25 | 50 | 100 (default 15), page ≤ 1000 (deeper is 400), `totalCapped` shows "N+"; page, size, sort, search and filters live in the URL (any change but the page goes to page 1, Back undoes it). (`packages/shared/src/contracts/common.ts`, `apps/web/src/lib/server/paginate.test.ts`, `apps/web/src/lib/shared/table-state.test.ts`, `architecture.test.ts` "every GET route that answers a list")
 - Status legends live in the card that shows the statuses: `Panel legend={…}` renders the "Status legend" info button in the card header; never a page-level, toolbar or inline legend. (`architecture.test.ts` "StatusLegend is rendered only by Panel", `packages/ui/src/ds/status-legend.test.ts`)
 - Every data region has five states (loading in the content's shape, empty saying when data appears, error with retry, stale notice over kept data, data); every async action shows pending on its trigger, announces its result (toast or `role=status`), keeps a recoverable error and returns focus sensibly. (`docs/standards/ui-standard.md` §3)
 - Destructive actions confirm through `ConfirmActionDialog` with their impact; an action blocked by a rule is a `BlockedButton` with the reason; everything works by keyboard with a visible focus ring; 404 and forbidden always offer a way back. (`docs/standards/ui-standard.md` §5, `docs/standards/copy-guide.md`)
@@ -147,15 +149,15 @@ A change that touches routes, guards, redirects or exports needs a test for each
 
 ## 12. Backend later (shared contract)
 
-The API contract is the zod schemas in `apps/web/src/lib/shared/contracts/*`, published for the backend as JSON Schema in `docs/api/schemas/` with the endpoint table in `docs/api/README.md`. After changing a contract or a route, run `bun run api:schemas` and update the table; `apps/web/src/test/api-contract.test.ts` fails on drift. A Bun or Rust backend must follow them and the rules below.
+The API contract is the zod schemas in `packages/shared/src/contracts/*`, published for the backend as JSON Schema in `docs/api/schemas/` with the endpoint table in `docs/api/README.md`. After changing a contract or a route, run `bun run api:schemas` and update the table; `apps/web/src/test/api-contract.test.ts` fails on drift. A Bun or Rust backend must follow them and the rules below.
 
 - Error body: `{ "error": { "code": string, "message": string } }`.
-- Error codes (fixed): `unauthenticated` 401, `forbidden` 403, `csrf` 403, `not_found` 404, `bad_request` 400, `duplicate` 409, `rate_limited` 429, `invalid_credentials` 401 (400 when a signed-in user's current password is wrong, so the browser doesn't read it as an ended session), `account_inactive` 403, `invalid_code` 400, `superadmin_locked` 409, `last_superadmin` 409, `self_action` 409, `role_in_use` 409, `ldap_password` 409, `already_enabled` 409, `only_sign_in_method` 409, `internal` 500. (`ERROR_STATUS` in `apps/web/src/lib/shared/contracts/common.ts`)
+- Error codes (fixed): `unauthenticated` 401, `forbidden` 403, `csrf` 403, `not_found` 404, `bad_request` 400, `duplicate` 409, `rate_limited` 429, `invalid_credentials` 401 (400 when a signed-in user's current password is wrong, so the browser doesn't read it as an ended session), `account_inactive` 403, `invalid_code` 400, `superadmin_locked` 409, `last_superadmin` 409, `self_action` 409, `role_in_use` 409, `ldap_password` 409, `already_enabled` 409, `only_sign_in_method` 409, `internal` 500. (`ERROR_STATUS` in `packages/shared/src/contracts/common.ts`)
 - Rate-limited responses (429) send `Retry-After` in seconds.
 - Paging query: `page` (1–1000; deeper is 400), `pageSize` (15, 25, 50 or 100; default 15), `q`, `sort` (`field` or `-field`, whitelisted per endpoint). Every list endpoint pages; none answers an unbounded array.
 - Paging answer: `{ items: T[]; total: number; page: number; pageSize: number; totalCapped?: boolean }` (`totalCapped` = the count stopped at `total`).
 - Bulk answer: `{ done: string[]; skipped: { id: string; code: string }[] }`; skipped rows carry a code, only `done` rows reach the activity log.
 - Every POST/PATCH/PUT/DELETE requires header `x-csrf-token`; the token lives in the session and the server hands it to the layout.
-- Permissions: `user.{view,create,edit,delete}`, `role.{view,create,edit,delete}`, `permission.{view,create}`, `audit.view`; catalog in `apps/web/src/lib/shared/permissions.ts`.
+- Permissions: `user.{view,create,edit,delete}`, `role.{view,create,edit,delete}`, `permission.{view,create}`, `audit.view`; catalog in `packages/shared/src/permissions.ts`.
 - Responses send `Cache-Control: no-store`. (`json()` in `apps/web/src/lib/server/api.ts`)
 - The backend is reached only from Next route handlers and server code through `API_BASE_URL` (server env, never `NEXT_PUBLIC_*`); the browser never sees its address, so CORS and cookies stay same-origin. (CSP `connect-src 'self'` in `apps/web/src/security-headers.ts`, `architecture.test.ts`)

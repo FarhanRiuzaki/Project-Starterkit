@@ -1,5 +1,5 @@
-import type { ActivityDto, AuthLogDto } from "../../shared/contracts/audit";
-import { PERMISSIONS, type PermissionName } from "../../shared/permissions";
+import type { ActivityDto, AuthLogDto } from "@starterkit/shared/contracts/audit";
+import { PERMISSIONS, type PermissionName } from "@starterkit/shared/permissions";
 import type { Db, RoleRecord, UserRecord } from "./db";
 import { hashPassword, hashRecoveryCode } from "./password";
 

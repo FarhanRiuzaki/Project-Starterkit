@@ -1,7 +1,7 @@
 import { Field } from "@starterkit/ui/ds";
 import { plural } from "@starterkit/ui/lib/format";
 import { Input } from "@starterkit/ui/ui/input";
-import type { RoleDto } from "@/lib/shared/contracts/rbac";
+import type { RoleDto } from "@starterkit/shared/contracts/rbac";
 
 /** Name input for the create and rename dialogs (2–40 characters, unique; the server checks both). */
 export function RoleNameField({ value, onChange }: { value: string; onChange: (v: string) => void }) {

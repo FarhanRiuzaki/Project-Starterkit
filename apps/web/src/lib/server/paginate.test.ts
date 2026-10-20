@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ListQuery, MAX_PAGE, sortParam } from "@/lib/shared/contracts/common";
+import { ListQuery, MAX_PAGE, sortParam } from "@starterkit/shared/contracts/common";
 import { paginate, sortRows } from "./paginate";
 
 type R = { id: string; n: number | null; s: string };

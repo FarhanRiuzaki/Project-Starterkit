@@ -23,7 +23,7 @@ import { GET as userSessionsGet } from "@/app/api/users/[id]/sessions/route";
 import { GET as roleOptionsGet } from "@/app/api/users/roles/route";
 import { GET as usersGet } from "@/app/api/users/route";
 import { db, resetDb } from "@/lib/server/mock/db";
-import { UserListQuery } from "@/lib/shared/contracts/users";
+import { UserListQuery } from "@starterkit/shared/contracts/users";
 import { text } from "@/lib/shared/table-state";
 import { authOf, getSession } from "@/lib/server/session";
 import { readTable, tableRequest } from "@/lib/shared/table-state";

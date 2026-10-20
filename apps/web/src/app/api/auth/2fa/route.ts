@@ -6,7 +6,7 @@ import { loginGate, loginLimits, retryText } from "@/lib/server/ratelimit";
 import { getSession, pending2faOf } from "@/lib/server/session";
 import { completeSignIn, logAuth } from "@/lib/server/sign-in";
 import { matchTotpStep } from "@/lib/server/totp";
-import { TwoFactorBody } from "@/lib/shared/contracts/auth";
+import { TwoFactorBody } from "@starterkit/shared/contracts/auth";
 
 /** A matching recovery code is removed, so it works once. */
 function spendRecoveryCode(user: UserRecord, code: string): boolean {

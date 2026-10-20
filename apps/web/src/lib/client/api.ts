@@ -1,5 +1,5 @@
 import { signInHref } from "@starterkit/ui/lib/safe-path";
-import type { ApiErrorBody } from "@/lib/shared/contracts/common";
+import type { ApiErrorBody } from "@starterkit/shared/contracts/common";
 
 export class ApiError extends Error {
   constructor(readonly status: number, readonly code: string, message: string) {

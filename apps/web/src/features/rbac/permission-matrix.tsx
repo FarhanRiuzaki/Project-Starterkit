@@ -2,7 +2,7 @@
 
 import { type FocusEvent, type KeyboardEvent, useLayoutEffect, useRef, useState } from "react";
 import { Checkbox } from "@starterkit/ui/ds";
-import { MODULES, PERMISSIONS, type PermissionName, permissionLabel } from "@/lib/shared/permissions";
+import { MODULES, PERMISSIONS, type PermissionName, permissionLabel } from "@starterkit/shared/permissions";
 import { ACTIONS, cellState, columnCells, type Edit, rowCells, toggleAll, toggleCell, toggleColumn, toggleRow } from "./matrix";
 
 const TH = "h-10 border-b border-line px-2 text-left align-middle text-label font-medium whitespace-nowrap text-fg-2";

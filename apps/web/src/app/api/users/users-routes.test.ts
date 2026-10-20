@@ -10,12 +10,12 @@ vi.mock("next/headers", () => ({
 }));
 
 import { db, resetDb } from "@/lib/server/mock/db";
-import type { Page } from "@/lib/shared/contracts/common";
+import type { Page } from "@starterkit/shared/contracts/common";
 import { addSession, signInAs, TEST_CSRF } from "@/test/session";
 import { hashToken, verifyPassword } from "@/lib/server/mock/password";
 import { SEED_PASSWORD } from "@/lib/server/mock/seed";
 import { SESSION_COOKIE } from "@/lib/server/session";
-import { PERMISSIONS } from "@/lib/shared/permissions";
+import { PERMISSIONS } from "@starterkit/shared/permissions";
 import { POST as resetPost } from "../auth/reset/route";
 import { POST as rolePost } from "../roles/route";
 import { DELETE as userDelete, GET as userGet, PATCH as userPatch } from "./[id]/route";

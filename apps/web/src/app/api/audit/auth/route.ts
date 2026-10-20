@@ -1,6 +1,6 @@
 import { handleError, json, withPermission } from "@/lib/server/api";
 import { AUTH_LOG_CSV, AUTH_LOG_SORTERS, auditCsv, authLogPage, authLogRows } from "@/lib/server/audit-log";
-import { AuthLogQuery } from "@/lib/shared/contracts/audit";
+import { AuthLogQuery } from "@starterkit/shared/contracts/audit";
 
 /** Sign-in log: one page (JSON) or the filtered list as CSV (`format=csv`). Read-only, so nothing is recorded. */
 export async function GET(req: Request): Promise<Response> {

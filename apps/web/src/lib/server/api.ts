@@ -1,7 +1,7 @@
 import "server-only";
 import { $ZodError } from "zod/v4/core";
-import { type ErrorCode, ERROR_STATUS } from "@/lib/shared/contracts/common";
-import type { PermissionName } from "@/lib/shared/permissions";
+import { type ErrorCode, ERROR_STATUS } from "@starterkit/shared/contracts/common";
+import type { PermissionName } from "@starterkit/shared/permissions";
 import { CSRF_HEADER, csrfOk } from "./csrf";
 import { log } from "./logger";
 import { type AuthCtx, authOf, getSession } from "./session";

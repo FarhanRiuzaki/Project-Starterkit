@@ -4,8 +4,8 @@ import { recordActivity } from "@/lib/server/audit";
 import { db, type RoleRecord } from "@/lib/server/mock/db";
 import { checkPermissionGrant } from "@/lib/server/mock/rules";
 import { inCatalogOrder, roleNameTaken, rolePage, toRoleDto } from "@/lib/server/rbac";
-import { CreateRoleBody, RoleListQuery } from "@/lib/shared/contracts/rbac";
-import { withViews } from "@/lib/shared/permissions";
+import { CreateRoleBody, RoleListQuery } from "@starterkit/shared/contracts/rbac";
+import { withViews } from "@starterkit/shared/permissions";
 
 /** One page of roles, name A–Z unless `sort` says otherwise; `q` matches the name. */
 export async function GET(req: Request): Promise<Response> {

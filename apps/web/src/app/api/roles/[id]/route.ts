@@ -3,8 +3,8 @@ import { recordActivity } from "@/lib/server/audit";
 import { db } from "@/lib/server/mock/db";
 import { checkPermissionGrant, checkRoleChange } from "@/lib/server/mock/rules";
 import { inCatalogOrder, renameRoleOnUsers, roleById, roleNameTaken, toRoleDto } from "@/lib/server/rbac";
-import { UpdateRoleBody } from "@/lib/shared/contracts/rbac";
-import { withViews } from "@/lib/shared/permissions";
+import { UpdateRoleBody } from "@starterkit/shared/contracts/rbac";
+import { withViews } from "@starterkit/shared/permissions";
 
 type Ctx = { params: Promise<{ id: string }> };
 

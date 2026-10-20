@@ -8,7 +8,7 @@ import { Icon } from "@starterkit/ui/ui/icon";
 import { SpinnerIcon } from "@starterkit/ui/ui/icons";
 import { Input } from "@starterkit/ui/ui/input";
 import { ApiError, api, errorText } from "@/lib/client/api";
-import type { RecoveryCodesDto, TwoFactorSetupDto } from "@/lib/shared/contracts/me";
+import type { RecoveryCodesDto, TwoFactorSetupDto } from "@starterkit/shared/contracts/me";
 
 /** Step 2 of turning on two-factor authentication: scan the QR code, enter the first code. The secret lives in state only. */
 export function TwoFactorSetup({ setup, onCancel, onDone }: {

@@ -3,9 +3,9 @@ import { signInHref } from "@starterkit/ui/lib/safe-path";
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import type { Metadata } from "next";
-import type { UserDto } from "@/lib/shared/contracts/users";
+import type { UserDto } from "@starterkit/shared/contracts/users";
 import { pagePerm } from "@/lib/shared/nav";
-import type { PermissionName } from "@/lib/shared/permissions";
+import type { PermissionName } from "@starterkit/shared/permissions";
 import { toUserDto } from "./mock/db";
 import { authOf, getSession } from "./session";
 

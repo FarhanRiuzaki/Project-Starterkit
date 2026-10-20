@@ -1,6 +1,6 @@
-import type { Page } from "@/lib/shared/contracts/common";
-import { PERMISSION_ROLES_SHOWN, type PermissionDto, type PermissionListQuery, type RoleDto, type RoleListQuery } from "@/lib/shared/contracts/rbac";
-import { PERMISSIONS, type PermissionName } from "@/lib/shared/permissions";
+import type { Page } from "@starterkit/shared/contracts/common";
+import { PERMISSION_ROLES_SHOWN, type PermissionDto, type PermissionListQuery, type RoleDto, type RoleListQuery } from "@starterkit/shared/contracts/rbac";
+import { PERMISSIONS, type PermissionName } from "@starterkit/shared/permissions";
 import { db, type RoleRecord } from "./mock/db";
 import { paginate, type Sorters } from "./paginate";
 

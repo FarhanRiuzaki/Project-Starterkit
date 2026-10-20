@@ -9,7 +9,7 @@ import { Icon } from "@starterkit/ui/ui/icon";
 import { SecureIcon, SpinnerIcon } from "@starterkit/ui/ui/icons";
 import { Input } from "@starterkit/ui/ui/input";
 import { api, errorText } from "@/lib/client/api";
-import type { LoginResult } from "@/lib/shared/contracts/auth";
+import type { LoginResult } from "@starterkit/shared/contracts/auth";
 import { AuthCard, FormError } from "./auth-card";
 
 type Method = "password" | "ldap";

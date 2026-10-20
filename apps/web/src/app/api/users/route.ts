@@ -4,7 +4,7 @@ import { recordActivity } from "@/lib/server/audit";
 import { type UserRecord, db, toUserDto } from "@/lib/server/mock/db";
 import { hashPassword } from "@/lib/server/mock/password";
 import { canonicalRoles, duplicateOf, roleGrantDenied, sendInvite, unknownRole, userPage } from "@/lib/server/users";
-import { CreateUserBody, UserListQuery } from "@/lib/shared/contracts/users";
+import { CreateUserBody, UserListQuery } from "@starterkit/shared/contracts/users";
 
 export async function GET(req: Request): Promise<Response> {
   const parsed = UserListQuery.safeParse(Object.fromEntries(new URL(req.url).searchParams));

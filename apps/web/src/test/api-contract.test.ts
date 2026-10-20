@@ -2,7 +2,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { ACTION_SHAPES, apiSchemas, SCHEMA_DIR, withActionTable } from "../../scripts/emit-api-schemas";
-import { ACTION_LABEL } from "@/lib/shared/audit";
+import { ACTION_LABEL } from "@starterkit/shared/audit";
 import { read, rel, scan, SRC } from "./scan";
 
 /** The API contract for the backend team (docs/api): generated JSON Schemas and the endpoint table stay true. */

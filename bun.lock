@@ -17,6 +17,7 @@
         "@fontsource-variable/geist": "5.3.0",
         "@fontsource-variable/geist-mono": "5.3.0",
         "@fontsource-variable/inter": "5.3.0",
+        "@starterkit/shared": "workspace:*",
         "@starterkit/ui": "workspace:*",
         "@tanstack/react-query": "5.104.0",
         "iron-session": "9.0.1",
@@ -37,6 +38,19 @@
         "@types/react": "19.3.0",
         "@types/react-dom": "19.3.0",
         "tailwindcss": "4.3.3",
+        "typescript": "6.0.3",
+        "vitest": "5.0.3",
+      },
+    },
+    "packages/shared": {
+      "name": "@starterkit/shared",
+      "version": "0.0.0",
+      "dependencies": {
+        "@starterkit/ui": "workspace:*",
+        "zod": "4.6.5",
+      },
+      "devDependencies": {
+        "@types/node": "26.6.3",
         "typescript": "6.0.3",
         "vitest": "5.0.3",
       },
@@ -418,6 +432,8 @@
     "@standard-schema/spec": ["@standard-schema/spec@1.1.0", "", {}, "sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w=="],
 
     "@standard-schema/utils": ["@standard-schema/utils@0.3.0", "", {}, "sha512-e7Mew686owMaPJVNNLs55PUvgz371nKgwsc4vxE49zsODpJEnxgxRo2y/OKrqueavXgZNMDVj3DdHFlaSAeU8g=="],
+
+    "@starterkit/shared": ["@starterkit/shared@workspace:packages/shared"],
 
     "@starterkit/ui": ["@starterkit/ui@workspace:packages/ui"],
 

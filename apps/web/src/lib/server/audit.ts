@@ -1,7 +1,7 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
-import { MASK, SECRET_KEY } from "@/lib/shared/audit";
-import type { AuthLogDto } from "@/lib/shared/contracts/audit";
+import { MASK, SECRET_KEY } from "@starterkit/shared/audit";
+import type { AuthLogDto } from "@starterkit/shared/contracts/audit";
 import type { AuthCtx } from "./session";
 import { db } from "./mock/db";
 

@@ -1,8 +1,8 @@
-import type { ActivityDto, AuthLogDto } from "../../shared/contracts/audit";
-import type { AuthMethod } from "../../shared/contracts/auth";
-import type { RoleDto } from "../../shared/contracts/rbac";
-import type { MeDto } from "../../shared/contracts/me";
-import { UserDto } from "../../shared/contracts/users";
+import type { ActivityDto, AuthLogDto } from "@starterkit/shared/contracts/audit";
+import type { AuthMethod } from "@starterkit/shared/contracts/auth";
+import type { RoleDto } from "@starterkit/shared/contracts/rbac";
+import type { MeDto } from "@starterkit/shared/contracts/me";
+import { UserDto } from "@starterkit/shared/contracts/users";
 import { seed } from "./seed";
 
 /** `totpLastStep`: the TOTP time step that last completed a sign-in; that code and older ones are refused (no replay). */

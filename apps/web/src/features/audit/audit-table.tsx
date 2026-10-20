@@ -12,7 +12,7 @@ import { toast } from "@starterkit/ui/ui/toast";
 import { PageHeader } from "@/components/shell/page-header";
 import { download, errorText } from "@/lib/client/api";
 import { useTableQuery } from "@/lib/client/use-table-query";
-import { AUDIT_RANGES, CSV_MAX_ROWS, MAX_RANGE_DAYS, RANGE_LABEL, rangeProblem } from "@/lib/shared/audit";
+import { AUDIT_RANGES, CSV_MAX_ROWS, MAX_RANGE_DAYS, RANGE_LABEL, rangeProblem } from "@starterkit/shared/audit";
 import { type AuditFilters, customRange, type TableDef } from "@/lib/shared/queries";
 import type { FilterParser, TableState } from "@/lib/shared/table-state";
 

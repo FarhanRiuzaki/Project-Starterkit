@@ -1,8 +1,8 @@
 // URL state of a server-driven table: page, pageSize, sort and the page's own filters. Pure (no React, no zod), so
 // the browser hook (lib/client/use-table-query.ts) and tests share it.
 import { formatNumber } from "@starterkit/ui/lib/format";
-import type { Page } from "./contracts/common";
-import { DEFAULT_PAGE_SIZE, MAX_PAGE, PAGE_SIZES, type PageSize } from "./paging";
+import type { Page } from "@starterkit/shared/contracts/common";
+import { DEFAULT_PAGE_SIZE, MAX_PAGE, PAGE_SIZES, type PageSize } from "@starterkit/shared/paging";
 
 /** Reads one filter from the URL: the raw value (null when absent) → the value to use, its own fallback on junk. */
 export type FilterParser<V extends string> = (raw: string | null) => V;

@@ -1,4 +1,4 @@
-import { type Action, MODULES, PERMISSIONS, type PermissionName } from "@/lib/shared/permissions";
+import { type Action, MODULES, PERMISSIONS, type PermissionName } from "@starterkit/shared/permissions";
 
 type Module = (typeof MODULES)[number]["key"];
 type Perms = ReadonlySet<PermissionName>;

@@ -1,5 +1,5 @@
-import type { BulkResult, ErrorCode } from "../../shared/contracts/common";
-import type { PermissionName } from "../../shared/permissions";
+import type { BulkResult, ErrorCode } from "@starterkit/shared/contracts/common";
+import type { PermissionName } from "@starterkit/shared/permissions";
 import type { DbView, RoleRecord, UserRecord } from "./db";
 
 export const SUPERADMIN = "Superadmin";

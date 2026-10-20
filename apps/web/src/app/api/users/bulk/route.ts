@@ -3,8 +3,8 @@ import { recordActivity } from "@/lib/server/audit";
 import { db, toUserDto, type UserRecord } from "@/lib/server/mock/db";
 import { bulk, checkRoleGrant, checkUserChange } from "@/lib/server/mock/rules";
 import { applyStatus, canonicalRoles, dropTokens, endSessions, statusRule, targetRank } from "@/lib/server/users";
-import type { ErrorCode } from "@/lib/shared/contracts/common";
-import { BulkUserBody, MAX_USER_ROLES } from "@/lib/shared/contracts/users";
+import type { ErrorCode } from "@starterkit/shared/contracts/common";
+import { BulkUserBody, MAX_USER_ROLES } from "@starterkit/shared/contracts/users";
 
 /**
  * Bulk activate / deactivate / delete / assignRole. Each id is checked on its own: protected rows (yourself, the last

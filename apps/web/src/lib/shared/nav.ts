@@ -1,4 +1,4 @@
-import type { PermissionName } from "./permissions";
+import type { PermissionName } from "@starterkit/shared/permissions";
 
 export type NavIcon = "dashboard" | "users" | "roles" | "permissions" | "activity" | "signin" | "ds" | "profile";
 export type NavGroup = "main" | "access" | "audit" | "personal";

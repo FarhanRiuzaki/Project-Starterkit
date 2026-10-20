@@ -7,11 +7,11 @@ import { hashToken } from "./mock/password";
 import { checkRoleGrant, checkTargetRank, checkUserChange, effectivePermissions } from "./mock/rules";
 import { paginate, type Sorters } from "./paginate";
 import { type AuthCtx, pruneSessions } from "./session";
-import type { ErrorCode, Page } from "@/lib/shared/contracts/common";
-import type { SessionDto, SessionListQuery } from "@/lib/shared/contracts/me";
-import type { RoleOption, RoleOptionQuery } from "@/lib/shared/contracts/rbac";
-import type { UserDetailDto, UserListQuery, UserRowDto } from "@/lib/shared/contracts/users";
-import { PERMISSIONS, type PermissionName } from "@/lib/shared/permissions";
+import type { ErrorCode, Page } from "@starterkit/shared/contracts/common";
+import type { SessionDto, SessionListQuery } from "@starterkit/shared/contracts/me";
+import type { RoleOption, RoleOptionQuery } from "@starterkit/shared/contracts/rbac";
+import type { UserDetailDto, UserListQuery, UserRowDto } from "@starterkit/shared/contracts/users";
+import { PERMISSIONS, type PermissionName } from "@starterkit/shared/permissions";
 
 const INVITE_TTL_MS = 72 * 3600_000;
 

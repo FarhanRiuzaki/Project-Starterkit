@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PERMISSIONS, type PermissionName } from "@/lib/shared/permissions";
+import { PERMISSIONS, type PermissionName } from "@starterkit/shared/permissions";
 import { ACTIONS, applyEdit, cellState, columnCells, diff, type Draft, rebase, rowCells, toggleAll, toggleCell, toggleColumn, toggleRow, withDraft } from "./matrix";
 
 const set = (...p: PermissionName[]) => new Set<PermissionName>(p);

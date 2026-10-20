@@ -1,7 +1,7 @@
 import { badRequest, blocked, json, notFound, withPermission } from "@/lib/server/api";
 import { db, toUserDto } from "@/lib/server/mock/db";
 import { applyStatus, rankDenied, statusRule } from "@/lib/server/users";
-import { SetUserStatusBody } from "@/lib/shared/contracts/users";
+import { SetUserStatusBody } from "@starterkit/shared/contracts/users";
 
 /** Activate or deactivate (the same rule and activity as PATCH isActive). Deactivating ends the user's sessions. */
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }): Promise<Response> {

@@ -5,7 +5,7 @@ import { checkUserChange } from "@/lib/server/mock/rules";
 import {
   applyStatus, canonicalRoles, dropTokens, duplicateOf, endSessions, rankDenied, roleGrantDenied, statusRule, unknownRole, userDetail,
 } from "@/lib/server/users";
-import { UpdateUserBody, type UserDto } from "@/lib/shared/contracts/users";
+import { UpdateUserBody, type UserDto } from "@starterkit/shared/contracts/users";
 
 type Ctx = { params: Promise<{ id: string }> };
 export async function GET(req: Request, { params }: Ctx): Promise<Response> {

@@ -1,13 +1,14 @@
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { pagePerm } from "@/lib/shared/nav";
-import { importsOf, read, REPO, repoRel, scan, strip, UI_SRC, WEB_SRC } from "./scan";
+import { importsIn, importsOf, read, REPO, repoRel, scan, SHARED_SRC, strip, UI_SRC, WEB_SRC } from "./scan";
 
 type F = { r: string; src: string; imp: string[] };
 
 const WEB = "apps/web/src/";
 const UI = "packages/ui/src/";
-const files: F[] = scan([WEB_SRC, UI_SRC]).map((f) => ({ r: repoRel(f), src: read(f), imp: importsOf(f) }));
+const SHARED = "packages/shared/src/";
+const files: F[] = scan([WEB_SRC, UI_SRC, SHARED_SRC]).map((f) => ({ r: repoRel(f), src: read(f), imp: importsOf(f) }));
 const cssFiles: F[] = scan([WEB_SRC, UI_SRC], /\.css$/).map((f) => ({ r: repoRel(f), src: read(f), imp: [] }));
 
 /** ui/motion/lib = primitives (0) → ds (1) → charts (2) → shell (3) → features (4). */
@@ -17,6 +18,7 @@ const layer = (r: string) =>
 /** Import specifier → repo-relative path ("@/x", "@starterkit/ui/x", "./x" all resolve); other packages → null. */
 const resolveSpec = (fromRel: string, spec: string): string | null =>
   spec.startsWith("@/") ? WEB + spec.slice(2)
+    : spec.startsWith("@starterkit/shared/") ? SHARED + spec.slice("@starterkit/shared/".length)
     : spec.startsWith("@starterkit/ui/") ? UI + spec.slice("@starterkit/ui/".length)
     : spec.startsWith(".") ? repoRel(path.resolve(REPO, path.dirname(fromRel), spec))
     : null;
@@ -32,6 +34,13 @@ function layerViolations(fs: F[]): string[] {
 }
 
 /** sonner (~10 kB gz) loads on demand: `toast` from ui/toast.ts, the Toaster through next/dynamic (providers.tsx). */
+/** packages/shared/src stays pure: no React, Next, apps/, the @/ alias; the only @starterkit import is @starterkit/ui/lib/*. */
+function sharedViolations(fs: F[]): string[] {
+  const bad = (s: string) => /^(react|next)(\/|$)/.test(s) || s.startsWith("@/") || /(^|\/)apps\//.test(s)
+    || (s.startsWith("@starterkit/") && !s.startsWith("@starterkit/ui/lib/"));
+  return fs.filter(({ r }) => r.startsWith(SHARED)).flatMap(({ r, imp }) => imp.filter(bad).map((s) => `${r} → ${s}`));
+}
+
 function sonnerViolations(fs: F[]): string[] {
   const own = [`${UI}ui/sonner.tsx`, `${UI}ui/toast.ts`];
   return fs.filter(({ r, src, imp }) => (imp.includes("sonner") && !own.includes(r)) || /from\s+["']@starterkit\/ui\/ui\/sonner["']/.test(src)).map((f) => f.r);
@@ -88,7 +97,7 @@ function clientZodViolations(fs: F[]): string[] {
   return fs.filter(isClient).flatMap(({ r, src }) => [...strip(src).matchAll(/^\s*import\s+(type\s+)?(?:([^;"']*?)\s+from\s+)?["']([^"']+)["']/gm)]
     .filter((m) => {
       const spec = m[3]!;
-      return spec === "zod" || spec.startsWith("zod/") || !!resolveSpec(r, spec)?.startsWith(`${WEB}lib/shared/contracts/`);
+      return spec === "zod" || spec.startsWith("zod/") || !!resolveSpec(r, spec)?.startsWith(`${SHARED}contracts/`);
     })
     .filter((m) => !m[1] && !allTypes(m[2]))
     .map((m) => `${r}: value import from ${m[3]}`));
@@ -265,6 +274,10 @@ describe("architecture", () => {
     expect(bad.map((f) => f.r)).toEqual([]);
   });
 
+  it("packages/shared is pure (no React, Next, apps/, @/; only @starterkit/ui/lib/*)", () => {
+    expect(sharedViolations(files)).toEqual([]);
+  });
+
   it("client code calls only same-origin /api/ and reads no NEXT_PUBLIC API/URL variable", () => {
     expect(clientApiViolations(files)).toEqual([]);
   });
@@ -390,17 +403,31 @@ describe("architecture checkers (fixtures)", () => {
 
   it("client value import of a contract or zod; type-only imports and server code pass", () => {
     expect(clientZodViolations([
-      f(`${WEB}features/x/a.tsx`, `import { AUTH_EVENTS } from "@/lib/shared/contracts/audit";\nimport { type Page, ListQuery } from "@/lib/shared/contracts/common";`),
+      f(`${WEB}features/x/a.tsx`, `import { AUTH_EVENTS } from "@starterkit/shared/contracts/audit";\nimport { type Page, ListQuery } from "@starterkit/shared/contracts/common";`),
       f(`${WEB}lib/client/b.ts`, `import { z } from "zod";\nimport "zod/v4/core";`),
-      f(`${WEB}app/x/c.tsx`, `"use client";\nimport { UserDto } from "../../lib/shared/contracts/users";`),
-      f(`${WEB}features/x/ok.tsx`, `import type { Page } from "@/lib/shared/contracts/common";\nimport { type UserDto, type X } from "@/lib/shared/contracts/users";\nimport { AUTH_EVENTS } from "@/lib/shared/audit";`),
-      f(`${WEB}lib/server/s.ts`, `import { ListQuery } from "@/lib/shared/contracts/common";\nimport { z } from "zod";`),
+      f(`${WEB}app/x/c.tsx`, `"use client";\nimport { UserDto } from "@starterkit/shared/contracts/users";`),
+      f(`${WEB}features/x/ok.tsx`, `import type { Page } from "@starterkit/shared/contracts/common";\nimport { type UserDto, type X } from "@starterkit/shared/contracts/users";\nimport { AUTH_EVENTS } from "@starterkit/shared/audit";`),
+      f(`${WEB}lib/server/s.ts`, `import { ListQuery } from "@starterkit/shared/contracts/common";\nimport { z } from "zod";`),
     ])).toEqual([
-      `${WEB}features/x/a.tsx: value import from @/lib/shared/contracts/audit`,
-      `${WEB}features/x/a.tsx: value import from @/lib/shared/contracts/common`,
+      `${WEB}features/x/a.tsx: value import from @starterkit/shared/contracts/audit`,
+      `${WEB}features/x/a.tsx: value import from @starterkit/shared/contracts/common`,
       `${WEB}lib/client/b.ts: value import from zod`,
       `${WEB}lib/client/b.ts: value import from zod/v4/core`,
-      `${WEB}app/x/c.tsx: value import from ../../lib/shared/contracts/users`,
+      `${WEB}app/x/c.tsx: value import from @starterkit/shared/contracts/users`,
+    ]);
+  });
+
+  it("shared fixtures: React, Next, app paths, @/ and other @starterkit packages are caught; ui/lib and relative pass", () => {
+    const f = (r: string, src: string): F => ({ r, src, imp: importsIn(src) });
+    expect(sharedViolations([
+      f(`${SHARED}a.ts`, `import { useState } from "react";\nimport { x } from "next/headers";`),
+      f(`${SHARED}b.ts`, `import { y } from "@/lib/server/x";\nimport { z } from "../../../apps/web/src/y";`),
+      f(`${SHARED}c.ts`, `import { w } from "@starterkit/ui/ds";\nimport { v } from "@starterkit/ui/ui/button";`),
+      f(`${SHARED}ok.ts`, `import { appDate } from "@starterkit/ui/lib/format";\nimport { a } from "./contracts/audit";\nimport { z } from "zod";`),
+    ])).toEqual([
+      `${SHARED}a.ts → react`, `${SHARED}a.ts → next/headers`,
+      `${SHARED}b.ts → @/lib/server/x`, `${SHARED}b.ts → ../../../apps/web/src/y`,
+      `${SHARED}c.ts → @starterkit/ui/ds`, `${SHARED}c.ts → @starterkit/ui/ui/button`,
     ]);
   });
 
@@ -463,7 +490,7 @@ export async function POST(req: Request) { recordActivity(ctx, e); return json(1
 
   it("zod import check: a side-effect import followed by a type-only contract import passes", () => {
     expect(clientZodViolations([
-      f(`${WEB}features/x/a.tsx`, `import "./x.css";\nimport type { A } from "@/lib/shared/contracts/audit";`),
+      f(`${WEB}features/x/a.tsx`, `import "./x.css";\nimport type { A } from "@starterkit/shared/contracts/audit";`),
     ])).toEqual([]);
   });
 

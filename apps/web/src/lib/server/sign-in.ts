@@ -1,8 +1,8 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
 import type { IronSession } from "iron-session";
-import type { AuthLogDto } from "@/lib/shared/contracts/audit";
-import type { AuthMethod } from "@/lib/shared/contracts/auth";
+import type { AuthLogDto } from "@starterkit/shared/contracts/audit";
+import type { AuthMethod } from "@starterkit/shared/contracts/auth";
 import { apiError, clientIp, tooManyAttempts } from "./api";
 import { recordAuth } from "./audit";
 import { newCsrfToken, secureEquals } from "./csrf";

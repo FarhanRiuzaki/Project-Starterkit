@@ -1,7 +1,7 @@
 import { apiError, badRequest, json, withPermission } from "@/lib/server/api";
 import { recordActivity } from "@/lib/server/audit";
 import { toMeDto } from "@/lib/server/mock/db";
-import { ConnectionProvider } from "@/lib/shared/contracts/me";
+import { ConnectionProvider } from "@starterkit/shared/contracts/me";
 
 type Ctx = { params: Promise<{ provider: string }> };
 

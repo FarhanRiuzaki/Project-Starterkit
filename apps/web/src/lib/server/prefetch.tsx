@@ -3,11 +3,11 @@ import { type DehydratedState, dehydrate, QueryClient, type QueryKey } from "@ta
 import type { ReactNode } from "react";
 import type { z } from "zod";
 import { Hydrate } from "@/lib/client/hydrate";
-import { ActivityQuery, AuthLogQuery } from "@/lib/shared/contracts/audit";
-import { SessionListQuery } from "@/lib/shared/contracts/me";
-import { PermissionListQuery, RoleListQuery, RoleOptionQuery } from "@/lib/shared/contracts/rbac";
-import { UserListQuery } from "@/lib/shared/contracts/users";
-import type { PermissionName } from "@/lib/shared/permissions";
+import { ActivityQuery, AuthLogQuery } from "@starterkit/shared/contracts/audit";
+import { SessionListQuery } from "@starterkit/shared/contracts/me";
+import { PermissionListQuery, RoleListQuery, RoleOptionQuery } from "@starterkit/shared/contracts/rbac";
+import { UserListQuery } from "@starterkit/shared/contracts/users";
+import type { PermissionName } from "@starterkit/shared/permissions";
 import {
   ACTIVITY, AUTH_LOG, DASHBOARD_KEY, ME_KEY, MY_SESSIONS, PERMISSIONS_TABLE, roleKey, roleOptions, ROLES, SUPERADMINS,
   type TableDef, userDetail as userDetailQuery, USERS, userSessions as userSessionsTable,

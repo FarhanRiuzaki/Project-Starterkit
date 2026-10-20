@@ -7,7 +7,7 @@ import { hashPassword, verifyPassword } from "@/lib/server/mock/password";
 import { loginGate, loginLimits, retryText } from "@/lib/server/ratelimit";
 import { getSession } from "@/lib/server/session";
 import { completeSignIn, findUser, logAuth } from "@/lib/server/sign-in";
-import { LoginBody } from "@/lib/shared/contracts/auth";
+import { LoginBody } from "@starterkit/shared/contracts/auth";
 
 let dummy: string | undefined;
 /** A hash no password matches: scrypt runs for unknown logins too, so the answer time doesn't reveal which exist. */

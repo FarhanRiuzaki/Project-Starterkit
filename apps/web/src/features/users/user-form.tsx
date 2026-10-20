@@ -16,7 +16,7 @@ import { LoadingShape } from "@/components/route-skeleton";
 import { PageHeader } from "@/components/shell/page-header";
 import { api, errorText, isNotFound } from "@/lib/client/api";
 import { useAuth } from "@/lib/client/auth-context";
-import type { UserDto } from "@/lib/shared/contracts/users";
+import type { UserDto } from "@starterkit/shared/contracts/users";
 import { BRAND } from "@/lib/shared/brand";
 import { USERS_KEY, useRoleNames, useUserDetail } from "./use-users";
 import { useDebounced } from "@/lib/client/use-debounced";

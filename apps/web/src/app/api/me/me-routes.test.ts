@@ -10,7 +10,7 @@ vi.mock("next/headers", () => ({
 }));
 
 import { db, resetDb } from "@/lib/server/mock/db";
-import type { Page } from "@/lib/shared/contracts/common";
+import type { Page } from "@starterkit/shared/contracts/common";
 import { addSession, signInAs, TEST_CSRF } from "@/test/session";
 import { hashRecoveryCode, hashToken } from "@/lib/server/mock/password";
 import { LDAP_PASSWORD, RECOVERY_CODES, SEED_PASSWORD } from "@/lib/server/mock/seed";

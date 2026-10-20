@@ -2,7 +2,7 @@ import { apiError, badRequest, handleError, json, withPermission } from "@/lib/s
 import { recordActivity } from "@/lib/server/audit";
 import { db } from "@/lib/server/mock/db";
 import { permissionPage } from "@/lib/server/rbac";
-import { CATALOG_MAX, CreatePermissionsBody, type CreatePermissionsResult, PermissionListQuery } from "@/lib/shared/contracts/rbac";
+import { CATALOG_MAX, CreatePermissionsBody, type CreatePermissionsResult, PermissionListQuery } from "@starterkit/shared/contracts/rbac";
 
 /** One page of the catalog, catalog order unless `sort` says otherwise; `q` matches the name, `module` is exact. */
 export async function GET(req: Request): Promise<Response> {
