@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { USER_SORTS } from "../paging";
 import { ListQuery, sortParam } from "./common";
-import { Password } from "./auth";
+import { Password } from "./password";
 import { PERMISSIONS, type PermissionName } from "../permissions";
 
 export const UserDto = z.object({

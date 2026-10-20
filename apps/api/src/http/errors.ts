@@ -24,13 +24,14 @@ const COPY: Partial<Record<ErrorCode, string>> = {
   role_in_use: "Users still have this role. Remove it from them first, then delete the role.",
 };
 
-/** An error answer: status from ERROR_STATUS, message from the fixed copy unless given. */
+/**
+ * An error answer: status from ERROR_STATUS (unless given: `invalid_credentials` is 400 for a signed-in user's wrong
+ * current password), message from the fixed copy unless given.
+ */
 export class ApiError extends Error {
-  readonly status: number;
-  constructor(readonly code: ErrorCode, message?: string, readonly headers?: Record<string, string>) {
+  constructor(readonly code: ErrorCode, message?: string, readonly headers?: Record<string, string>, readonly status: number = ERROR_STATUS[code]) {
     super(message ?? COPY[code] ?? "This change isn't allowed.");
     this.name = "ApiError";
-    this.status = ERROR_STATUS[code];
   }
 }
 

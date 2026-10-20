@@ -26,6 +26,13 @@ const Schema = z.object({
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info"),
   OAUTH_MOCK: flag,
   LDAP_MOCK: flag,
+  LDAP_URL: z.string().regex(/^ldaps?:\/\/\S+$/i, { message: "must start with ldap:// or ldaps://" }).optional(),
+  LDAP_BIND_DN: z.string().optional(),
+  LDAP_BIND_PASSWORD: z.string().optional(),
+  LDAP_BASE_DN: z.string().optional(),
+  // Without {username} every sign-in would search the same entry.
+  LDAP_USER_FILTER: z.string().refine((v) => v.includes("{username}"), { message: "must contain {username}" }).default("(uid={username})"),
+  LDAP_STARTTLS: flag,
 }).transform((c) => ({ ...c, MIGRATION_DATABASE_URL: c.MIGRATION_DATABASE_URL ?? c.DATABASE_URL }));
 
 export type Config = z.output<typeof Schema>;
@@ -40,10 +47,12 @@ function crossKeyProblems(e: Record<string, string>): string[] {
     if (!e.SMTP_URL) out.push("SMTP_URL (required when MAIL_TRANSPORT=smtp)");
     if (!e.MAIL_FROM) out.push("MAIL_FROM (required when MAIL_TRANSPORT=smtp)");
   }
+  if (e.LDAP_URL && !e.LDAP_BASE_DN) out.push("LDAP_BASE_DN (required when LDAP_URL is set)");
   if (e.NODE_ENV === "production") {
     if (e.MAIL_TRANSPORT !== "smtp") out.push("MAIL_TRANSPORT (must be smtp in production)");
     if (e.OAUTH_MOCK === "true") out.push("OAUTH_MOCK (must be false in production)");
     if (e.LDAP_MOCK === "true") out.push("LDAP_MOCK (must be false in production)");
+    if (/^ldap:\/\//i.test(e.LDAP_URL ?? "") && e.LDAP_STARTTLS !== "true") out.push("LDAP_URL (production needs ldaps:// or LDAP_STARTTLS=true)");
   }
   return out;
 }

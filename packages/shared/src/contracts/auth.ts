@@ -1,4 +1,7 @@
 import { z } from "zod";
+import { PERMISSIONS, type PermissionName } from "../permissions";
+import { Password } from "./password";
+import { UserDto } from "./users";
 
 export type AuthMethod = "password" | "ldap" | "google" | "apple";
 
@@ -22,7 +25,11 @@ export type TwoFactorBody = z.infer<typeof TwoFactorBody>;
 export const ForgotPasswordBody = z.object({ email: z.string().email().max(254) });
 export type ForgotPasswordBody = z.infer<typeof ForgotPasswordBody>;
 
-export const Password = z.string().min(12).max(128);
+export { Password };
 
 export const ResetPasswordBody = z.object({ token: z.string().min(1).max(256), password: Password });
 export type ResetPasswordBody = z.infer<typeof ResetPasswordBody>;
+
+/** GET /v1/auth/context (API-internal, for the web's page guards): the signed-in user and their permissions in catalog order. */
+export const AuthContextDto = z.object({ user: UserDto, permissions: z.array(z.enum(PERMISSIONS as [PermissionName, ...PermissionName[]])) });
+export type AuthContextDto = z.infer<typeof AuthContextDto>;

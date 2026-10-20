@@ -1,5 +1,6 @@
 import type { SQL } from "bun";
 import { Hono } from "hono";
+import { authRoutes } from "./auth/routes";
 import { sql } from "./db/client";
 import { ApiError, onError } from "./http/errors";
 import { type AppEnv, bodyLimit, internalAuth, requestContext } from "./http/middleware";
@@ -22,7 +23,8 @@ export function createApp(deps: { db?: SQL } = {}) {
   app.use("/v1/*", internalAuth);
   app.get("/healthz", (c) => c.json({ ok: true }));
   app.get("/readyz", async (c) => ((await dbReady(db)) ? c.json({ ok: true }) : c.json({ ok: false }, 503)));
-  // Module routers mount here: app.route("/v1", …).
+  // Module routers, all under /v1. Mount rbac before users (Task 5/6): `/users/roles` must not reach `/users/:id`.
+  app.route("/v1", authRoutes);
   app.notFound(() => {
     throw new ApiError("not_found");
   });
