@@ -19,11 +19,11 @@ describe("DataTable row actions", () => {
     expect(out).not.toMatch(/<div class="[^"]*\b(hidden|invisible)\b[^"]*"><button/);
   });
 
-  it("reveal on row hover, whenever focus is inside the row (keyboard), and while their menu is open", () => {
+  it("reveal on row hover, whenever focus is inside the row (keyboard), while their menu is open, and always on touch", () => {
     const out = table([{ id: "a" }]);
     expect(out).toMatch(/<tr data-slot="table-row" class="group\/row /);
     const wrap = /<div class="([^"]*)"><button type="button">View commands a/.exec(out)?.[1] ?? "";
-    expect(wrap.split(" ")).toEqual(expect.arrayContaining(["opacity-0", "group-hover/row:opacity-100", "group-focus-within/row:opacity-100", "has-data-[state=open]:opacity-100"]));
+    expect(wrap.split(" ")).toEqual(expect.arrayContaining(["opacity-0", "group-hover/row:opacity-100", "group-focus-within/row:opacity-100", "has-data-[state=open]:opacity-100", "pointer-coarse:opacity-100"]));
   });
 });
 

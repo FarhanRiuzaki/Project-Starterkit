@@ -85,6 +85,18 @@ describe("Drawer (navigation drawer, Radix Dialog through deferred-overlay)", ()
     expect(app.hasAttribute("inert")).toBe(false);
   });
 
+  it("leaves Next's route announcer and live regions (the toaster) out of the inert background", async () => {
+    await drawerLoader.load();
+    const announcer = document.body.appendChild(document.createElement("next-route-announcer"));
+    const toaster = document.body.appendChild(Object.assign(document.createElement("section"), { ariaLabel: "Notifications" }));
+    toaster.setAttribute("aria-live", "polite");
+    await mount();
+    await open();
+    expect(document.getElementById("app")!.closest("[inert]"), "the page behind is inert").not.toBeNull();
+    expect(announcer.hasAttribute("inert"), "route announcer").toBe(false);
+    expect(toaster.hasAttribute("inert"), "toaster").toBe(false);
+  });
+
   it("Escape closes it and focus returns to the menu button", async () => {
     await drawerLoader.load();
     await mount();

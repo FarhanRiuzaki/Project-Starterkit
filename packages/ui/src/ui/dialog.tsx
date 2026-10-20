@@ -54,14 +54,18 @@ function DialogOverlay({
  * action row (DialogFooter) stuck to its bottom, safe-area padding below; it rises from the bottom on the same tokens
  * (reduced motion: fade only). CSS only, so the server HTML is already the right shape; `max-md:` rules win over a
  * caller's unprefixed desktop classes.
+ * `phone="top"` (the command palette, a text field that opens the on-screen keyboard): below 768 px the panel hangs from
+ * the top edge instead, full width, safe-area padding above, sliding down from the top; the caller caps its height.
  */
 function DialogContent({
   className,
   children,
   showCloseButton = true,
+  phone = "sheet",
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean
+  phone?: "sheet" | "top"
 }) {
   return (
     <DialogPortal data-slot="dialog-portal">
@@ -71,7 +75,10 @@ function DialogContent({
         className={cn(
           "fixed top-1/2 left-1/2 z-50 grid w-[calc(100%-2rem)] max-w-120 -translate-x-1/2 -translate-y-1/2 gap-0 overflow-hidden rounded-xl border border-line bg-raised text-fg shadow-overlay outline-none data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-98 data-[state=closed]:duration-(--dur-exit) data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-98 data-[state=open]:duration-(--dur-slow)",
           className,
-          "max-md:top-auto max-md:bottom-0 max-md:left-0 max-md:w-full max-md:max-w-none max-md:max-h-[90dvh] max-md:translate-x-0 max-md:translate-y-0 max-md:overflow-y-auto max-md:overscroll-contain max-md:rounded-b-none max-md:border-x-0 max-md:border-b-0 max-md:pb-safe max-md:data-[state=open]:slide-in-from-bottom max-md:data-[state=closed]:slide-out-to-bottom max-md:data-[state=open]:zoom-in-100 max-md:data-[state=closed]:zoom-out-100"
+          "max-md:left-0 max-md:w-full max-md:max-w-none max-md:translate-x-0 max-md:translate-y-0 max-md:border-x-0 max-md:data-[state=open]:zoom-in-100 max-md:data-[state=closed]:zoom-out-100",
+          phone === "top"
+            ? "max-md:top-0 max-md:rounded-t-none max-md:border-t-0 max-md:pt-safe max-md:data-[state=open]:slide-in-from-top max-md:data-[state=closed]:slide-out-to-top"
+            : "max-md:top-auto max-md:bottom-0 max-md:max-h-[90dvh] max-md:overflow-y-auto max-md:overscroll-contain max-md:rounded-b-none max-md:border-b-0 max-md:pb-safe max-md:data-[state=open]:slide-in-from-bottom max-md:data-[state=closed]:slide-out-to-bottom"
         )}
         {...props}
       >

@@ -18,15 +18,18 @@ function DrawerClose(props: React.ComponentProps<typeof DialogPrimitive.Close>) 
   return <DialogPrimitive.Close data-slot="drawer-close" {...props} />
 }
 
+const KEEP_LIVE = "next-route-announcer, [aria-live]"
+
 /**
  * Everything in <body> but the drawer's own portal is `inert` while the drawer is mounted (Radix already traps focus
  * and hides the rest from assistive tech; inert also stops find-in-page and stray taps). Removed on unmount, before
- * Radix hands focus back to the trigger. Elements that were inert already are left alone.
+ * Radix hands focus back to the trigger. Elements that were inert already are left alone, and so are live regions
+ * (Next's route announcer, the toaster): an inert live region stops announcing, and a toast can arrive while it is open.
  */
 function useInertOutside(el: HTMLElement | null) {
   React.useEffect(() => {
     if (!el) return
-    const others = [...el.ownerDocument.body.children].filter((c) => !c.contains(el) && !c.hasAttribute("inert"))
+    const others = [...el.ownerDocument.body.children].filter((c) => !c.contains(el) && !c.hasAttribute("inert") && !c.matches(KEEP_LIVE))
     for (const o of others) o.setAttribute("inert", "")
     return () => { for (const o of others) o.removeAttribute("inert") }
   }, [el])
