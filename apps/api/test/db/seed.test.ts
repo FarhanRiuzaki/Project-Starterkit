@@ -49,6 +49,42 @@ describe("seedSystem", () => {
     expect(await snapshot()).toEqual(first);
   });
 
+  it("bootstrap only: an active Superadmin there and a changed SEED_SUPERADMIN_EMAIL creates nobody and doesn't fail", async () => {
+    await seedSystem(db, OWNER);
+    const before = await usersWithRoles();
+    const info = spyOn(log, "info");
+    try {
+      await seedSystem(db, { ...OWNER, SEED_SUPERADMIN_EMAIL: "new-owner@example.test" }); // same username, another email
+      expect(info).toHaveBeenCalledTimes(1);
+      expect(JSON.stringify(info.mock.calls)).not.toContain("Owner-Password-1!");
+      expect(JSON.stringify(info.mock.calls)).not.toContain("new-owner@example.test");
+    } finally {
+      info.mockRestore();
+    }
+    expect(await usersWithRoles()).toEqual(before);
+  });
+
+  it("bootstrap only: the seeded owner deleted while another active Superadmin exists creates nobody", async () => {
+    await seedSystem(db, OWNER);
+    const [superadmin] = await db.select({ id: roles.id }).from(roles).where(eq(roles.name, "Superadmin"));
+    const other = Bun.randomUUIDv7();
+    await db.insert(users).values({ id: other, name: "Other", username: "other", email: "other@example.test" });
+    await db.insert(userRoles).values({ userId: other, roleId: superadmin!.id });
+    await db.delete(users).where(eq(users.username, "owner"));
+    await seedSystem(db, OWNER);
+    expect((await usersWithRoles()).map((u) => [u.username, u.roles])).toEqual([["other", ["Superadmin"]]]);
+  });
+
+  it("bootstrap only: an inactive Superadmin doesn't count; an empty install gets the owner", async () => {
+    await seedSystem(db, {});
+    const [superadmin] = await db.select({ id: roles.id }).from(roles).where(eq(roles.name, "Superadmin"));
+    const other = Bun.randomUUIDv7();
+    await db.insert(users).values({ id: other, name: "Other", username: "other", email: "other@example.test", isActive: false });
+    await db.insert(userRoles).values({ userId: other, roleId: superadmin!.id });
+    await seedSystem(db, OWNER);
+    expect((await usersWithRoles()).map((u) => [u.username, u.roles])).toEqual([["other", ["Superadmin"]], ["owner", ["Superadmin"]]]);
+  });
+
   it("an existing user with the superadmin email keeps its password and roles", async () => {
     await seedSystem(db, {});
     expect(await userCount()).toBe(0);

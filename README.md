@@ -67,8 +67,10 @@ link. An LDAP user created in the UI has no entry in the mock directory, so only
 ### Your own Superadmin
 
 `bun run db:seed` (also run by setup) creates one Superadmin from `SEED_SUPERADMIN_NAME`, `SEED_SUPERADMIN_EMAIL`,
-`SEED_SUPERADMIN_USERNAME` and `SEED_SUPERADMIN_PASSWORD` in `apps/api/.env` (all four or none). It is idempotent: a user
-with that email already there is left as it is; a different user holding that username is an error. In production the
+`SEED_SUPERADMIN_USERNAME` and `SEED_SUPERADMIN_PASSWORD` in `apps/api/.env` (all four or none). The first Superadmin is
+created once; later runs leave users alone: while any active user holds Superadmin, the keys are skipped (one info log
+line), even when they name another email. With no active Superadmin, a user with that email already there is left as it
+is; a different user holding that username is an error. In production the
 password must be 12 to 128 characters; elsewhere a shorter one is accepted with a warning.
 
 ## Architecture
@@ -127,7 +129,7 @@ scripts/                  setup.ts, compose-app-role.sh
 | `bun run dev` | `apps/web` on :3000 and `apps/api` on :4000 together. |
 | `bun run db:generate` | The next `apps/api/drizzle/NNNN_*.sql` from every module's `schema.ts` (drizzle-kit), with `"public".` stripped from its foreign keys; `-- --custom --name=<name>` (from `apps/api`) makes an empty file for custom SQL. Never edit an applied file. |
 | `bun run db:migrate` | Applies pending `apps/api/drizzle/*.sql` as `MIGRATION_DATABASE_URL` (else `DATABASE_URL`). |
-| `bun run db:seed` | Permission catalog, roles Superadmin/Admin/Viewer, the `SEED_SUPERADMIN_*` user. Idempotent. |
+| `bun run db:seed` | Permission catalog, roles Superadmin/Admin/Viewer, and the `SEED_SUPERADMIN_*` user while no active Superadmin exists. Idempotent. |
 | `bun run db:seed:demo` | Demo accounts and data. Refused with `NODE_ENV=production`. |
 | `bun run db:reset` | Drops the schema, migrates, runs both seeds. Refused with `NODE_ENV=production`. |
 | `bun run check` | Typecheck, lint (no warnings allowed) and every workspace's tests; the API's run against `<database>_test`, created and migrated on first run. Must pass before every commit. |
@@ -179,7 +181,7 @@ or invalid value stops the process with an error that names the key, never the v
 | `LDAP_STARTTLS` | with `ldap://` | `false` | Upgrade an `ldap://` connection with StartTLS first. |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | no | – | Google sign-in; both or neither. |
 | `APPLE_CLIENT_ID` / `APPLE_TEAM_ID` / `APPLE_KEY_ID` / `APPLE_PRIVATE_KEY` | no | – | Sign in with Apple; all four or none. The key is the `.p8` PKCS#8 PEM; line breaks may be written as `\n`. |
-| `SEED_SUPERADMIN_NAME` / `_EMAIL` / `_USERNAME` / `_PASSWORD` | no | – | Read by `db:seed` only: the first Superadmin; all four or none; password 12 to 128 characters in production. |
+| `SEED_SUPERADMIN_NAME` / `_EMAIL` / `_USERNAME` / `_PASSWORD` | no | – | Read by `db:seed` only: the first Superadmin, created once (skipped while an active Superadmin exists); all four or none; password 12 to 128 characters in production. |
 
 ### Web (`apps/web/.env.local`, schema `apps/web/src/lib/server/config.ts`)
 
@@ -213,7 +215,7 @@ or invalid value stops the process with an error that names the key, never the v
 | `COOKIE_SECURE` | no | `false` | web | `true` once served over HTTPS. |
 | `TRUSTED_PROXY` | no | – | web | `true` behind a proxy that sets `X-Forwarded-*`; without it the per-IP limits are off (see the web table). |
 | `LDAP_*`, `GOOGLE_*`, `APPLE_*` | no | – | api | As in the API table; empty = off. |
-| `SEED_SUPERADMIN_*` | no | – | migrate | The first Superadmin, created by the seed `migrate` runs after the migrations. |
+| `SEED_SUPERADMIN_*` | no | – | migrate | The first Superadmin, created once by the seed `migrate` runs after the migrations; later runs leave users alone. |
 
 Random values: `openssl rand -hex 32` (hex needs no URL-encoding inside the database URLs and holds no `$`, which compose
 would read as a variable); `DATA_ENCRYPTION_KEY` is `openssl rand -base64 32`.
@@ -234,7 +236,8 @@ docker compose --env-file .env.compose down             # `down -v` also drops t
   session secret; the web never holds a database URL or the encryption key). A required key that is unset or empty
   stops compose.
 - Two database roles: `migrate` connects as the schema owner, applies pending migrations, runs the idempotent system
-  seed (catalog, system roles, the `SEED_SUPERADMIN_*` user when it doesn't exist yet) and exits; the API starts
+  seed (catalog, system roles, and the `SEED_SUPERADMIN_*` user only while no active Superadmin exists: the first
+  Superadmin is created once; later runs leave users alone) and exits; the API starts
   after it (`service_completed_successfully`) and connects as `starterkit_app`, which may SELECT, INSERT, UPDATE and
   DELETE on the tables and nothing else. `scripts/compose-app-role.sh` creates that role when the volume is new; on a
   database you run yourself, run the same as the schema owner before the first migration:

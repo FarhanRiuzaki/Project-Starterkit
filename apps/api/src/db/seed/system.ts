@@ -1,4 +1,4 @@
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import { Password } from "@starterkit/shared/contracts/auth";
 import { PERMISSIONS, type PermissionName } from "@starterkit/shared/permissions";
@@ -31,9 +31,10 @@ function ownerOf(env: Record<string, string | undefined>) {
 
 /**
  * The data every install needs, idempotent: the permission catalog in order, the roles Superadmin (locked, every
- * permission), Admin and Viewer (their permissions only when the role is created, so later edits stay), then the
- * superadmin from SEED_SUPERADMIN_* when set. A user with that email already there is left as it is; another user
- * holding that username is an error.
+ * permission), Admin and Viewer (their permissions only when the role is created, so later edits stay), then the first
+ * Superadmin from SEED_SUPERADMIN_* when set. That user is bootstrap only: while any active user holds Superadmin, the
+ * keys are skipped (one info line) and users are left alone. Otherwise a user with that email already there is left as
+ * it is; another user holding that username is an error.
  */
 export async function seedSystem(db: Tx, env: Record<string, string | undefined>): Promise<void> {
   const owner = ownerOf(env);
@@ -47,15 +48,22 @@ export async function seedSystem(db: Tx, env: Record<string, string | undefined>
     await tx.insert(rolePermissions)
       .select(tx.select({ roleId: roles.id, permission: permissions.name }).from(roles).crossJoin(permissions).where(eq(roles.name, "Superadmin")))
       .onConflictDoNothing();
+    if (!owner) return;
+    const superadmin = tx.select({ id: users.id }).from(users).innerJoin(userRoles, eq(userRoles.userId, users.id))
+      .innerJoin(roles, eq(roles.id, userRoles.roleId)).where(and(eq(roles.name, "Superadmin"), eq(users.isActive, true))).limit(1);
+    if ((await superadmin).length) {
+      log.info("an active Superadmin exists: SEED_SUPERADMIN_* skipped");
+      return;
+    }
     const taken = (column: AnyPgColumn, value: string) =>
       tx.select({ id: users.id }).from(users).where(eq(sql`lower(${column})`, sql`lower(${value})`)).limit(1);
-    if (!owner || (await taken(users.email, owner.email)).length) return;
+    if ((await taken(users.email, owner.email)).length) return;
     if ((await taken(users.username, owner.username)).length) {
       throw new Error("SEED_SUPERADMIN_USERNAME is already the username of another user (with another email). Choose another username.");
     }
     const id = Bun.randomUUIDv7();
     await tx.insert(users).values({ id, name: owner.name, username: owner.username, email: owner.email, passwordHash: await hashPassword(owner.password) });
-    const [superadmin] = await tx.select({ id: roles.id }).from(roles).where(eq(roles.name, "Superadmin"));
-    await tx.insert(userRoles).values({ userId: id, roleId: superadmin!.id });
+    const [role] = await tx.select({ id: roles.id }).from(roles).where(eq(roles.name, "Superadmin"));
+    await tx.insert(userRoles).values({ userId: id, roleId: role!.id });
   });
 }

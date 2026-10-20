@@ -491,6 +491,17 @@ describe("forgot-password throttle", () => {
     for (const email of EMAILS) expect((await post("forgot", { email })).status).toBe(200);
     expect(sentMail()).toHaveLength(11);
   });
+
+  it("fleet-wide breaker: past 300 requests a minute nothing is mailed, still 200, without TRUSTED_PROXY", async () => {
+    // 300 requests already counted this minute (by any client, any email).
+    await db.insert(rateLimits).values({ key: "forgot-breaker:all", count: 300, windowStart: sql`now()` });
+    const r = await post("forgot", { email: "admin@example.com" });
+    expect(r.status).toBe(200);
+    expect(sentMail()).toEqual([]);
+    await db.update(rateLimits).set({ windowStart: sql`${rateLimits.windowStart} - interval '1 minute 1 millisecond'` }).where(eq(rateLimits.key, "forgot-breaker:all"));
+    await post("forgot", { email: "admin@example.com" });
+    expect(sentMail()).toHaveLength(1);
+  });
 });
 
 describe("GET /v1/auth/context", () => {

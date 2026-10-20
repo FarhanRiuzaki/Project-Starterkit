@@ -222,14 +222,14 @@ export async function logout(token: string | undefined, challenge: string | null
 
 /**
  * Request a reset link. The answer is the same whether or not the email belongs to an account, and whether or not the
- * request was throttled (forgotLimits: per IP and per email; a throttled request sends nothing). For an active user
+ * request was throttled (forgotLimits: per IP, per email and fleet-wide; a throttled request sends nothing). For an active user
  * with a password (not LDAP, not Google/Apple only) a random token (stored hashed, 30 minutes, single use) is mailed
  * after it is stored.
  */
 export async function forgot(email: string, client: Client): Promise<void> {
   const key = email.toLowerCase();
-  // Both limiters count every request (known email or not), so throttling reveals nothing either.
-  const waits = await Promise.all([hitIp(forgotLimits.ip, client.ip), forgotLimits.email.hit(key)]);
+  // Every limiter counts every request (known email or not), so throttling reveals nothing either.
+  const waits = await Promise.all([hitIp(forgotLimits.ip, client.ip), forgotLimits.email.hit(key), forgotLimits.breaker.hit("all")]);
   if (waits.some((w) => w !== null)) return;
   const [u] = await db.select({ id: users.id, email: users.email }).from(users)
     .where(and(eq(sql`lower(${users.email})`, key), users.isActive, not(users.isLdap), isNotNull(users.passwordHash)));

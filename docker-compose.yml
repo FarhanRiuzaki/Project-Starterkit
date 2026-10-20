@@ -27,8 +27,9 @@ services:
     restart: unless-stopped
 
   # Applies pending migrations as the schema owner (MIGRATION_DATABASE_URL), then the system seed through the same URL
-  # (catalog, system roles, the SEED_SUPERADMIN_* user; idempotent: an existing user or role is left as it is), then
-  # exits. Neither needs the server's secrets (kernel/db.ts reads only the pool keys).
+  # (catalog, system roles; idempotent: an existing role is left as it is; the SEED_SUPERADMIN_* user only while no
+  # active Superadmin exists, so the first Superadmin is created once and later runs leave users alone), then exits.
+  # Neither needs the server's secrets (kernel/db.ts reads only the pool keys).
   migrate:
     build: { context: ., dockerfile: apps/api/Dockerfile }
     image: starterkit-api:local

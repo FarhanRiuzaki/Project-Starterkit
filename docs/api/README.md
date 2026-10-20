@@ -71,8 +71,9 @@ other schema describes the answer exactly (`additionalProperties: false`).
   `/api/me/password`, `/api/me/reauth`, `DELETE /api/me/2fa`) backs off after 5 failures (one budget per user).
 - A per-client-IP limit applies only when the web knows the client IP (`TRUSTED_PROXY=true` behind a proxy that sets
   `X-Forwarded-For`); without it every IP is "unknown" and the per-IP limits are skipped, the others still apply.
-- `POST /api/auth/forgot` is limited per client IP (10 per minute) and per email (3 per 15 minutes). A throttled
-  request still answers 200 `{ ok: true }` and sends nothing, so the limit reveals nothing about which emails exist.
+- `POST /api/auth/forgot` is limited per client IP (10 per minute), per email (3 per 15 minutes) and fleet-wide (300
+  per minute, without `TRUSTED_PROXY` too). A throttled request still answers 200 `{ ok: true }` and sends nothing,
+  so the limit reveals nothing about which emails exist.
 - Every limiter and backoff is a PostgreSQL row (`rate_limits`, `login_backoff`, UNLOGGED tables) updated by one atomic
   upsert per attempt, so the limits hold across API processes; the janitor deletes rows that no longer count.
 
