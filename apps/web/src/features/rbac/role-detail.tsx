@@ -1,10 +1,11 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { ConfirmActionDialog, Failure, Notice, Panel } from "@starterkit/ui/ds";
+import { Failure, Notice, Panel } from "@starterkit/ui/ds";
 import { useDelayedFlag } from "@starterkit/ui/motion";
 import { formatNumber, plural } from "@starterkit/ui/lib/format";
 import { Button } from "@starterkit/ui/ui/button";
@@ -26,6 +27,14 @@ import { roleKey, roleUrl, useAfterRbacChange, useRole } from "./use-rbac";
 import { ROLE_DETAIL_SHAPE } from "./shapes";
 
 type Dialog = "save" | "rename" | "delete" | null;
+
+/**
+ * Opened on click only: the dialog loads then, outside the page's first load (route budget, AGENTS.md §9); the import
+ * starts on the first press or focus in the page (intent), so it is there by the time a dialog opens.
+ */
+const loadDialog = () => import("@starterkit/ui/ds");
+const ConfirmActionDialog = dynamic(() => loadDialog().then((m) => m.ConfirmActionDialog), { ssr: false });
+const preloadDialog = () => void loadDialog();
 
 
 const list = (ps: readonly PermissionName[]) => ps.join(", ");
@@ -87,7 +96,7 @@ export function RoleDetail({ id }: { id: string }) {
   }
 
   return (
-    <div className="grid gap-section">
+    <div className="grid gap-section" onPointerDown={preloadDialog} onFocus={preloadDialog}>
       <PageHeader title={r.name}
         description={`${plural(r.userCount, "user", "users")} · ${formatNumber(r.permissions.length)} of ${formatNumber(PERMISSIONS.length)} permissions${r.locked ? " · Locked" : ""}`}
         actions={can("user.view") && r.userCount > 0 && <Button asChild variant="secondary"><Link href={`/users?role=${encodeURIComponent(r.name)}`}>View users</Link></Button>}

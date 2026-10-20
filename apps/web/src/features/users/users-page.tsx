@@ -1,15 +1,15 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
-import { ActionMenu, BlockedButton, ConfirmActionDialog, DataTable, Field, FilterMenu, Notice, Panel, QueryInput, Toolbar } from "@starterkit/ui/ds";
+import { ActionMenu, BlockedButton, DataTable, FilterMenu, Notice, Panel, QueryInput, Toolbar } from "@starterkit/ui/ds";
 import { HEALTH } from "@starterkit/ui/lib/status";
 import { Button } from "@starterkit/ui/ui/button";
 import { Icon } from "@starterkit/ui/ui/icon";
 import { SpinnerIcon, UsersIcon } from "@starterkit/ui/ui/icons";
-import { Select } from "@starterkit/ui/ui/select";
 import { toast } from "@starterkit/ui/ui/toast";
 import { PageHeader } from "@/components/shell/page-header";
 import { api, errorText } from "@/lib/client/api";
@@ -19,6 +19,7 @@ import type { BulkResult } from "@starterkit/shared/contracts/common";
 import type { UserRowDto } from "@starterkit/shared/contracts/users";
 import { USER_STATUSES, type UserFilters, USERS } from "@/lib/shared/queries";
 import { RoleSearch } from "./role-search";
+import type { Pending } from "./users-action-dialog";
 import { userColumns } from "./user-columns";
 import { skipReason, USERS_KEY, protection, rankBlock, useLastSuperadminId, useRoleNames } from "./use-users";
 
@@ -26,17 +27,13 @@ const STATUS_LABEL = { "": "Any", active: "Active", inactive: "Inactive" } as co
 const STATUSES = USER_STATUSES.map((value) => ({ value, label: STATUS_LABEL[value] }));
 const LEGEND = (["healthy", "stopped"] as const).map((h) => ({ health: h, label: h === "healthy" ? "Active" : "Inactive", description: h === "healthy" ? "Can sign in." : HEALTH.stopped.description }));
 
-type BulkAction = "activate" | "deactivate" | "delete" | "assignRole";
-type Pending = { kind: "bulk"; action: BulkAction; ids: string[] } | { kind: "one"; action: "deactivate" | "delete"; user: UserRowDto };
-
-const VERB: Record<BulkAction, string> = { activate: "Activate", deactivate: "Deactivate", delete: "Delete", assignRole: "Assign role to" };
-const BULK_NOTE: Record<BulkAction, string> = {
-  activate: "Users who are already active stay as they are. Users with permissions your role doesn't hold are skipped.",
-  deactivate: "Your own account, the last active Superadmin and users with permissions your role doesn't hold are skipped.",
-  delete: "Your own account, the last active Superadmin and users with permissions your role doesn't hold are skipped.",
-  assignRole: "Your own account and users with permissions your role doesn't hold are skipped, and so is everyone when your role doesn't hold every permission of the chosen role.",
-};
-const LABEL: Record<BulkAction, string> = { activate: "Activate users", deactivate: "Deactivate users", delete: "Delete users", assignRole: "Assign role" };
+/**
+ * The confirm dialog is opened on click only: its own chunk, out of the route's first load (AGENTS.md §9). The import
+ * starts on the first press or focus in the page (intent), so it is there by the time a dialog opens.
+ */
+const loadDialog = () => import("./users-action-dialog");
+const UsersActionDialog = dynamic(() => loadDialog().then((m) => m.UsersActionDialog), { ssr: false });
+const preloadDialog = () => void loadDialog();
 
 export function UsersPage() {
   const { user: me, perms, can } = useAuth();
@@ -95,16 +92,9 @@ export function UsersPage() {
   }
 
   const ids = [...selected];
-  const dialog = pending && (pending.kind === "bulk"
-    ? { title: `${VERB[pending.action]} ${pending.ids.length} ${pending.ids.length === 1 ? "user" : "users"}`, description: BULK_NOTE[pending.action], label: LABEL[pending.action] }
-    : { title: `${pending.action === "delete" ? "Delete" : "Deactivate"} ${pending.user.name}`, description: pending.user.email, label: pending.action === "delete" ? "Delete user" : "Deactivate user" });
-  const destructive = pending?.action === "delete";
-  const impact = !pending ? [] : pending.action === "delete" ? ["The account is removed and its sessions end.", "This can't be undone."]
-    : pending.action === "deactivate" ? ["They are signed out and can't sign in until reactivated."]
-    : pending.action === "assignRole" ? ["The role is added to each user's current roles."] : ["They can sign in again."];
 
   return (
-    <div className="grid gap-section">
+    <div className="grid gap-section" onPointerDown={preloadDialog} onFocus={preloadDialog}>
       <PageHeader title="Users" description="Accounts that can sign in, their roles and status."
         actions={can("user.create") ? <Button asChild><Link href="/users/new">Create user</Link></Button> : undefined} />
       {t.staleError && <Notice tone="warn" live>Couldn&apos;t refresh the users; showing the ones loaded before. {errorText(t.staleError)}</Notice>}
@@ -144,10 +134,12 @@ export function UsersPage() {
           rowActions={(u) => {
             const block = protection(u, me.id, perms, lastSuperId);
             const rank = rankBlock(u, perms);
+            // No touch caption in the row (it would stretch the row); on touch the same reasons are the hints of the
+            // row's Actions menu (Delete user: `block`, Edit user: `rank`).
             return <>
               {can("user.edit") && (u.isActive
-                ? <BlockedButton reason={block} size="sm" variant="ghost" onClick={() => setPending({ kind: "one", action: "deactivate", user: u })}>Deactivate</BlockedButton>
-                : <BlockedButton reason={rank} size="sm" variant="ghost" disabled={activating === u.id} aria-busy={activating === u.id || undefined} onClick={() => void activate(u)}>
+                ? <BlockedButton reason={block} caption={false} size="sm" variant="ghost" onClick={() => setPending({ kind: "one", action: "deactivate", user: u })}>Deactivate</BlockedButton>
+                : <BlockedButton reason={rank} caption={false} size="sm" variant="ghost" disabled={activating === u.id} aria-busy={activating === u.id || undefined} onClick={() => void activate(u)}>
                   {activating === u.id && <Icon icon={SpinnerIcon} className="motion-safe:animate-spin" />}Activate</BlockedButton>)}
               <ActionMenu label={`Actions for ${u.name}`} actions={[
                 { id: "open", label: "View user", onSelect: () => router.push(`/users/${u.id}`) },
@@ -157,21 +149,7 @@ export function UsersPage() {
             </>;
           }} />
       </Panel>
-      {dialog && (
-        <ConfirmActionDialog open onOpenChange={(o) => { if (!o) setPending(null); }} auditFields={false} reasons={[]} destructive={destructive}
-          title={dialog.title} description={dialog.description} impact={impact} actionLabel={dialog.label} onConfirm={confirm}
-          extra={pending?.action === "assignRole" && (
-            <Field id="bulk-role" label="Role">
-              {roles.more
-                ? <RoleSearch id="bulk-role" label="Role" value={role} onChange={setRole} />
-                : <Select id="bulk-role" value={role} onChange={(e) => setRole(e.target.value)} disabled={roles.names.length === 0}>
-                  {roles.names.length === 0
-                    ? <option value="">No roles yet. Create one on the Roles page.</option>
-                    : roles.names.map((r) => <option key={r} value={r}>{r}</option>)}
-                </Select>}
-            </Field>
-          )} />
-      )}
+      {pending && <UsersActionDialog pending={pending} role={role} onRole={setRole} roles={roles} onClose={() => setPending(null)} onConfirm={confirm} />}
     </div>
   );
 }
