@@ -6,12 +6,12 @@ const value = (cookie: string) => decodeURIComponent(cookie.split(";")[0]!.split
 
 describe("prefs cookie", () => {
   it("round-trips compact density and collapsed sidebar", () => {
-    const c = prefsCookie({ sidebar: "collapsed", density: "compact", views: {}, hidden: {} }, false);
-    expect(parsePrefs(value(c))).toEqual({ sidebar: "collapsed", density: "compact", views: {}, hidden: {} });
+    const c = prefsCookie({ sidebar: "collapsed", density: "compact", views: {}, hidden: {}, keys: "off" }, false);
+    expect(parsePrefs(value(c))).toEqual({ sidebar: "collapsed", density: "compact", views: {}, hidden: {}, keys: "off" });
   });
   it("missing or unknown values fall back to comfortable/expanded", () => {
-    expect(parsePrefs(undefined)).toEqual({ sidebar: "expanded", density: "comfortable", views: {}, hidden: {} });
-    expect(parsePrefs("density=huge&sidebar=x")).toEqual({ sidebar: "expanded", density: "comfortable", views: {}, hidden: {} });
+    expect(parsePrefs(undefined)).toEqual({ sidebar: "expanded", density: "comfortable", views: {}, hidden: {}, keys: "on" });
+    expect(parsePrefs("density=huge&sidebar=x")).toEqual({ sidebar: "expanded", density: "comfortable", views: {}, hidden: {}, keys: "on" });
   });
 });
 
@@ -21,7 +21,7 @@ describe("remembered table views", () => {
   });
   it("round-trip through the cookie for the list pages only", () => {
     const views = { "/users": "role=Admin&sort=-createdAt", "/audit/activity": "range=30d&pageSize=50" };
-    expect(parsePrefs(value(prefsCookie({ sidebar: "expanded", density: "comfortable", views, hidden: {} }, false))).views).toEqual(views);
+    expect(parsePrefs(value(prefsCookie({ sidebar: "expanded", density: "comfortable", views, hidden: {}, keys: "on" }, false))).views).toEqual(views);
     expect(parsePrefs(new URLSearchParams({ "view:/me": "a=1", "view:/users/x": "b=2" }).toString()).views).toEqual({});
   });
   it("a cookie value is normalized, drops the page, and an oversized one is ignored", () => {
@@ -33,7 +33,7 @@ describe("remembered table views", () => {
     expect(savedView(new URLSearchParams("page=2&q=x"), ["q"])).toBe("");
   });
   it("viewHref reopens the saved view; the path itself never changes", () => {
-    const prefs = { sidebar: "expanded" as const, density: "comfortable" as const, views: { "/users": "role=Admin" }, hidden: {} };
+    const prefs = { sidebar: "expanded" as const, density: "comfortable" as const, views: { "/users": "role=Admin" }, hidden: {}, keys: "on" as const };
     expect(viewHref("/users", prefs)).toBe("/users?role=Admin");
     expect(viewHref("/roles", prefs)).toBe("/roles");
     expect(viewHref("/users", { ...prefs, views: { "/users": "a=%2F%2Fevil.com#x" } })).toBe("/users?a=%2F%2Fevil.com%23x");

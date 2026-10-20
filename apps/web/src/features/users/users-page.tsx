@@ -22,7 +22,7 @@ import { USER_STATUSES, type UserFilters, USERS } from "@/lib/shared/queries";
 import { RoleSearch } from "./role-search";
 import type { Pending } from "./users-action-dialog";
 import { userColumns } from "./user-columns";
-import { skipReason, USERS_KEY, protection, rankBlock, useLastSuperadminId, useRoleNames } from "./use-users";
+import { patchUserCache, skipReason, USERS_KEY, protection, rankBlock, useLastSuperadminId, useRoleNames } from "./use-users";
 
 const STATUS_LABEL = { "": "Any", active: "Active", inactive: "Inactive" } as const;
 const STATUSES = USER_STATUSES.map((value) => ({ value, label: STATUS_LABEL[value] }));
@@ -94,15 +94,16 @@ export function UsersPage() {
   }
 
   // One user: no confirmation, the result toast offers Undo (it can be reversed); a bulk deactivate still confirms.
+  // Optimistic: the row's status changes at once and goes back if the server refuses.
   async function setStatus(u: UserRowDto, active: boolean) {
     setChanging(u.id);
+    const restore = await patchUserCache(qc, u.id, { isActive: active });
     try {
       await api(`/api/users/${u.id}/status`, { method: "POST", body: JSON.stringify({ active }) });
       if (active) toast(`Activated ${u.name}.`);
       else toast.undo(`Deactivated ${u.name}.`, () => void setStatus(u, true), { description: "Their sessions ended. Undo lets them sign in again." });
-      await refresh();
-    } catch (e) { toast.error(errorText(e)); }
-    finally { setChanging(null); }
+    } catch (e) { restore(); toast.error(errorText(e)); }
+    finally { setChanging(null); void refresh(); }
   }
 
   const ids = [...selected];

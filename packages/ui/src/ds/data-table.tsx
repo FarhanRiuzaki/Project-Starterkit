@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useEffect, useId, useRef, useState } from "react";
+import { type FocusEvent, type ReactNode, useEffect, useId, useRef, useState } from "react";
 import { Icon, type IconData } from "../ui/icon";
 import { ArrowDownIcon, ArrowUpIcon, ChevronsUpDownIcon } from "../ui/icons";
 import { cn } from "../lib/cn";
@@ -66,6 +66,22 @@ const CARD_PLACE: Record<MobileRole | "actions", string> = {
 /** A meta cell's label on the card: its column header, phone only. */
 const MetaLabel = ({ children }: { children: ReactNode }) => <span className="w-24 shrink-0 text-label text-fg-3 md:hidden">{children}</span>;
 
+/**
+ * Sticky parts (NN/g data tables: freeze the header and the identity column). The header row sticks to the top of the
+ * window from 768 px (the table box isn't a scroll container while the table fits, ui/table.tsx). While the table
+ * scrolls sideways inside its card (`data-scrolls` on the box), the row checkbox and the first column stick to its
+ * left edge (`--lead-w` = the checkbox column's width) and the row actions to its right, each with a hairline on its
+ * inner side and an opaque background that follows the row's hover and selection.
+ */
+// Literal class names (Tailwind reads them from the source; a built string would not be generated).
+const STICK_BODY = "md:group-data-[scrolls=true]/scroll:bg-card md:group-data-[scrolls=true]/scroll:group-hover/row:bg-tray md:group-data-[scrolls=true]/scroll:group-data-[state=selected]/row:bg-row-selected";
+const STICK_HEAD = "md:group-data-[scrolls=true]/scroll:z-20";
+const STICK: Record<"lead" | "title" | "end", string> = {
+  lead: "md:group-data-[scrolls=true]/scroll:sticky md:group-data-[scrolls=true]/scroll:left-0 md:group-data-[scrolls=true]/scroll:z-1",
+  title: "md:group-data-[scrolls=true]/scroll:sticky md:group-data-[scrolls=true]/scroll:left-[var(--lead-w,0px)] md:group-data-[scrolls=true]/scroll:z-1 md:group-data-[scrolls=true]/scroll:border-r md:group-data-[scrolls=true]/scroll:border-r-line",
+  end: "md:group-data-[scrolls=true]/scroll:sticky md:group-data-[scrolls=true]/scroll:right-0 md:group-data-[scrolls=true]/scroll:z-1 md:group-data-[scrolls=true]/scroll:border-l md:group-data-[scrolls=true]/scroll:border-l-line",
+};
+
 export type SortDir = "asc" | "desc";
 
 /**
@@ -126,6 +142,12 @@ export function DataTable<T>({ columns: all, rows, rowKey, label, loading, error
   const keep = all.map((c, i) => !hidden?.includes(c.key) || !canHide(c, allRoles[i]!));
   const columns = all.filter((_, i) => keep[i]);
   const roles = allRoles.filter((_, i) => keep[i]);
+  // While scrolling sideways the row's first column (after the row checkbox, if any) sticks: it says which row this is.
+  const firstAt = roles[0] === "lead" ? 1 : 0;
+  const stickAt = (i: number): "lead" | "title" | null => (i === 0 && roles[0] === "lead" ? "lead" : i === firstAt ? "title" : null);
+  const leadRef = useRef<HTMLTableCellElement>(null);
+  // Where the sticky identity column starts: right of the checkbox column (set on the table, read by STICK.title).
+  useEffect(() => { const th = leadRef.current; th?.closest("table")?.style.setProperty("--lead-w", `${th.offsetWidth}px`); });
   const sortId = useId();
   const topRef = useRef<HTMLDivElement>(null);
   // Fokus ke atas tabel hanya bila halaman benar-benar berganti ke target (kedaluwarsa 3 dtk bila diabaikan).
@@ -152,8 +174,31 @@ export function DataTable<T>({ columns: all, rows, rowKey, label, loading, error
     if (t.page === page && Date.now() - t.at < 3000) topRef.current?.focus();
   }, [page]);
 
-  if (error) return <div className="p-4"><ErrorState title={error.title} cause={error.cause} onRetry={error.onRetry} /></div>;
   const data = rows;
+
+  // Focus after a row goes away (deleted, revoked, moved out by a bulk action): when focus was in that row and is now
+  // lost (on the body, or on the removed control), it moves to the row that took its place, else the one before, else
+  // the table region (W3C/Arizona focus management after delete). Never steals focus that went somewhere else.
+  const lastRow = useRef<{ key: string; index: number } | null>(null);
+  const bodyRef = useRef<HTMLTableSectionElement>(null);
+  const keys = data.map(rowKey).join("\n");
+  useEffect(() => {
+    const was = lastRow.current;
+    if (!was || keys.split("\n").includes(was.key)) return;
+    lastRow.current = null;
+    const now = document.activeElement;
+    if (now && now !== document.body && now.isConnected) return;
+    const rowsNow = [...(bodyRef.current?.querySelectorAll<HTMLTableRowElement>("tr[data-key]") ?? [])];
+    const row = rowsNow[Math.min(was.index, rowsNow.length - 1)];
+    const target = row?.querySelector<HTMLElement>("a[href], button:not([disabled]), input:not([disabled])") ?? topRef.current;
+    target?.focus();
+  }, [keys]);
+  const onRowFocus = (e: FocusEvent) => {
+    const tr = (e.target as HTMLElement).closest<HTMLTableRowElement>("tr[data-key]");
+    if (tr) lastRow.current = { key: tr.dataset.key!, index: [...tr.parentElement!.children].indexOf(tr) };
+  };
+
+  if (error) return <div className="p-4"><ErrorState title={error.title} cause={error.cause} onRetry={error.onRetry} /></div>;
 
   function toggle(c: Column<T>) {
     if (!c.sortable || !onSortChange) return;
@@ -195,7 +240,8 @@ export function DataTable<T>({ columns: all, rows, rowKey, label, loading, error
               const active = sort?.key === c.key;
               const sortIcon = !active ? ChevronsUpDownIcon : sort?.dir === "asc" ? ArrowUpIcon : ArrowDownIcon;
               return (
-                <TableHead key={c.key} role="columnheader" className={cn(c.align === "right" && "text-right", c.className)}
+                <TableHead key={c.key} ref={stickAt(columns.indexOf(c)) === "lead" ? leadRef : undefined} role="columnheader"
+                  className={cn("bg-tray md:sticky md:top-0 md:z-10", c.align === "right" && "text-right", c.className, stickAt(columns.indexOf(c)) && cn(STICK[stickAt(columns.indexOf(c))!], STICK_HEAD))}
                   aria-sort={active ? (sort?.dir === "asc" ? "ascending" : "descending") : undefined}>
                   {c.sortable && onSortChange ? (
                     <button type="button" onClick={() => toggle(c)} className={cn("inline-flex cursor-pointer items-center gap-1 rounded-xs hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary outline-none", active && "text-fg-2")}>
@@ -205,26 +251,26 @@ export function DataTable<T>({ columns: all, rows, rowKey, label, loading, error
                 </TableHead>
               );
             })}
-            {rowActions && <TableHead role="columnheader"><span className="sr-only">Actions</span></TableHead>}
+            {rowActions && <TableHead role="columnheader" className={cn("bg-tray md:sticky md:top-0 md:z-10", STICK.end, STICK_HEAD)}><span className="sr-only">Actions</span></TableHead>}
           </TableRow>
         </TableHeader>
-        <TableBody role="rowgroup" className={cn("max-md:block", loadedLate && "animate-reveal-in", server && "transition-opacity duration-(--dur-fast)", showBusy && "opacity-60")}>
+        <TableBody ref={bodyRef} role="rowgroup" onFocus={onRowFocus} className={cn("max-md:block", loadedLate && "animate-reveal-in", server && "transition-opacity duration-(--dur-fast)", showBusy && "opacity-60")}>
           {skeleton
             ? <SkeletonRows count={skeletonRows ?? server?.pageSize ?? 8} columns={columns} roles={roles} actions={!!rowActions} identity={rowHeight === "identity"} hidden={!showSkeleton} />
             : data.map((r) => {
                 const isNew = fresh.has(rowKey(r));
                 return (
-                <TableRow key={rowKey(r)} role="row" data-state={isSelected?.(r) ? "selected" : undefined}
+                <TableRow key={rowKey(r)} data-key={rowKey(r)} role="row" data-state={isSelected?.(r) ? "selected" : undefined}
                   data-new={isNew ? "true" : undefined}
                   className={cn(CARD_ROW, isNew && "motion-safe:animate-row-new")}>
                   {columns.map((c, i) => (
                     <TableCell key={c.key} role="cell" data-mobile={roles[i]}
-                      className={cn("max-w-80", rowHeight === "identity" && "h-(--row-h-identity)", c.align === "right" && "text-right tabular", c.className, CARD_CELL, CARD_PLACE[roles[i]!])}>
+                      className={cn("max-w-80", rowHeight === "identity" && "h-(--row-h-identity)", c.align === "right" && "text-right tabular", c.className, stickAt(i) && cn(STICK[stickAt(i)!], STICK_BODY), CARD_CELL, CARD_PLACE[roles[i]!])}>
                       {roles[i] === "meta" && <MetaLabel>{c.header}</MetaLabel>}{c.cell(r)}
                     </TableCell>
                   ))}
                   {rowActions && (
-                    <TableCell role="cell" data-mobile="actions" className={cn("w-px text-right", rowHeight === "identity" && "h-(--row-h-identity)", CARD_CELL, CARD_PLACE.actions)}>
+                    <TableCell role="cell" data-mobile="actions" className={cn("w-px text-right", rowHeight === "identity" && "h-(--row-h-identity)", STICK.end, STICK_BODY, CARD_CELL, CARD_PLACE.actions)}>
                       <div className="flex justify-end gap-1 opacity-0 transition-opacity duration-(--dur-fast) group-hover/row:opacity-100 group-focus-within/row:opacity-100 has-data-[state=open]:opacity-100 pointer-coarse:opacity-100 max-md:opacity-100">{rowActions(r)}</div>
                     </TableCell>
                   )}

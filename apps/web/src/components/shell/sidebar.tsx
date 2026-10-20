@@ -13,6 +13,7 @@ import { useAuth } from "@/lib/client/auth-context";
 import { usePrefs } from "@/lib/client/prefs-context";
 import { activeChild, isActive, navFor } from "@/lib/shared/nav";
 import { viewHref } from "@/lib/shared/prefs";
+import { goKeys } from "@/lib/shared/shortcuts";
 import { AccountMenu } from "./account-menu";
 import { openPalette } from "./command-palette";
 import { NavGlyph } from "./nav-icon";
@@ -99,7 +100,7 @@ export function Sidebar({ mark, wordmark }: { mark: ReactNode; wordmark: ReactNo
                       <span key={`label-${collapsed}`} className={cn("hidden min-w-0 flex-1 truncate", label("xl:inline"))}>{n.label}</span>
                     </Link>
                   </TooltipTrigger>
-                  <TooltipContent side="right" className={cn(!collapsed && "xl:hidden")}>{n.label}</TooltipContent>
+                  <TooltipContent side="right" className={cn("flex items-center gap-2", !collapsed && "xl:hidden")}>{n.label}{n.shortcut && <Kbd keys={goKeys(n.shortcut)} />}</TooltipContent>
                 </Tooltip>
                 {child && !collapsed && (
                   <div className="ml-4.5 hidden gap-0.5 border-l border-line pl-2 xl:grid">

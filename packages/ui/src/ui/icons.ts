@@ -21,6 +21,7 @@ export {
   UserCheck01Icon as ActiveUserIcon, // Nav child: active users
   UserBlock01Icon as InactiveUserIcon, // Nav child: inactive users
   LayoutThreeColumnIcon as ColumnsIcon, // A table's column chooser (ColumnsMenu)
+  KeyboardIcon as ShortcutsIcon, // Keyboard shortcuts (account menu, palette)
 
   // Metrics
   CpuIcon,

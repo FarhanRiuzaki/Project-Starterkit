@@ -54,11 +54,11 @@ test("new-password requirements are listed before typing and tick off while typi
   await page.goto("/me/security");
   const checks = page.locator("#pw-checks");
   await expect(checks).toContainText("At least 12 characters, not yet");
-  await page.getByLabel("New password", { exact: true }).fill("abcdefg");
+  await page.getByRole("textbox", { name: "New password", exact: true }).fill("abcdefg");
   await expect(checks).toContainText("At least 12 characters (5 more), not yet");
-  await page.getByLabel("New password", { exact: true }).fill("abcdefghijkl");
+  await page.getByRole("textbox", { name: "New password", exact: true }).fill("abcdefghijkl");
   await expect(checks).toContainText("At least 12 characters, done");
-  await page.getByLabel("Repeat new password", { exact: true }).fill("abcdefghijkl");
+  await page.getByRole("textbox", { name: "Repeat new password", exact: true }).fill("abcdefghijkl");
   await expect(checks).toContainText("The two passwords match, done");
-  await expect(page.getByLabel("New password", { exact: true })).toHaveAttribute("aria-describedby", /pw-checks/);
+  await expect(page.getByRole("textbox", { name: "New password", exact: true })).toHaveAttribute("aria-describedby", /pw-checks/);
 });
