@@ -4,26 +4,25 @@
 // Added: "PATCH /me with the same values writes no activity", "recovery codes are 8 distinct 19-char codes and each works once at /v1/auth/2fa".
 import { beforeEach, describe, expect, it } from "bun:test";
 import type { Page } from "@starterkit/shared/contracts/common";
-import { call, resetData } from "../../test/app";
-import { decryptSecret, hashToken } from "../auth/crypto";
-import { createSession } from "../auth/sessions";
-import { totpCode } from "../auth/totp";
-import { sql } from "../db/client";
-import { LDAP_PASSWORD, RECOVERY_CODES, SEED_PASSWORD } from "../seed/demo";
+import { call, resetData } from "../../test/helpers/app";
+import { orm, sql } from "../db/client";
+import { LDAP_PASSWORD, RECOVERY_CODES, SEED_PASSWORD } from "../db/seed/demo";
+import { decryptSecret, hashToken } from "../kernel/crypto";
+import { createSession, totpCode } from "../modules/auth";
 
 const NEW_PW = "Another-Pass-456!";
 const code = async (r: Response) => ((await r.json()) as { error: { code: string } }).error.code;
 const idOf = async (username: string): Promise<string> => (await sql`select id from users where username = ${username}`)[0].id;
 const sidOf = async (token: string): Promise<string> => (await sql`select id from sessions where token_hash = ${hashToken(token)}`)[0].id;
 const addSession = async (userId: string): Promise<string> =>
-  (await sql.begin((tx) => createSession(tx, { userId, method: "password", client: { ip: "10.0.0.9", ua: "bun test" } }))).id;
+  (await sql.begin((tx) => createSession(orm(tx), { userId, method: "password", client: { ip: "10.0.0.9", ua: "bun test" } }))).id;
 const hasSession = async (id: string) => (await sql`select 1 from sessions where id = ${id}`).length === 1;
 const userRow = async (username: string) => (await sql`select * from users where username = ${username}`)[0];
 const acts = async (): Promise<{ action: string; targetType: string; before: unknown; after: unknown }[]> =>
   sql`select action, target_type as "targetType", before, after from activity order by at, id`;
 /** A session token for a demo account, straight through createSession (the directory user has no stored password). */
 const signIn = async (username: string): Promise<string> =>
-  (await sql.begin(async (tx) => createSession(tx, { userId: await idOf(username), method: "password", client: { ip: "127.0.0.1", ua: "bun test" } }))).token;
+  (await sql.begin(async (tx) => createSession(orm(tx), { userId: await idOf(username), method: "password", client: { ip: "127.0.0.1", ua: "bun test" } }))).token;
 const me = (method: string, path: string, token: string, body?: unknown) => call(method, `/v1/me${path}`, { token, body });
 const login = (pw: string, login = "admin") => call("POST", "/v1/auth/login", { body: { method: "password", login, password: pw } });
 

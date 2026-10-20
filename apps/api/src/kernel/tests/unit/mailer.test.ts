@@ -1,6 +1,6 @@
 import { expect, it, spyOn } from "bun:test";
-import { log } from "../log";
-import { clearMail, sendMail, sentMail } from "./mailer";
+import { log } from "../../log";
+import { clearMail, sendMail, sentMail } from "../../mailer";
 
 it("log transport writes one line without the address or the text, and keeps the mail for tests", () => {
   clearMail();

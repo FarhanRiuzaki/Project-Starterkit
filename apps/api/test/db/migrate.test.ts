@@ -3,7 +3,7 @@ import { SQL } from "bun";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { migrate } from "./migrate";
+import { migrate } from "../../src/db/migrate";
 
 const url = process.env.DATABASE_URL!;
 const admin = new SQL(url, { max: 1 });
@@ -22,8 +22,8 @@ afterEach(async () => {
 });
 
 describe("migrate", () => {
-  it("applies 0001, 0002 and 0003 once; a second run applies nothing", async () => {
-    expect(await migrate(db)).toEqual(["0001_init.sql", "0002_list_indexes.sql", "0003_oauth_state_session.sql"]);
+  it("applies 0000 and 0001 once; a second run applies nothing", async () => {
+    expect(await migrate(db)).toEqual(["0000_init.sql", "0001_custom.sql"]);
     expect(await migrate(db)).toEqual([]);
     const [row] = await db`select count(*)::int as n from information_schema.tables where table_schema = ${schema} and table_name = 'users'`;
     expect(row.n).toBe(1);
@@ -65,7 +65,7 @@ describe("migrate", () => {
   it("the CLI needs only a database URL, not the app secrets", async () => {
     const dir = await mkdtemp(join(tmpdir(), "no-env-")); // a cwd without .env, so Bun loads nothing
     try {
-      const p = Bun.spawn(["bun", join(import.meta.dir, "migrate.ts")], {
+      const p = Bun.spawn(["bun", join(import.meta.dir, "../../src/db/migrate.ts")], {
         cwd: dir, env: { PATH: process.env.PATH, DATABASE_URL: url, LOG_LEVEL: "silent" }, stderr: "pipe",
       });
       expect(await p.exited).toBe(0);
@@ -78,9 +78,9 @@ describe("migrate", () => {
     const other = new SQL(url, { max: 2, connection: { search_path: `${schema}, public` } });
     try {
       const [a, b] = await Promise.all([migrate(db), migrate(other)]);
-      expect([...a, ...b]).toEqual(["0001_init.sql", "0002_list_indexes.sql", "0003_oauth_state_session.sql"]);
+      expect([...a, ...b]).toEqual(["0000_init.sql", "0001_custom.sql"]);
       const rows = await db`select name from schema_migrations`;
-      expect(rows.map((r: { name: string }) => r.name).sort()).toEqual(["0001_init.sql", "0002_list_indexes.sql", "0003_oauth_state_session.sql"]);
+      expect(rows.map((r: { name: string }) => r.name).sort()).toEqual(["0000_init.sql", "0001_custom.sql"]);
     } finally {
       await other.close();
     }

@@ -5,9 +5,9 @@
 import { afterEach, beforeEach, describe, expect, it, setSystemTime } from "bun:test";
 import type { AuthLogDto } from "@starterkit/shared/contracts/audit";
 import type { DashboardDto } from "@starterkit/shared/contracts/dashboard";
-import { call, resetData, signIn } from "../../test/app";
-import { createSession } from "../auth/sessions";
-import { sql } from "../db/client";
+import { call, resetData, signIn } from "../../test/helpers/app";
+import { orm, sql } from "../db/client";
+import { createSession } from "../modules/auth";
 
 // 20 Oct 2026, 00:30 WIB (UTC+7): early in the day, so "today" in WIB differs from the UTC date.
 const NOW = Date.UTC(2026, 9, 19, 17, 30);
@@ -30,7 +30,7 @@ async function setPerms(role: string, perms: string[]) {
   if (perms.length) await sql`insert into role_permissions ${sql(perms.map((permission) => ({ role_id: id, permission })))}`;
 }
 const addSession = async (userId: string): Promise<string> =>
-  (await sql.begin((tx) => createSession(tx, { userId, method: "password", client: { ip: "10.0.0.9", ua: "bun test" } }))).id;
+  (await sql.begin((tx) => createSession(orm(tx), { userId, method: "password", client: { ip: "10.0.0.9", ua: "bun test" } }))).id;
 
 beforeEach(async () => {
   await resetData();

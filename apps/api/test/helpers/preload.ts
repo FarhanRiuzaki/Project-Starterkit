@@ -1,7 +1,5 @@
 // `bun test` preload: points the API at the test database, creates it when missing and migrates it once.
 // Bun loads apps/api/.env first, so every value that could reach the dev database is overwritten here.
-import { createDatabase } from "../src/db/create";
-
 /** The test database: TEST_DATABASE_URL, else DATABASE_URL with `_test` appended to the database name. */
 function testUrl(): string {
   if (process.env.TEST_DATABASE_URL) return process.env.TEST_DATABASE_URL;
@@ -24,7 +22,9 @@ Object.assign(process.env, {
   LOG_LEVEL: process.env.TEST_LOG_LEVEL ?? "silent",
 });
 
+// After the env above: the logger reads LOG_LEVEL when it loads.
+const { createDatabase, migrate } = await import("../../src/db/migrate");
 await createDatabase(url);
-// After the env above: migrate.ts reads config() when it loads.
-const { migrate } = await import("../src/db/migrate");
 await migrate();
+
+export {};

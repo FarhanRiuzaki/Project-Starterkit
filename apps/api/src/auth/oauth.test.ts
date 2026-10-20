@@ -3,10 +3,10 @@
 // id_tokens signed with a local key pair (no network). Ports the mock OAuth tests of Tasks 7/9 (connect, next, inactive).
 import { afterEach, beforeEach, describe, expect, it, spyOn } from "bun:test";
 import { createLocalJWKSet, exportJWK, exportPKCS8, exportSPKI, generateKeyPair, type JWTPayload, SignJWT } from "jose";
-import { call, resetData, signIn } from "../../test/app";
-import * as conf from "../config";
+import { call, resetData, signIn } from "../../test/helpers/app";
 import { sql } from "../db/client";
-import { hashToken } from "./crypto";
+import * as conf from "../kernel/config";
+import { hashToken } from "../kernel/crypto";
 import { providerKeys, verifyIdToken } from "./oauth";
 
 type Answer = { url: string; next: string; token: string; google: boolean; apple: boolean; error: { code: string; message: string } };

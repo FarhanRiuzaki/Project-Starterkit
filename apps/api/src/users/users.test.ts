@@ -5,13 +5,13 @@ import { beforeEach, describe, expect, it } from "bun:test";
 import type { Page } from "@starterkit/shared/contracts/common";
 import type { UserDetailDto, UserDto, UserRowDto } from "@starterkit/shared/contracts/users";
 import { PERMISSIONS, type PermissionName } from "@starterkit/shared/permissions";
-import { call, resetData, signIn } from "../../test/app";
-import { hashToken } from "../auth/crypto";
-import { verifyPassword } from "../auth/password";
-import { createSession } from "../auth/sessions";
-import { sql } from "../db/client";
-import { clearMail, sentMail } from "../mail/mailer";
-import { SEED_PASSWORD } from "../seed/demo";
+import { call, resetData, signIn } from "../../test/helpers/app";
+import { lockWaiters } from "../../test/helpers/db";
+import { orm, sql } from "../db/client";
+import { SEED_PASSWORD } from "../db/seed/demo";
+import { hashToken } from "../kernel/crypto";
+import { clearMail, sentMail } from "../kernel/mailer";
+import { createSession, verifyPassword } from "../modules/auth";
 import { SUPERADMIN_LOCK } from "./queries";
 
 const code = async (r: Response) => ((await r.json()) as { error: { code: string } }).error.code;
@@ -19,7 +19,7 @@ const idOf = async (username: string): Promise<string> => (await sql`select id f
 const roleIdOf = async (name: string): Promise<string> => (await sql`select id from roles where name = ${name}`)[0].id;
 const sidOf = async (token: string): Promise<string> => (await sql`select id from sessions where token_hash = ${hashToken(token)}`)[0].id;
 const addSession = async (userId: string): Promise<string> =>
-  (await sql.begin((tx) => createSession(tx, { userId, method: "password", client: { ip: "10.0.0.9", ua: "bun test" } }))).id;
+  (await sql.begin((tx) => createSession(orm(tx), { userId, method: "password", client: { ip: "10.0.0.9", ua: "bun test" } }))).id;
 const hasSession = async (id: string) => (await sql`select 1 from sessions where id = ${id}`).length === 1;
 const userRow = async (id: string) => (await sql`select * from users where id = ${id}`)[0];
 const rolesOf = async (id: string): Promise<string[]> =>
@@ -48,15 +48,6 @@ async function giveOnlyRole(username: string, perms: PermissionName[]) {
   await sql`insert into role_permissions ${sql(perms.map((permission) => ({ role_id: id, permission })))}`;
   await setRoles(username, ["Custom"]);
   return id;
-}
-/** Polls (2 s at most) until `n` other backends wait on a lock while running a query that matches `like`. */
-async function lockWaiters(n: number, like: string): Promise<boolean> {
-  for (let i = 0; i < 100; i++) {
-    const [{ c }] = await sql`select count(*)::int as c from pg_stat_activity where wait_event_type = 'Lock' and query like ${like} and pid <> pg_backend_pid()`;
-    if (c >= n) return true;
-    await Bun.sleep(20);
-  }
-  return false;
 }
 
 const NEW = { name: "New Person", username: "new.person", email: "new.person@example.com", roles: ["Viewer"], isActive: true, isLdap: false, password: "Brand-New-Pass-1!" };

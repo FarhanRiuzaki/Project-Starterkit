@@ -5,7 +5,7 @@ import { describe, expect, it } from "bun:test";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import ts from "typescript";
-import { createApp } from "./app";
+import { createApp, legacy } from "./app";
 
 const SRC = import.meta.dir;
 const README = readFileSync(path.join(SRC, "../../../docs/api/README.md"), "utf8");
@@ -20,7 +20,10 @@ const API_ONLY = [
 /** README rows that are web routes only: the browser's side of the OAuth flow (it calls the API's start and callback). */
 const WEB_ONLY = ["GET /api/auth/oauth/{provider}", "GET /api/auth/oauth/{provider}/callback", "POST /api/auth/oauth/{provider}/callback", "GET /api/auth/oauth/{provider}/mock-authorize"];
 
-/** "METHOD /v1/path/{param}" of every registered route; middleware (ALL) is not a route. Hono answers HEAD/OPTIONS itself. */
+/** The routes of the Elysia app and of the Hono routers mounted inside it (until Task 18). */
+const appRoutes = () => ({ routes: [...createApp().routes, ...legacy.routes] });
+
+/** "METHOD /v1/path/{param}" of every registered route; middleware and the mount (ALL) are not routes. Hono answers HEAD/OPTIONS itself. */
 const registered = (app: { routes: { method: string; path: string }[] }): string[] =>
   app.routes.filter((r) => r.method !== "ALL").map((r) => `${r.method} ${r.path.replace(/:(\w+)/g, "{$1}")}`);
 
@@ -36,7 +39,7 @@ function tableDiff(routes: string[], rows: string[]): { missing: string[]; extra
 }
 
 describe("endpoint table (docs/api/README.md)", () => {
-  const routes = registered(createApp());
+  const routes = registered(appRoutes());
   const rows = documented(README);
 
   it("every route is a README row and every row is a route, once (internal and not-yet-ported routes are allowlisted)", () => {
@@ -76,17 +79,20 @@ type Call = { name: string; pos: number };
 type Handler = { file: string; method: string; path: string; calls: Call[]; csv: boolean };
 const HONO_METHODS = ["get", "post", "patch", "put", "delete"];
 /**
- * Modules whose imports read or write the database, as paths without extension relative to src/: db/client itself,
- * audit/record (it takes a transaction, so it never imports the client) and every non-test file that imports db/client
- * directly. Not transitive: a module that only reaches the database through another one is not listed (its callers
- * import the listed one anyway, and local helpers are followed in handlersOf).
+ * Modules whose imports read or write the database, as paths without extension relative to src/: db/client and
+ * kernel/db themselves, every module's public API (`modules/<m>`, imported by the Hono routes; it may query) and every
+ * non-test file that imports db/client or kernel/db directly. Not transitive: a module that only reaches the database
+ * through another one is not listed (its callers import the listed one anyway, and local helpers are followed in handlersOf).
  */
 function dataModulesOf(files: { file: string; src: string }[]): Set<string> {
-  const mods = new Set(["db/client", "audit/record"]);
+  const mods = new Set(["db/client", "kernel/db"]);
   for (const { file, src } of files) {
     const sf = ts.createSourceFile(file, src, ts.ScriptTarget.Latest, true);
-    if (sf.statements.some((s) => ts.isImportDeclaration(s) && !s.importClause?.isTypeOnly && ts.isStringLiteral(s.moduleSpecifier) && resolveSpec(file, s.moduleSpecifier.text) === "db/client")) {
-      mods.add(file.replace(/\.ts$/, ""));
+    for (const s of sf.statements) {
+      if (!ts.isImportDeclaration(s) || s.importClause?.isTypeOnly || !ts.isStringLiteral(s.moduleSpecifier)) continue;
+      const to = resolveSpec(file, s.moduleSpecifier.text);
+      if (to === "db/client" || to === "kernel/db") mods.add(file.replace(/\.ts$/, ""));
+      if (/^modules\/[\w-]+$/.test(to)) mods.add(to);
     }
   }
   return mods;
@@ -222,7 +228,7 @@ describe("route handlers (src/**/routes.ts)", () => {
 
   it("the scan sees every route the app registers (so a handler the parser misses can't hide)", () => {
     const seen = real.filter((f) => /(^|\/)routes\.ts$/.test(f.file)).flatMap((f) => handlersOf(f.file, f.src, dataModulesOf(real)).map((h) => `${h.method} /v1${h.path}`)).sort();
-    expect(seen).toEqual(registered(createApp()).map((r) => r.replace(/\{(\w+)\}/g, ":$1")).filter((r) => !/ \/(healthz|readyz)$/.test(r)).sort());
+    expect(seen).toEqual(registered(appRoutes()).map((r) => r.replace(/\{(\w+)\}/g, ":$1")).filter((r) => !/ \/(healthz|readyz)$/.test(r)).sort());
   });
 
   // Fixtures: each rule fails on a violation, and the clean handler passes.
@@ -256,9 +262,11 @@ r.patch("/a/:id", async (c) => { const ctx = await guard(c, "x.edit"); const b =
   it("fixture: the data modules are derived from the files that import db/client", () => {
     const f = (file: string, src: string) => ({ file, src });
     expect([...dataModulesOf([f("a/queries.ts", `import { sql } from "../db/client";`), f("a/pure.ts", `import type { sql } from "../db/client";`), f("b/x.ts", `import { y } from "../a/pure";`)])].sort())
-      .toEqual(["a/queries", "audit/record", "db/client"]);
+      .toEqual(["a/queries", "db/client", "kernel/db"]);
+    expect([...dataModulesOf([f("x/routes.ts", `import { recordActivity } from "../modules/audit"; import type { Ctx } from "../modules/auth";`)])].sort())
+      .toEqual(["db/client", "kernel/db", "modules/audit"]);
     const real2 = [...dataModulesOf(real)];
-    expect(real2).toEqual(expect.arrayContaining(["db/client", "db/page", "users/queries", "rbac/queries", "audit/queries", "auth/sessions"]));
+    expect(real2).toEqual(expect.arrayContaining(["db/client", "db/page", "users/queries", "rbac/queries", "audit/queries", "auth/sessions", "modules/audit", "modules/auth"]));
   });
   it("fixture: a mutation without recordActivity( is reported", () => {
     expect(run(`r.delete("/a/:id", async (c) => { await guard(c, "x.delete"); await sql\`delete from a\`; return c.json(1); });`)).toEqual(["x/routes.ts DELETE /a/:id: no recordActivity("]);

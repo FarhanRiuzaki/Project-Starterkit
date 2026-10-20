@@ -1,7 +1,7 @@
 import { describe, expect, it, spyOn } from "bun:test";
-import { loadConfig } from "../config";
-import { log } from "../log";
-import { LDAP_PASSWORD } from "../seed/demo";
+import { LDAP_PASSWORD } from "../db/seed/demo";
+import { loadConfig } from "../kernel/config";
+import { log } from "../kernel/log";
 import { directory, userFilter } from "./ldap";
 
 const base = {

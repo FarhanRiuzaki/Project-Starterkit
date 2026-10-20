@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import { z } from "zod";
-import { api } from "../../test/app";
+import { Hono } from "hono";
+import { type AppEnv, onError } from "./middleware";
 import { body, idParam, query } from "./parse";
 
 const TOKEN = { "X-Internal-Token": process.env.INTERNAL_API_TOKEN! };
@@ -8,7 +9,7 @@ const Body = z.object({ name: z.string().min(1) });
 const Query = z.object({ page: z.coerce.number().int().min(1).default(1), q: z.string().optional() });
 
 function app() {
-  const a = api();
+  const a = new Hono<AppEnv>().onError(onError);
   a.get("/v1/things/:id", (c) => c.json({ id: idParam(c, "id", "thing") }));
   a.get("/v1/things", (c) => c.json(query(c, Query)));
   a.post("/v1/things", async (c) => c.json(await body(c, Body)));

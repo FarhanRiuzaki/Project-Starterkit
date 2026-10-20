@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { decryptSecret, encryptSecret, hashToken, randomToken, safeEqual } from "./crypto";
+import { decryptSecret, encryptSecret, hashToken, randomToken, safeEqual } from "../../crypto";
 
 describe("crypto", () => {
   it("round-trips a secret", () => {

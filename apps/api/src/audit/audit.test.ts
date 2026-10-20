@@ -4,7 +4,7 @@
 import { beforeEach, describe, expect, it, setSystemTime } from "bun:test";
 import type { ActivityDto, AuthLogDto } from "@starterkit/shared/contracts/audit";
 import type { Page } from "@starterkit/shared/contracts/common";
-import { call, resetData, signIn } from "../../test/app";
+import { call, resetData, signIn } from "../../test/helpers/app";
 import { appDate, shiftDate } from "@starterkit/ui/lib/format";
 import { sql } from "../db/client";
 

@@ -4,7 +4,8 @@ import { beforeEach, describe, expect, it } from "bun:test";
 import type { Page } from "@starterkit/shared/contracts/common";
 import type { PermissionDto, RoleDto } from "@starterkit/shared/contracts/rbac";
 import { PERMISSIONS, type PermissionName } from "@starterkit/shared/permissions";
-import { call, resetData, signIn } from "../../test/app";
+import { call, resetData, signIn } from "../../test/helpers/app";
+import { lockWaiters } from "../../test/helpers/db";
 import { sql } from "../db/client";
 
 const code = async (r: Response) => ((await r.json()) as { error: { code: string } }).error.code;
@@ -211,12 +212,7 @@ describe("the actor's permissions are read inside the transaction", () => {
       await holder`begin`;
       await holder`select 1 from roles where id = ${viewer} for update`;
       const pending = call("PATCH", `/v1/roles/${viewer}`, { token: admin, body: { add: ["user.create"] } });
-      for (let i = 0; ; i++) {
-        const [w] = await sql`select 1 as n from pg_stat_activity where wait_event_type = 'Lock' and query like '%for update%' and pid <> pg_backend_pid()`;
-        if (w) break;
-        if (i > 100) throw new Error("the PATCH never waited on the role lock");
-        await Bun.sleep(20);
-      }
+      if (!(await lockWaiters(1, "%for update%"))) throw new Error("the PATCH never waited on the role lock");
       await holder`delete from role_permissions where role_id = ${custom} and permission = 'user.create'`;
       await holder`commit`;
       expect(await code(await pending)).toBe("forbidden");

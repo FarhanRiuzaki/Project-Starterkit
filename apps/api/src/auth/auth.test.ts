@@ -3,19 +3,16 @@
 // editing rows, since the database clock decides.
 import { beforeEach, describe, expect, it, spyOn } from "bun:test";
 import { PERMISSIONS } from "@starterkit/shared/permissions";
-import { call, resetData, signIn } from "../../test/app";
-import { config } from "../config";
-import { log } from "../log";
+import { call, resetData, signIn } from "../../test/helpers/app";
 import { sql } from "../db/client";
-import { clearMail, sentMail } from "../mail/mailer";
-import { LDAP_PASSWORD, SEED_PASSWORD, TOTP_SECRET } from "../seed/demo";
-import { hashToken } from "./crypto";
+import { LDAP_PASSWORD, SEED_PASSWORD, TOTP_SECRET } from "../db/seed/demo";
+import { config } from "../kernel/config";
+import { hashToken } from "../kernel/crypto";
+import { log } from "../kernel/log";
+import { clearMail, sentMail } from "../kernel/mailer";
+import { resolveSession, retryText, totpCode, verifyPassword } from "../modules/auth";
 import * as ldap from "./ldap";
-import { retryText } from "./limits";
-import { verifyPassword } from "./password";
-import { resolveSession } from "./sessions";
 import { findUser, reauth } from "./sign-in";
-import { totpCode } from "./totp";
 
 const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36";
 
