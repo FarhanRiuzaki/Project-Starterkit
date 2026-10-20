@@ -1,7 +1,7 @@
 "use client";
 
 import { type FormEvent, useState } from "react";
-import { CopyValue, QrCode } from "@starterkit/ui/ds";
+import { CopyValue, QrCode, SecretOnceDialog } from "@starterkit/ui/ds";
 import { Button } from "@starterkit/ui/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@starterkit/ui/ui/dialog";
 import { Icon } from "@starterkit/ui/ui/icon";
@@ -60,5 +60,14 @@ export function TwoFactorSetup({ setup, onCancel, onDone }: {
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** Step 3: the recovery codes, shown once. Lives in this lazy chunk too, which setup has loaded by then. */
+export function RecoveryCodesDialog({ codes, onClose }: { codes: string[]; onClose: () => void }) {
+  return (
+    <SecretOnceDialog title="Save your recovery codes" secret={codes} label="recovery code"
+      notes={["Each code works once if you lose access to your authenticator app.", "This is the only time they are shown.", "Store them somewhere safe, such as a password manager."]}
+      onClose={onClose} />
   );
 }

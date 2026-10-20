@@ -27,8 +27,9 @@ export function Panel({ title, description, actions, children, flush, className,
       {icon && <Icon icon={icon} className="size-4 shrink-0 text-fg-3" />}
       {title && <h2 className="text-title-2 text-fg">{title}</h2>}
       {count != null && <CountBadge inTray={variant === "tray"}>{count}</CountBadge>}
-      {/* Phone: the description takes its own line under the title row, without the middot. */}
-      {description && <p className="text-body-sm text-fg-3 max-md:order-last max-md:basis-full"><span aria-hidden="true" className="mr-2 text-fg-4 max-md:hidden">·</span>{description}</p>}
+      {/* Phone: the description takes its own line under the title row, without the middot. Wider: it wraps inside
+          its own box (from 12rem) before it pushes the actions or the legend button onto a line of their own. */}
+      {description && <p className="min-w-0 grow basis-48 text-body-sm text-fg-3 max-md:order-last max-md:basis-full"><span aria-hidden="true" className="mr-2 text-fg-4 max-md:hidden">·</span>{description}</p>}
       {(actions || legend) && <div className="ml-auto flex flex-wrap items-center gap-2">{actions}{legend && <StatusLegend items={legend} />}</div>}
     </header>
   );

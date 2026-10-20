@@ -13,6 +13,7 @@ import { Button } from "@starterkit/ui/ui/button";
 import { Icon } from "@starterkit/ui/ui/icon";
 import { HeatmapIcon, InfoIcon, RefreshIcon, SessionsIcon, SurfacesIcon, UsersIcon } from "@starterkit/ui/ui/icons";
 import { Input } from "@starterkit/ui/ui/input";
+import { PasswordInput } from "@starterkit/ui/ui/password-input";
 import { Skeleton } from "@starterkit/ui/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@starterkit/ui/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@starterkit/ui/ui/tooltip";
@@ -120,6 +121,8 @@ export function GallerySections() {
               <div className="grid gap-1.5"><label htmlFor="ds-email" className="text-label text-fg-2">Email</label><Input id="ds-email" defaultValue="alex@example.com" className="font-mono" /><span className="text-body-sm text-fg-3">Used to sign in and to reset the password.</span></div>
               <div className="grid gap-1.5"><label htmlFor="ds-otp" className="text-label text-fg-2">One-time code</label><Input id="ds-otp" defaultValue="12a4" aria-invalid="true" aria-describedby="ds-otp-e" /><span id="ds-otp-e" className="text-body-sm text-down-ink">Enter the 6-digit code from your authenticator app.</span></div>
               <Field id="ds-role" label="Role name" note="Field wires this note to the input for screen readers."><Input id="ds-role" defaultValue="Auditor" /></Field>
+              <Field id="ds-password" label="Password" note="Show password toggles the mask; a Caps Lock note appears while it is on."><PasswordInput id="ds-password" defaultValue="correct horse" autoComplete="off" /></Field>
+              <Field id="ds-username" label="Username" note="Read-only: inset fill, still focusable and copyable."><Input id="ds-username" defaultValue="alex.rivers" readOnly className="font-mono" /></Field>
             </div>
           </div>
         </Panel>
@@ -138,7 +141,7 @@ export function GallerySections() {
               </TabsList>
               <TabsContent value="overview" className="text-body-sm text-fg-3">Line tabs: the underline slides between tabs.</TabsContent>
               <TabsContent value="sessions" className="text-body-sm text-fg-3">Two active sessions.</TabsContent>
-              <TabsContent value="security" className="text-body-sm text-fg-3">Two-step sign-in is on.</TabsContent>
+              <TabsContent value="security" className="text-body-sm text-fg-3">Two-factor authentication is on.</TabsContent>
             </Tabs>
           </div>
         </Panel>

@@ -144,6 +144,12 @@ export function formatSignedPercent(ratio: N): string {
   return v === 0 ? "0%" : `${v > 0 ? "+" : MINUS}${Math.abs(v)}%`;
 }
 
+/** Signed count delta for a stat tile: "+3", "−1,250", "0". */
+export function formatSignedNumber(n: N): string {
+  if (n == null || !Number.isFinite(n)) return "–";
+  return n === 0 ? "0" : `${n > 0 ? "+" : MINUS}${formatNumber(Math.abs(n))}`;
+}
+
 const decimalFmts = new Map<number, Intl.NumberFormat>();
 
 /** Number with at most `digits` decimals (latency, cost, rates). Invalid → "–". */

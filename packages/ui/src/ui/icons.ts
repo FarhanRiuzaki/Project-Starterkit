@@ -47,7 +47,8 @@ export {
   PrinterIcon as PrintIcon,
   PencilEdit02Icon as EditIcon, // Edit an About summary
   RotateLeftIcon as ResetIcon, // Reset to the automatic summary
-  ViewOffIcon as HideIcon, // Hide a repository from reviews
+  ViewOffIcon as HideIcon, // Hide a repository from reviews, hide a shown password
+  ViewIcon as ShowIcon, // Show a masked password
 
   // Charts
   ChartColumnIcon as ColumnChartIcon,
@@ -59,7 +60,7 @@ export {
   Alert02Icon as WarningIcon,
   InformationCircleIcon as InfoIcon,
   CancelCircleIcon as ErrorIcon, // Error toast
-  SecurityCheckIcon as SecureIcon, // Security settings, two-step sign-in
+  SecurityCheckIcon as SecureIcon, // Security settings, two-factor authentication
   Loading03Icon as SpinnerIcon, // Animate with `motion-safe:animate-spin`
   FileUnknownIcon as NotFoundIcon,
 

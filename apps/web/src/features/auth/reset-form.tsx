@@ -6,7 +6,7 @@ import { Notice } from "@starterkit/ui/ds";
 import { Button } from "@starterkit/ui/ui/button";
 import { Icon } from "@starterkit/ui/ui/icon";
 import { SpinnerIcon } from "@starterkit/ui/ui/icons";
-import { Input } from "@starterkit/ui/ui/input";
+import { PasswordInput } from "@starterkit/ui/ui/password-input";
 import { api, errorText } from "@/lib/client/api";
 import { AuthCard, FormError } from "./auth-card";
 
@@ -66,14 +66,14 @@ export function ResetForm({ token }: { token: string | null }) {
       <form onSubmit={submit} noValidate className="grid gap-4">
         <div className="grid gap-1.5">
           <label htmlFor="password" className="text-label text-fg">New password</label>
-          <Input id="password" type="password" className="h-10" autoComplete="new-password" autoFocus required value={password}
+          <PasswordInput id="password" className="h-10" autoComplete="new-password" autoFocus required value={password}
             onChange={(e) => setPassword(e.target.value)} aria-invalid={field?.id === "password" ? true : undefined}
             aria-describedby={field?.id === "password" ? "password-error" : undefined} />
           {fieldError("password")}
         </div>
         <div className="grid gap-1.5">
           <label htmlFor="confirm" className="text-label text-fg">Confirm new password</label>
-          <Input id="confirm" type="password" className="h-10" autoComplete="new-password" required value={confirm}
+          <PasswordInput id="confirm" className="h-10" autoComplete="new-password" required value={confirm}
             onChange={(e) => setConfirm(e.target.value)} aria-invalid={field?.id === "confirm" ? true : undefined}
             aria-describedby={field?.id === "confirm" ? "confirm-error" : undefined} />
           {fieldError("confirm")}

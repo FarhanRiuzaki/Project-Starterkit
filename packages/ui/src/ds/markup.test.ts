@@ -25,7 +25,7 @@ describe("Panel (tray + card)", () => {
   });
   it("description: after a middot on the title row; on a phone its own line, no middot", () => {
     const out = html(h(Panel, { title: "Users", description: "Select rows", children: "x" }));
-    expect(out).toMatch(/<p class="text-body-sm text-fg-3 max-md:order-last max-md:basis-full"><span aria-hidden="true" class="mr-2 text-fg-4 max-md:hidden">·<\/span>Select rows<\/p>/);
+    expect(out).toMatch(/<p class="min-w-0 grow basis-48 text-body-sm text-fg-3 max-md:order-last max-md:basis-full"><span aria-hidden="true" class="mr-2 text-fg-4 max-md:hidden">·<\/span>Select rows<\/p>/);
   });
   it("flat: card only, no tray; cards: no inner card wrapper", () => {
     expect(html(h(Panel, { variant: "flat", children: "x" }))).not.toContain("bg-tray");
@@ -37,7 +37,7 @@ describe("Panel (tray + card)", () => {
 describe("StatTile (KPI)", () => {
   it("number-first delta → pill (arrow + number) right of the label, comparison as caption", () => {
     const out = html(h(StatTile, { label: "AI requests · 24 hours", value: "1,284", delta: { text: "+18% vs previous 24 hours", direction: "up", good: "up" } }));
-    expect(out).toMatch(/<span class="ml-auto [^"]*bg-healthy-soft text-healthy-ink"><svg[^>]*aria-hidden="true"[^>]*>.*?<\/svg>\+18%<\/span>/);
+    expect(out).toMatch(/<span class="-my-0.5 ml-auto [^"]*bg-healthy-soft text-healthy-ink"><svg[^>]*aria-hidden="true"[^>]*>.*?<\/svg>\+18%<\/span>/);
     expect(out).toContain('<span class="text-caption text-fg-3">vs previous 24 hours</span>');
     expect(out).toContain(">1,284<");
   });

@@ -4,8 +4,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-import { BlockedButton, type Column, DataTable, Failure, Facts, Notice, Panel, RelativeTime } from "@starterkit/ui/ds";
+import { type ReactNode, useEffect, useState } from "react";
+import { BlockedButton, type Column, DataTable, Failure, Notice, Panel, RelativeTime } from "@starterkit/ui/ds";
 import { Stagger, StaggerItem, useDelayedFlag } from "@starterkit/ui/motion";
 import { Button } from "@starterkit/ui/ui/button";
 import { ActivityIcon, KeyIcon, LogIcon, SecureIcon, UsersIcon } from "@starterkit/ui/ui/icons";
@@ -18,6 +18,7 @@ import { PageHeader } from "@/components/shell/page-header";
 import { api, errorText, isNotFound } from "@/lib/client/api";
 import { useAuth } from "@/lib/client/auth-context";
 import type { SessionDto } from "@starterkit/shared/contracts/me";
+import { actionLabel } from "@starterkit/shared/audit";
 import type { ActivityBrief } from "@starterkit/shared/contracts/users";
 import { MODULES, permissionLabel } from "@starterkit/shared/permissions";
 import { userDetail, userSessions } from "@/lib/shared/queries";
@@ -35,8 +36,22 @@ const SecretOnceDialog = dynamic(() => import("@starterkit/ui/ds").then((m) => m
 const ACTIVITY_COLUMNS: Column<ActivityBrief>[] = [
   { key: "at", header: "When", cell: (a) => <RelativeTime at={Date.parse(a.at)} /> },
   { key: "actor", header: "By", cell: (a) => a.actor.name },
-  { key: "action", header: "Action", mobile: "title", cell: (a) => <span className="font-mono text-mono">{a.action}</span> },
+  { key: "action", header: "Action", mobile: "title", cell: (a) => actionLabel(a.action) },
 ];
+
+/** Label / value rows of the detail cards (Details, Effective permissions): one look for both. */
+function Rows({ items }: { items: { label: string; value: ReactNode }[] }) {
+  return (
+    <dl className="grid gap-2">
+      {items.map((i) => (
+        <div key={i.label} className="flex items-baseline gap-3 border-b border-line pb-2 last:border-b-0 last:pb-0">
+          <dt className="w-28 shrink-0 text-label text-fg">{i.label}</dt>
+          <dd className="min-w-0 text-body-sm text-fg-2">{i.value}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
 
 type Dialog = "deactivate" | "delete" | "reset" | { end: SessionDto } | null;
 
@@ -103,11 +118,11 @@ export function UserDetail({ id }: { id: string }) {
         ]} />
       {q.error && <Notice tone="warn" live>Couldn&apos;t refresh this user; showing the last loaded details.</Notice>}
       {/* First data reveal: the cards rise in one after another (a refetch keeps them, so nothing replays). */}
-      <Stagger className="grid items-start gap-gutter md:grid-cols-2">
+      <Stagger className="grid gap-gutter md:grid-cols-2">
         <StaggerItem index={0} className="grid"><Panel icon={UsersIcon} title="Details" description="Account facts">
-          <Facts items={[
+          <Rows items={[
             { label: "Sign-in", value: u.isLdap ? "Directory" : "Password" },
-            { label: "Two-step sign-in", value: u.twoFactorEnabled ? "On" : "Off" },
+            { label: "2FA", value: u.twoFactorEnabled ? "On" : "Off" },
             { label: "Last sign-in", value: <RelativeTime at={u.lastLoginAt ? Date.parse(u.lastLoginAt) : null} /> },
             { label: "Created", value: <RelativeTime at={Date.parse(u.createdAt)} /> },
           ]} />
@@ -119,17 +134,10 @@ export function UserDetail({ id }: { id: string }) {
           </div>
         </Panel></StaggerItem>
         <StaggerItem index={2} className="grid md:col-span-2"><Panel icon={KeyIcon} title="Effective permissions" description="Combined from all roles, by module">
-          <dl className="grid gap-2">
-            {MODULES.map((m) => {
-              const have = m.actions.filter((a) => granted.has(`${m.key}.${a}`));
-              return (
-                <div key={m.key} className="flex items-baseline gap-3 border-b border-line pb-2 last:border-b-0 last:pb-0">
-                  <dt className="w-28 shrink-0 text-label text-fg">{permissionLabel(m.key)}</dt>
-                  <dd className="text-body-sm text-fg-2">{have.length ? have.map(permissionLabel).join(", ") : "No access"}</dd>
-                </div>
-              );
-            })}
-          </dl>
+          <Rows items={MODULES.map((m) => {
+            const have = m.actions.filter((a) => granted.has(`${m.key}.${a}`));
+            return { label: permissionLabel(m.key), value: have.length ? have.map(permissionLabel).join(", ") : "No access" };
+          })} />
         </Panel></StaggerItem>
       </Stagger>
       {/* End session: no touch caption in the row; the same `rank` reason is the caption of the header's Edit user. */}

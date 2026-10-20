@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Icon } from "@starterkit/ui/ui/icon";
 import { SpinnerIcon } from "@starterkit/ui/ui/icons";
 import { Input } from "@starterkit/ui/ui/input";
+import { PasswordInput } from "@starterkit/ui/ui/password-input";
 import { api, errorText } from "@/lib/client/api";
 import type { MeDto } from "@starterkit/shared/contracts/me";
 
@@ -54,8 +55,11 @@ export function ReauthDialog({ user, provider, label, onCancel }: {
           </DialogHeader>
           <div className="grid gap-4 px-6 py-5">
             <Field id="reauth-proof" label={field}>
-              <Input ref={inputRef} id="reauth-proof" type={code ? "text" : "password"} autoComplete={code ? "one-time-code" : "current-password"} autoFocus
-                value={proof} onChange={(e) => setProof(e.target.value)} aria-invalid={error ? true : undefined} aria-errormessage={error ? "reauth-error" : undefined} />
+              {code
+                ? <Input ref={inputRef} id="reauth-proof" autoComplete="one-time-code" autoFocus
+                    value={proof} onChange={(e) => setProof(e.target.value)} aria-invalid={error ? true : undefined} aria-errormessage={error ? "reauth-error" : undefined} />
+                : <PasswordInput ref={inputRef} id="reauth-proof" autoComplete="current-password" autoFocus
+                    value={proof} onChange={(e) => setProof(e.target.value)} aria-invalid={error ? true : undefined} aria-errormessage={error ? "reauth-error" : undefined} />}
             </Field>
             {error && <p id="reauth-error" role="alert" className="text-body-sm text-down-ink">{error}</p>}
           </div>

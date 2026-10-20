@@ -3,12 +3,13 @@
 import { useQueryClient } from "@tanstack/react-query";
 import dynamic from "next/dynamic";
 import { type FormEvent, useRef, useState } from "react";
-import { BlockedButton, ConfirmActionDialog, Failure, Field, Notice, Panel, SecretOnceDialog, StatusChip } from "@starterkit/ui/ds";
+import { BlockedButton, ConfirmActionDialog, Failure, Field, Notice, Panel, StatusChip } from "@starterkit/ui/ds";
 import { useDelayedFlag } from "@starterkit/ui/motion";
 import { Button } from "@starterkit/ui/ui/button";
 import { Icon } from "@starterkit/ui/ui/icon";
 import { KeyIcon, SecureIcon, SpinnerIcon } from "@starterkit/ui/ui/icons";
 import { Input } from "@starterkit/ui/ui/input";
+import { PasswordInput } from "@starterkit/ui/ui/password-input";
 import { toast } from "@starterkit/ui/ui/toast";
 import { LoadingShape } from "@/components/route-skeleton";
 import { PageHeader } from "@/components/shell/page-header";
@@ -23,6 +24,7 @@ import { SECURITY_SHAPE } from "./shapes";
 /** Mounted on click: the QR code generator stays out of the page's first load (start() fetches it alongside the POST). */
 const loadSetup = () => import("./two-factor-setup");
 const TwoFactorSetup = dynamic(() => loadSetup().then((m) => m.TwoFactorSetup), { ssr: false });
+const RecoveryCodesDialog = dynamic(() => loadSetup().then((m) => m.RecoveryCodesDialog), { ssr: false });
 
 
 /** No password and not a directory user: signs in only through a connected Google or Apple account. */
@@ -89,14 +91,14 @@ function PasswordCard({ user }: { user: MeDto }) {
       ) : (
         <form onSubmit={save} className="grid gap-4">
           <Field id="pw-current" label="Current password">
-            <Input ref={currentRef} id="pw-current" type="password" autoComplete="current-password" value={current} required onChange={(e) => setCurrent(e.target.value)}
+            <PasswordInput ref={currentRef} id="pw-current" autoComplete="current-password" value={current} required onChange={(e) => setCurrent(e.target.value)}
               aria-invalid={error ? true : undefined} aria-errormessage={error ? "pw-error" : undefined} />
           </Field>
           <Field id="pw-next" label="New password" note="At least 12 characters.">
-            <Input id="pw-next" type="password" autoComplete="new-password" minLength={12} value={next} required onChange={(e) => setNext(e.target.value)} />
+            <PasswordInput id="pw-next" autoComplete="new-password" minLength={12} value={next} required onChange={(e) => setNext(e.target.value)} />
           </Field>
           <Field id="pw-again" label="Repeat new password">
-            <Input id="pw-again" type="password" autoComplete="new-password" value={again} required onChange={(e) => setAgain(e.target.value)}
+            <PasswordInput id="pw-again" autoComplete="new-password" value={again} required onChange={(e) => setAgain(e.target.value)}
               aria-invalid={mismatch || undefined} aria-describedby={mismatch ? "pw-again-err" : undefined} />
           </Field>
           {mismatch && <span id="pw-again-err" className="-mt-2.5 text-body-sm text-down-ink">The passwords don&apos;t match. Enter the same new password twice.</span>}
@@ -154,17 +156,15 @@ function TwoFactorCard({ user }: { user: MeDto }) {
         </div>
       </div>
       {setup && <TwoFactorSetup setup={setup} onCancel={() => setSetup(null)} onDone={(c) => { setSetup(null); setCodes(c); toast("Two-factor authentication is on."); void refresh(); }} />}
-      {codes && (
-        <SecretOnceDialog title="Save your recovery codes" secret={codes} label="recovery code"
-          notes={["Each code works once if you lose access to your authenticator app.", "This is the only time they are shown.", "Store them somewhere safe, such as a password manager."]}
-          onClose={() => setCodes(null)} />
-      )}
+      {codes && <RecoveryCodesDialog codes={codes} onClose={() => setCodes(null)} />}
       <ConfirmActionDialog open={disabling} onOpenChange={(o) => { setDisabling(o); if (!o) setProof(""); }} auditFields={false} reasons={[]}
         title="Turn off two-factor authentication" description="Sign-in will ask for your password only."
         impact={["Your recovery codes stop working."]} actionLabel="Turn off" destructive
         extra={(
           <Field id="tf-off-proof" label={proofLabel} note={oauth ? "One of the recovery codes you saved; it is used up." : undefined}>
-            <Input id="tf-off-proof" type={oauth ? "text" : "password"} autoComplete={oauth ? "one-time-code" : "current-password"} value={proof} onChange={(e) => setProof(e.target.value)} />
+            {oauth
+              ? <Input id="tf-off-proof" autoComplete="one-time-code" value={proof} onChange={(e) => setProof(e.target.value)} />
+              : <PasswordInput id="tf-off-proof" autoComplete="current-password" value={proof} onChange={(e) => setProof(e.target.value)} />}
           </Field>
         )}
         onConfirm={async () => {

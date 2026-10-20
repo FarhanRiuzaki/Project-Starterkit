@@ -3,16 +3,18 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useState } from "react";
-import { Failure, Field, Panel } from "@starterkit/ui/ds";
+import { ConfirmActionDialog, Failure, Field, Panel } from "@starterkit/ui/ds";
 import { useDelayedFlag } from "@starterkit/ui/motion";
 import { Button } from "@starterkit/ui/ui/button";
 import { Icon } from "@starterkit/ui/ui/icon";
 import { IdentityIcon, SpinnerIcon } from "@starterkit/ui/ui/icons";
 import { Input } from "@starterkit/ui/ui/input";
+import { PasswordInput } from "@starterkit/ui/ui/password-input";
 import { toast } from "@starterkit/ui/ui/toast";
 import { LoadingShape } from "@/components/route-skeleton";
 import { PageHeader } from "@/components/shell/page-header";
 import { api, errorText } from "@/lib/client/api";
+import { useLeaveGuard } from "@/lib/client/use-leave-guard";
 import type { MeDto } from "@starterkit/shared/contracts/me";
 import { BRAND } from "@starterkit/shared/brand";
 import { MeNav } from "./me-nav";
@@ -49,6 +51,8 @@ function Form({ user }: { user: MeDto }) {
   const providerEmail = !user.hasPassword && !user.isLdap;
   const emailChange = email.trim().toLowerCase() !== user.email.toLowerCase();
   const dirty = name.trim() !== user.name || email.trim() !== user.email;
+  // Unsaved edits: a link click (the Security and Sessions tabs too) asks first.
+  const guard = useLeaveGuard(dirty && !busy);
 
   async function save(e: FormEvent) {
     e.preventDefault();
@@ -75,7 +79,7 @@ function Form({ user }: { user: MeDto }) {
       </Field>
       {emailChange && (
         <Field id="me-email-pw" label={user.isLdap ? "Directory password" : "Current password"} note="Needed to change the email you sign in with.">
-          <Input id="me-email-pw" type="password" value={currentPassword} required onChange={(e) => setCurrentPassword(e.target.value)} autoComplete="current-password" />
+          <PasswordInput id="me-email-pw" value={currentPassword} required onChange={(e) => setCurrentPassword(e.target.value)} autoComplete="current-password" />
         </Field>
       )}
       <Field id="me-username" label="Username" note="You can't change your username. Ask an administrator.">
@@ -86,6 +90,10 @@ function Form({ user }: { user: MeDto }) {
         <Button type="submit" disabled={busy || !dirty}>{busy && <Icon icon={SpinnerIcon} className="motion-safe:animate-spin" />}Save profile</Button>
         {!dirty && <span className="text-caption text-fg-3">Change a field to save.</span>}
       </div>
+      {guard.leaving && (
+        <ConfirmActionDialog open onOpenChange={(o) => { if (!o) guard.stay(); }} auditFields={false} reasons={[]} destructive title="Leave without saving"
+          description="Your profile changes aren't saved." impact={["What you typed is discarded."]} actionLabel="Leave page" onConfirm={async () => guard.leave()} />
+      )}
     </form>
   );
 }
