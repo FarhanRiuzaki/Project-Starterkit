@@ -1,5 +1,6 @@
 import { crossSite, json, sameOrigin } from "@/lib/server/api";
 import { backend, relay } from "@/lib/server/backend";
+import { bodyOf, tooLarge } from "@/lib/server/forward";
 import { getSession, storeSignIn } from "@/lib/server/session";
 
 /**
@@ -9,7 +10,9 @@ import { getSession, storeSignIn } from "@/lib/server/session";
  */
 export async function POST(req: Request): Promise<Response> {
   if (!sameOrigin(req)) return crossSite();
-  const res = await backend("/v1/auth/login", { method: "POST", body: await req.text(), contentType: "application/json", req });
+  const body = await bodyOf(req);
+  if (!body) return tooLarge();
+  const res = await backend("/v1/auth/login", { method: "POST", body, contentType: "application/json", req });
   if (!res.ok) return relay(res);
   const { next, token, challenge } = (await res.json()) as { next: string; token?: string; challenge?: string };
   await storeSignIn(await getSession(), { token, challenge }, req);

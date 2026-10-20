@@ -34,6 +34,7 @@ export async function backend(path: string, init: BackendInit = {}): Promise<Res
   if (init.token) headers.set("Authorization", `Bearer ${init.token}`);
   if (init.challenge) headers.set("X-Auth-Challenge", init.challenge);
   if (init.contentType) headers.set("Content-Type", init.contentType);
+  // ponytail: the 10 s also covers streaming the answer body, so a CSV export slower than that is cut off; give CSV a separate, longer timeout if exports grow.
   const signal = AbortSignal.timeout(10_000);
   const send = () => fetch(c.API_BASE_URL + path, { method, headers, body: init.body ?? null, signal, cache: "no-store", redirect: "manual" });
   try {

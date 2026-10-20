@@ -55,7 +55,10 @@ describe("/api/auth (cookie and same origin in Next; credentials checked by the 
     await sealCookie(jar);
     await post(login, LOGIN);
     expect(seen.map((r) => [pathOf(r), r.headers.get("authorization")])).toEqual([["/v1/auth/login", null], ["/v1/auth/logout", `Bearer ${TEST_TOKEN}`]]);
-    expect((await cookieOf(jar))!.token).toBe("t2");
+    const c = await cookieOf(jar);
+    expect(c!.token).toBe("t2");
+    expect(c!.csrf).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(c!.csrf, "a new CSRF token (no session fixation)").not.toBe(TEST_CSRF);
   });
 
   it("a failed login passes the API's answer through (status, body, Retry-After) and keeps the cookie", async () => {
@@ -70,12 +73,15 @@ describe("/api/auth (cookie and same origin in Next; credentials checked by the 
     const seen = fakeApi((r) => (pathOf(r) === "/v1/auth/login"
       ? Response.json({ next: "/login/2fa", challenge: "ch1" })
       : Response.json({ next: "/", token: "t3" })));
+    const before = Date.now();
     expect(await (await post(login, LOGIN)).json()).toEqual({ next: "/login/2fa" });
-    expect(await cookieOf(jar)).toEqual({ challenge: "ch1" });
+    const pending = await cookieOf(jar);
+    expect(pending).toEqual({ challenge: "ch1", challengeAt: expect.any(Number) });
+    expect(pending!.challengeAt).toBeGreaterThanOrEqual(before);
     expect(await (await post(twoFactor, { code: "123456" })).json()).toEqual({ next: "/" });
     expect(seen[1]!.headers.get("x-auth-challenge")).toBe("ch1");
     const c = await cookieOf(jar);
-    expect([c!.token, c!.challenge]).toEqual(["t3", undefined]);
+    expect([c!.token, c!.challenge, c!.challengeAt]).toEqual(["t3", undefined, undefined]);
     expect(seen.map(pathOf)).toEqual(["/v1/auth/login", "/v1/auth/2fa"]); // the spent challenge needs no logout
   });
 
@@ -86,6 +92,18 @@ describe("/api/auth (cookie and same origin in Next; credentials checked by the 
     expect(await cookieOf(jar)).toEqual({ challenge: "ch" });
     fakeApi(() => fail(401, "unauthenticated"));
     expect((await post(twoFactor, { code: "000000" })).status).toBe(401);
+    expect(await cookieOf(jar)).toBeNull();
+  });
+
+  it("a body over 64 KB is 400 and never reaches the API, also when content-length says less", async () => {
+    const seen = fakeApi(() => Response.json({ next: "/", token: "t" }));
+    const big = JSON.stringify({ ...LOGIN, password: "x".repeat(70 * 1024) });
+    for (const headers of [{}, { "content-length": "60" }] as Record<string, string>[]) {
+      const r = await login(new Request("http://c/api/auth/login", { method: "POST", headers: { "content-type": "application/json", origin: "http://c", ...headers }, body: big }));
+      expect(r.status).toBe(400);
+      expect(((await r.json()) as { error: { code: string } }).error.code).toBe("bad_request");
+    }
+    expect(seen).toEqual([]);
     expect(await cookieOf(jar)).toBeNull();
   });
 

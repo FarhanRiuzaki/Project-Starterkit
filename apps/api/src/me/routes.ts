@@ -142,7 +142,6 @@ meRoutes.delete("/me/2fa", async (c) => {
   return c.json({ ok: true });
 });
 
-/** Refused when it is the only way to sign in (no password, not LDAP, nothing else connected). */
 /**
  * Temporary mock connect (OAUTH_MOCK only, else 404; Task 10 replaces it with the OAuth link flow): links the provider
  * with subject `mock-<provider>-<userId>`, no provider round trip. Already linked = 200 and no activity entry.
@@ -161,6 +160,7 @@ meRoutes.post("/me/connections/:provider", async (c) => {
   return c.json(toMe((await userById(u.id))!));
 });
 
+/** Refused when it is the only way to sign in (no password, not LDAP, nothing else connected). */
 meRoutes.delete("/me/connections/:provider", async (c) => {
   const ctx = await guard(c, null);
   const provider = ConnectionProvider.parse(c.req.param("provider"));

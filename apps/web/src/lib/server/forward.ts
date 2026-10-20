@@ -8,7 +8,7 @@ import { getSession } from "./session";
 const MAX_BODY = 64 * 1024;
 
 /** The request body, or null when it is over MAX_BODY (read chunk by chunk: a huge body is never held whole). */
-async function bodyOf(req: Request): Promise<Blob | null> {
+export async function bodyOf(req: Request): Promise<Blob | null> {
   if (Number(req.headers.get("content-length") ?? 0) > MAX_BODY) return null;
   const chunks: Uint8Array<ArrayBuffer>[] = [];
   let size = 0;
@@ -19,6 +19,9 @@ async function bodyOf(req: Request): Promise<Blob | null> {
   }
   return new Blob(chunks);
 }
+
+/** 400 for a body over MAX_BODY (the API's own answer to it). */
+export const tooLarge = () => apiError(400, "bad_request", "A request parameter has an unsupported value.");
 
 /**
  * The catch-all `/api/*` route (app/api/[...path]): the browser's request, sent on to the API at `/v1/*`.
@@ -35,7 +38,7 @@ export async function forward(req: Request): Promise<Response> {
   const mutation = req.method !== "GET" && req.method !== "HEAD"; // Next answers HEAD with the GET handler
   if (mutation && token && !csrfOk(req.headers.get(CSRF_HEADER), s.csrf)) return csrfFailed();
   const body = mutation ? await bodyOf(req) : null;
-  if (mutation && !body) return apiError(400, "bad_request", "A request parameter has an unsupported value.");
+  if (mutation && !body) return tooLarge();
   const sent = body?.size ? body : null;
   const res = await backend(path, {
     method: req.method, body: sent, contentType: sent ? (req.headers.get("content-type") ?? "application/json") : undefined, token, req,

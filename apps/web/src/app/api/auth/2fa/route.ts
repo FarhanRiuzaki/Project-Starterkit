@@ -1,5 +1,6 @@
 import { crossSite, json, sameOrigin } from "@/lib/server/api";
 import { backend, relay } from "@/lib/server/backend";
+import { bodyOf, tooLarge } from "@/lib/server/forward";
 import { getSession, storeSignIn } from "@/lib/server/session";
 
 /**
@@ -8,14 +9,17 @@ import { getSession, storeSignIn } from "@/lib/server/session";
  */
 export async function POST(req: Request): Promise<Response> {
   if (!sameOrigin(req)) return crossSite();
+  const body = await bodyOf(req);
+  if (!body) return tooLarge();
   const s = await getSession();
-  const res = await backend("/v1/auth/2fa", { method: "POST", body: await req.text(), contentType: "application/json", challenge: s.challenge, req });
+  const res = await backend("/v1/auth/2fa", { method: "POST", body, contentType: "application/json", challenge: s.challenge, req });
   if (!res.ok) {
     if (s.challenge && (res.status === 401 || res.status === 403)) s.destroy();
     return relay(res);
   }
   const { next, token } = (await res.json()) as { next: string; token: string };
   s.challenge = undefined; // spent by the API
+  s.challengeAt = undefined;
   await storeSignIn(s, { token }, req);
   return json({ next });
 }

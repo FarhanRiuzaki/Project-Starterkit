@@ -69,6 +69,25 @@ describe("forward (app/api/[...path])", () => {
     expect(sent.headers.get("x-csrf-token")).toBeNull(); // the CSRF token stays in Next
   });
 
+  it("browser cookie, authorization, x-internal-token and host never reach the API as sent", async () => {
+    const seen = fakeApi(ok);
+    await sealCookie(jar);
+    const sneaky = { cookie: "sk_session=stolen; other=1", authorization: "Bearer someone-else", "x-internal-token": "guessed", host: "evil.example", "x-auth-challenge": "ch" };
+    await at("/api/users", { headers: sneaky });
+    jar.clear();
+    await at("/api/users", { headers: sneaky }); // no session: no bearer at all
+    const [withSession, without] = seen;
+    for (const r of [withSession!, without!]) {
+      expect(r.headers.get("cookie"), "cookie").toBeNull();
+      expect(r.headers.get("x-internal-token")).toBe(process.env.INTERNAL_API_TOKEN);
+      expect(r.headers.get("x-auth-challenge")).toBeNull();
+      expect(new URL(r.url).host).toBe("127.0.0.1:4000");
+      expect(r.headers.get("host")).not.toBe("evil.example");
+    }
+    expect(withSession!.headers.get("authorization")).toBe(`Bearer ${TEST_TOKEN}`);
+    expect(without!.headers.get("authorization")).toBeNull();
+  });
+
   it("API 401 clears the cookie", async () => {
     fakeApi(() => Response.json({ error: { code: "unauthenticated", message: "Sign in to continue." } }, { status: 401 }));
     await sealCookie(jar);

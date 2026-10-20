@@ -13,9 +13,17 @@ export const SESSION_COOKIE = "sk_session";
 
 /**
  * The sealed cookie holds only `{ token, csrf }` (a full session: the API's session token and the mutation token) or
- * `{ challenge }` (password passed, second factor due). The user, permissions and session times live in the API.
+ * `{ challenge, challengeAt }` (password passed at `challengeAt`, second factor due). The user, permissions and session times live in the API.
  */
-export type AppSession = { token?: string; csrf?: string; challenge?: string };
+export type AppSession = { token?: string; csrf?: string; challenge?: string; challengeAt?: number };
+
+/** A password-passed sign-in waits this long for its second factor (the API's challenge lifetime). */
+export const PENDING_2FA_TTL_MS = 10 * 60_000;
+
+/** The cookie's pending second factor while it is under PENDING_2FA_TTL_MS old (`challengeAt` = when the password passed); else null. */
+export function pendingChallenge(s: AppSession, now = Date.now()): string | null {
+  return s.challenge && now - (s.challengeAt ?? NaN) <= PENDING_2FA_TTL_MS ? s.challenge : null; // no `challengeAt`: NaN, expired
+}
 
 export function sessionOptions(c: Config = config()): SessionOptions {
   return {
@@ -62,5 +70,6 @@ export async function storeSignIn(s: Awaited<ReturnType<typeof getSession>>, got
   s.token = got.token;
   s.csrf = got.token ? newCsrfToken() : undefined;
   s.challenge = got.challenge;
+  s.challengeAt = got.challenge ? Date.now() : undefined;
   await s.save();
 }
