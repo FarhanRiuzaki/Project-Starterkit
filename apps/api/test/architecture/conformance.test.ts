@@ -242,9 +242,11 @@ const NON_LIST_GETS: Record<string, string> = {
 const IN_HANDLER_GATES: Record<string, string> = {
   "POST /v1/users/bulk": "delete needs user.delete, the other actions user.edit: the session is checked (401), the body read, then the permission (403)",
 };
-/** Non-GET routes that change no record of the activity log's kind (an auth step), so they record no entry. */
+/** Non-GET routes that change no record of the activity log's kind (an auth step, a viewer's own list preference), so they record no entry. */
 const NO_ACTIVITY: Record<string, string> = {
   "POST /v1/me/reauth": "proves the user again on this session (stamps reauth_at); an auth step, and the sign-in log has no event for it",
+  "POST /v1/me/views": "saves the caller's own named list view: a viewer preference like the prefs cookie, seen by no one else",
+  "DELETE /v1/me/views/:id": "deletes the caller's own saved list view: a viewer preference, seen by no one else",
 };
 /** The sign-in controllers, by file: they answer before a session exists. A route elsewhere, even under /v1/auth, follows every rule. */
 const AUTH_ROUTE_FILES = ["modules/auth/controller.ts", "modules/oauth/controller.ts"];

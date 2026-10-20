@@ -9,6 +9,7 @@ import { Icon, type IconData } from "@starterkit/ui/ui/icon";
 import { ExportIcon } from "@starterkit/ui/ui/icons";
 import { Input } from "@starterkit/ui/ui/input";
 import { toast } from "@starterkit/ui/ui/toast";
+import { SavedViewsMenu } from "@/components/saved-views-menu";
 import { PageHeader } from "@/components/shell/page-header";
 import { download, errorText } from "@/lib/client/api";
 import { useTableQuery } from "@/lib/client/use-table-query";
@@ -128,6 +129,7 @@ export function AuditTable<T extends { id: string; at: string }, F extends Audit
         actions={<TimeRangePicker value={custom ? null : f.range} ranges={AUDIT_RANGES} onChange={(range) => set({ range, from: "", to: "" } as Partial<TableState<F>>)} />} />
       {t.staleError && <Notice tone="warn" live>Couldn&apos;t refresh the {noun}; showing the ones loaded before. {errorText(t.staleError)}</Notice>}
       <Panel toolbar={<Toolbar end={<>
+          <SavedViewsMenu />
           <ColumnsMenu columns={columns} hidden={t.hidden} onChange={t.setHidden} />
           <BlockedButton variant="secondary" reason={t.total === 0 ? `No ${noun} match, so there is nothing to export.` : null}
             aria-disabled={exporting || undefined} onClick={() => { if (!exporting) void exportCsv(); }}>

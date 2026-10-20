@@ -113,7 +113,8 @@ export function UserDetail({ id }: { id: string }) {
         more={[
           ...(can("user.edit") ? [
             { label: "Reset password", reason: resetBlock, onSelect: () => setDialog("reset") },
-            u.isActive
+            // While the change runs the status is already the new one (optimistic): the action keeps naming what runs.
+            (activating ? !u.isActive : u.isActive)
               ? { label: "Deactivate user", reason: block, busy: activating, onSelect: () => void setActive(false) }
               : { label: "Activate user", reason: rank, busy: activating, onSelect: () => void setActive(true) },
           ] : []),

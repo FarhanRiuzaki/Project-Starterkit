@@ -13,6 +13,7 @@ import { Button } from "@starterkit/ui/ui/button";
 import { Icon } from "@starterkit/ui/ui/icon";
 import { SpinnerIcon, UsersIcon } from "@starterkit/ui/ui/icons";
 import { toast } from "@starterkit/ui/ui/toast";
+import { SavedViewsMenu } from "@/components/saved-views-menu";
 import { PageHeader } from "@/components/shell/page-header";
 import { api, errorText } from "@/lib/client/api";
 import { useAuth } from "@/lib/client/auth-context";
@@ -123,7 +124,7 @@ export function UsersPage() {
       <PageHeader title="Users" description="Accounts that can sign in, their roles and status."
         actions={can("user.create") ? <Button asChild><Link href="/users/new">Create user</Link></Button> : undefined} />
       {t.staleError && <Notice tone="warn" live>Couldn&apos;t refresh the users; showing the ones loaded before. {errorText(t.staleError)}</Notice>}
-      <Panel toolbar={<Toolbar end={<ColumnsMenu columns={columns} hidden={t.hidden} onChange={t.setHidden} />}>
+      <Panel toolbar={<Toolbar end={<><SavedViewsMenu /><ColumnsMenu columns={columns} hidden={t.hidden} onChange={t.setHidden} /></>}>
           <div className="w-full max-w-64 max-md:max-w-none"><QueryInput value={f.q} onChange={onSearch} keys={[]} label="Search users" placeholder="Search name, username or email" /></div>
           <ToolbarFilters active={(f.role ? 1 : 0) + (f.status ? 1 : 0)}>
             {roles.more
@@ -172,8 +173,11 @@ export function UsersPage() {
             // moves into the Actions menu, and on any touch screen the menu has it too: there each item shows its reason
             // under the label (Deactivate: `block`, Activate and Edit user: `rank`, Delete user: `block`).
             const busy = changing === u.id;
+            // While the change runs the row already shows its new status (optimistic); its button keeps naming the
+            // action in flight, with the spinner.
+            const wasActive = busy ? !u.isActive : u.isActive;
             return <>
-              {can("user.edit") && (u.isActive
+              {can("user.edit") && (wasActive
                 ? <BlockedButton reason={block} caption={false} size="sm" variant="ghost" className={cn(!busy && ROW_ONLY)} wrapClassName={ROW_ONLY} disabled={busy} aria-busy={busy || undefined} onClick={() => void setStatus(u, false)}>
                   {busy && <Icon icon={SpinnerIcon} className="motion-safe:animate-spin" />}Deactivate</BlockedButton>
                 // While it runs the button stays on the card too: its spinner and aria-busy are the pending state.
@@ -181,7 +185,7 @@ export function UsersPage() {
                   {busy && <Icon icon={SpinnerIcon} className="motion-safe:animate-spin" />}Activate</BlockedButton>)}
               <ActionMenu label={`Actions for ${u.name}`} actions={[
                 { id: "open", label: "View user", onSelect: () => router.push(`/users/${u.id}`) },
-                ...(can("user.edit") ? [u.isActive
+                ...(can("user.edit") ? [wasActive
                   ? { id: "status", label: busy ? "Deactivating…" : "Deactivate user", className: MENU_ON_TOUCH, disabled: !!block || busy, hint: block ?? undefined, onSelect: () => void setStatus(u, false) }
                   : { id: "status", label: busy ? "Activating…" : "Activate user", className: MENU_ON_TOUCH, disabled: !!rank || busy, hint: rank ?? undefined, onSelect: () => void setStatus(u, true) }] : []),
                 ...(can("user.edit") ? [{ id: "edit", label: "Edit user", disabled: !!rank, hint: rank ?? undefined, onSelect: () => router.push(`/users/${u.id}/edit`) }] : []),

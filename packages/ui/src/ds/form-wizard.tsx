@@ -63,7 +63,7 @@ export function FormWizard({ steps, check, onSubmit, submitLabel, error, label, 
 
   return (
     <form noValidate onSubmit={next} aria-label={label} className={cn("grid items-start gap-gutter xl:grid-cols-[minmax(0,1fr)_16rem]", className)}>
-      <nav aria-label={`${label}: steps`} className="min-w-0 xl:sticky xl:top-6 xl:order-last">
+      <nav aria-label={`${label}: steps`} className="min-w-0 max-xl:px-3 xl:sticky xl:top-6 xl:order-last">
         <ol className="flex flex-wrap items-center gap-2 xl:grid xl:gap-0">
           {steps.map((x, i) => {
             const st = status(i);

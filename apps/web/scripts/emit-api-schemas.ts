@@ -35,6 +35,7 @@ const COMPOSED = {
   UserPage: pageOf(users.UserRowDto),
   RoleOptionPage: pageOf(rbac.RoleOption),
   SessionPage: pageOf(me.SessionDto),
+  SavedViewPage: pageOf(me.SavedViewDto),
   RolePage: pageOf(rbac.RoleDto),
   PermissionPage: pageOf(rbac.PermissionDto),
   ActivityPage: pageOf(audit.ActivityDto),

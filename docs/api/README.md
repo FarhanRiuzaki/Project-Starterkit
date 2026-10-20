@@ -228,6 +228,9 @@ endpoint adds to the guard's 401/403 and the 400 for an invalid body or query.
 | POST | `/api/me/reauth` | signed in | [ReauthBody](schemas/ReauthBody.json) (`password`; `recoveryCode` for an account without a password, spent) | [OkDto](schemas/OkDto.json); this session counts as proved for 10 minutes (no activity entry) | `bad_request` (wrong kind of proof; no password and no 2FA: sign in again), `invalid_credentials` (400), `invalid_code`, `rate_limited` |
 | GET | `/api/me/sessions` | signed in | [SessionListQuery](schemas/SessionListQuery.json) | [SessionPage](schemas/SessionPage.json) | none |
 | DELETE | `/api/me/sessions/{id}` | signed in | none | [OkDto](schemas/OkDto.json) | `not_found` (also for another user's session), `self_action` (the current session) |
+| GET | `/api/me/views` | signed in | [SavedViewListQuery](schemas/SavedViewListQuery.json) (`path` = the list page) | [SavedViewPage](schemas/SavedViewPage.json) | none |
+| POST | `/api/me/views` | signed in | [CreateSavedViewBody](schemas/CreateSavedViewBody.json) | [SavedViewDto](schemas/SavedViewDto.json) | `duplicate` (a view of that name on that page, any case), `bad_request` (20 views on that page already) |
+| DELETE | `/api/me/views/{id}` | signed in | none | [OkDto](schemas/OkDto.json) | `not_found` (also for another user's view) |
 | GET | `/api/permissions` | `permission.view` | [PermissionListQuery](schemas/PermissionListQuery.json) | [PermissionPage](schemas/PermissionPage.json) | none |
 | POST | `/api/permissions` | `permission.create` | [CreatePermissionsBody](schemas/CreatePermissionsBody.json) | [CreatePermissionsResult](schemas/CreatePermissionsResult.json) (names already there are skipped) | `bad_request` (catalog full) |
 | GET | `/api/roles` | `role.view` | [RoleListQuery](schemas/RoleListQuery.json) | [RolePage](schemas/RolePage.json) | none |

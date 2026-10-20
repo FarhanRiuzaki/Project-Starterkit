@@ -131,6 +131,11 @@ Detail pages add `Tabs` (line variant) directly under the header; the tab value 
   every toolbar filter but the search in `ToolbarFilters` with its active count (the phone's "Filters" sheet).
   A row button that a card drops (`max-md:hidden`, `className` + `wrapClassName` on a `BlockedButton`) gets a
   phone/touch item in the row's `ActionMenu` with its reason as the hint.
+- Saved views (Polaris IndexFilters, SAP Fiori variant management): every list page's toolbar ends with
+  `SavedViewsMenu` then `ColumnsMenu`. "Views" names the open view when it is a saved one ("View: Inactive admins");
+  its menu opens a saved view, saves the current search, filters, sort and rows per page under a name ("Save view
+  as…", at most 20 per page, names unique per page) and deletes the open one with Undo. Views are the user's own, on the
+  server (`/api/me/views`), so they follow the user to any device; the list loads when the menu first opens.
 - Column chooser (Carbon "Customize columns", Ant ProTable column settings, NN/g data tables): every list page's
   toolbar ends with `ColumnsMenu` (`end` of `Toolbar`), fed by `useTableQuery`'s `hidden` / `setHidden` and passed to
   `DataTable hidden`. The button says how many are hidden ("Columns · 2 hidden"); the menu lists every column but the
@@ -138,6 +143,14 @@ Detail pages add `Tabs` (line variant) directly under the header; the tab value 
   column marked `hideable: false` are listed ticked and disabled. The choice is per viewer and per page in the prefs
   cookie (`cols:/users`), so the table renders without those columns on first paint; a hidden column also leaves the
   phone card. Not on a record's short fixed lists.
+- Sticky parts (NN/g data tables): from 768 px the header row sticks to the top of the window while a long page
+  scrolls (the table box stops being a scroll container once the table fits); while a wide table scrolls sideways in its
+  card, the row checkbox and the first column stick to its left edge and the row actions to its right, with a hairline.
+- Select all (Polaris, Carbon batch actions): once every row of the page is ticked, the bulk bar offers "Select all N
+  users" (every match of the search and filters, at most 1,000: above that it says to narrow them) and then "Select this
+  page only"; a bulk action then sends the list's filters (`filter`) instead of ids, and its dialog names the count.
+- Focus after a row goes away (deleted, revoked, moved out by a filter after a change): focus that was in that row moves
+  to the row that took its place, else the one before, else the table region; focus the user moved elsewhere stays.
 - Row actions (`DataTable` `rowActions`) are secondary shortcuts: they show on row hover, on keyboard focus anywhere in
   the row, while one of their menus is open and always on a touch screen (`pointer-coarse:`), and always stay in the DOM and the tab order (opacity only, never
   `hidden`). Their names say the target ("Revoke the session started …"), so a screen reader hears them in place.
@@ -191,6 +204,8 @@ same kind extends this list (and its check) first.
 | Rule | Source | Where / enforced by |
 |---|---|---|
 | A reversible action on one record (deactivate, and the like) runs at once and answers with `toast.undo(message, onUndo, { description })` (Undo for 8 s). Irreversible actions (delete) and bulk actions keep `ConfirmActionDialog` with their impact. | NN/g confirmation dialogs; Laws of UX: Peak-End | `packages/ui/src/ui/toast.ts`, `toast.test.ts`; `features/users/users-page.tsx`, `user-detail.tsx`; `tests/e2e/ux-patterns.spec.ts` |
+| Such a toggle is optimistic: the record shows its new state at once in every cached list page and its detail, and goes back (with `toast.error`) when the server refuses; on success the lists refetch as usual. | TanStack Query optimistic updates; Laws of UX: Doherty threshold (under 400 ms) | `patchUserCache` in `features/users/use-users.ts` (+ test) |
+| `?` outside a text field lists every keyboard shortcut (the "Go to" ones only for pages the viewer can open); so do the account menu's and the palette's "Keyboard shortcuts". Its switch turns single-key shortcuts (G then a letter, `?`) off, kept in the prefs cookie (`keys`); ⌘K has a modifier and stays. A shortcut shows its key caps (`Kbd`) wherever its action is named: palette rows, rail tooltips, the menu item. | GitHub and Linear (`?`); NN/g UI accelerators; WCAG 2.1.4 Character Key Shortcuts | `components/shell/{shortcuts-dialog,command-palette,palette-dialog,sidebar,account-menu}.tsx`; `lib/shared/shortcuts.test.ts`, `prefs.test.ts` |
 | Every password field is `PasswordInput`: masked by default, a "Show password" toggle, a Caps Lock note, masked again on submit; paste and password managers work. No raw `type="password"`. | NN/g password creation; web.dev sign-in forms; WCAG 3.3.8 | `packages/ui/src/ui/password-input.tsx` (+ test); `architecture.test.ts` "password fields are PasswordInput" |
 | A new-password field lists its requirements before the first keystroke and ticks them off while typing: `<PasswordChecks checks={passwordChecks(pw, again?)} />`, its id in the field's `aria-describedby`. Rules come from the contract (`lib/shared/password.ts` checks they agree). | NN/g password creation; Laws of UX: Goal-Gradient | `packages/ui/src/ds/password-checks.tsx`; `apps/web/src/lib/shared/password.ts` (+ test); `architecture.test.ts` |
 | A value the user can't change is an `Input readOnly` (inset fill, fg-2), never an input that looks editable; say why in the field note. | Laws of UX: Mental Model | `packages/ui/src/ui/input.tsx` |
