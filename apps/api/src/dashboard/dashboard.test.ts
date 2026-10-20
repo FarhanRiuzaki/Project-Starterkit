@@ -1,6 +1,6 @@
 // Port of apps/web/src/app/api/dashboard/dashboard-route.test.ts against /v1/dashboard, test for test with the same names.
 // Differences: rows are SQL inserts; only `Date` is faked (the database clock stays real, sessions are fresh anyway);
-// "an expired or idle session is not counted and leaves the store" checks the count only: the API filters ended
+// "an expired or idle session is not counted" checks the count only: the API filters ended
 // sessions (like sessionPage) and does not delete them in a GET.
 import { afterEach, beforeEach, describe, expect, it, setSystemTime } from "bun:test";
 import type { AuthLogDto } from "@starterkit/shared/contracts/audit";
@@ -111,7 +111,7 @@ describe("dashboard sign-in counts and sessions", () => {
     expect(b.loginsPerDay.at(-1)!.success).toBe(2);
   });
 
-  it("an expired or idle session is not counted and leaves the store", async () => {
+  it("an expired or idle session is not counted", async () => {
     const token = await signIn("viewer");
     const n = (await body(token)).activeSessions;
     const adminId = await idOf("admin");

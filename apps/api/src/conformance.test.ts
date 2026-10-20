@@ -71,20 +71,36 @@ const NON_LIST_GETS: Record<string, string> = {
 type Call = { name: string; pos: number };
 type Handler = { file: string; method: string; path: string; calls: Call[]; csv: boolean };
 const HONO_METHODS = ["get", "post", "patch", "put", "delete"];
-/** Modules whose imports read or write the database: calling one is "data" for the guard-first rule. */
-const DATA_MODULE = /(^|\/)(queries|db\/\w+|audit\/record|auth\/sessions|auth\/sign-in)$/;
+/**
+ * Modules whose imports read or write the database, as paths without extension relative to src/: db/client itself,
+ * audit/record (it takes a transaction, so it never imports the client) and every non-test file that imports db/client
+ * directly. Not transitive: a module that only reaches the database through another one is not listed (its callers
+ * import the listed one anyway, and local helpers are followed in handlersOf).
+ */
+function dataModulesOf(files: { file: string; src: string }[]): Set<string> {
+  const mods = new Set(["db/client", "audit/record"]);
+  for (const { file, src } of files) {
+    const sf = ts.createSourceFile(file, src, ts.ScriptTarget.Latest, true);
+    if (sf.statements.some((s) => ts.isImportDeclaration(s) && !s.importClause?.isTypeOnly && ts.isStringLiteral(s.moduleSpecifier) && resolveSpec(file, s.moduleSpecifier.text) === "db/client")) {
+      mods.add(file.replace(/\.ts$/, ""));
+    }
+  }
+  return mods;
+}
+const resolveSpec = (from: string, spec: string): string => path.posix.normalize(path.posix.join(path.posix.dirname(from), spec));
 
 const rootName = (e: ts.Expression): string | null =>
   ts.isIdentifier(e) ? e.text : ts.isPropertyAccessExpression(e) ? rootName(e.expression) : null;
 
 /** The Hono handlers registered in a routes file: `<router>.<method>("<path>", …, handler)` with the calls inside each, in source order. */
-function handlersOf(file: string, src: string): Handler[] {
+function handlersOf(file: string, src: string, dataModules: Set<string>): Handler[] {
   const sf = ts.createSourceFile(file, src, ts.ScriptTarget.Latest, true);
   const data = new Set(["sql", "pageQuery", "recordActivity"]);
   for (const s of sf.statements) {
-    if (ts.isImportDeclaration(s) && ts.isStringLiteral(s.moduleSpecifier) && DATA_MODULE.test(s.moduleSpecifier.text)) {
+    if (ts.isImportDeclaration(s) && ts.isStringLiteral(s.moduleSpecifier) && dataModules.has(resolveSpec(file, s.moduleSpecifier.text)) && !s.importClause?.isTypeOnly) {
       const b = s.importClause?.namedBindings;
-      if (!s.importClause?.isTypeOnly && b && ts.isNamedImports(b)) for (const e of b.elements) if (!e.isTypeOnly) data.add(e.name.text);
+      if (b && ts.isNamespaceImport(b)) data.add(b.name.text);
+      else if (b) for (const e of b.elements) if (!e.isTypeOnly) data.add(e.name.text);
     }
   }
   // Routers (`const x = new Hono…`) and the file's own helpers that record activity (directly or through another helper).
@@ -94,9 +110,15 @@ function handlersOf(file: string, src: string): Handler[] {
   const decls: { name: string; node: ts.Node }[] = sf.statements.flatMap((s): { name: string; node: ts.Node }[] => (ts.isFunctionDeclaration(s) && s.name ? [{ name: s.name.text, node: s }]
     : ts.isVariableStatement(s) ? s.declarationList.declarations.flatMap((d) => (ts.isIdentifier(d.name) && d.initializer ? [{ name: d.name.text, node: d.initializer }] : [])) : []));
   for (const d of decls) if (ts.isNewExpression(d.node) && d.node.expression.getText(sf) === "Hono") routers.add(d.name);
+  // A call or tagged template whose root name is in `names`.
+  const touches = (n: ts.Node, names: Set<string>): boolean =>
+    ((ts.isCallExpression(n) || ts.isTaggedTemplateExpression(n)) && names.has(rootName(ts.isCallExpression(n) ? n.expression : n.tag) ?? "")) || ts.forEachChild(n, (c) => touches(c, names) || undefined) === true;
   for (let grown = true; grown;) {
     grown = false;
-    for (const d of decls) if (!recorders.has(d.name) && calls(d.node, recorders)) grown = !!recorders.add(d.name);
+    for (const d of decls) {
+      if (!recorders.has(d.name) && calls(d.node, recorders)) grown = !!recorders.add(d.name);
+      if (!data.has(d.name) && touches(d.node, data)) grown = !!data.add(d.name); // a local helper that queries is data too
+    }
   }
   const out: Handler[] = [];
   const visit = (n: ts.Node) => {
@@ -159,7 +181,8 @@ const NOT_FOUND = ["idParam", "notFound"];
  */
 function routeViolations(files: { file: string; src: string }[], nonList: Record<string, string> = NON_LIST_GETS): string[] {
   const { pagers, csv } = exportsOf(files);
-  const hs = files.filter((f) => /\/routes\.ts$/.test(f.file) && !/(^|\/)auth\//.test(f.file)).flatMap((f) => handlersOf(f.file, f.src));
+  const mods = dataModulesOf(files);
+  const hs = files.filter((f) => /\/routes\.ts$/.test(f.file) && !/(^|\/)auth\//.test(f.file)).flatMap((f) => handlersOf(f.file, f.src, mods));
   const paging = new Set(["pageQuery", ...pagers]);
   const csvFns = new Set(Object.keys(csv));
   const gets = new Set<string>();
@@ -194,15 +217,15 @@ describe("route handlers (src/**/routes.ts)", () => {
   });
 
   it("the scan sees every route the app registers (so a handler the parser misses can't hide)", () => {
-    const seen = real.filter((f) => /(^|\/)routes\.ts$/.test(f.file)).flatMap((f) => handlersOf(f.file, f.src).map((h) => `${h.method} /v1${h.path}`)).sort();
+    const seen = real.filter((f) => /(^|\/)routes\.ts$/.test(f.file)).flatMap((f) => handlersOf(f.file, f.src, dataModulesOf(real)).map((h) => `${h.method} /v1${h.path}`)).sort();
     expect(seen).toEqual(registered(createApp()).map((r) => r.replace(/\{(\w+)\}/g, ":$1")).filter((r) => !/ \/(healthz|readyz)$/.test(r)).sort());
   });
 
   // Fixtures: each rule fails on a violation, and the clean handler passes.
   const imports = `const r = new Hono(); import { guard } from "../http/guard"; import { body, idParam, query } from "../http/parse"; import { sql } from "../db/client";
-import { recordActivity } from "../audit/record"; import { thing, thingPage } from "./queries";\n`;
+import { recordActivity } from "../audit/record"; import { thing, thingPage } from "./queries"; import * as Q from "./queries";\n`;
   const routes = (code: string) => ({ file: "x/routes.ts", src: imports + code });
-  const queries = (code: string) => ({ file: "x/queries.ts", src: `import { pageQuery } from "../db/page"; import { CSV_MAX_ROWS } from "@starterkit/shared/audit";\n${code}` });
+  const queries = (code: string) => ({ file: "x/queries.ts", src: `import { sql } from "../db/client"; import { pageQuery } from "../db/page"; import { CSV_MAX_ROWS } from "@starterkit/shared/audit";\n${code}` });
   const PAGER = queries("export const thingPage = (q) => pageQuery({ q });");
   const run = (code: string, ...more: { file: string; src: string }[]) => routeViolations([routes(code), PAGER, ...more], {});
 
@@ -217,6 +240,21 @@ r.patch("/a/:id", async (c) => { const ctx = await guard(c, "x.edit"); const b =
     expect(run(`r.get("/a", async (c) => { const rows = await sql\`select 1\`; await guard(c, null); return c.json(await thingPage(q)); });`)).toEqual(["x/routes.ts GET /a: reads data before guard("]);
     expect(run(`r.get("/a", async (c) => { await thing(); await guard(c, null); return c.json(await thingPage(q)); });`)).toEqual(["x/routes.ts GET /a: reads data before guard("]);
     expect(run(`r.get("/a", async (c) => { await pageQuery(o); await guard(c, null); return c.json(1); });`)).toEqual(["x/routes.ts GET /a: reads data before guard("]);
+  });
+  it("fixture: a local helper that queries, and a namespace import of a data module, count as data before guard(", () => {
+    expect(run(`const load = (id) => sql\`select 1 where ${"$"}{id}\`; r.get("/a", async (c) => { await load(1); await guard(c, null); return c.json(await thingPage(q)); });`))
+      .toEqual(["x/routes.ts GET /a: reads data before guard("]);
+    expect(run(`const load2 = () => load(); const load = () => thing(); r.get("/a", async (c) => { await load2(); await guard(c, null); return c.json(await thingPage(q)); });`))
+      .toEqual(["x/routes.ts GET /a: reads data before guard("]);
+    expect(run(`r.get("/a", async (c) => { await Q.roleById(1); await guard(c, null); return c.json(await thingPage(q)); });`)).toEqual(["x/routes.ts GET /a: reads data before guard("]);
+    expect(run(`const pure = (x) => x + 1; r.get("/a", async (c) => { pure(1); await guard(c, null); return c.json(await thingPage(q)); });`)).toEqual([]);
+  });
+  it("fixture: the data modules are derived from the files that import db/client", () => {
+    const f = (file: string, src: string) => ({ file, src });
+    expect([...dataModulesOf([f("a/queries.ts", `import { sql } from "../db/client";`), f("a/pure.ts", `import type { sql } from "../db/client";`), f("b/x.ts", `import { y } from "../a/pure";`)])].sort())
+      .toEqual(["a/queries", "audit/record", "db/client"]);
+    const real2 = [...dataModulesOf(real)];
+    expect(real2).toEqual(expect.arrayContaining(["db/client", "db/page", "users/queries", "rbac/queries", "audit/queries", "auth/sessions"]));
   });
   it("fixture: a mutation without recordActivity( is reported", () => {
     expect(run(`r.delete("/a/:id", async (c) => { await guard(c, "x.delete"); await sql\`delete from a\`; return c.json(1); });`)).toEqual(["x/routes.ts DELETE /a/:id: no recordActivity("]);

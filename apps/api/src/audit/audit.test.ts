@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, setSystemTime } from "bun:test";
 import type { ActivityDto, AuthLogDto } from "@starterkit/shared/contracts/audit";
 import type { Page } from "@starterkit/shared/contracts/common";
 import { call, resetData, signIn } from "../../test/app";
+import { appDate, shiftDate } from "@starterkit/ui/lib/format";
 import { sql } from "../db/client";
 
 const activity = (token: string | undefined, qs = "") => call("GET", `/v1/audit/activity${qs ? `?${qs}` : ""}`, { token });
@@ -161,11 +162,32 @@ describe("GET /api/audit/activity", () => {
     }
   });
 
+  const bulk = () => sql`insert into activity (id, at, actor_id, actor_name, action, target_type, target_id, target_label)
+    select gen_random_uuid(), now() - g * interval '1 second', null, 'Bulk', 'user.update', 'user', 'x', 'x' from generate_series(1, 200000) g`;
+
+  it("capped count on 200k rows, filtered by user over the 92-day range", async () => {
+    const token = await signIn("viewer");
+    try {
+      await bulk();
+      const to = appDate(Date.now());
+      for (const [user, total] of [["zzz", 0], ["bul", 100_000]] as const) { // no row matches (full scan) / every row matches (capped)
+        const t0 = performance.now();
+        const r = await activity(token, `user=${user}&from=${shiftDate(to, -91)}&to=${to}&page=1000&pageSize=100`);
+        const ms = performance.now() - t0;
+        console.log(`filtered user=${user}, 92 days, 200k rows: answered ${r.status} in ${ms.toFixed(0)} ms`);
+        expect(r.status).toBe(200);
+        expect(((await r.json()) as Page<ActivityDto>).total).toBe(total);
+        expect(ms).toBeLessThan(5000); // the statement timeout: documents the ceiling, not a target
+      }
+    } finally {
+      await sql`truncate activity`;
+    }
+  });
+
   it("capped count on 200k rows", async () => {
     const token = await signIn("viewer");
     try {
-      await sql`insert into activity (id, at, actor_id, actor_name, action, target_type, target_id, target_label)
-        select gen_random_uuid(), now() - g * interval '1 second', null, 'Bulk', 'user.update', 'user', 'x', 'x' from generate_series(1, 200000) g`;
+      await bulk();
       const t0 = performance.now();
       const r = await activity(token, "page=1000&pageSize=100");
       const ms = performance.now() - t0;
