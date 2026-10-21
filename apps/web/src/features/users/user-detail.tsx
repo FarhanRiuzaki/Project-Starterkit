@@ -13,7 +13,6 @@ import { toast } from "@starterkit/ui/ui/toast";
 import { DetailNotFound } from "@/components/detail-not-found";
 import { RoleChips } from "@/components/role-chips";
 import { LoadingShape } from "@/components/route-skeleton";
-import { SessionsTable } from "@/components/sessions-table";
 import { PageHeader } from "@/components/shell/page-header";
 import { api, errorText, isNotFound } from "@/lib/client/api";
 import { useAuth } from "@/lib/client/auth-context";
@@ -32,6 +31,8 @@ const PROVIDER = { google: "Google", apple: "Apple" } as const;
 /** Opened on click only: the dialogs load then, outside the page's first load (route budget, AGENTS.md §9). */
 const ConfirmActionDialog = dynamic(() => import("@starterkit/ui/ds").then((m) => m.ConfirmActionDialog), { ssr: false });
 const SecretOnceDialog = dynamic(() => import("@starterkit/ui/ds").then((m) => m.SecretOnceDialog), { ssr: false });
+// Below the three cards: its code loads beside the page (server-rendered all the same), not in the first load.
+const SessionsTable = dynamic(() => import("@/components/sessions-table").then((m) => m.SessionsTable));
 
 const ACTIVITY_COLUMNS: Column<ActivityBrief>[] = [
   { key: "at", header: "When", cell: (a) => <RelativeTime at={Date.parse(a.at)} /> },
