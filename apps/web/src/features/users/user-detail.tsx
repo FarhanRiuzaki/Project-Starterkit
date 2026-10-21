@@ -24,7 +24,7 @@ import { MODULES, permissionLabel } from "@starterkit/shared/permissions";
 import { userDetail, userSessions } from "@/lib/shared/queries";
 import { BRAND } from "@starterkit/shared/brand";
 import { UserStatusChip } from "./user-columns";
-import { USERS_KEY, protection, rankBlock, useLastSuperadminId, userGone, useUserDetail } from "./use-users";
+import { patchUserCache, USERS_KEY, protection, rankBlock, useLastSuperadminId, userGone, useUserDetail } from "./use-users";
 import { USER_DETAIL_SHAPE } from "./shapes";
 
 const PROVIDER = { google: "Google", apple: "Apple" } as const;
@@ -84,15 +84,16 @@ export function UserDetail({ id }: { id: string }) {
   const granted = new Set<string>(u.permissions);
 
   // No confirmation: the result toast offers Undo (deactivating can be reversed; delete still confirms).
+  // Optimistic: the status changes at once and goes back if the server refuses.
   async function setActive(active: boolean) {
     setActivating(true);
+    const restore = await patchUserCache(qc, id, { isActive: active });
     try {
       await api(`/api/users/${id}/status`, { method: "POST", body: JSON.stringify({ active }) });
       if (active) toast(`Activated ${u!.name}.`);
       else toast.undo(`Deactivated ${u!.name}.`, () => void setActive(true), { description: "Their sessions ended. Undo lets them sign in again." });
-      await refresh();
-    } catch (e) { toast.error(errorText(e)); }
-    finally { setActivating(false); }
+    } catch (e) { restore(); toast.error(errorText(e)); }
+    finally { setActivating(false); void refresh(); }
   }
   async function remove(name: string) {
     await api(`/api/users/${id}`, { method: "DELETE" });
@@ -112,7 +113,8 @@ export function UserDetail({ id }: { id: string }) {
         more={[
           ...(can("user.edit") ? [
             { label: "Reset password", reason: resetBlock, onSelect: () => setDialog("reset") },
-            u.isActive
+            // While the change runs the status is already the new one (optimistic): the action keeps naming what runs.
+            (activating ? !u.isActive : u.isActive)
               ? { label: "Deactivate user", reason: block, busy: activating, onSelect: () => void setActive(false) }
               : { label: "Activate user", reason: rank, busy: activating, onSelect: () => void setActive(true) },
           ] : []),

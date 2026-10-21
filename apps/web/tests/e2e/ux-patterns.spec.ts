@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, type Locator, type Page, test } from "@playwright/test";
 import { AUTH_STATE } from "./global-setup";
 
 /**
@@ -7,6 +7,17 @@ import { AUTH_STATE } from "./global-setup";
  * tick off while typing.
  */
 test.use({ storageState: AUTH_STATE });
+
+/**
+ * Opens a menu from its trigger: a click that lands before the page is hydrated (or before the menu's chunk loads) opens
+ * nothing, so it clicks again until the item shows.
+ */
+async function openMenu(page: Page, trigger: Locator, item: Locator) {
+  await expect(async () => {
+    if (!(await item.isVisible())) await trigger.click();
+    await expect(item).toBeVisible({ timeout: 1500 });
+  }).toPass({ timeout: 15_000 });
+}
 
 test("deactivating one user needs no confirmation; the toast's Undo makes them active again", async ({ page }) => {
   await page.goto("/users?q=citra.17%40example.com");
@@ -54,11 +65,78 @@ test("new-password requirements are listed before typing and tick off while typi
   await page.goto("/me/security");
   const checks = page.locator("#pw-checks");
   await expect(checks).toContainText("At least 12 characters, not yet");
-  await page.getByLabel("New password", { exact: true }).fill("abcdefg");
+  await page.getByRole("textbox", { name: "New password", exact: true }).fill("abcdefg");
   await expect(checks).toContainText("At least 12 characters (5 more), not yet");
-  await page.getByLabel("New password", { exact: true }).fill("abcdefghijkl");
+  await page.getByRole("textbox", { name: "New password", exact: true }).fill("abcdefghijkl");
   await expect(checks).toContainText("At least 12 characters, done");
-  await page.getByLabel("Repeat new password", { exact: true }).fill("abcdefghijkl");
+  await page.getByRole("textbox", { name: "Repeat new password", exact: true }).fill("abcdefghijkl");
   await expect(checks).toContainText("The two passwords match, done");
-  await expect(page.getByLabel("New password", { exact: true })).toHaveAttribute("aria-describedby", /pw-checks/);
+  await expect(page.getByRole("textbox", { name: "New password", exact: true })).toHaveAttribute("aria-describedby", /pw-checks/);
+});
+
+test("? lists the keyboard shortcuts; turning single-key shortcuts off stops G then a letter", async ({ page }) => {
+  await page.goto("/users");
+  await page.locator("main h1").click(); // focus in the page, outside a text field
+  await page.keyboard.press("Shift+Slash");
+  const sheet = page.getByRole("dialog", { name: "Keyboard shortcuts" });
+  await expect(sheet).toBeVisible();
+  await expect(sheet.getByRole("definition").filter({ hasText: "G then R" })).toHaveCount(1);
+  await sheet.getByRole("switch", { name: "Single-key shortcuts" }).click();
+  await page.keyboard.press("Escape");
+  await page.keyboard.press("g");
+  await page.keyboard.press("r");
+  await page.waitForTimeout(500);
+  await expect(page).toHaveURL(/\/users$/);
+  await page.keyboard.press("Shift+Slash");
+  await expect(sheet).toBeHidden();
+});
+
+test("columns: a hidden column stays hidden after a reload until Reset to default", async ({ page }) => {
+  await page.goto("/users");
+  const headers = page.getByRole("table").getByRole("columnheader");
+  await expect(headers.filter({ hasText: "Created" })).toHaveCount(1);
+  await openMenu(page, page.getByRole("button", { name: "Columns", exact: true }), page.getByRole("menuitemcheckbox", { name: "Created" }));
+  await page.getByRole("menuitemcheckbox", { name: "Created" }).click();
+  await expect(page.getByRole("menuitemcheckbox", { name: "User" })).toBeDisabled(); // the identity column stays
+  await page.keyboard.press("Escape");
+  await expect(headers.filter({ hasText: "Created" })).toHaveCount(0);
+  await page.reload();
+  await expect(headers.filter({ hasText: "Created" })).toHaveCount(0);
+  await openMenu(page, page.getByRole("button", { name: "Columns, 1 hidden" }), page.getByRole("menuitem", { name: "Reset to default" }));
+  await page.getByRole("menuitem", { name: "Reset to default" }).click();
+  await expect(headers.filter({ hasText: "Created" })).toHaveCount(1);
+});
+
+test("saved views: save the list as it is, open it from another view, delete it with Undo", async ({ page }) => {
+  await page.goto("/users?status=inactive");
+  await openMenu(page, page.getByRole("button", { name: "Views", exact: true }), page.getByRole("menuitem", { name: "Save view as…" }));
+  await page.getByRole("menuitem", { name: "Save view as…" }).click();
+  const dialog = page.getByRole("dialog", { name: "Save view" });
+  await dialog.getByRole("textbox", { name: "Name" }).fill("Inactive people");
+  await dialog.getByRole("button", { name: "Save view" }).click();
+  await expect(page.getByRole("button", { name: "Views, Inactive people open" })).toBeVisible();
+  await page.goto("/users");
+  await openMenu(page, page.getByRole("button", { name: "Views", exact: true }), page.getByRole("menuitemradio", { name: "Inactive people" }));
+  await page.getByRole("menuitemradio", { name: "Inactive people" }).click();
+  await expect(page).toHaveURL(/\/users\?status=inactive$/);
+  await openMenu(page, page.getByRole("button", { name: "Views, Inactive people open" }), page.getByRole("menuitem", { name: "Delete “Inactive people”" }));
+  await page.getByRole("menuitem", { name: "Delete “Inactive people”" }).click();
+  const toast = page.getByRole("listitem").filter({ hasText: "Deleted view “Inactive people”." });
+  await expect(page.getByRole("button", { name: "Views", exact: true })).toBeVisible();
+  await toast.getByRole("button", { name: "Undo" }).click();
+  await expect(page.getByRole("button", { name: "Views, Inactive people open" })).toBeVisible();
+});
+
+test("select all: after the page, every user that matches; the bulk dialog names the total", async ({ page }) => {
+  await page.goto("/users");
+  await page.getByRole("checkbox", { name: /^Select all 15 on this page$/ }).first().check();
+  const all = page.getByRole("button", { name: /^Select all \d+ users$/ });
+  const total = (await all.textContent())!.match(/\d+/)![0];
+  await all.click();
+  await expect(page.getByRole("region", { name: "Bulk actions" })).toContainText(`All ${total} selected`);
+  await page.getByRole("region", { name: "Bulk actions" }).getByRole("button", { name: "Deactivate", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: `Deactivate ${total} users` })).toBeVisible();
+  await page.getByRole("button", { name: "Cancel" }).click();
+  await page.getByRole("button", { name: "Select this page only" }).click();
+  await expect(page.getByRole("region", { name: "Bulk actions" })).toContainText("15 selected");
 });

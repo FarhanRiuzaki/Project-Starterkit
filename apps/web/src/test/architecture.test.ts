@@ -159,6 +159,16 @@ function legendViolations(fs: F[]): string[] {
   return fs.filter(({ r, src }) => r !== LEGEND_HOME && /<StatusLegend\b/.test(strip(src))).map(({ r }) => `${r}: renders StatusLegend; pass Panel legend instead`);
 }
 
+/** A list screen (useTableQuery) gives its viewer saved views and the column chooser, and passes the choice to its DataTable. */
+function columnsMenuViolations(fs: F[]): string[] {
+  return fs.filter(({ r, src }) => r.startsWith(`${WEB}features/`) && /\buseTableQuery\(/.test(strip(src)))
+    .filter(({ src }) => {
+      const code = strip(src);
+      return !/<SavedViewsMenu\b/.test(code) || !/<ColumnsMenu\b[^>]*hidden=/.test(code) || !/<DataTable\b[^>]*\bhidden=/.test(code);
+    })
+    .map(({ r }) => `${r}: a list screen renders SavedViewsMenu and ColumnsMenu and passes hidden to DataTable`);
+}
+
 /** The product name is one constant (BRAND in packages/shared/src/brand.ts); titles, error sources and the logo read it. */
 const BRAND_HOME = `${SHARED}brand.ts`;
 const NAME = new RegExp(`\\b${BRAND.name}\\b`);
@@ -294,6 +304,10 @@ describe("architecture", () => {
 
   it("motion timings come from tokens: no literal duration, delay, easing or spring outside motion/tokens.ts and CSS token definitions", () => {
     expect(motionLiteralViolations(files, cssFiles)).toEqual([]);
+  });
+
+  it("every list screen has saved views and the column chooser (SavedViewsMenu, ColumnsMenu + DataTable hidden)", () => {
+    expect(columnsMenuViolations(files)).toEqual([]);
   });
 
   it("StatusLegend is rendered only by Panel (per-card legend)", () => {
@@ -508,6 +522,17 @@ describe("architecture checkers (fixtures)", () => {
       f(`${WEB}features/x/a.tsx`, `<Failure source={BRAND.name} />; import { Panel } from "@starterkit/ui/ds";`),
       f(BRAND_HOME, `export const BRAND = { name: "${BRAND.name}" } as const;`),
     ])).toEqual([`${WEB}app/(main)/users/page.tsx: write BRAND.name, not the product name`]);
+  });
+
+  it("a list screen without SavedViewsMenu or ColumnsMenu, or not passing hidden to DataTable, is reported", () => {
+    const msg = "a list screen renders SavedViewsMenu and ColumnsMenu and passes hidden to DataTable";
+    expect(columnsMenuViolations([
+      f(`${WEB}features/a/list.tsx`, `const t = useTableQuery({}); <SavedViewsMenu /> <DataTable columns={c} />`),
+      f(`${WEB}features/b/list.tsx`, `const t = useTableQuery({}); <SavedViewsMenu /> <ColumnsMenu columns={c} hidden={t.hidden} /> <DataTable columns={c} />`),
+      f(`${WEB}features/e/list.tsx`, `const t = useTableQuery({}); <ColumnsMenu columns={c} hidden={t.hidden} /> <DataTable columns={c} hidden={t.hidden} />`),
+      f(`${WEB}features/c/list.tsx`, `const t = useTableQuery({}); <SavedViewsMenu /> <ColumnsMenu columns={c} hidden={t.hidden} onChange={t.setHidden} /> <DataTable columns={c} hidden={t.hidden} />`),
+      f(`${WEB}features/d/detail.tsx`, `<DataTable columns={c} rows={u.recent} />`),
+    ])).toEqual([`${WEB}features/a/list.tsx: ${msg}`, `${WEB}features/b/list.tsx: ${msg}`, `${WEB}features/e/list.tsx: ${msg}`]);
   });
 
   it("StatusLegend outside Panel (page header, toolbar, gallery) is reported; Panel and StatusLegendList pass", () => {

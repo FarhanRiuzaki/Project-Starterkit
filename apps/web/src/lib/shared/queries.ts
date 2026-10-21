@@ -21,6 +21,8 @@ export const DASHBOARD_KEY = ["dashboard"] as const;
 export const ME_KEY = ["me"] as const;
 export const SESSIONS_SPEC: TableSpec<NoFilters> = { sorts: SESSION_SORTS, defaultSort: "-lastSeenAt", filters: {} };
 export const MY_SESSIONS: TableDef<NoFilters> = { key: ME_KEY[0], path: "/api/me/sessions", spec: SESSIONS_SPEC };
+/** The signed-in user's saved views of list page `path` (at most 20, so one page of 25 holds them all). */
+export const savedViews = (path: string) => ({ key: [...ME_KEY, "views", path] as const, url: `/api/me/views?${new URLSearchParams({ path, pageSize: "25" })}` });
 
 export const USERS_KEY = ["users"] as const;
 export const USER_STATUSES = ["", "active", "inactive"] as const;

@@ -2,7 +2,7 @@
 
 import { BarChart, CHART_HEIGHT, HBarChart, Heatmap } from "@starterkit/ui/charts";
 import {
-  ActionMenu, Avatar, AvatarStack, BlockedButton, Brand, CategoryChip, Checkbox, ConfirmActionDialog, CountBadge, DataTable, EmptyState, ErrorState, Field, FilterChip, FilterMenu, PasswordChecks,
+  ActionMenu, Avatar, AvatarStack, BlockedButton, Brand, CategoryChip, Checkbox, ColumnsMenu, ConfirmActionDialog, CountBadge, DataTable, EmptyState, ErrorState, Field, FilterChip, FilterMenu, PasswordChecks,
   Kbd, LazyMount, Meter, Panel, QueryInput, SecretOnceDialog, Segmented, Spec, StatusChip, TickMeter, Toolbar, ToolbarFilters, Truncate,
   type Column, type SortDir,
 } from "@starterkit/ui/ds";
@@ -13,6 +13,7 @@ import { Button } from "@starterkit/ui/ui/button";
 import { Icon } from "@starterkit/ui/ui/icon";
 import { HeatmapIcon, InfoIcon, RefreshIcon, SessionsIcon, SurfacesIcon, UsersIcon } from "@starterkit/ui/ui/icons";
 import { Input } from "@starterkit/ui/ui/input";
+import { FormsSection } from "./forms-section";
 import { PasswordInput } from "@starterkit/ui/ui/password-input";
 import { Skeleton } from "@starterkit/ui/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@starterkit/ui/ui/tabs";
@@ -52,6 +53,7 @@ export function GallerySections() {
   const [dialog, setDialog] = useState(false);
   const [secret, setSecret] = useState(false);
   const [perms, setPerms] = useState<ReadonlySet<string>>(() => new Set(MATRIX_START));
+  const [hidden, setHidden] = useState<string[]>([]);
 
   const columns: Column<Row>[] = [
     { key: "name", header: "User", sortable: true,
@@ -73,7 +75,7 @@ export function GallerySections() {
       {/* The list's toolbar sits on the panel's title row (ui-standard §1 item 4). */}
       <Panel flush icon={UsersIcon} title="Users" count="12,345" legend={LEGEND}
         description="Server-paged: page, page size and sort are requests; selection, row actions; the info button explains the statuses"
-        toolbar={<Toolbar>
+        toolbar={<Toolbar end={<ColumnsMenu columns={columns} hidden={hidden} onChange={setHidden} />}>
           <div className="w-full max-w-64 max-md:max-w-none"><QueryInput value={query} onChange={setQuery} keys={["status", "city"]} label="Search users" placeholder="status:degraded city:oslo" /></div>
           <ToolbarFilters active={(status !== "all" ? 1 : 0) + (role ? 1 : 0)}>
             <Segmented label="Status" value={status} onChange={setStatus} options={STATUS_OPTIONS} />
@@ -81,7 +83,7 @@ export function GallerySections() {
           </ToolbarFilters>
           {chip && <FilterChip removeLabel="Remove filter role:viewer" onRemove={() => setChip(false)}>role:viewer</FilterChip>}
         </Toolbar>}>
-        <DataTable label="Sample users" rowHeight="identity" columns={columns} rows={rows.slice(0, server.pageSize)} rowKey={(r) => r.id}
+        <DataTable label="Sample users" rowHeight="identity" columns={columns} hidden={hidden} rows={rows.slice(0, server.pageSize)} rowKey={(r) => r.id}
           isSelected={(r) => r.id === "row-2"} empty={EMPTY} sort={server.sort} onSortChange={(sort) => setServer((s) => ({ ...s, page: 1, sort }))}
           paging={{ mode: "server", page: server.page, pageSize: server.pageSize, total: 12_345, maxPage: 1000, pageSizes: [15, 25, 50, 100],
             onPageChange: (p) => setServer((s) => ({ ...s, page: p })), onPageSizeChange: (n) => setServer((s) => ({ ...s, page: 1, pageSize: n })) }}
@@ -185,6 +187,9 @@ export function GallerySections() {
           </div>
         </Panel>
       </div>
+
+      <SectionTitle>Forms and flows</SectionTitle>
+      <FormsSection />
 
       <SectionTitle>Tokens</SectionTitle>
       <Tokens />

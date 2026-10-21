@@ -1,7 +1,8 @@
 // The signed-in user's own account: profile, password, 2FA, connected providers, sessions. Connecting Google or Apple
 // is the oauth module's link mode. Nothing here lowers the number of active Superadmins (no role, status or delete
 // change), so the Superadmin lock isn't taken. Checks that read the user lock its row in the transaction and re-read
-// what they decide on. Owns no table: users, auth and oauth make the writes through their public API.
+// what they decide on. Its one table, saved_views, is views.ts's; users, auth and oauth make the other writes through
+// their public API.
 import { BRAND } from "@starterkit/shared/brand";
 import type {
   ChangePasswordBody, ConnectionProvider, DisableTwoFactorBody, MeDto as MeDtoType, ReauthBody, TwoFactorEnableBody, UpdateProfileBody,

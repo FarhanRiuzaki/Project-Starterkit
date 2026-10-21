@@ -20,6 +20,9 @@ export {
   UserListIcon as AllUsersIcon, // Nav child: all users
   UserCheck01Icon as ActiveUserIcon, // Nav child: active users
   UserBlock01Icon as InactiveUserIcon, // Nav child: inactive users
+  LayoutThreeColumnIcon as ColumnsIcon, // A table's column chooser (ColumnsMenu)
+  KeyboardIcon as ShortcutsIcon, // Keyboard shortcuts (account menu, palette)
+  Bookmark02Icon as ViewsIcon, // Saved list views (SavedViewsMenu)
 
   // Metrics
   CpuIcon,
@@ -75,6 +78,10 @@ export {
   LinkSquare02Icon as ExternalLinkIcon,
   Copy01Icon as CopyIcon,
   Tick02Icon as CheckIcon,
+  CloudUploadIcon as UploadIcon, // File upload drop zone
+  File01Icon as FileIcon, // An uploaded file without a preview
+  Image01Icon as ImageIcon, // An image file before its preview loads
+  Delete02Icon as RemoveIcon, // Remove a file from an upload list
   Cancel01Icon as CloseIcon,
   MoreHorizontalIcon as MoreIcon,
   CommandLineIcon as CommandsIcon,

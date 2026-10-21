@@ -4,11 +4,12 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
-import { ActionMenu, type Column, DataTable, Notice, Panel, QueryInput, Toolbar } from "@starterkit/ui/ds";
+import { ActionMenu, type Column, ColumnsMenu, DataTable, Notice, Panel, QueryInput, Toolbar } from "@starterkit/ui/ds";
 import { formatNumber, plural } from "@starterkit/ui/lib/format";
 import { Button } from "@starterkit/ui/ui/button";
 import { KeyIcon } from "@starterkit/ui/ui/icons";
 import { toast } from "@starterkit/ui/ui/toast";
+import { SavedViewsMenu } from "@/components/saved-views-menu";
 import { PageHeader } from "@/components/shell/page-header";
 import { api, errorText } from "@/lib/client/api";
 import { useAuth } from "@/lib/client/auth-context";
@@ -68,11 +69,11 @@ export function RolesPage() {
       <PageHeader title="Roles" description="Each role is a set of permissions. A user gets the permissions of every role they have."
         actions={can("role.create") ? <Button onClick={() => { setName(""); setCreating(true); }}>Create role</Button> : undefined} />
       {t.staleError && <Notice tone="warn" live>Couldn&apos;t refresh the roles; showing the ones loaded before. {errorText(t.staleError)}</Notice>}
-      <Panel toolbar={<Toolbar>
+      <Panel toolbar={<Toolbar end={<><SavedViewsMenu /><ColumnsMenu columns={columns} hidden={t.hidden} onChange={t.setHidden} /></>}>
           <div className="w-full max-w-64 max-md:max-w-none"><QueryInput value={t.state.q} onChange={onSearch} keys={[]} label="Search roles" placeholder="Search role name" /></div>
         </Toolbar>}
         flush icon={KeyIcon} title="All roles" count={t.count}>
-        <DataTable label="Roles" columns={columns} rows={t.rows} rowKey={(r) => r.id} loading={t.loading}
+        <DataTable label="Roles" columns={columns} hidden={t.hidden} rows={t.rows} rowKey={(r) => r.id} loading={t.loading}
           sort={t.sort} onSortChange={t.onSortChange} paging={t.paging}
           error={t.loadError ? { title: "Couldn't load roles", cause: errorText(t.loadError), onRetry: () => void t.query.refetch() } : null}
           empty={t.state.q

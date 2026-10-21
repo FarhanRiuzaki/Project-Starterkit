@@ -1,17 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { NAV } from "./nav";
-import { parsePrefs, prefsCookie, savedView, VIEW_PAGES, viewHref } from "./prefs";
+import { parsePrefs, prefsCookie, savedView, VIEW_PAGES, viewHref, DEFAULT_PREFS } from "./prefs";
 
 const value = (cookie: string) => decodeURIComponent(cookie.split(";")[0]!.split("=").slice(1).join("="));
 
 describe("prefs cookie", () => {
   it("round-trips compact density and collapsed sidebar", () => {
-    const c = prefsCookie({ sidebar: "collapsed", density: "compact", views: {} }, false);
-    expect(parsePrefs(value(c))).toEqual({ sidebar: "collapsed", density: "compact", views: {} });
+    const c = prefsCookie({ sidebar: "collapsed", density: "compact", views: {}, hidden: {}, keys: "off" }, false);
+    expect(parsePrefs(value(c))).toEqual({ sidebar: "collapsed", density: "compact", views: {}, hidden: {}, keys: "off" });
   });
   it("missing or unknown values fall back to comfortable/expanded", () => {
-    expect(parsePrefs(undefined)).toEqual({ sidebar: "expanded", density: "comfortable", views: {} });
-    expect(parsePrefs("density=huge&sidebar=x")).toEqual({ sidebar: "expanded", density: "comfortable", views: {} });
+    expect(parsePrefs(undefined)).toEqual({ sidebar: "expanded", density: "comfortable", views: {}, hidden: {}, keys: "on" });
+    expect(parsePrefs("density=huge&sidebar=x")).toEqual({ sidebar: "expanded", density: "comfortable", views: {}, hidden: {}, keys: "on" });
   });
 });
 
@@ -21,7 +21,7 @@ describe("remembered table views", () => {
   });
   it("round-trip through the cookie for the list pages only", () => {
     const views = { "/users": "role=Admin&sort=-createdAt", "/audit/activity": "range=30d&pageSize=50" };
-    expect(parsePrefs(value(prefsCookie({ sidebar: "expanded", density: "comfortable", views }, false))).views).toEqual(views);
+    expect(parsePrefs(value(prefsCookie({ sidebar: "expanded", density: "comfortable", views, hidden: {}, keys: "on" }, false))).views).toEqual(views);
     expect(parsePrefs(new URLSearchParams({ "view:/me": "a=1", "view:/users/x": "b=2" }).toString()).views).toEqual({});
   });
   it("a cookie value is normalized, drops the page, and an oversized one is ignored", () => {
@@ -33,9 +33,15 @@ describe("remembered table views", () => {
     expect(savedView(new URLSearchParams("page=2&q=x"), ["q"])).toBe("");
   });
   it("viewHref reopens the saved view; the path itself never changes", () => {
-    const prefs = { sidebar: "expanded" as const, density: "comfortable" as const, views: { "/users": "role=Admin" } };
+    const prefs = { sidebar: "expanded" as const, density: "comfortable" as const, views: { "/users": "role=Admin" }, hidden: {}, keys: "on" as const };
     expect(viewHref("/users", prefs)).toBe("/users?role=Admin");
     expect(viewHref("/roles", prefs)).toBe("/roles");
     expect(viewHref("/users", { ...prefs, views: { "/users": "a=%2F%2Fevil.com#x" } })).toBe("/users?a=%2F%2Fevil.com%23x");
+  });
+  it("hidden columns round-trip per list page; a bad key, an unknown page or more than 20 keys are dropped", () => {
+    const c = prefsCookie({ ...DEFAULT_PREFS, hidden: { "/users": ["type", "createdAt"] } }, false);
+    expect(parsePrefs(value(c)).hidden).toEqual({ "/users": ["type", "createdAt"] });
+    expect(parsePrefs("cols:/users=type,../x,a b,createdAt&cols:/nope=type").hidden).toEqual({ "/users": ["type", "createdAt"] });
+    expect(parsePrefs(`cols:/roles=${Array.from({ length: 30 }, (_, i) => `c${i}`).join(",")}`).hidden["/roles"]).toHaveLength(20);
   });
 });

@@ -16,5 +16,5 @@ export const USER_DETAIL_SHAPE: readonly Section[] = [
   { kind: "table", chrome: 96, rows: 2, rowHeight: 44, perm: "audit.view" },
 ];
 /** Loading shapes (their routes' loading.tsx use the same lists), section heights at the 1440 px reference width. */
-export const CREATE_USER_SHAPE: readonly Section[] = [{ kind: "header", h: 50 }, { kind: "panels", panels: [[12, 724]] }];
-export const EDIT_USER_SHAPE: readonly Section[] = [{ kind: "header", h: 50 }, { kind: "panels", panels: [[12, 502]] }];
+export const CREATE_USER_SHAPE: readonly Section[] = [{ kind: "header", h: 50 }, { kind: "panels", panels: [[12, 873]] }];
+export const EDIT_USER_SHAPE: readonly Section[] = [{ kind: "header", h: 50 }, { kind: "panels", panels: [[12, 556]] }];

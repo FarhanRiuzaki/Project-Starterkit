@@ -1,12 +1,17 @@
 "use client";
 
+import { Kbd } from "@starterkit/ui/ds";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@starterkit/ui/ui/command";
+import { Icon } from "@starterkit/ui/ui/icon";
+import { ShortcutsIcon } from "@starterkit/ui/ui/icons";
 import { Dialog, DialogContent, DialogTitle } from "@starterkit/ui/ui/dialog";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/client/auth-context";
 import { usePrefs } from "@/lib/client/prefs-context";
 import { navFor } from "@/lib/shared/nav";
 import { viewHref } from "@/lib/shared/prefs";
+import { goKeys } from "@/lib/shared/shortcuts";
+import { openShortcuts } from "./command-palette";
 import { NavGlyph } from "./nav-icon";
 
 const PLACEHOLDER = "Search pages";
@@ -31,9 +36,14 @@ export function PaletteDialog({ open, onOpenChange }: { open: boolean; onOpenCha
             <CommandGroup heading="Pages">
               {navFor(perms).flatMap((s) => s.items).map((n) => (
                 <CommandItem key={n.href} value={`${n.label} ${n.href}`} onSelect={() => go(n.href)}>
-                  <NavGlyph icon={n.icon} />{n.label}{n.shortcut && <span className="ml-auto font-mono text-caption text-fg-3">{n.shortcut}</span>}
+                  <NavGlyph icon={n.icon} />{n.label}{n.shortcut && <span className="ml-auto"><Kbd keys={goKeys(n.shortcut)} /></span>}
                 </CommandItem>
               ))}
+            </CommandGroup>
+            <CommandGroup heading="Help">
+              <CommandItem value="Keyboard shortcuts" onSelect={() => { onOpenChange(false); openShortcuts(); }}>
+                <Icon icon={ShortcutsIcon} />Keyboard shortcuts<span className="ml-auto"><Kbd keys={["?"]} /></span>
+              </CommandItem>
             </CommandGroup>
           </CommandList>
         </Command>

@@ -2,9 +2,9 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { ConfirmActionDialog } from "@starterkit/ui/ds";
 import { Button } from "@starterkit/ui/ui/button";
 import { toast } from "@starterkit/ui/ui/toast";
+import { LazyConfirmActionDialog } from "@/components/lazy-confirm";
 import { SessionsTable } from "@/components/sessions-table";
 import { PageHeader } from "@/components/shell/page-header";
 import { api } from "@/lib/client/api";
@@ -24,14 +24,15 @@ export function MySessionsPage() {
         action={(r) => r.current
           ? <span className="text-caption text-fg-3">Sign out from the account menu</span>
           : <Button size="sm" variant="ghost" onClick={() => setEnding(r)}>End session</Button>} />
-      <ConfirmActionDialog open={ending !== null} onOpenChange={(o) => { if (!o) setEnding(null); }} auditFields={false} reasons={[]}
-        title="End this session" description={ending ? `${ending.device} · ${ending.ip}` : ""}
+      {/* Loaded on the first End session: the dialog stays out of the page's first load (AGENTS.md §9). */}
+      {ending && <LazyConfirmActionDialog open onOpenChange={(o) => { if (!o) setEnding(null); }} auditFields={false} reasons={[]}
+        title="End this session" description={`${ending.device} · ${ending.ip}`}
         impact={["That device is signed out and must sign in again."]} actionLabel="End session" destructive
         onConfirm={async () => {
           await api(`/api/me/sessions/${encodeURIComponent(ending!.id)}`, { method: "DELETE" });
           toast(`Ended the session on ${ending!.device}.`);
           await qc.invalidateQueries({ queryKey: [MY_SESSIONS.key] }); // under "me": a password change refreshes it too
-        }} />
+        }} />}
     </div>
   );
 }

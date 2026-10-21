@@ -3,16 +3,16 @@
 import { Avatar } from "@starterkit/ui/ds";
 import { cn } from "@starterkit/ui/lib/cn";
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem,
-  DropdownMenuSeparator, DropdownMenuTrigger,
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuShortcut, DropdownMenuTrigger,
 } from "@starterkit/ui/ui/dropdown-menu";
 import { Icon } from "@starterkit/ui/ui/icon";
-import { ChevronsUpDownIcon, IdentityIcon, KeyIcon, SessionsIcon, SignOutIcon } from "@starterkit/ui/ui/icons";
+import { ChevronsUpDownIcon, IdentityIcon, KeyIcon, SessionsIcon, ShortcutsIcon, SignOutIcon } from "@starterkit/ui/ui/icons";
 import { useTheme } from "next-themes";
 import Link from "next/link";
 import { api } from "@/lib/client/api";
 import { useAuth } from "@/lib/client/auth-context";
 import { usePrefs } from "@/lib/client/prefs-context";
+import { openShortcuts } from "./command-palette";
 
 /**
  * Account row at the bottom of the sidebar: profile, security, sessions, theme, density, Sign out. `bar`: the phone top
@@ -65,6 +65,7 @@ export function AccountMenu({ compact, bar }: { compact?: boolean; bar?: boolean
           <DropdownMenuRadioItem value="compact">Compact</DropdownMenuRadioItem>
         </DropdownMenuRadioGroup>
         <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={openShortcuts}><Icon icon={ShortcutsIcon} className="size-4" />Keyboard shortcuts<DropdownMenuShortcut>?</DropdownMenuShortcut></DropdownMenuItem>
         <DropdownMenuItem onSelect={logout}><Icon icon={SignOutIcon} className="size-4" />Sign out</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

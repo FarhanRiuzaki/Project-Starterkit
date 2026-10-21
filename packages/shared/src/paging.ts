@@ -16,3 +16,4 @@ export const ROLE_OPTION_SORTS = ["name"] as const;
 /** `module` = catalog order (module by module, as the matrix lists them). */
 export const PERMISSION_SORTS = ["module", "name", "action"] as const;
 export const SESSION_SORTS = ["lastSeenAt", "device"] as const;
+export const SAVED_VIEW_SORTS = ["name", "createdAt"] as const;

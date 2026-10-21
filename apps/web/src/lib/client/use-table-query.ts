@@ -28,8 +28,11 @@ import { historyMode, readTable, type SortState, sortState, tableRequest, tableV
  * - `filterQuery` = the same filters without paging, for an export (`${path}?${filterQuery}&format=csv`).
  * - `count` = the Panel count ("12,345", "100,000+"); rows, loading and errors come from `tableView` (table-state.ts).
  * - On a list page (`VIEW_PAGES`) the view (filters, sort, rows per page; not the page or the search) is remembered in
- *   the prefs cookie, and the navigation links reopen it (`viewHref`).
+ *   the prefs cookie, and the navigation links reopen it (`viewHref`). So are the columns the viewer hid: `hidden` and
+ *   `setHidden` plug into ColumnsMenu and DataTable `hidden`.
  */
+const NONE: readonly string[] = [];
+
 export function useTableQuery<T, F extends Record<string, string>>({ key, path, spec, params }: {
   key: string; path: `/api/${string}`; spec: TableSpec<F>; params?: (filters: F) => Record<string, string>;
 }, enabled = true) {
@@ -73,8 +76,14 @@ export function useTableQuery<T, F extends Record<string, string>>({ key, path, 
     onPageSizeChange: (size: number) => set({ pageSize: size as PageSize } as Partial<TableState<F>>),
   } satisfies DataTablePaging;
 
+  const listPage = (VIEW_PAGES as readonly string[]).includes(pathname) ? pathname as ViewPage : null;
+  const hidden = (listPage && prefs.hidden[listPage]) || NONE;
+  const setHidden = useCallback((keys: string[]) => {
+    if (listPage) update({ hidden: { ...prefs.hidden, [listPage]: keys } });
+  }, [listPage, prefs.hidden, update]);
+
   return {
-    state, set, query: q, filterQuery, paging,
+    state, set, query: q, filterQuery, paging, hidden, setHidden,
     rows: tv.rows, total: tv.total, totalCapped: tv.totalCapped, count: tv.count,
     sort: sortState(state.sort),
     onSortChange: (s: SortState) => set({ sort: toSortParam(s) } as Partial<TableState<F>>),

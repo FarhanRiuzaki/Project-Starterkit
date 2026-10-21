@@ -21,6 +21,27 @@
         "minLength": 1
       }
     },
+    "filter": {
+      "type": "object",
+      "properties": {
+        "q": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "role": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "active",
+            "inactive"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
     "role": {
       "type": "string",
       "minLength": 1,
@@ -28,7 +49,6 @@
     }
   },
   "required": [
-    "action",
-    "ids"
+    "action"
   ]
 }

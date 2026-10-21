@@ -51,3 +51,41 @@ describe("DataTable on a phone: the sort select and the compact pagination are r
     expect(onPageSizeChange).toHaveBeenCalledWith(25);
   });
 });
+
+describe("DataTable hidden columns (ColumnsMenu)", () => {
+  const headers = () => [...document.querySelectorAll("thead th")].map((th) => th.textContent);
+  it("drops a hidden column from the header and the rows; the identity (mobile title) column can't be hidden", async () => {
+    await mount({ hidden: ["at", "name"] });
+    expect(headers()).toEqual(["Name"]);
+    expect(document.querySelectorAll("tbody tr:first-child td")).toHaveLength(1);
+  });
+  it("a column with hideable: false stays", async () => {
+    await mount({ hidden: ["at"], columns: [{ key: "name", header: "Name", cell: (r: S) => r.id }, { key: "at", header: "Created", hideable: false, cell: (r: S) => r.id }] });
+    expect(headers()).toEqual(["Name", "Created"]);
+  });
+});
+
+describe("DataTable focus after a row goes away", () => {
+  const withButtons = (ids: string[]) => ({
+    rows: ids.map((id) => ({ id })),
+    columns: [{ key: "name", header: "Name", cell: (r: S) => h("button", { type: "button" }, `Open ${r.id}`) }],
+  });
+  const button = (name: string) => [...document.querySelectorAll("button")].find((b) => b.textContent === name)!;
+  it("focus in the removed row moves to the row that took its place, or the one before at the end", async () => {
+    await mount(withButtons(["a", "b", "c"]));
+    await act(async () => button("Open b").focus());
+    await act(async () => root!.render(h(DataTable<S>, { label: "People", rowKey: (r: S) => r.id, empty: { icon: SessionsIcon, title: "No people", description: "None yet." }, ...withButtons(["a", "c"]) })));
+    expect(document.activeElement?.textContent).toBe("Open c");
+    await act(async () => button("Open c").focus());
+    await act(async () => root!.render(h(DataTable<S>, { label: "People", rowKey: (r: S) => r.id, empty: { icon: SessionsIcon, title: "No people", description: "None yet." }, ...withButtons(["a"]) })));
+    expect(document.activeElement?.textContent).toBe("Open a");
+  });
+  it("focus that moved elsewhere stays there", async () => {
+    await mount(withButtons(["a", "b"]));
+    const outside = document.createElement("button"); document.body.append(outside);
+    await act(async () => button("Open b").focus());
+    await act(async () => outside.focus());
+    await act(async () => root!.render(h(DataTable<S>, { label: "People", rowKey: (r: S) => r.id, empty: { icon: SessionsIcon, title: "No people", description: "None yet." }, ...withButtons(["a"]) })));
+    expect(document.activeElement).toBe(outside);
+  });
+});
