@@ -183,6 +183,7 @@ API cases live in `apps/api/src/modules/<m>/tests/integration/` and `apps/api/te
 
 - First-load JS gzip stays at or under 250 kB per route; check with `bun run budget` (`apps/web/scripts/bundle-budget.mjs`, default `--budget 250`).
 - Wrap below-the-fold charts in `LazyMount`; lazy-load Radix overlays through `deferred-overlay`; load heavy tables with `next/dynamic` when a route nears the budget.
+- A press on a button before the JS has arrived is not lost: the inline script in `app/layout.tsx` (`lib/shared/early-press.ts`) presses it again once React handles that button; don't add another early-input handler. (`lib/shared/early-press.test.ts`, `tests/e2e/ux-patterns.spec.ts` "a press before the JS arrives")
 - Show toasts with `toast` from `@starterkit/ui/ui/toast` (loads sonner on the first toast); only `ui/sonner.tsx` and `ui/toast.ts` import `sonner`, and `ui/sonner` only through `import()`. A dialog that opens on click and carries a heavy dependency mounts through `next/dynamic` (`TwoFactorSetup`, `EntryDialog`). (`architecture.test.ts`)
 - Do not use `next/image`; icons are inline SVG via `packages/ui/src/ui/icon.tsx`. (Not machine-enforced yet.)
 - Client code imports zod contracts and `zod` as types only, so zod never ships in a route's first load. (`architecture.test.ts` "client code imports zod contracts and zod as types only")
