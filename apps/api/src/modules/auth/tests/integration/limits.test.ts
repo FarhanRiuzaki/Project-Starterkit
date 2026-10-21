@@ -38,10 +38,12 @@ describe("RateLimiter", () => {
 
   it("20 concurrent hits on a limit of 10 allow exactly 10", async () => {
     const r = new RateLimiter(fresh(), 10, 60_000);
+    const t0 = Date.now();
     const waits = await Promise.all(Array.from({ length: 20 }, () => r.hit("burst")));
+    const took = Math.ceil((Date.now() - t0) / 1000);
     expect(waits.filter((w) => w === null)).toHaveLength(10);
-    // Seconds left in the window: 60, or 59 when a hit lands after the window's first second under load.
-    expect(waits.filter((w) => w !== null && w >= 59 && w <= 60)).toHaveLength(10);
+    // Seconds left in the window: 60 less the seconds the burst took (CI under load has measured 58).
+    expect(waits.filter((w) => w !== null && w >= 59 - took && w <= 60)).toHaveLength(10);
   });
 });
 

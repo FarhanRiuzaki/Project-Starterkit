@@ -34,6 +34,8 @@ test("a press before the JS arrives acts once the page can: a toggle toggles onc
   await page.goto("/users", { waitUntil: "commit" });
   await page.getByRole("button", { name: "Views", exact: true }).click();
   await expect(page.getByRole("menuitem", { name: "Save view as…" })).toBeVisible({ timeout: 10_000 });
+  // Opened through the stand-in: the menu's list still loads (its owner heard onOpenChange).
+  await expect(page.getByText("Loading your views…")).toHaveCount(0);
 });
 
 test("deactivating one user needs no confirmation; the toast's Undo makes them active again", async ({ page }) => {
