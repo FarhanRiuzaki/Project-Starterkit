@@ -10,7 +10,7 @@ import type {
 import { MeDto } from "@starterkit/shared/contracts/me";
 import { decryptSecret, encryptSecret } from "../../kernel/crypto";
 import { db } from "../../kernel/db";
-import { ApiError, currentSession } from "../../kernel/errors";
+import { ApiError, currentSession, isUniqueViolation } from "../../kernel/errors";
 import { isUuid } from "../../kernel/parse";
 import { recordActivity } from "../audit";
 import {
@@ -20,8 +20,6 @@ import {
 import { otherIdentities, unlinkIdentity } from "../oauth";
 import { disableTotp, duplicateOf, enableTotp, lockUser, startTotp, updateUser } from "../users";
 
-/** A unique index refused the write (the driver error arrives wrapped by Drizzle). */
-const isUniqueViolation = (e: unknown) => ((e as { cause?: { errno?: string } }).cause ?? (e as { errno?: string })).errno === "23505";
 const target = (u: UserRow, name = u.name) => ({ type: "user", id: u.id, label: name });
 const ALREADY_ON = "Two-factor authentication is already on. Turn it off first to set up a new device.";
 const WRONG_CODE = "That code didn't match. Enter the current code from your authenticator app.";

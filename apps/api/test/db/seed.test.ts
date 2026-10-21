@@ -38,7 +38,8 @@ describe("seedSystem", () => {
     const first = await snapshot();
     expect(first.permissions.map((p: { name: string }) => p.name)).toEqual([...PERMISSIONS]);
     expect(first.roles.map((r: { name: string; locked: boolean; perms: string[] }) => [r.name, r.locked, r.perms])).toEqual([
-      ["Admin", false, ["audit.view", "user.create", "user.delete", "user.edit", "user.view"]],
+      // Admin: every permission but role.* and permission.*, so a new module's permissions come with it on a fresh install.
+      ["Admin", false, PERMISSIONS.filter((p) => !p.startsWith("role.") && !p.startsWith("permission.")).sort()],
       ["Superadmin", true, [...PERMISSIONS].sort()],
       ["Viewer", false, ["audit.view", "user.view"]],
     ]);

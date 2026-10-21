@@ -21,13 +21,13 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@starterkit/ui/ui/toolt
 import { useCallback, useState } from "react";
 import { SunnyGoMark, SunnyGoWordmark } from "@/components/brand";
 import { PermissionMatrix } from "@/components/permission-matrix";
-import { PERMISSIONS, type PermissionName } from "@starterkit/shared/permissions";
-import { DAYS, HEAT, RESULTS, ROWS, type Row, TOP_ERRORS } from "./fixtures";
+import { DAYS, HEAT, MATRIX_MODULES, RESULTS, ROWS, type Row, TOP_ERRORS } from "./fixtures";
 import { MotionSection } from "./motion-section";
 
 /** Matrix sample: the viewer holds every permission but role.delete and permission.create (those cells say why). */
-const MATRIX_ALLOWED: ReadonlySet<PermissionName> = new Set(PERMISSIONS.filter((p) => p !== "role.delete" && p !== "permission.create"));
-const MATRIX_START: PermissionName[] = ["user.view", "user.create", "user.edit", "role.view", "role.delete", "audit.view"];
+const MATRIX_ALLOWED: ReadonlySet<string> = new Set(MATRIX_MODULES.flatMap((m) => m.actions.map((a) => `${m.key}.${a}`))
+  .filter((p) => p !== "role.delete" && p !== "permission.create"));
+const MATRIX_START = ["user.view", "user.create", "user.edit", "role.view", "role.delete", "audit.view"];
 
 /** Fixed, obviously fake sample for the one-time secret demo (the gallery has no backend). */
 const SAMPLE_SECRET = "Sample-Pw-Not-Real-0000";
@@ -98,7 +98,7 @@ export function GallerySections() {
       </Panel>
 
       <Panel flush title="Permission matrix" description="Sticky header and module column; on a phone it scrolls inside the card. Press a read-only cell for its reason">
-        <PermissionMatrix label="Permissions of Sample role" value={perms} allowed={MATRIX_ALLOWED} onChange={(edit) => setPerms((v) => edit(v))} />
+        <PermissionMatrix label="Permissions of Sample role" modules={MATRIX_MODULES} value={perms} allowed={MATRIX_ALLOWED} onChange={(edit) => setPerms((v) => edit(v))} />
       </Panel>
 
       <SectionTitle>Charts</SectionTitle>

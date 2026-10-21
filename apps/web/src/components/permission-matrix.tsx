@@ -3,7 +3,7 @@
 import { type FocusEvent, type KeyboardEvent, type MouseEvent, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Checkbox } from "@starterkit/ui/ds";
 import { MODULES, permissionLabel } from "@starterkit/shared/permissions";
-import { cellState, type Edit, matrixFor } from "@/lib/shared/matrix";
+import { cellState, type Edit, type MatrixModules, matrixFor } from "@/lib/shared/matrix";
 
 /**
  * Header row and module column stay in view while the matrix scrolls inside its card (sticky on their own fill,
@@ -73,12 +73,14 @@ function useGridKeys() {
  * `onChange` the matrix is read-only: still focusable and readable, nothing toggles. `allowed` (the actor's own
  * permissions) mirrors the no-escalation rule: other cells are read-only with the reason, and headers skip them.
  * A grid (role="grid") with one tab stop and arrow-key movement (useGridKeys). `catalog`: every name a role can hold
- * (the app's and any added to the catalog; default the app's), so an added action gets its column.
+ * (the app's and any added to the catalog; default the app's), so an added action gets its column. `modules`: the rows
+ * (default the app's MODULES; the /ds gallery passes a fixed sample, so a new module doesn't change its screenshots).
  */
-export function PermissionMatrix({ label, value, onChange, allowed, catalog }: {
+export function PermissionMatrix({ label, value, onChange, allowed, catalog, modules = MODULES }: {
   label: string; value: ReadonlySet<string>; onChange?: (edit: Edit) => void; allowed?: ReadonlySet<string>; catalog?: readonly string[];
+  modules?: MatrixModules;
 }) {
-  const mx = useMemo(() => matrixFor(catalog), [catalog]);
+  const mx = useMemo(() => matrixFor(catalog, modules), [catalog, modules]);
   // Touch path for a read-only cell's reason (its tooltip needs hover): a press shows it under the matrix; any change
   // to the set (a press on a cell that toggles) clears it.
   const [note, setNote] = useState("");
@@ -113,7 +115,7 @@ export function PermissionMatrix({ label, value, onChange, allowed, catalog }: {
           </tr>
         </thead>
         <tbody>
-          {MODULES.map((m) => (
+          {modules.map((m) => (
             <tr key={m.key}>
               <th scope="row" className={`${TD} ${ROW_HEAD} text-left font-medium text-fg`}>
                 <span className="flex items-center gap-1">{header(mx.rowCells(m.key), `Every action in ${permissionLabel(m.key)}`, (v) => mx.toggleRow(v, m.key, allowed))}{permissionLabel(m.key)}</span>
