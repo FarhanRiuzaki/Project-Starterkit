@@ -4,6 +4,7 @@ import { connection } from "next/server";
 import { Providers } from "@/components/providers";
 import { BRAND } from "@starterkit/shared/brand";
 import { config } from "@/lib/server/config";
+import { EARLY_PRESS_SCRIPT } from "@/lib/shared/early-press";
 import { PREFS_COOKIE, parsePrefs } from "@/lib/shared/prefs";
 import { fontVariables } from "./fonts";
 import "./globals.css";
@@ -33,7 +34,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           React's reveal script runs, React holds the page back 300 ms past that frame ($RT throttle) and the region
           paints blank. No element has this id, so first paint waits for the end of the document and the page shows on
           it (Chromium; elsewhere the link is ignored). */}
-      <head><link rel="expect" href="#document-parsed" blocking="render" /></head>
+      <head>
+        <link rel="expect" href="#document-parsed" blocking="render" />
+        {/* A press made before the JS arrives is pressed again once React handles that button (lib/shared/early-press.ts). */}
+        <script nonce={nonce} suppressHydrationWarning>{EARLY_PRESS_SCRIPT}</script>
+      </head>
       <body className="min-h-screen font-sans"><Providers nonce={nonce}>{children}</Providers></body>
     </html>
   );

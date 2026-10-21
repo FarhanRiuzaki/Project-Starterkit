@@ -1,5 +1,6 @@
-import { expect, type Locator, type Page, test } from "@playwright/test";
+import { expect, type Locator, test } from "@playwright/test";
 import { AUTH_STATE } from "./global-setup";
+import { csrfOf } from "./helpers";
 
 /**
  * The interaction standards of docs/standards/ui-standard.md §5b, end to end as the seed Superadmin: a reversible
@@ -9,15 +10,26 @@ import { AUTH_STATE } from "./global-setup";
 test.use({ storageState: AUTH_STATE });
 
 /**
- * Opens a menu from its trigger: a click that lands before the page is hydrated (or before the menu's chunk loads) opens
- * nothing, so it clicks again until the item shows.
+ * Opens a menu from its trigger with one click, as a user would: a click that lands before the page is hydrated (or
+ * before the menu's chunk loads) is pressed again once it can act (lib/shared/early-press.ts, deferred-overlay.tsx).
  */
-async function openMenu(page: Page, trigger: Locator, item: Locator) {
-  await expect(async () => {
-    if (!(await item.isVisible())) await trigger.click();
-    await expect(item).toBeVisible({ timeout: 1500 });
-  }).toPass({ timeout: 15_000 });
+async function openMenu(trigger: Locator, item: Locator) {
+  await trigger.click();
+  await expect(item).toBeVisible({ timeout: 10_000 });
 }
+
+test("a press before the JS arrives acts once the page can: a toggle toggles once, a menu opens", async ({ page }) => {
+  // A slow network: every script chunk arrives 1 s late, so each press below lands on the server HTML.
+  await page.route("**/_next/static/chunks/**", async (r) => { await new Promise((ok) => setTimeout(ok, 1000)); await r.continue(); });
+  await page.goto("/users", { waitUntil: "commit" });
+  await page.getByRole("button", { name: "Collapse sidebar" }).click();
+  await expect(page.getByRole("button", { name: "Expand sidebar" })).toBeVisible({ timeout: 10_000 });
+  await page.waitForLoadState("networkidle");
+  await expect(page.getByRole("button", { name: "Expand sidebar" }), "toggled once, not back").toBeVisible();
+
+  await page.goto("/users", { waitUntil: "commit" });
+  await openMenu(page.getByRole("button", { name: "Views", exact: true }), page.getByRole("menuitem", { name: "Save view as…" }));
+});
 
 test("deactivating one user needs no confirmation; the toast's Undo makes them active again", async ({ page }) => {
   await page.goto("/users?q=citra.17%40example.com");
@@ -95,36 +107,41 @@ test("columns: a hidden column stays hidden after a reload until Reset to defaul
   await page.goto("/users");
   const headers = page.getByRole("table").getByRole("columnheader");
   await expect(headers.filter({ hasText: "Created" })).toHaveCount(1);
-  await openMenu(page, page.getByRole("button", { name: "Columns", exact: true }), page.getByRole("menuitemcheckbox", { name: "Created" }));
+  await openMenu(page.getByRole("button", { name: "Columns", exact: true }), page.getByRole("menuitemcheckbox", { name: "Created" }));
   await page.getByRole("menuitemcheckbox", { name: "Created" }).click();
   await expect(page.getByRole("menuitemcheckbox", { name: "User" })).toBeDisabled(); // the identity column stays
   await page.keyboard.press("Escape");
   await expect(headers.filter({ hasText: "Created" })).toHaveCount(0);
   await page.reload();
   await expect(headers.filter({ hasText: "Created" })).toHaveCount(0);
-  await openMenu(page, page.getByRole("button", { name: "Columns, 1 hidden" }), page.getByRole("menuitem", { name: "Reset to default" }));
+  await openMenu(page.getByRole("button", { name: "Columns, 1 hidden" }), page.getByRole("menuitem", { name: "Reset to default" }));
   await page.getByRole("menuitem", { name: "Reset to default" }).click();
   await expect(headers.filter({ hasText: "Created" })).toHaveCount(1);
 });
 
 test("saved views: save the list as it is, open it from another view, delete it with Undo", async ({ page }) => {
+  // A clean list of views: the Undo at the end brings the view back, so a run before this one left it there.
+  const headers = { "x-csrf-token": await csrfOf(page) };
+  const left = await (await page.request.get("/api/me/views?path=/users&pageSize=100")).json() as { items: { id: string }[] };
+  for (const v of left.items) expect((await page.request.delete(`/api/me/views/${v.id}`, { headers })).ok()).toBe(true);
+  const name = "Inactive people";
   await page.goto("/users?status=inactive");
-  await openMenu(page, page.getByRole("button", { name: "Views", exact: true }), page.getByRole("menuitem", { name: "Save view as…" }));
+  await openMenu(page.getByRole("button", { name: "Views", exact: true }), page.getByRole("menuitem", { name: "Save view as…" }));
   await page.getByRole("menuitem", { name: "Save view as…" }).click();
   const dialog = page.getByRole("dialog", { name: "Save view" });
-  await dialog.getByRole("textbox", { name: "Name" }).fill("Inactive people");
+  await dialog.getByRole("textbox", { name: "Name" }).fill(name);
   await dialog.getByRole("button", { name: "Save view" }).click();
-  await expect(page.getByRole("button", { name: "Views, Inactive people open" })).toBeVisible();
+  await expect(page.getByRole("button", { name: `Views, ${name} open` })).toBeVisible();
   await page.goto("/users");
-  await openMenu(page, page.getByRole("button", { name: "Views", exact: true }), page.getByRole("menuitemradio", { name: "Inactive people" }));
-  await page.getByRole("menuitemradio", { name: "Inactive people" }).click();
+  await openMenu(page.getByRole("button", { name: "Views", exact: true }), page.getByRole("menuitemradio", { name }));
+  await page.getByRole("menuitemradio", { name }).click();
   await expect(page).toHaveURL(/\/users\?status=inactive$/);
-  await openMenu(page, page.getByRole("button", { name: "Views, Inactive people open" }), page.getByRole("menuitem", { name: "Delete “Inactive people”" }));
-  await page.getByRole("menuitem", { name: "Delete “Inactive people”" }).click();
-  const toast = page.getByRole("listitem").filter({ hasText: "Deleted view “Inactive people”." });
+  await openMenu(page.getByRole("button", { name: `Views, ${name} open` }), page.getByRole("menuitem", { name: `Delete “${name}”` }));
+  await page.getByRole("menuitem", { name: `Delete “${name}”` }).click();
+  const toast = page.getByRole("listitem").filter({ hasText: `Deleted view “${name}”.` });
   await expect(page.getByRole("button", { name: "Views", exact: true })).toBeVisible();
   await toast.getByRole("button", { name: "Undo" }).click();
-  await expect(page.getByRole("button", { name: "Views, Inactive people open" })).toBeVisible();
+  await expect(page.getByRole("button", { name: `Views, ${name} open` })).toBeVisible();
 });
 
 test("select all: after the page, every user that matches; the bulk dialog names the total", async ({ page }) => {
