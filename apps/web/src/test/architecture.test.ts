@@ -161,6 +161,15 @@ function legendViolations(fs: F[]): string[] {
 }
 
 /** A list screen (useTableQuery) gives its viewer saved views and the column chooser, and passes the choice to its DataTable. */
+/**
+ * In packages/shared only contracts/ imports zod: the other files (paging, permissions, a module's limits) are what
+ * client code imports as values, so zod would ship in the first load through them.
+ */
+const sharedZodViolations = (fs: F[]) => fs
+  .filter(({ r }) => r.startsWith(SHARED) && !r.startsWith(`${SHARED}contracts/`) && !/\.test\.tsx?$/.test(r))
+  .filter(({ imp }) => imp.some((i) => i === "zod" || i.startsWith("zod/")))
+  .map(({ r }) => `${r}: only packages/shared/src/contracts/ imports zod; client code imports this file as values`);
+
 /** A list screen's call, generic or not: `useTableQuery(` and `useTableQuery<T, F>(`. */
 const LIST_CALL = /\buseTableQuery\s*[<(]/;
 
@@ -288,6 +297,10 @@ describe("architecture", () => {
 
   it("client code imports zod contracts and zod as types only", () => {
     expect(clientZodViolations(files)).toEqual([]);
+  });
+
+  it("in packages/shared only contracts/ imports zod", () => {
+    expect(sharedZodViolations(files)).toEqual([]);
   });
 
   it("no dangerouslySetInnerHTML", () => {
@@ -559,6 +572,18 @@ describe("architecture checkers (fixtures)", () => {
       f(`${WEB}features/c/list.tsx`, `const t = useTableQuery({}); <SavedViewsMenu /> <ColumnsMenu columns={c} hidden={t.hidden} onChange={t.setHidden} /> <DataTable columns={c} hidden={t.hidden} />`),
       f(`${WEB}features/d/detail.tsx`, `<DataTable columns={c} rows={u.recent} />`),
     ])).toEqual([`${WEB}features/a/list.tsx: ${msg}`, `${WEB}features/b/list.tsx: ${msg}`, `${WEB}features/e/list.tsx: ${msg}`]);
+  });
+
+  it("fixture: a shared file outside contracts/ importing zod", () => {
+    expect(sharedZodViolations([
+      f(`${SHARED}contracts/things.ts`, `import { z } from "zod";`),
+      f(`${SHARED}things.ts`, `import { z } from "zod";`),
+      f(`${SHARED}limits.ts`, `import type { ZodType } from "zod/v4";`),
+      f(`${SHARED}paging.ts`, `export const MAX_PAGE = 1000;`),
+    ])).toEqual([
+      `${SHARED}things.ts: only packages/shared/src/contracts/ imports zod; client code imports this file as values`,
+      `${SHARED}limits.ts: only packages/shared/src/contracts/ imports zod; client code imports this file as values`,
+    ]);
   });
 
   it("fixture: a page rendering a list screen, directly or through its feature folder, must be in VIEW_PAGES", () => {
