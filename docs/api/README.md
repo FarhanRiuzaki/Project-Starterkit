@@ -203,7 +203,7 @@ generated from the action vocabulary (`ACTION_LABEL` in `packages/shared/src/aud
 
 ## Endpoints
 
-40 endpoints. Path parameters are in braces. "Signed in" = any live session, no permission. Errors list what the
+Path parameters are in braces. "Signed in" = any live session, no permission. Errors list what the
 endpoint adds to the guard's 401/403 and the 400 for an invalid body or query.
 
 | Method | Path | Permission | Request | Answer | Errors |

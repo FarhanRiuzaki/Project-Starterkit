@@ -1,6 +1,8 @@
-import { MODULES, PERMISSIONS } from "@starterkit/shared/permissions";
+import { MODULES } from "@starterkit/shared/permissions";
 
 type Perms = ReadonlySet<string>;
+/** The rows of a matrix: module keys and their actions (the app's MODULES, or a fixed sample in the /ds gallery and tests). */
+export type MatrixModules = readonly { key: string; actions: readonly string[] }[];
 
 /** Unsaved edits of one role as add / remove against the server's current set (never a whole set). */
 export type Draft = { added: string[]; removed: string[] };
@@ -17,14 +19,14 @@ export const withDraft = (saved: Perms, d: Draft | null): Set<string> =>
   new Set([...saved].filter((p) => !d?.removed.includes(p)).concat(d?.added ?? []));
 
 /**
- * The matrix over one permission catalog: the app's names (PERMISSIONS, the default) plus any added to the catalog
- * (GET /api/roles/{id} answers them as `catalog`). Rows are MODULES; columns every action any module has, the app's
- * first (MODULES order), then added ones in catalog order; a module × action pair the catalog lacks is not a cell.
+ * The matrix over one permission catalog: the modules' names (the app's PERMISSIONS by default) plus any added to the
+ * catalog (GET /api/roles/{id} answers them as `catalog`). Rows are `modules`; columns every action any module has, the
+ * modules' first (in their order), then added ones in catalog order; a module × action pair the catalog lacks is not a cell.
  */
-export function matrixFor(catalog: readonly string[] = PERMISSIONS) {
-  const names = [...new Set([...PERMISSIONS, ...catalog])];
+export function matrixFor(catalog: readonly string[] = [], modules: MatrixModules = MODULES) {
+  const names = [...new Set([...modules.flatMap((m) => m.actions.map((a) => `${m.key}.${a}`)), ...catalog])];
   const actionOf = (p: string) => p.slice(p.indexOf(".") + 1);
-  const ACTIONS: readonly string[] = [...new Set([...MODULES.flatMap((m) => m.actions), ...names.map(actionOf)])];
+  const ACTIONS: readonly string[] = [...new Set([...modules.flatMap((m) => m.actions), ...names.map(actionOf)])];
   const rowCells = (module: string): string[] => names.filter((p) => p.startsWith(`${module}.`));
   const columnCells = (action: string): string[] => names.filter((p) => actionOf(p) === action);
   const has = (module: string, action: string) => names.includes(`${module}.${action}`);
@@ -49,7 +51,7 @@ export function matrixFor(catalog: readonly string[] = PERMISSIONS) {
   function closeViews(before: Perms, after: Perms, allowed?: Perms): Set<string> {
     const may = (p: string) => !allowed || allowed.has(p);
     const out = new Set(after);
-    for (const m of MODULES) {
+    for (const m of modules) {
       const view = `${m.key}.view`;
       const others = rowCells(m.key).filter((p) => p !== view);
       if (!others.some((p) => out.has(p))) continue;
@@ -88,7 +90,3 @@ export function matrixFor(catalog: readonly string[] = PERMISSIONS) {
   };
 }
 
-/** The matrix over the app's own catalog (PERMISSIONS). */
-export const {
-  ACTIONS, rowCells, columnCells, closeViews, diff, toggleCell, toggleRow, toggleColumn, toggleAll, viewLocked, applyEdit, rebase,
-} = matrixFor();

@@ -9,7 +9,7 @@ import {
 } from "@starterkit/shared/contracts/rbac";
 import { withViews } from "@starterkit/shared/permissions";
 import { db, type Tx } from "../../kernel/db";
-import { ApiError, notFound } from "../../kernel/errors";
+import { ApiError, isUniqueViolation, notFound } from "../../kernel/errors";
 import { xactLock } from "../../kernel/locks";
 import { likeEscape, one, pageQuery, sortSql } from "../../kernel/pagination";
 import { recordActivity } from "../audit";
@@ -18,8 +18,6 @@ import { checkPermissionGrant, checkRoleChange, inCatalogOrder, permissionDelta 
 import { permissions, rolePermissions, roles, userRoles } from "./schema";
 
 const DUPLICATE = () => new ApiError("duplicate", "Another role already has this name. Use a different one.");
-/** A unique index refused the write (the driver error arrives wrapped by Drizzle). */
-const isUniqueViolation = (e: unknown) => ((e as { cause?: { errno?: string } }).cause ?? (e as { errno?: string })).errno === "23505";
 
 /** `q` as a case-insensitive literal substring of `column`; no `q` = no filter. */
 const matches = (column: Column, q: string | undefined): SQL | undefined => (q?.trim() ? ilike(column, `%${likeEscape(q.trim())}%`) : undefined);

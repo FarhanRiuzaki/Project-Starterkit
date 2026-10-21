@@ -6,6 +6,8 @@ import { join } from "node:path";
 import { migrate } from "../../src/db/migrate";
 
 const url = process.env.DATABASE_URL!;
+/** Every migration file, in the order the runner applies them (file name order). */
+const FILES = (await readdir(join(import.meta.dir, "../../drizzle"))).filter((f) => f.endsWith(".sql")).sort();
 const admin = new SQL(url, { max: 1 });
 let schema: string;
 let db: SQL;
@@ -23,7 +25,8 @@ afterEach(async () => {
 
 describe("migrate", () => {
   it("applies every file once, in order; a second run applies nothing", async () => {
-    expect(await migrate(db)).toEqual(["0000_init.sql", "0001_custom.sql", "0002_session_reauth.sql", "0003_saved_views.sql"]);
+    expect(FILES.slice(0, 2)).toEqual(["0000_init.sql", "0001_custom.sql"]);
+    expect(await migrate(db)).toEqual(FILES);
     expect(await migrate(db)).toEqual([]);
     const [row] = await db`select count(*)::int as n from information_schema.tables where table_schema = ${schema} and table_name = 'users'`;
     expect(row.n).toBe(1);
@@ -85,9 +88,9 @@ describe("migrate", () => {
     const other = new SQL(url, { max: 2, connection: { search_path: `${schema}, public` } });
     try {
       const [a, b] = await Promise.all([migrate(db), migrate(other)]);
-      expect([...a, ...b]).toEqual(["0000_init.sql", "0001_custom.sql", "0002_session_reauth.sql", "0003_saved_views.sql"]);
+      expect([...a, ...b]).toEqual(FILES);
       const rows = await db`select name from schema_migrations`;
-      expect(rows.map((r: { name: string }) => r.name).sort()).toEqual(["0000_init.sql", "0001_custom.sql", "0002_session_reauth.sql", "0003_saved_views.sql"]);
+      expect(rows.map((r: { name: string }) => r.name).sort()).toEqual(FILES);
     } finally {
       await other.close();
     }

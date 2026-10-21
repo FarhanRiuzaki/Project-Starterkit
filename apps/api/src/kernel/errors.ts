@@ -41,6 +41,9 @@ export const notFound = (noun: string) => new ApiError("not_found", `This ${noun
 /** 409 for ending the session that makes the request (the user signs out instead). */
 export const currentSession = () => new ApiError("self_action", "This is the session you're using. Sign out instead.");
 
+/** A failed insert or update broke a unique index (SQLSTATE 23505; Drizzle wraps the driver's error in `cause`). */
+export const isUniqueViolation = (e: unknown) => ((e as { cause?: { errno?: string } }).cause ?? (e as { errno?: string })).errno === "23505";
+
 /** 429 with Retry-After (seconds). */
 export const tooManyAttempts = (sec: number, text: string) => new ApiError("rate_limited", text, { "Retry-After": String(sec) });
 

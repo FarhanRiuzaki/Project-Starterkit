@@ -38,3 +38,11 @@ export const ROWS: Row[] = Array.from({ length: 60 }, (_, i) => {
     lastSeen: `${(i * 13) % 59 + 1} min ago`, city: CITY[(i * 5) % CITY.length]!,
   };
 });
+
+/** The permission matrix sample's rows: fixed, so a module added to the app doesn't change the gallery's screenshots. */
+export const MATRIX_MODULES = [
+  { key: "user", actions: ["view", "create", "edit", "delete"] },
+  { key: "role", actions: ["view", "create", "edit", "delete"] },
+  { key: "permission", actions: ["view", "create"] },
+  { key: "audit", actions: ["view"] },
+] as const;

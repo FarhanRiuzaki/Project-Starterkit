@@ -15,10 +15,12 @@ describe("navFor", () => {
     expect(labels(new Set())).toEqual(["Dashboard", "Design system", "Profile"]);
   });
 
-  it("all permissions: the 8 items in brief order", () => {
-    expect(NAV.map((n) => n.label)).toEqual(["Dashboard", "Users", "Roles", "Permissions", "Activity log", "Sign-in log", "Design system", "Profile"]);
-    expect(labels(new Set(PERMISSIONS))).toEqual(
-      ["Dashboard", "Users", "Roles", "Permissions", "Activity log", "Sign-in log", "Design system", "Profile"]);
+  it("all permissions: every item, the brief's eight keeping their order (a new module's item goes anywhere between)", () => {
+    const BRIEF = ["Dashboard", "Users", "Roles", "Permissions", "Activity log", "Sign-in log", "Design system", "Profile"];
+    const all = NAV.map((n) => n.label);
+    expect(all.filter((l) => BRIEF.includes(l))).toEqual(BRIEF);
+    expect([all[0], ...all.slice(-2)]).toEqual(["Dashboard", "Design system", "Profile"]);
+    expect(labels(new Set(PERMISSIONS))).toEqual(all);
   });
 
   it("shortcuts are unique", () => {

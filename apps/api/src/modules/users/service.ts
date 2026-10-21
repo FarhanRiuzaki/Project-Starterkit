@@ -16,7 +16,7 @@ import type { PermissionName } from "@starterkit/shared/permissions";
 import { config } from "../../kernel/config";
 import { randomToken } from "../../kernel/crypto";
 import { db, type InTx, type Tx } from "../../kernel/db";
-import { ApiError, currentSession, notFound } from "../../kernel/errors";
+import { ApiError, currentSession, isUniqueViolation, notFound } from "../../kernel/errors";
 import { xactLock } from "../../kernel/locks";
 import { sendMail } from "../../kernel/mailer";
 import { likeEscape, one, pageQuery, sortSql } from "../../kernel/pagination";
@@ -119,8 +119,6 @@ const RANK = () => new ApiError("forbidden", "This user has permissions your rol
 const DUPLICATE = () => new ApiError("duplicate", "Another user already has this username or email. Use different ones.");
 const UNKNOWN_ROLE = () => new ApiError("bad_request", "One of the roles doesn't exist. Pick roles from the list.");
 const SESSION_GONE = () => new ApiError("not_found", "This session doesn't exist or has already ended.");
-/** A unique index refused the write (the driver error arrives wrapped by Drizzle). */
-const isUniqueViolation = (e: unknown) => ((e as { cause?: { errno?: string } }).cause ?? (e as { errno?: string })).errno === "23505";
 
 /**
  * The users among `ids` (UUIDs) with role names (A–Z), linked providers and effective permissions (catalog order), read

@@ -1,6 +1,7 @@
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { pagePerm } from "@/lib/shared/nav";
+import { VIEW_PAGES } from "@/lib/shared/prefs";
 import { BRAND } from "@starterkit/shared/brand";
 import { importsIn, importsOf, read, REPO, repoRel, scan, SHARED_SRC, strip, UI_SRC, WEB_SRC } from "./scan";
 
@@ -160,13 +161,34 @@ function legendViolations(fs: F[]): string[] {
 }
 
 /** A list screen (useTableQuery) gives its viewer saved views and the column chooser, and passes the choice to its DataTable. */
+/** A list screen's call, generic or not: `useTableQuery(` and `useTableQuery<T, F>(`. */
+const LIST_CALL = /\buseTableQuery\s*[<(]/;
+
 function columnsMenuViolations(fs: F[]): string[] {
-  return fs.filter(({ r, src }) => r.startsWith(`${WEB}features/`) && /\buseTableQuery\(/.test(strip(src)))
+  return fs.filter(({ r, src }) => r.startsWith(`${WEB}features/`) && LIST_CALL.test(strip(src)))
     .filter(({ src }) => {
       const code = strip(src);
       return !/<SavedViewsMenu\b/.test(code) || !/<ColumnsMenu\b[^>]*hidden=/.test(code) || !/<DataTable\b[^>]*\bhidden=/.test(code);
     })
     .map(({ r }) => `${r}: a list screen renders SavedViewsMenu and ColumnsMenu and passes hidden to DataTable`);
+}
+
+/**
+ * A page that renders a list screen (a features/ file calling useTableQuery, directly or through a file of the same
+ * feature folder it imports) is in VIEW_PAGES, so the navigation reopens its last view and its saved views work.
+ */
+function viewPageViolations(fs: F[], viewPages: readonly string[]): string[] {
+  const byPath = new Map(fs.map((x) => [x.r, x]));
+  const isList = (x: F | undefined) => !!x && LIST_CALL.test(strip(x.src));
+  return fs.filter(({ r }) => r.startsWith(`${WEB}app/(main)/`) && r.endsWith("/page.tsx") && !r.includes("[")).flatMap(({ r, imp }) => {
+    const route = r.slice(`${WEB}app/(main)`.length, -"/page.tsx".length) || "/";
+    const screens = imp.filter((i) => i.startsWith("@/features/")).map((i) => `${WEB}${i.slice(2)}.tsx`);
+    const reached = screens.flatMap((s) => {
+      const dir = s.slice(0, s.lastIndexOf("/") + 1);
+      return [byPath.get(s), ...(byPath.get(s)?.imp ?? []).filter((i) => i.startsWith("./")).map((i) => byPath.get(`${dir}${i.slice(2)}.tsx`))];
+    });
+    return reached.some(isList) && !viewPages.includes(route) ? [`${r}: renders a list screen; add "${route}" to VIEW_PAGES (lib/shared/prefs.ts)`] : [];
+  });
 }
 
 /** The product name is one constant (BRAND in packages/shared/src/brand.ts); titles, error sources and the logo read it. */
@@ -308,6 +330,10 @@ describe("architecture", () => {
 
   it("every list screen has saved views and the column chooser (SavedViewsMenu, ColumnsMenu + DataTable hidden)", () => {
     expect(columnsMenuViolations(files)).toEqual([]);
+  });
+
+  it("every page with a list screen is in VIEW_PAGES", () => {
+    expect(viewPageViolations(files, VIEW_PAGES)).toEqual([]);
   });
 
   it("StatusLegend is rendered only by Panel (per-card legend)", () => {
@@ -529,10 +555,27 @@ describe("architecture checkers (fixtures)", () => {
     expect(columnsMenuViolations([
       f(`${WEB}features/a/list.tsx`, `const t = useTableQuery({}); <SavedViewsMenu /> <DataTable columns={c} />`),
       f(`${WEB}features/b/list.tsx`, `const t = useTableQuery({}); <SavedViewsMenu /> <ColumnsMenu columns={c} hidden={t.hidden} /> <DataTable columns={c} />`),
-      f(`${WEB}features/e/list.tsx`, `const t = useTableQuery({}); <ColumnsMenu columns={c} hidden={t.hidden} /> <DataTable columns={c} hidden={t.hidden} />`),
+      f(`${WEB}features/e/list.tsx`, `const t = useTableQuery<T, F>({}); <ColumnsMenu columns={c} hidden={t.hidden} /> <DataTable columns={c} hidden={t.hidden} />`),
       f(`${WEB}features/c/list.tsx`, `const t = useTableQuery({}); <SavedViewsMenu /> <ColumnsMenu columns={c} hidden={t.hidden} onChange={t.setHidden} /> <DataTable columns={c} hidden={t.hidden} />`),
       f(`${WEB}features/d/detail.tsx`, `<DataTable columns={c} rows={u.recent} />`),
     ])).toEqual([`${WEB}features/a/list.tsx: ${msg}`, `${WEB}features/b/list.tsx: ${msg}`, `${WEB}features/e/list.tsx: ${msg}`]);
+  });
+
+  it("fixture: a page rendering a list screen, directly or through its feature folder, must be in VIEW_PAGES", () => {
+    const list = `const t = useTableQuery({}); <SavedViewsMenu />`;
+    const fs = [
+      f(`${WEB}app/(main)/things/page.tsx`, `import { ThingsPage } from "@/features/things/things-page";`),
+      f(`${WEB}features/things/things-page.tsx`, list),
+      f(`${WEB}app/(main)/logs/page.tsx`, `import { LogsPage } from "@/features/logs/logs-page";`),
+      f(`${WEB}features/logs/logs-page.tsx`, `import { LogTable } from "./log-table";`),
+      f(`${WEB}features/logs/log-table.tsx`, `const t = useTableQuery<T, F>(table); <SavedViewsMenu />`),
+      f(`${WEB}app/(main)/things/[id]/page.tsx`, `import { ThingDetail } from "@/features/things/things-page";`),
+      f(`${WEB}app/(main)/about/page.tsx`, `import { About } from "@/features/about/about";`),
+      f(`${WEB}features/about/about.tsx`, `<p>Text</p>`),
+    ];
+    expect(viewPageViolations(fs, ["/logs"])).toEqual([`${WEB}app/(main)/things/page.tsx: renders a list screen; add "/things" to VIEW_PAGES (lib/shared/prefs.ts)`]);
+    expect(viewPageViolations(fs, ["/things"])).toEqual([`${WEB}app/(main)/logs/page.tsx: renders a list screen; add "/logs" to VIEW_PAGES (lib/shared/prefs.ts)`]);
+    expect(viewPageViolations(fs, ["/things", "/logs"])).toEqual([]);
   });
 
   it("StatusLegend outside Panel (page header, toolbar, gallery) is reported; Panel and StatusLegendList pass", () => {
