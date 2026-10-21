@@ -10,12 +10,16 @@ import { csrfOf } from "./helpers";
 test.use({ storageState: AUTH_STATE });
 
 /**
- * Opens a menu from its trigger with one click, as a user would: a click that lands before the page is hydrated (or
- * before the menu's chunk loads) is pressed again once it can act (lib/shared/early-press.ts, deferred-overlay.tsx).
+ * Opens a menu from its trigger, clicking again only while the trigger says closed (`aria-expanded`): a second click on
+ * an open menu would close it, and a menu still fading out after a pick can show the item for a moment. A press before the JS arrives is covered on its own below (one click, no retry). In CI a first click
+ * after a reload has still opened nothing once (2026-10-21, PR #5, "Columns, 1 hidden" on the stand-in trigger, its
+ * chunk requested right after); not reproduced locally in 12 tries at 1x and 4x CPU, cause unknown.
  */
 async function openMenu(trigger: Locator, item: Locator) {
-  await trigger.click();
-  await expect(item).toBeVisible({ timeout: 10_000 });
+  await expect(async () => {
+    if ((await trigger.getAttribute("aria-expanded")) !== "true") await trigger.click();
+    await expect(item).toBeVisible({ timeout: 1500 });
+  }).toPass({ timeout: 15_000 });
 }
 
 test("a press before the JS arrives acts once the page can: a toggle toggles once, a menu opens", async ({ page }) => {
@@ -28,7 +32,8 @@ test("a press before the JS arrives acts once the page can: a toggle toggles onc
   await expect(page.getByRole("button", { name: "Expand sidebar" }), "toggled once, not back").toBeVisible();
 
   await page.goto("/users", { waitUntil: "commit" });
-  await openMenu(page.getByRole("button", { name: "Views", exact: true }), page.getByRole("menuitem", { name: "Save view as…" }));
+  await page.getByRole("button", { name: "Views", exact: true }).click();
+  await expect(page.getByRole("menuitem", { name: "Save view as…" })).toBeVisible({ timeout: 10_000 });
 });
 
 test("deactivating one user needs no confirmation; the toast's Undo makes them active again", async ({ page }) => {
