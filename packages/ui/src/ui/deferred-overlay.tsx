@@ -64,10 +64,10 @@ export function deferredOverlay<M extends OverlayImpl>(kind: OverlayKind, slot: 
     }, []);
     const { impl, openWith } = state;
     useEffect(() => (impl ? undefined : whenIdle(fetchImpl)), [impl, fetchImpl]);
-    // A controlled root ignores defaultOpen: the honoured press asks its owner to open instead, once.
-    const controlled = props.open !== undefined;
+    // The honoured press tells the owner, once, as the Radix trigger's press does: a controlled root ignores
+    // defaultOpen and opens on this call; an uncontrolled one opened through defaultOpen, which Radix doesn't report.
     const ask = props.onOpenChange;
-    useEffect(() => { if (openWith != null && controlled) ask?.(true); }, [openWith]); // eslint-disable-line react-hooks/exhaustive-deps -- once per honoured press
+    useEffect(() => { if (openWith != null) ask?.(true); }, [openWith]); // eslint-disable-line react-hooks/exhaustive-deps -- once per honoured press
     const value = useMemo<Ctx<M>>(() => ({
       impl,
       twin: (el: HTMLElement | null) => { twinEl.current = el; },
