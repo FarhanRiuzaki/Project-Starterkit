@@ -2,8 +2,9 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import dynamic from "next/dynamic";
-import { type FormEvent, useRef, useState } from "react";
-import { BlockedButton, Failure, Field, Notice, Panel, PasswordChecks, StatusChip } from "@starterkit/ui/ds";
+import { useState } from "react";
+import { BlockedButton, Failure, Field, Notice, Panel, PasswordChecks, RequiredNote, StatusChip, useForm } from "@starterkit/ui/ds";
+import { rules } from "@starterkit/ui/lib/validate";
 import { useDelayedFlag } from "@starterkit/ui/motion";
 import { Button } from "@starterkit/ui/ui/button";
 import { Icon } from "@starterkit/ui/ui/icon";
@@ -15,7 +16,7 @@ import { LoadingShape } from "@/components/route-skeleton";
 import { PageHeader } from "@/components/shell/page-header";
 import { LazyConfirmActionDialog } from "@/components/lazy-confirm";
 import { api, errorText } from "@/lib/client/api";
-import { passwordChecks } from "@/lib/shared/password";
+import { PASSWORD_MIN, passwordChecks } from "@/lib/shared/password";
 import { BRAND } from "@starterkit/shared/brand";
 import type { ConnectionProvider, MeDto, TwoFactorSetupDto } from "@starterkit/shared/contracts/me";
 import { ConnectionsCard } from "./connections-card";
@@ -54,35 +55,36 @@ export function SecurityPage({ providers }: { providers: Record<ConnectionProvid
   );
 }
 
+const PASSWORD_SCHEMA = {
+  current: [rules.required("Enter your current password.")],
+  next: [rules.required("Enter a new password."), rules.minLength(PASSWORD_MIN)],
+  again: [rules.required("Repeat the new password."), rules.matches("next", "The two passwords don't match.")],
+};
+
 function PasswordCard({ user }: { user: MeDto }) {
   const qc = useQueryClient();
-  const currentRef = useRef<HTMLInputElement>(null);
-  const [current, setCurrent] = useState("");
-  const [next, setNext] = useState("");
-  const [again, setAgain] = useState("");
+  const f = useForm({ initial: { current: "", next: "", again: "" }, schema: PASSWORD_SCHEMA, idPrefix: "pw" });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const checks = passwordChecks(next, again);
+  const checks = passwordChecks(f.values.next, f.values.again);
 
-  async function save(e: FormEvent) {
-    e.preventDefault();
-    if (next !== again) return;
+  const save = f.submit(async ({ current, next }) => {
     setBusy(true);
     setError(null);
     try {
       await api("/api/me/password", { method: "POST", body: JSON.stringify({ current, next }) });
-      setCurrent(""); setNext(""); setAgain("");
+      f.reset();
       toast("Password changed. Your other sessions were signed out.");
       void qc.invalidateQueries({ queryKey: ME_KEY }); // your session list (under "me") lost the other sessions
     } catch (err) {
       setError(errorText(err));
       // The fix is almost always the current password: clear it and put the cursor there (the error is announced).
-      setCurrent("");
-      currentRef.current?.focus();
+      f.set("current", "");
+      document.getElementById(f.id("current"))?.focus();
     } finally {
       setBusy(false);
     }
-  }
+  });
 
   return (
     <Panel icon={KeyIcon} title="Password" description="Changing it signs out your other sessions">
@@ -91,22 +93,23 @@ function PasswordCard({ user }: { user: MeDto }) {
       ) : !user.hasPassword ? (
         <p className="text-body-sm text-fg-2">This account signs in with a connected Google or Apple account and has no password.</p>
       ) : (
-        <form onSubmit={save} className="grid gap-4">
-          <Field id="pw-current" label="Current password">
-            <PasswordInput ref={currentRef} id="pw-current" autoComplete="current-password" value={current} required onChange={(e) => setCurrent(e.target.value)}
+        <form noValidate onSubmit={save} className="grid gap-4">
+          <RequiredNote />
+          <Field id={f.id("current")} label="Current password" required error={f.error("current")}>
+            <PasswordInput {...f.text("current")} autoComplete="current-password"
               aria-invalid={error ? true : undefined} aria-errormessage={error ? "pw-error" : undefined} />
           </Field>
           <div className="grid gap-2">
-            <Field id="pw-next" label="New password">
-              <PasswordInput id="pw-next" autoComplete="new-password" minLength={12} value={next} required onChange={(e) => setNext(e.target.value)} aria-describedby="pw-checks" />
+            <Field id={f.id("next")} label="New password" required error={f.error("next")}>
+              <PasswordInput {...f.text("next")} autoComplete="new-password" aria-describedby="pw-checks" />
             </Field>
             <PasswordChecks id="pw-checks" checks={checks} />
           </div>
-          <Field id="pw-again" label="Repeat new password">
-            <PasswordInput id="pw-again" autoComplete="new-password" value={again} required onChange={(e) => setAgain(e.target.value)} aria-describedby="pw-checks" />
+          <Field id={f.id("again")} label="Repeat new password" required error={f.error("again")}>
+            <PasswordInput {...f.text("again")} autoComplete="new-password" aria-describedby="pw-checks" />
           </Field>
           {error && <p id="pw-error" role="alert" className="text-body-sm text-down-ink">{error}</p>}
-          <div><Button type="submit" disabled={busy || !checks.every((c) => c.met) || !current} aria-busy={busy || undefined}>
+          <div><Button type="submit" disabled={busy} aria-busy={busy || undefined}>
             {busy && <Icon icon={SpinnerIcon} className="motion-safe:animate-spin" />}Change password</Button></div>
         </form>
       )}

@@ -9,8 +9,10 @@ import { FilterChip } from "./badges";
 
 /** Toolbar search (spec §5.6): grows, 32 px, leading icon; active filters as removable FilterChips. Pencarian dengan sintaks `kunci:nilai`; filter tampil sebagai chip yang bisa dihapus. Debounce 200 ms. */
 /** `id`: pass it with a visible `<label htmlFor={id}>`; the visible label then names the input instead of `aria-label`. */
-export function QueryInput({ id, value, onChange, keys, label, placeholder }: {
+export function QueryInput({ id, value, onChange, keys, label, placeholder, immediate = false, maxLength = 200 }: {
   id?: string; value: string; onChange: (v: string) => void; keys: readonly string[]; label: string; placeholder: string;
+  /** A parent Apply form owns the draft: never debounce its last keystroke. */
+  immediate?: boolean; maxLength?: number;
 }) {
   // The draft keeps what is typed, spaces included; only the value sent out is trimmed (a trailing space is the
   // start of the next word, not a new search).
@@ -20,11 +22,12 @@ export function QueryInput({ id, value, onChange, keys, label, placeholder }: {
   const [synced, setSynced] = useState(value);
   if (synced !== value) { setSynced(value); setDraft(adoptSearch(draft, value)); }
   useEffect(() => {
+    if (immediate) return;
     const next = searchToSend(draft, value);
     if (next === null) return;
     const t = setTimeout(() => onChange(next), 200);
     return () => clearTimeout(t);
-  }, [draft, value, onChange]);
+  }, [draft, value, onChange, immediate]);
   const q = parseQuery(value, keys);
 
   function remove(key: string, v: string) {
@@ -36,7 +39,7 @@ export function QueryInput({ id, value, onChange, keys, label, placeholder }: {
     <div className="grid min-w-0 gap-2">
       <div className="relative">
         <Icon icon={SearchIcon} className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-fg-3" />
-        <Input id={id} aria-label={id ? undefined : label} value={draft} maxLength={200} onChange={(e) => setDraft(e.target.value)} placeholder={placeholder} className="pl-8.5 text-body-sm text-ellipsis" />
+        <Input id={id} aria-label={id ? undefined : label} value={draft} maxLength={maxLength} onChange={(e) => { setDraft(e.target.value); if (immediate) onChange(e.target.value); }} placeholder={placeholder} className="pl-8.5 text-body-sm text-ellipsis" />
       </div>
       {Object.keys(q.filters).length > 0 && (
         <div className="flex flex-wrap gap-1.5">

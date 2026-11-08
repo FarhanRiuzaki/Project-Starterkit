@@ -25,8 +25,12 @@
 </picture>
 
 The SunnyGo starterkit ships sign-in (password, two-factor, Google/Apple, LDAP), users, roles and permissions, an
-activity log and a sign-in log, a responsive design system (phone, tablet, desktop) in the SunnyGo brand, and an API
+activity log and a sign-in log, a sample projects CRUD module, a responsive design system (phone, tablet, desktop) in the SunnyGo brand, and an API
 on Bun and PostgreSQL. A new project copies this repository and changes it; nothing here is published as a library.
+
+## Project context and team
+
+Start with [product context](docs/product.md), [backlog](docs/backlog.md), [design](docs/design.md), [architecture](docs/architecture.md), [decisions](docs/decisions.md), [QA](docs/qa.md) and [team rules / handoff](docs/team.md). Detailed implementation rules remain in AGENTS.md and docs/standards.
 
 ## What's inside
 
@@ -65,7 +69,7 @@ on Bun and PostgreSQL. A new project copies this repository and changes it; noth
 
 **Backend**
 
-- A modular monolith on Bun and Elysia: modules health, auth, oauth, me, rbac, users, audit and dashboard, each
+- A modular monolith on Bun and Elysia: modules health, auth, oauth, me, rbac, users, audit, dashboard and projects, each
   controller → service → Drizzle. Architecture tests check the module boundaries.
 - All shared state (sessions, rate limits, OAuth states) lives in PostgreSQL; no Redis.
 - zod contracts shared with the web (`packages/shared`). The endpoint table and JSON Schemas in
@@ -129,7 +133,7 @@ Phone, 390 px wide:
 
 | Part | Stack |
 |---|---|
-| `apps/web` | Next.js 16.3 (App Router) on Node 24, React 19, TanStack Query 5, Tailwind 4; a BFF: the browser talks only to it |
+| `apps/web` | Next.js 16.4.5 (App Router) on Node 24, React 19, TanStack Query 5, Tailwind 4; a BFF: the browser talks only to it |
 | `apps/api` | Bun 1.4.3, Elysia 1.4.30, Drizzle ORM 0.45.4 (driver `bun-sql`), zod 4; a modular monolith |
 | Database | PostgreSQL (18 in compose and CI) |
 | `packages/shared` | zod contracts, permission catalog, paging, audit vocabulary, log redaction, `BRAND` |

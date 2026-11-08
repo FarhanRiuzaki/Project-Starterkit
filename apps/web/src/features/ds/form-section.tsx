@@ -1,7 +1,9 @@
 "use client";
 
+import { FormActions } from "@starterkit/ui/ds/form-controls";
+
 import { useRef, useState } from "react";
-import { Field, FormActions, FormErrorSummary, InputAffix, NumberInput, Panel, Wizard } from "@starterkit/ui/ds";
+import { Field, FormErrorSummary, InputAffix, NumberInput, Panel, Wizard } from "@starterkit/ui/ds";
 import { Input } from "@starterkit/ui/ui/input";
 import { Button } from "@starterkit/ui/ui/button";
 import { formatNumber } from "@starterkit/ui/lib/format";

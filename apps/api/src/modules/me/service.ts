@@ -1,7 +1,8 @@
 // The signed-in user's own account: profile, password, 2FA, connected providers, sessions. Connecting Google or Apple
 // is the oauth module's link mode. Nothing here lowers the number of active Superadmins (no role, status or delete
 // change), so the Superadmin lock isn't taken. Checks that read the user lock its row in the transaction and re-read
-// what they decide on. Owns no table: users, auth and oauth make the writes through their public API.
+// what they decide on. Its one table, saved_views, is views.ts's; users, auth and oauth make the other writes through
+// their public API.
 import { BRAND } from "@starterkit/shared/brand";
 import type {
   ChangePasswordBody, ConnectionProvider, DisableTwoFactorBody, MeDto as MeDtoType, ReauthBody, TwoFactorEnableBody, UpdateProfileBody,
@@ -9,7 +10,7 @@ import type {
 import { MeDto } from "@starterkit/shared/contracts/me";
 import { decryptSecret, encryptSecret } from "../../kernel/crypto";
 import { db, type Tx } from "../../kernel/db";
-import { ApiError, currentSession } from "../../kernel/errors";
+import { ApiError, currentSession, isUniqueViolation } from "../../kernel/errors";
 import { isUuid } from "../../kernel/parse";
 import { recordActivity } from "../audit";
 import {
@@ -26,8 +27,6 @@ async function lockAccount(tx: Tx, ctx: Ctx) {
   return user;
 }
 
-/** A unique index refused the write (the driver error arrives wrapped by Drizzle). */
-const isUniqueViolation = (e: unknown) => ((e as { cause?: { errno?: string } }).cause ?? (e as { errno?: string })).errno === "23505";
 const target = (u: UserRow, name = u.name) => ({ type: "user", id: u.id, label: name });
 const ALREADY_ON = "Two-factor authentication is already on. Turn it off first to set up a new device.";
 const WRONG_CODE = "That code didn't match. Enter the current code from your authenticator app.";

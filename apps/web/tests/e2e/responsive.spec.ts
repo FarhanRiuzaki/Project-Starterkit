@@ -13,7 +13,7 @@ import { expectNoHorizontalScroll, pending2faState, settleAnimations, smallTouch
  */
 
 /** Every page: the nav pages, the sub-pages, the sign-in pages (`{name}` = a demo id, helpers.ts demoIds). */
-const SIGNED_IN = [...NAV.map((n) => n.href), "/users/new", "/users/{admin}", "/users/{admin}/edit", "/roles/{superadminRole}", "/me/security", "/me/sessions"];
+const SIGNED_IN = [...NAV.map((n) => n.href), "/users/new", "/users/{admin}", "/users/{admin}/edit", "/roles/{superadminRole}", "/projects/new", "/projects/{project}", "/projects/{project}/edit", "/me/security", "/me/sessions"];
 const SIGNED_OUT = ["/login", "/forgot-password", "/reset-password"];
 /** The /ds gallery's blocked "Deactivate user" button (features/ds/sections.tsx). */
 const BLOCKED_REASON = "This is the last active Superadmin. Make another user Superadmin first.";

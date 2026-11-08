@@ -19,10 +19,41 @@ async function open(page: Page, path: string) {
 /** Every server table: route, table name. */
 const TABLES = [
   ["/users", "Users"], ["/roles", "Roles"], ["/permissions", "Permissions"], ["/audit/activity", "Activity log"],
-  ["/audit/auth", "Sign-in log"], ["/me/sessions", "My sessions"], ["/users/{superadmin}", "Active sessions"],
+  ["/audit/auth", "Sign-in log"], ["/projects", "Projects"], ["/me/sessions", "My sessions"], ["/users/{superadmin}", "Active sessions"],
 ] as const;
 
 const firstRowKey = (page: Page, table: string) => page.getByRole("table", { name: table }).getByRole("row").first().locator('[data-mobile="title"]').innerText();
+
+test("module filter card: atomic Apply, persistent active markers, individual removal and Back", async ({ page }) => {
+  await open(page, "/users?page=2&pageSize=25&sort=-createdAt");
+  await page.getByRole("button", { name: "Filters", exact: true }).click();
+  const desktop = page.viewportSize()!.width >= 1280;
+  const card = desktop ? page.getByRole("complementary", { name: "Filters", exact: true }) : page.getByRole("dialog", { name: "Filters", exact: true });
+  await card.getByLabel("Search users", { exact: true }).fill("superadmin");
+  await card.getByRole("radio", { name: "Active", exact: true }).check();
+  await expect(page).not.toHaveURL(/q=|status=/);
+  await card.getByRole("button", { name: "Apply filters", exact: true }).click();
+  await expect(page).toHaveURL(/q=superadmin/);
+  await expect(page).toHaveURL(/status=active/);
+  await expect(page).not.toHaveURL(/page=2/);
+  if (desktop) {
+    const box = (await card.boundingBox())!;
+    const results = (await page.getByRole("table", { name: "Users", exact: true }).boundingBox())!;
+    expect(results.x + results.width).toBeLessThanOrEqual(box.x);
+    await card.getByRole("button", { name: "Close filters" }).click();
+  } else await expect(card).toBeHidden();
+  await expect(page.getByRole("button", { name: "Filters, 2 active", exact: true })).toBeVisible();
+  await expect(page.locator('[data-slot="filter-active-summary"]:visible')).toContainText("Status: Active");
+  await page.getByRole("button", { name: "Remove filter Search: superadmin", exact: true }).click();
+  await expect(page).not.toHaveURL(/q=/);
+  await expect(page).toHaveURL(/status=active/);
+  await expect(page).toHaveURL(/pageSize=25/);
+  await expect(page).toHaveURL(/sort=-createdAt/);
+  await expect(page.getByRole("button", { name: "Filters, 1 active", exact: true })).toBeVisible();
+  await page.goBack();
+  await expect(page.getByRole("button", { name: "Filters, 2 active", exact: true })).toBeVisible();
+  await expectNoHorizontalScroll(page);
+});
 
 test.describe("phone: stacked rows", () => {
   test.skip(({ isMobile }) => !isMobile, "phone only");
@@ -83,9 +114,9 @@ test.describe("phone: stacked rows", () => {
     await expect(page.getByRole("table", { name: "Users" }).getByRole("row")).toHaveCount(25);
   });
 
-  test("users: filters sit in a Filters sheet with the active count; the search stays in the row", async ({ page }) => {
+  test("users: draft filters apply together, with a persistent active count and removable chips", async ({ page }) => {
     await open(page, "/users");
-    await expect(page.getByRole("textbox", { name: "Search users" })).toBeVisible();
+    await expect(page.getByRole("textbox", { name: "Search users" })).toBeHidden();
     await expect(page.getByRole("button", { name: /^Status:/ })).toBeHidden();
     await page.getByRole("button", { name: "Filters", exact: true }).tap();
     const sheet = page.getByRole("dialog", { name: "Filters" });
@@ -94,15 +125,15 @@ test.describe("phone: stacked rows", () => {
     const box = (await sheet.boundingBox())!;
     const vp = page.viewportSize()!;
     expect(box.y + box.height, "a bottom sheet").toBeCloseTo(vp.height, 0);
-    await sheet.getByLabel("Status").selectOption("inactive");
+    await sheet.getByRole("radio", { name: "Inactive", exact: true }).check();
+    await expect(page).not.toHaveURL(/status=inactive/);
+    await sheet.getByRole("button", { name: "Apply filters" }).tap();
     await expect(page).toHaveURL(/status=inactive/);
-    await sheet.getByRole("button", { name: "Show results" }).tap();
     await expect(sheet).toBeHidden();
     const button = page.getByRole("button", { name: "Filters, 1 active" });
     await expect(button).toBeVisible();
     await expect(page.getByRole("table", { name: "Users" }).getByRole("row").first()).toContainText("Inactive");
-    await button.tap();
-    await page.getByRole("dialog", { name: "Filters" }).getByRole("button", { name: "Clear filters" }).tap();
+    await page.getByRole("button", { name: "Clear filters", exact: true }).tap();
     await expect(page).not.toHaveURL(/status=/);
     await page.goBack();
     await expect(page).toHaveURL(/status=inactive/);
@@ -112,8 +143,9 @@ test.describe("phone: stacked rows", () => {
     await open(page, "/permissions");
     await page.getByRole("button", { name: "Filters", exact: true }).tap();
     await page.getByRole("dialog", { name: "Filters" }).getByLabel("Module").selectOption({ label: "Audit" });
+    await expect(page).not.toHaveURL(/module=audit/);
+    await page.getByRole("dialog", { name: "Filters" }).getByRole("button", { name: "Apply filters" }).tap();
     await expect(page).toHaveURL(/module=audit/);
-    await page.getByRole("button", { name: "Show results" }).tap();
     await expect(page.getByRole("button", { name: "Filters, 1 active" })).toBeVisible();
 
     await open(page, "/audit/activity");
@@ -121,6 +153,8 @@ test.describe("phone: stacked rows", () => {
     const sheet = page.getByRole("dialog", { name: "Filters" });
     await expect(sheet.getByLabel("From")).toHaveCount(0);
     await sheet.getByLabel("Action").selectOption({ index: 1 });
+    await expect(page).not.toHaveURL(/action=/);
+    await sheet.getByRole("button", { name: "Apply filters" }).tap();
     await expect(page).toHaveURL(/action=/);
   });
 
@@ -279,14 +313,14 @@ test.describe("phone: touch path for a reason without user.delete", () => {
 test.describe("tablet and desktop: the table stays a table", () => {
   test.skip(({ isMobile }) => isMobile, "tablet and desktop");
 
-  test("users: header row and sortable headers, full pagination, inline filters; no Sort by, no Filters button", async ({ page }) => {
+  test("users: header row and sortable headers, full pagination and a Filters trigger; no Sort by", async ({ page }) => {
     await open(page, "/users");
     const table = page.getByRole("table", { name: "Users" });
     await expect(table.locator("thead")).toBeVisible();
     expect(await table.getByRole("row").nth(1).evaluate((el) => getComputedStyle(el).display)).toBe("table-row");
     await expect(page.getByLabel("Sort by")).toBeHidden();
-    await expect(page.getByRole("button", { name: "Filters", exact: true })).toBeHidden();
-    await expect(page.getByRole("button", { name: /^Status:/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Filters", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: /^Status:/ })).toBeHidden();
     const pager = page.getByRole("navigation", { name: "Users pages" });
     await expect(pager.getByRole("button", { name: "Page 2", exact: true })).toBeVisible();
     await expect(pager.getByText(/^Page 1 of/)).toBeHidden();

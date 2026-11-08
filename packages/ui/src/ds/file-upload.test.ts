@@ -1,89 +1,70 @@
 // @vitest-environment happy-dom
 import { act, createElement as h } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, expect, it, vi } from "vitest";
-import { FileItem, FileUpload } from "./file-upload";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { FileUpload, type UploadFn } from "./file-upload";
+
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-let root: Root;
-afterEach(async () => { await act(async () => root?.unmount()); document.body.innerHTML = ""; });
-it("rejects unsupported and oversized files without losing the selected file; accepts a valid replacement", async () => {
-  const el = document.createElement("div"); document.body.append(el); root = createRoot(el);
-  const existing = new File(["original"], "original.pdf", { type: "application/pdf" });
-  const onFilesChange = vi.fn();
-  await act(async () => root.render(h(FileUpload, { label: "Attachment", files: [existing], onFilesChange, accept: ".pdf", maxBytes: 10 })));
-  const input = el.querySelector("input")!;
-  async function choose(file: File) {
-    Object.defineProperty(input, "files", { configurable: true, value: [file] });
-    await act(async () => input.dispatchEvent(new Event("change", { bubbles: true })));
-  }
-  await choose(new File(["bad"], "code.js"));
-  expect(el.textContent).toContain("Choose a supported file type."); expect(onFilesChange).not.toHaveBeenCalled(); expect(el.textContent).toContain("original.pdf");
-  await choose(new File(["01234567890"], "large.pdf"));
-  expect(el.textContent).toContain("A file exceeds the size limit."); expect(onFilesChange).not.toHaveBeenCalled();
-  const good = new File(["new"], "new.pdf"); await choose(good);
-  expect(onFilesChange).toHaveBeenCalledWith([good]); expect(el.querySelector('[role="alert"]')).toBeNull();
-});
+URL.createObjectURL = vi.fn(() => "blob:preview");
+URL.revokeObjectURL = vi.fn();
 
-it("drag feedback survives child boundaries and stays off while disabled or uploading", async () => {
-  const el = document.createElement("div"); document.body.append(el); root = createRoot(el);
-  const props = { label: "Attachment", files: [], onFilesChange: vi.fn(), accept: ".pdf", maxBytes: 100 };
-  await act(async () => root.render(h(FileUpload, props)));
-  const dropzone = el.querySelector('[data-slot="file-dropzone"]')!;
-  const child = dropzone.querySelector("span")!;
-  const send = async (target: Element, type: string) => { await act(async () => target.dispatchEvent(new Event(type, { bubbles: true, cancelable: true }))); };
-  await send(dropzone, "dragenter"); await send(child, "dragenter"); await send(dropzone, "dragleave");
-  expect(dropzone.getAttribute("data-dragging")).toBe("true");
-  await send(child, "dragleave");
-  expect(dropzone.hasAttribute("data-dragging")).toBe(false);
-  for (const state of [{ disabled: true }, { progress: 30 }]) {
-    await act(async () => root.render(h(FileUpload, { ...props, ...state })));
-    await send(dropzone, "dragenter");
-    expect(dropzone.hasAttribute("data-dragging")).toBe(false);
-  }
+let root: Root | null = null;
+afterEach(async () => { await act(async () => root?.unmount()); root = null; document.body.innerHTML = ""; });
+async function mount(upload: UploadFn, props: Record<string, unknown> = {}) {
+  const host = document.createElement("div"); document.body.append(host); root = createRoot(host);
+  await act(async () => root!.render(h(FileUpload, { label: "Attachments", upload, accept: ["image/*", ".pdf"], acceptLabel: "an image or a PDF", maxSize: 1000, maxFiles: 2, ...props })));
+}
+const file = (name: string, type: string, size = 100) => new File([new Uint8Array(size)], name, { type });
+const pick = (files: File[]) => act(async () => {
+  const input = document.querySelector<HTMLInputElement>('input[type="file"]')!;
+  Object.defineProperty(input, "files", { value: files, configurable: true });
+  input.dispatchEvent(new Event("change", { bubbles: true }));
 });
+const rows = () => [...document.querySelectorAll("li")].map((li) => li.textContent);
+const flush = () => act(async () => { await new Promise((r) => setTimeout(r, 0)); });
 
-it("removes only the chosen file and returns focus to browse", async () => {
-  const el = document.createElement("div"); document.body.append(el); root = createRoot(el);
-  const first = new File(["a"], "first.csv"), second = new File(["b"], "second.csv");
-  const onFilesChange = vi.fn();
-  await act(async () => root.render(h(FileUpload, { label: "Import users", files: [first, second], onFilesChange, accept: ".csv", maxBytes: 100, multiple: true })));
-  await act(async () => el.querySelector<HTMLButtonElement>('[aria-label="Remove first.csv"]')!.click());
-  expect(onFilesChange).toHaveBeenCalledWith([second]);
-  expect(document.activeElement).toBe(el.querySelector('[data-slot="file-dropzone-trigger"]'));
-});
+describe("FileUpload", () => {
+  it("states the limits up front; the picker is a real button described by them", async () => {
+    await mount(vi.fn(async () => {}));
+    const btn = [...document.querySelectorAll("button")].find((b) => b.textContent === "choose files")!;
+    expect(document.getElementById(btn.getAttribute("aria-describedby")!)!.textContent).toBe("An image or a PDF, up to 1,000 B, 2 files at most");
+    expect(document.querySelector('input[type="file"]')!.getAttribute("tabindex")).toBe("-1");
+  });
 
-it("keeps uploading at zero cancellable, without exposing remove or browse actions", async () => {
-  const el = document.createElement("div"); document.body.append(el); root = createRoot(el);
-  const onCancel = vi.fn();
-  await act(async () => root.render(h(FileUpload, { label: "Import users", files: [new File(["a"], "users.csv")], onFilesChange: vi.fn(), accept: ".csv", maxBytes: 100, progress: 0, onCancel })));
-  expect(el.querySelector('[role="progressbar"]')?.getAttribute("aria-valuenow")).toBe("0");
-  expect(el.querySelector<HTMLButtonElement>('[data-slot="file-dropzone-trigger"]')!.disabled).toBe(true);
-  expect(el.querySelector('[aria-label="Remove users.csv"]')).toBeNull();
-  await act(async () => el.querySelector<HTMLButtonElement>('[aria-label="Cancel upload of users.csv"]')!.click());
-  expect(onCancel).toHaveBeenCalledOnce();
-});
+  it("checks each file first: a wrong type gets its own error and is never sent; a good one uploads with progress and is announced", async () => {
+    let report: (r: number) => void = () => {};
+    let finish: () => void = () => {};
+    const upload = vi.fn((_f: File, o: { onProgress: (r: number) => void }) => { report = o.onProgress; return new Promise<void>((res) => { finish = res; }); });
+    await mount(upload);
+    await pick([file("notes.exe", "application/x-msdownload"), file("photo.png", "image/png")]);
+    expect(upload).toHaveBeenCalledTimes(1);
+    expect(rows()[0]).toContain("The file must be an image or a PDF.");
+    await act(async () => report(0.5));
+    expect(document.querySelector('[role="progressbar"]')!.getAttribute("aria-valuetext")).toBe("50%");
+    await act(async () => finish()); await flush();
+    expect(rows()[1]).toContain("Uploaded");
+    expect(document.querySelector('[role="status"]')!.textContent).toBe("photo.png uploaded.");
+    expect(document.querySelector("img")!.getAttribute("src")).toBe("blob:preview");
+  });
 
-it("announces confirmed success and actionable file errors without losing metadata", async () => {
-  const el = document.createElement("div"); document.body.append(el); root = createRoot(el);
-  const onRemove = vi.fn();
-  await act(async () => root.render(h(FileItem, { name: "users.csv", size: 248 * 1024, rows: 412, state: "success", onRemove })));
-  expect(el.textContent).toContain("248 KB · 412 rows");
-  expect(el.querySelector('[role="status"]')?.textContent).toContain("Upload complete");
-  await act(async () => root.render(h(FileItem, { name: "users.csv", state: "error", error: "Row 17: email is missing", onRemove })));
-  expect(el.querySelector('[role="alert"]')?.textContent).toBe("Row 17: email is missing");
-  await act(async () => el.querySelector<HTMLButtonElement>('[aria-label="Remove users.csv"]')!.click());
-  expect(onRemove).toHaveBeenCalledOnce();
-});
+  it("too big is refused before sending; past maxFiles the rest are not added and that is said", async () => {
+    const upload = vi.fn(async () => {});
+    await mount(upload);
+    await pick([file("a.pdf", "application/pdf", 5000), file("b.pdf", "application/pdf"), file("c.pdf", "application/pdf")]);
+    expect(rows()).toHaveLength(2);
+    expect(rows()[0]).toContain("The file must be smaller than 1,000 B.");
+    expect(document.querySelector('[role="alert"]')!.textContent).toBe("You can add up to 2 files. 1 wasn't added.");
+    expect(upload).toHaveBeenCalledTimes(1);
+  });
 
-it("ignores an empty picker result and locks file actions while disabled", async () => {
-  const el = document.createElement("div"); document.body.append(el); root = createRoot(el);
-  const onFilesChange = vi.fn(), file = new File(["a"], "users.csv");
-  const props = { label: "Import users", files: [file], onFilesChange, accept: ".csv", maxBytes: 100 };
-  await act(async () => root.render(h(FileUpload, props)));
-  const input = el.querySelector("input")!;
-  Object.defineProperty(input, "files", { configurable: true, value: [] });
-  await act(async () => input.dispatchEvent(new Event("change", { bubbles: true })));
-  expect(onFilesChange).not.toHaveBeenCalled();
-  await act(async () => root.render(h(FileUpload, { ...props, disabled: true })));
-  expect(el.querySelector<HTMLButtonElement>('[aria-label="Remove users.csv"]')!.disabled).toBe(true);
+  it("a failed upload offers Try again; Remove takes the row away", async () => {
+    const upload = vi.fn().mockRejectedValueOnce(new Error("500")).mockResolvedValueOnce(undefined);
+    await mount(upload);
+    await pick([file("doc.pdf", "application/pdf")]); await flush();
+    expect(rows()[0]).toContain("The file couldn't be uploaded. Try again.");
+    await act(async () => document.querySelector<HTMLButtonElement>('[aria-label="Try doc.pdf again"]')!.click()); await flush();
+    expect(rows()[0]).toContain("Uploaded");
+    await act(async () => document.querySelector<HTMLButtonElement>('[aria-label="Remove doc.pdf"]')!.click());
+    expect(rows()).toHaveLength(0);
+  });
 });

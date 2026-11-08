@@ -35,3 +35,22 @@ describe("users: client mirror of the server's protection rules", () => {
     expect(userGone(null, false)).toBe(false);
   });
 });
+
+describe("patchUserCache (optimistic status)", () => {
+  it("patches the user in every cached list page and the detail, and the returned function puts them back", async () => {
+    const { QueryClient } = await import("@tanstack/react-query");
+    const { patchUserCache } = await import("./use-users");
+    const qc = new QueryClient();
+    const list = { items: [row("a", []), row("b", [])], total: 2, page: 1, pageSize: 15 };
+    qc.setQueryData(["users", "/api/users"], list);
+    qc.setQueryData(["users", "detail", "b"], row("b", []));
+    qc.setQueryData(["users", "/api/users/b/sessions"], { items: [{ id: "s1" }], total: 1, page: 1, pageSize: 15 });
+    const restore = await patchUserCache(qc, "b", { isActive: false });
+    expect(qc.getQueryData<typeof list>(["users", "/api/users"])!.items.map((u) => u.isActive)).toEqual([true, false]);
+    expect(qc.getQueryData<{ isActive: boolean }>(["users", "detail", "b"])!.isActive).toBe(false);
+    expect(qc.getQueryData(["users", "/api/users/b/sessions"])).toEqual({ items: [{ id: "s1" }], total: 1, page: 1, pageSize: 15 });
+    restore();
+    expect(qc.getQueryData(["users", "/api/users"])).toEqual(list);
+    expect(qc.getQueryData<{ isActive: boolean }>(["users", "detail", "b"])!.isActive).toBe(true);
+  });
+});

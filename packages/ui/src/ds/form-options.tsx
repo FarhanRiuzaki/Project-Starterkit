@@ -15,12 +15,12 @@ export function Radio({ label, description, className, ...props }: Omit<Componen
   </label>;
 }
 export function RadioGroup({ legend, name, value, onValueChange, options, disabled, error }: {
-  legend: string; name: string; value: string; onValueChange: (value: string) => void;
+  legend: string; name?: string; value: string; onValueChange: (value: string) => void;
   options: readonly { value: string; label: string; description?: string; disabled?: boolean }[]; disabled?: boolean; error?: string;
 }) {
   const id = useId();
   return <fieldset disabled={disabled} aria-describedby={error ? id : undefined} className="grid min-w-0 gap-3"><legend className="mb-3 text-label">{legend}</legend>
-    {options.map((o) => <Radio key={o.value} name={name} value={o.value} label={o.label} description={o.description} checked={value === o.value} onChange={() => onValueChange(o.value)} disabled={o.disabled} aria-invalid={!!error || undefined} />)}
+    {options.map((o) => <Radio key={o.value} name={name ?? id} value={o.value} label={o.label} description={o.description} checked={value === o.value} onChange={() => onValueChange(o.value)} disabled={o.disabled} aria-invalid={!!error || undefined} />)}
     {error && <p id={id} className="text-caption text-down-ink">{error}</p>}
   </fieldset>;
 }

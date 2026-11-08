@@ -7,12 +7,13 @@ import { cn } from "../lib/cn";
  * True while the element is wider inside than its box (it scrolls sideways): such a box must be reachable by keyboard
  * (a named, focusable region; axe scrollable-region-focusable), and only then, so a table that fits adds no tab stop.
  */
-export function useScrollsX<T extends HTMLElement>(): [React.RefCallback<T>, boolean] {
+export function useScrollsX<T extends HTMLElement>(): [React.RefCallback<T>, boolean, boolean] {
   const [el, setEl] = React.useState<T | null>(null);
   const [scrolls, setScrolls] = React.useState(false);
+  const [measured, setMeasured] = React.useState(false);
   React.useEffect(() => {
     if (!el) return;
-    const check = () => setScrolls(el.scrollWidth > el.clientWidth);
+    const check = () => { setScrolls(el.scrollWidth > el.clientWidth); setMeasured(true); };
     check();
     if (typeof ResizeObserver === "undefined") return;
     const ro = new ResizeObserver(check);
@@ -20,17 +21,20 @@ export function useScrollsX<T extends HTMLElement>(): [React.RefCallback<T>, boo
     if (el.firstElementChild) ro.observe(el.firstElementChild);
     return () => ro.disconnect();
   }, [el]);
-  return [setEl, scrolls];
+  return [setEl, scrolls, measured];
 }
 
 /**
  * Table (spec §5.7): header 40 px on the tray tint, rows --row-h (44 / compact 36), 1 px dividers, no zebra, no vertical rules.
  * Wider than the screen (a phone), it scrolls sideways inside its card; the box is then a focusable region named after the table.
+ * Once measured to fit, the box stops being a scroll container (overflow visible), so a sticky header sticks to the
+ * window; `data-scrolls` (group `scroll`) lets cells stick to the box's sides while it scrolls sideways (DataTable).
  */
 function Table({ className, ...props }: React.ComponentProps<"table">) {
-  const [ref, scrolls] = useScrollsX<HTMLDivElement>();
+  const [ref, scrolls, measured] = useScrollsX<HTMLDivElement>();
   return (
-    <div ref={ref} data-slot="table-container" className="scroll-quiet relative w-full overflow-x-auto"
+    <div ref={ref} data-slot="table-container" data-scrolls={scrolls || undefined}
+      className={cn("group/scroll relative w-full", measured && !scrolls ? "overflow-x-visible" : "scroll-quiet overflow-x-auto")}
       {...(scrolls ? { tabIndex: 0, role: "region", "aria-label": props["aria-label"] } : {})}>
       <table data-slot="table" className={cn("w-full border-separate border-spacing-0 text-body", className)} {...props} />
     </div>

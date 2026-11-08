@@ -3,11 +3,10 @@
 import { Avatar } from "@starterkit/ui/ds";
 import { cn } from "@starterkit/ui/lib/cn";
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem,
-  DropdownMenuSeparator, DropdownMenuTrigger,
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuShortcut, DropdownMenuTrigger,
 } from "@starterkit/ui/ui/dropdown-menu";
 import { Icon } from "@starterkit/ui/ui/icon";
-import { ChevronsUpDownIcon, IdentityIcon, KeyIcon, SessionsIcon, SignOutIcon } from "@starterkit/ui/ui/icons";
+import { ChevronsUpDownIcon, IdentityIcon, KeyIcon, SessionsIcon, ShortcutsIcon, SignOutIcon } from "@starterkit/ui/ui/icons";
 import { useTheme } from "next-themes";
 import Link from "next/link";
 import { api } from "@/lib/client/api";
@@ -15,6 +14,7 @@ import { useAuth } from "@/lib/client/auth-context";
 import { PALETTES } from "@/lib/shared/palette";
 import { usePalette } from "@/lib/client/palette-context";
 import { usePrefs } from "@/lib/client/prefs-context";
+import { openShortcuts } from "./command-palette";
 
 /**
  * Sidebar account menu: profile, security, sessions, theme, density and Sign out.
@@ -72,6 +72,7 @@ export function AccountMenu({ compact, drawer }: { compact?: boolean; drawer?: b
           <DropdownMenuRadioItem value="compact">Compact</DropdownMenuRadioItem>
         </DropdownMenuRadioGroup>
         <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={openShortcuts}><Icon icon={ShortcutsIcon} className="size-4" />Keyboard shortcuts<DropdownMenuShortcut>?</DropdownMenuShortcut></DropdownMenuItem>
         <DropdownMenuItem onSelect={logout}><Icon icon={SignOutIcon} className="size-4" />Sign out</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

@@ -4,6 +4,10 @@ Source: https://www.figma.com/design/yWRVvatRqyDZapm52tQHWA
 
 The current screen masters and shared components are authoritative. Archived explorations are excluded.
 
+Page versions follow [Figma versioning](figma-versioning.md): the current baseline is designated `v1.0.0`;
+requested changes go to duplicated, consistently named patch-version pages before edits. See that document for
+the actual migration status and rules protecting earlier component/token references.
+
 Implementation sequence:
 
 1. Map semantic tokens and five palettes; preserve independent light/dark and density preferences.

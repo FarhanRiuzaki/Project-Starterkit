@@ -1,5 +1,6 @@
 /** Audited against the live design-system component masters on 2026-11-08. */
 export const COMPONENT_INVENTORY = [
+  { id: "133:310", name: "Floating filter card", api: "FilterLayout / FilterSearch", source: "ds/filter-layout", section: "tables", kind: "Component" },
   {
     "id": "3:198",
     "name": "Button/Primary",

@@ -1,5 +1,6 @@
 "use client";
 
+import { Kbd } from "@starterkit/ui/ds/kbd";
 import { Brand } from "@starterkit/ui/ds";
 import { cn } from "@starterkit/ui/lib/cn";
 import { Icon } from "@starterkit/ui/ui/icon";
@@ -13,6 +14,7 @@ import { useAuth } from "@/lib/client/auth-context";
 import { usePrefs } from "@/lib/client/prefs-context";
 import { activeChild, isActive, navFor } from "@/lib/shared/nav";
 import { viewHref } from "@/lib/shared/prefs";
+import { goKeys } from "@/lib/shared/shortcuts";
 import { NavGlyph } from "./nav-icon";
 import { AccountMenu } from "./account-menu";
 import { SidebarRailMenu } from "./sidebar-rail-menu";
@@ -86,7 +88,7 @@ export function Sidebar({ mark, wordmark }: { mark: ReactNode; wordmark: ReactNo
                       <span key={`label-${collapsed}`} className={cn("hidden min-w-0 flex-1 truncate", label("xl:inline"))}>{n.label}</span>
                     </Link>
                   </TooltipTrigger>
-                  <TooltipContent side="right" className={cn(!collapsed && "xl:hidden")}>{n.label}</TooltipContent>
+                  <TooltipContent side="right" className={cn(!collapsed && "xl:hidden")}>{n.label}{n.shortcut && <Kbd keys={goKeys(n.shortcut)} />}</TooltipContent>
                 </Tooltip>}
                 {active && n.children && !collapsed && (
                   <div className="nav-tree ml-4.5 hidden gap-0.5 pl-3 xl:grid">

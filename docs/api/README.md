@@ -142,6 +142,9 @@ Dashboard and both audit GET endpoints accept either an inclusive calendar pair 
   the other rules; bulk skips such a row with `forbidden`. So a `user.edit` holder can't reset, edit, deactivate,
   delete or sign out a Superadmin. The rows of `GET /api/users` and `GET /api/users/{id}` carry `permissions` so the
   screen can block those actions up front.
+- Projects: names are unique ignoring letter case (409 `duplicate`); an empty `description` is stored as none
+  (`null`). `PATCH /api/projects/{id}` writes one `project.update` entry with only the changed fields of `name`,
+  `description`, `status`; nothing to change → 200 with the project, no entry.
 - Every POST/PATCH/PUT/DELETE outside `/api/auth/*` that changes something writes an activity entry; sign-in, sign-out
   and 2FA steps write sign-in log entries. `POST /api/me/reauth` is an auth step and writes neither.
 
@@ -179,6 +182,9 @@ generated from the action vocabulary (`ACTION_LABEL` in `packages/shared/src/aud
 | `me.2fa_setup` | Two-factor setup started | user (self) | – | – (the secret is never recorded) |
 | `me.2fa_enable` | Two-factor turned on | user (self) | – | – (recovery codes are never recorded) |
 | `me.2fa_disable` | Two-factor turned off | user (self) | – | – |
+| `project.create` | Project created | project | – | the new project ([ProjectDto](schemas/ProjectDto.json)) |
+| `project.update` | Project updated | project | changed fields only, of `name`, `description`, `status` | the same fields, new values |
+| `project.delete` | Project deleted | project | the project ([ProjectDto](schemas/ProjectDto.json)) | – |
 <!-- actions:end -->
 
 ### Backend notes
@@ -208,7 +214,7 @@ generated from the action vocabulary (`ACTION_LABEL` in `packages/shared/src/aud
 
 ## Endpoints
 
-40 endpoints. Path parameters are in braces. "Signed in" = any live session, no permission. Errors list what the
+Path parameters are in braces. "Signed in" = any live session, no permission. Errors list what the
 endpoint adds to the guard's 401/403 and the 400 for an invalid body or query.
 
 | Method | Path | Permission | Request | Answer | Errors |
@@ -233,8 +239,16 @@ endpoint adds to the guard's 401/403 and the 400 for an invalid body or query.
 | POST | `/api/me/reauth` | signed in | [ReauthBody](schemas/ReauthBody.json) (`password`; `recoveryCode` for an account without a password, spent) | [OkDto](schemas/OkDto.json); this session counts as proved for 10 minutes (no activity entry) | `bad_request` (wrong kind of proof; no password and no 2FA: sign in again), `invalid_credentials` (400), `invalid_code`, `rate_limited` |
 | GET | `/api/me/sessions` | signed in | [SessionListQuery](schemas/SessionListQuery.json) | [SessionPage](schemas/SessionPage.json) | none |
 | DELETE | `/api/me/sessions/{id}` | signed in | none | [OkDto](schemas/OkDto.json) | `not_found` (also for another user's session), `self_action` (the current session) |
+| GET | `/api/me/views` | signed in | [SavedViewListQuery](schemas/SavedViewListQuery.json) (`path` = the list page) | [SavedViewPage](schemas/SavedViewPage.json) | none |
+| POST | `/api/me/views` | signed in | [CreateSavedViewBody](schemas/CreateSavedViewBody.json) | [SavedViewDto](schemas/SavedViewDto.json) | `duplicate` (a view of that name on that page, any case), `bad_request` (20 views on that page already) |
+| DELETE | `/api/me/views/{id}` | signed in | none | [OkDto](schemas/OkDto.json) | `not_found` (also for another user's view) |
 | GET | `/api/permissions` | `permission.view` | [PermissionListQuery](schemas/PermissionListQuery.json) | [PermissionPage](schemas/PermissionPage.json) | none |
 | POST | `/api/permissions` | `permission.create` | [CreatePermissionsBody](schemas/CreatePermissionsBody.json) | [CreatePermissionsResult](schemas/CreatePermissionsResult.json) (names already there are skipped) | `bad_request` (catalog full) |
+| GET | `/api/projects` | `project.view` | [ProjectListQuery](schemas/ProjectListQuery.json) | [ProjectPage](schemas/ProjectPage.json) | none |
+| POST | `/api/projects` | `project.create` | [CreateProjectBody](schemas/CreateProjectBody.json) | 201 [ProjectDto](schemas/ProjectDto.json) | `duplicate` (a project of that name, any case) |
+| GET | `/api/projects/{id}` | `project.view` | none | [ProjectDto](schemas/ProjectDto.json) | `not_found` |
+| PATCH | `/api/projects/{id}` | `project.edit` | [UpdateProjectBody](schemas/UpdateProjectBody.json) (nothing to change = no entry) | [ProjectDto](schemas/ProjectDto.json) | `not_found`, `duplicate` |
+| DELETE | `/api/projects/{id}` | `project.delete` | none | [OkDto](schemas/OkDto.json) | `not_found` |
 | GET | `/api/roles` | `role.view` | [RoleListQuery](schemas/RoleListQuery.json) | [RolePage](schemas/RolePage.json) | none |
 | POST | `/api/roles` | `role.create` | [CreateRoleBody](schemas/CreateRoleBody.json) | 201 [RoleDto](schemas/RoleDto.json) | `forbidden` (escalation), `duplicate` |
 | GET | `/api/roles/{id}` | `role.view` | none | [RoleDetailDto](schemas/RoleDetailDto.json) (the role plus the whole catalog, for its matrix) | `not_found` |
@@ -242,7 +256,7 @@ endpoint adds to the guard's 401/403 and the 400 for an invalid body or query.
 | DELETE | `/api/roles/{id}` | `role.delete` | none | [OkDto](schemas/OkDto.json) | `not_found`, `superadmin_locked`, `role_in_use` |
 | GET | `/api/users` | `user.view` | [UserListQuery](schemas/UserListQuery.json) | [UserPage](schemas/UserPage.json) (rows are [UserRowDto](schemas/UserRowDto.json): the user plus effective `permissions`) | none |
 | POST | `/api/users` | `user.create` | [CreateUserBody](schemas/CreateUserBody.json) | 201 [UserDto](schemas/UserDto.json) | `bad_request` (unknown role), `forbidden` (escalation), `duplicate` |
-| POST | `/api/users/bulk` | `user.edit`; `user.delete` for `action: "delete"` | [BulkUserBody](schemas/BulkUserBody.json) | [BulkResult](schemas/BulkResult.json); skipped codes `self_action`, `last_superadmin`, `forbidden` (escalation, actor rank), `bad_request` (already 20 roles), `not_found` | `bad_request` (unknown role) |
+| POST | `/api/users/bulk` | `user.edit`; `user.delete` for `action: "delete"` | [BulkUserBody](schemas/BulkUserBody.json): `ids` (at most 100) or `filter` (the list's `q`, `role`, `status`: every match, at most 1,000) | [BulkResult](schemas/BulkResult.json); skipped codes `self_action`, `last_superadmin`, `forbidden` (escalation, actor rank), `bad_request` (already 20 roles), `not_found` | `bad_request` (unknown role; both or neither of `ids` and `filter`; more than 1,000 users match `filter`) |
 | GET | `/api/users/roles` | `user.view` | [RoleOptionQuery](schemas/RoleOptionQuery.json) | [RoleOptionPage](schemas/RoleOptionPage.json) | none |
 | GET | `/api/users/{id}` | `user.view` (recent activity needs `audit.view`, else null) | none | [UserDetailDto](schemas/UserDetailDto.json) | `not_found` |
 | PATCH | `/api/users/{id}` | `user.edit` | [UpdateUserBody](schemas/UpdateUserBody.json) (deactivating ends the user's sessions and spends their links; a new email spends the links; nothing to change = no entry) | [UserDto](schemas/UserDto.json) | `not_found`, `bad_request` (unknown role), `duplicate`, `forbidden` (escalation, actor rank), `self_action`, `last_superadmin` |

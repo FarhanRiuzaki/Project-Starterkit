@@ -28,6 +28,7 @@ export function ActivityPage() {
       description="Changes to users, roles, permissions and profiles: who made them, to which record, and when."
       columns={COLUMNS} rowLabel={(r) => `${actionLabel(r.action)}, ${r.target.label}`}
       emptyHint="Entries appear here when someone changes a user, role, permission or their own profile."
+      filterFields={[{ key: "action", label: "Action", format: actionLabel }]}
       filters={(f, set) => <FilterMenu label="Action" value={f.action} options={ACTIONS} onChange={(action) => set({ action })} />}
       detail={(r) => ({
         title: actionLabel(r.action),

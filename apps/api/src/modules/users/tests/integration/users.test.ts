@@ -3,7 +3,7 @@
 // Differences: ids are UUIDs (looked up by username); a user's roles come back A–Z (user_roles keeps no order).
 import { beforeEach, describe, expect, it } from "bun:test";
 import type { Page } from "@starterkit/shared/contracts/common";
-import type { UserDetailDto, UserDto, UserRowDto } from "@starterkit/shared/contracts/users";
+import { BULK_ALL_MAX, type UserDetailDto, type UserDto, type UserRowDto } from "@starterkit/shared/contracts/users";
 import { PERMISSIONS, type PermissionName } from "@starterkit/shared/permissions";
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { call, resetData, signIn } from "../../../../../test/helpers/app";
@@ -541,6 +541,36 @@ describe("POST /v1/users/bulk", () => {
     const r = await bulk({ action: "deactivate", ids: [a, b, c] }, await signIn("admin"));
     expect(await r.json()).toEqual({ done: [a, b], skipped: [{ id: c, code: "last_superadmin" }] });
     expect(await activeSupers()).toBe(1);
+  });
+
+  it("filter instead of ids: acts on every user the list's search and filters match; ids and filter together, neither, or a bad filter is 400", async () => {
+    const admin = await signIn("admin");
+    const apple = await idOf("apple");
+    expect((await bulk({ action: "activate" }, admin)).status).toBe(400);
+    expect((await bulk({ action: "activate", ids: [apple], filter: {} }, admin)).status).toBe(400);
+    expect((await bulk({ action: "activate", filter: { status: "nope" } }, admin)).status).toBe(400);
+    expect((await bulk({ action: "activate", filter: { page: 2 } }, admin)).status).toBe(400);
+    expect(await (await bulk({ action: "deactivate", filter: { q: "apple" } }, admin)).json()).toEqual({ done: [apple], skipped: [] });
+    expect((await userRow(apple)).is_active).toBe(false);
+    const inactive = await rows(db.select({ id: users.id }).from(users).where(eq(users.isActive, false)));
+    const r = (await (await bulk({ action: "activate", filter: { status: "inactive" } }, admin)).json()) as { done: string[] };
+    expect(r.done.toSorted()).toEqual(inactive.map((u) => u.id).toSorted());
+    expect((await userRow(apple)).is_active).toBe(true);
+    // a role filter, the same rules per user as with ids: the actor is skipped as self
+    const me = await idOf("admin");
+    expect(await (await bulk({ action: "deactivate", filter: { role: "Admin" } }, admin)).json()).toMatchObject({ skipped: expect.arrayContaining([{ id: me, code: "self_action" }]) });
+  });
+
+  it("filter matching more than BULK_ALL_MAX users is 400 and changes nothing", async () => {
+    const admin = await signIn("admin");
+    await db.insert(users).values(Array.from({ length: BULK_ALL_MAX + 1 }, (_, i) => ({ id: Bun.randomUUIDv7(), name: `Bulk ${i}`, username: `bulk${i}`, email: `bulk${i}@example.test` })));
+    const inactive = async () => (await rows(db.select({ id: users.id }).from(users).where(eq(users.isActive, false)))).length;
+    const before = await inactive();
+    const r = await bulk({ action: "deactivate", filter: { q: "bulk" } }, admin);
+    expect(r.status).toBe(400);
+    expect(await code(r)).toBe("bad_request");
+    expect(await inactive()).toBe(before);
+    expect(await acts()).toHaveLength(0);
   });
 
   it("bulk delete removes sessions of deleted users and logs only done ids", async () => {

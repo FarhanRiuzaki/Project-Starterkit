@@ -17,6 +17,7 @@ import * as auth from "@starterkit/shared/contracts/auth";
 import * as common from "@starterkit/shared/contracts/common";
 import * as dashboard from "@starterkit/shared/contracts/dashboard";
 import * as me from "@starterkit/shared/contracts/me";
+import * as projects from "@starterkit/shared/contracts/projects";
 import * as rbac from "@starterkit/shared/contracts/rbac";
 import * as users from "@starterkit/shared/contracts/users";
 
@@ -35,17 +36,19 @@ const COMPOSED = {
   UserPage: pageOf(users.UserRowDto),
   RoleOptionPage: pageOf(rbac.RoleOption),
   SessionPage: pageOf(me.SessionDto),
+  SavedViewPage: pageOf(me.SavedViewDto),
   RolePage: pageOf(rbac.RoleDto),
   PermissionPage: pageOf(rbac.PermissionDto),
   ActivityPage: pageOf(audit.ActivityDto),
   AuthLogPage: pageOf(audit.AuthLogDto),
+  ProjectPage: pageOf(projects.ProjectDto),
   OkDto: z.object({ ok: z.literal(true) }),
   TemporaryPasswordDto: z.object({ temporaryPassword: z.string() }),
 };
 
 /** File name → file text, for every zod schema the contract modules export plus the composed ones. */
 export function apiSchemas(): Record<string, string> {
-  const named = [audit, auth, common, dashboard, me, rbac, users, COMPOSED].flatMap((m) => Object.entries(m));
+  const named = [audit, auth, common, dashboard, me, projects, rbac, users, COMPOSED].flatMap((m) => Object.entries(m));
   const out: Record<string, string> = {};
   for (const [name, schema] of named) {
     if (!(schema instanceof z.ZodType)) continue;
@@ -79,6 +82,9 @@ export const ACTION_SHAPES: Record<string, [target: string, before: string, afte
   "me.2fa_setup": ["user (self)", "–", "– (the secret is never recorded)"],
   "me.2fa_enable": ["user (self)", "–", "– (recovery codes are never recorded)"],
   "me.2fa_disable": ["user (self)", "–", "–"],
+  "project.create": ["project", "–", "the new project ([ProjectDto](schemas/ProjectDto.json))"],
+  "project.update": ["project", "changed fields only, of `name`, `description`, `status`", "the same fields, new values"],
+  "project.delete": ["project", "the project ([ProjectDto](schemas/ProjectDto.json))", "–"],
 };
 
 export const README = path.join(path.dirname(SCHEMA_DIR), "README.md");

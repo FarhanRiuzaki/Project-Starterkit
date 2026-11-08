@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { PERMISSIONS } from "@starterkit/shared/permissions";
-import { ACTIONS, applyEdit, matrixFor, closeViews, viewLocked, cellState, columnCells, diff, type Draft, rebase, rowCells, toggleAll, toggleCell, toggleColumn, toggleRow, withDraft } from "./matrix";
+import { cellState, type Draft, matrixFor, withDraft } from "./matrix";
+
+/** A fixed catalog (the app's four modules when this was written), so a new module in MODULES changes nothing here. */
+const SAMPLE = [
+  { key: "user", actions: ["view", "create", "edit", "delete"] },
+  { key: "role", actions: ["view", "create", "edit", "delete"] },
+  { key: "permission", actions: ["view", "create"] },
+  { key: "audit", actions: ["view"] },
+] as const;
+const PERMISSIONS = SAMPLE.flatMap((m) => m.actions.map((a) => `${m.key}.${a}`));
+const { ACTIONS, applyEdit, closeViews, viewLocked, columnCells, diff, rebase, rowCells, toggleAll, toggleCell, toggleColumn, toggleRow } = matrixFor([], SAMPLE);
 
 const set = (...p: string[]) => new Set<string>(p);
 const sorted = (s: ReadonlySet<string>) => [...s].sort();
@@ -121,7 +130,7 @@ describe("permission matrix", () => {
 });
 
 describe("permission matrix over a catalog with added names", () => {
-  const m = matrixFor([...PERMISSIONS, "user.export", "audit.export"]);
+  const m = matrixFor([...PERMISSIONS, "user.export", "audit.export"], SAMPLE);
   it("an added action becomes a column after the app's; its cells are only the modules that have it", () => {
     expect(m.ACTIONS).toEqual(["view", "create", "edit", "delete", "export"]);
     expect(m.columnCells("export")).toEqual(["user.export", "audit.export"]);

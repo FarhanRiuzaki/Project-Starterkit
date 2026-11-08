@@ -1,13 +1,14 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { type ReactNode, useCallback, useState } from "react";
-import { BlockedButton, type Column, DataTable, type LegendItem, Notice, Panel, QueryInput, RelativeTime, Toolbar, ToolbarFilters } from "@starterkit/ui/ds";
+import { type ReactNode, useState } from "react";
+import { BlockedButton, type Column, ColumnsMenu, DataTable, FilterLayout, FilterSearch, type FilterField, type LegendItem, Notice, Panel, RelativeTime, Toolbar } from "@starterkit/ui/ds";
 import { APP_TIME_ZONE_LABEL, appDayStart, formatDateTimeLong, formatDate, formatNumber } from "@starterkit/ui/lib/format";
 import { Button } from "@starterkit/ui/ui/button";
 import { Icon, type IconData } from "@starterkit/ui/ui/icon";
 import { ExportIcon } from "@starterkit/ui/ui/icons";
 import { toast } from "@starterkit/ui/ui/toast";
+import { SavedViewsMenu } from "@/components/saved-views-menu";
 import { PageHeader } from "@/components/shell/page-header";
 import { download, errorText } from "@/lib/client/api";
 import { useTableQuery } from "@/lib/client/use-table-query";
@@ -37,7 +38,7 @@ export type AuditDetail = { title: string; rows: [string, ReactNode][]; extra?: 
  * `table` is a lib/shared/queries constant (ACTIVITY, AUTH_LOG): its filters include the shared audit filters.
  */
 export function AuditTable<T extends { id: string; at: string }, F extends AuditFilters>({
-  title, description, noun, icon, table, columns, rowLabel, filters, legend, emptyHint, detail,
+  title, description, noun, icon, table, columns, rowLabel, filters, filterFields, legend, emptyHint, detail,
 }: {
   title: string; description: string;
   /** Plural, lower case: "activity entries". */
@@ -48,7 +49,8 @@ export function AuditTable<T extends { id: string; at: string }, F extends Audit
   /** Names the row for its "View entry" button. */
   rowLabel: (r: T) => string;
   /** The log's own filter controls. */
-  filters: (f: TableState<F>, set: (patch: Partial<TableState<F>>) => void) => ReactNode;
+  filters: (f: F, set: (patch: Partial<F>) => void) => ReactNode;
+  filterFields: readonly FilterField<keyof F & string>[];
   /** Statuses the table shows: the info button in its card header. */
   legend?: readonly LegendItem[];
   /** Empty state with no filters: when entries appear. */
@@ -61,10 +63,11 @@ export function AuditTable<T extends { id: string; at: string }, F extends Audit
   const [open, setOpen] = useState<T | null>(null);
   const [exporting, setExporting] = useState(false);
   const set = t.set;
-  const onUser = useCallback((user: string) => set({ user } as Partial<TableState<F>>), [set]);
 
   const narrowed = Object.entries(spec.filters).filter(([k, parse]) => !RANGE_KEYS.has(k) && (f as Record<string, unknown>)[k] !== (parse as FilterParser<string>)(null));
-  const clear = () => set(Object.fromEntries(narrowed.map(([k, parse]) => [k, (parse as FilterParser<string>)(null)])) as Partial<TableState<F>>);
+  const matchKeys = Object.entries(spec.filters).filter(([k]) => !RANGE_KEYS.has(k));
+  const values = Object.fromEntries(matchKeys.map(([k]) => [k, String(f[k as keyof F])]));
+  const defaults = Object.fromEntries(matchKeys.map(([k, parse]) => [k, (parse as FilterParser<string>)(null)]));
 
   async function exportCsv() {
     setExporting(true);
@@ -85,30 +88,31 @@ export function AuditTable<T extends { id: string; at: string }, F extends Audit
     <div className="grid gap-section">
       <PageHeader title={title} description={description} />
       {t.staleError && <Notice tone="warn" live>Couldn&apos;t refresh the {noun}; showing the ones loaded before. {errorText(t.staleError)}</Notice>}
-      <Panel toolbar={<Toolbar end={<>
+      <FilterLayout<Record<string, string>> values={values} defaults={defaults} fields={[{ key: "user", label: "User" }, ...filterFields]}
+        onApply={values => set(values as unknown as Partial<TableState<F>>, { history: "push" })}
+        filters={(draft, patch) => <>
+          <FilterSearch label="Search by user" value={draft.user!} onChange={user => patch({ user })} maxLength={64} placeholder="User name or email" />
+          {filters({ ...f, ...draft }, next => patch(Object.fromEntries(Object.entries(next).map(([k, v]) => [k, String(v ?? "")]))))}
+        </>}>
+      {({ trigger, summary }) => <Panel toolbar={<Toolbar end={<><SavedViewsMenu /><ColumnsMenu columns={columns} hidden={t.hidden} onChange={t.setHidden} />
           <BlockedButton variant="secondary" reason={t.total === 0 ? `No ${noun} match, so there is nothing to export.` : null}
             aria-disabled={exporting || undefined} onClick={() => { if (!exporting) void exportCsv(); }}>
             <Icon icon={ExportIcon} />{exporting ? "Exporting…" : "Export CSV"}
           </BlockedButton>
-        </>}>
-          <div className="w-full max-w-64 max-md:max-w-none"><QueryInput value={f.user} onChange={onUser} keys={[]} label="Search by user" placeholder="Search by user name or email" /></div>
-          {/* Phone: log filters live in the Filters sheet; the navbar owns the date range. */}
-          <ToolbarFilters active={narrowed.filter(([k]) => k !== "user").length}>
-            {filters(f, set)}
-            {narrowed.length > 0 && <Button variant="ghost" size="sm" onClick={clear}>Clear filters</Button>}
-          </ToolbarFilters>
-        </Toolbar>}
+        </>}>{trigger}</Toolbar>}
         flush icon={icon} title="All entries" legend={legend} count={t.count}
         description={`${timeLabel ?? (custom ? rangeText(custom) : RANGE_LABEL[f.range])} · times in ${APP_TIME_ZONE_LABEL}`}
         footnote={`Export CSV saves every matching entry, newest first, up to ${formatNumber(CSV_MAX_ROWS)} rows.`}>
-        <DataTable label={title} rowHeight="identity" columns={columns} rows={t.rows} rowKey={(r) => r.id} loading={t.loading}
+        {summary}
+        <DataTable label={title} rowHeight="identity" columns={columns} hidden={t.hidden} rows={t.rows} rowKey={(r) => r.id} loading={t.loading}
           sort={t.sort} onSortChange={t.onSortChange} paging={t.paging}
           error={t.loadError ? { title: `Couldn't load ${noun}`, cause: errorText(t.loadError), onRetry: () => void t.query.refetch() } : null}
           empty={narrowed.length > 0
             ? { icon, title: `No ${noun} match`, description: "Change the search or filters, or clear them. A longer time range may also help." }
             : { icon, title: `No ${noun} in this time range`, description: `${emptyHint} Pick a longer time range to see older ones.` }}
           rowActions={(r) => <Button size="sm" variant="ghost" aria-label={`View entry: ${rowLabel(r)}`} onClick={() => setOpen(r)}>View entry</Button>} />
-      </Panel>
+      </Panel>}
+      </FilterLayout>
       {shown && <EntryDialog title={shown.title} rows={shown.rows} onClose={() => setOpen(null)}>{shown.extra}</EntryDialog>}
     </div>
   );

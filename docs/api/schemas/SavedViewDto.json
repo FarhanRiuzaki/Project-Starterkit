@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SavedViewDto",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "path": {
+      "type": "string",
+      "pattern": "^\\/[a-z][a-z/-]{0,39}$"
+    },
+    "name": {
+      "type": "string"
+    },
+    "query": {
+      "type": "string",
+      "maxLength": 300,
+      "pattern": "^[^#\\s]*$"
+    },
+    "createdAt": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "path",
+    "name",
+    "query",
+    "createdAt"
+  ],
+  "additionalProperties": false
+}

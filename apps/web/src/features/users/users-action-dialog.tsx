@@ -1,12 +1,14 @@
 "use client";
 
 import { ConfirmActionDialog, Field } from "@starterkit/ui/ds";
+import { formatNumber } from "@starterkit/ui/lib/format";
 import { Select } from "@starterkit/ui/ui/select";
-import type { UserRowDto } from "@starterkit/shared/contracts/users";
+import type { BulkUserFilter, UserRowDto } from "@starterkit/shared/contracts/users";
 import { RoleSearch } from "./role-search";
 
 export type BulkAction = "activate" | "deactivate" | "delete" | "assignRole";
-export type Pending = { kind: "bulk"; action: BulkAction; ids: string[] } | { kind: "one"; action: "delete"; user: UserRowDto };
+/** A bulk action on the rows picked (`ids`) or on every user the list matches (`filter`, "Select all N users"); `count` names it. */
+export type Pending = { kind: "bulk"; action: BulkAction; ids: string[]; filter?: BulkUserFilter; count: number } | { kind: "one"; action: "delete"; user: UserRowDto };
 
 const VERB: Record<BulkAction, string> = { activate: "Activate", deactivate: "Deactivate", delete: "Delete", assignRole: "Assign role to" };
 const BULK_NOTE: Record<BulkAction, string> = {
@@ -26,7 +28,7 @@ export function UsersActionDialog({ pending, role, onRole, roles, onClose, onCon
   onClose: () => void; onConfirm: () => Promise<void>;
 }) {
   const dialog = pending.kind === "bulk"
-    ? { title: `${VERB[pending.action]} ${pending.ids.length} ${pending.ids.length === 1 ? "user" : "users"}`, description: BULK_NOTE[pending.action], label: LABEL[pending.action] }
+    ? { title: `${VERB[pending.action]} ${formatNumber(pending.count)} ${pending.count === 1 ? "user" : "users"}`, description: BULK_NOTE[pending.action], label: LABEL[pending.action] }
     : { title: `Delete ${pending.user.name}`, description: pending.user.email, label: "Delete user" };
   const impact = pending.action === "delete" ? ["The account is removed and its sessions end.", "This can't be undone."]
     : pending.action === "deactivate" ? ["They are signed out and can't sign in until reactivated."]

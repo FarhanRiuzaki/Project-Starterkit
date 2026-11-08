@@ -58,7 +58,7 @@ for (const colorScheme of ["light", "dark"] as const) {
   test(`upload layout fits desktop and phone in ${colorScheme}`, async ({ page }, info) => {
     await page.emulateMedia({ colorScheme });
     await page.goto("/ds");
-    const panel = page.getByRole("heading", { name: "File upload", exact: true }).locator("../..");
+    const panel = page.getByRole("heading", { name: "File upload", exact: true }).locator("../..").filter({ has: page.getByRole("group", { name: "Import users", exact: true }) });
     for (const width of [1440, 390, 360]) {
       await page.setViewportSize({ width, height: 900 });
       await panel.scrollIntoViewIfNeeded();

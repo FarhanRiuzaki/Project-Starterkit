@@ -1,4 +1,4 @@
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, type QueryClient, useQuery } from "@tanstack/react-query";
 import { api, isNotFound, retryUnlessNotFound } from "@/lib/client/api";
 import type { Page } from "@starterkit/shared/contracts/common";
 import type { RoleOption } from "@starterkit/shared/contracts/rbac";
@@ -7,6 +7,23 @@ import type { PermissionName } from "@starterkit/shared/permissions";
 import { roleOptions, SUPERADMINS, userDetail, USERS_KEY } from "@/lib/shared/queries";
 
 export { USERS_KEY };
+
+/**
+ * Optimistic change (TanStack Query optimistic updates): shows `patch` on user `id` at once in every cached users list
+ * page and in its detail, after stopping refetches that would overwrite it. The returned function puts every entry back
+ * as it was (on failure); on success the caller refetches as usual.
+ */
+export async function patchUserCache(qc: QueryClient, id: string, patch: Partial<UserDto>): Promise<() => void> {
+  await qc.cancelQueries({ queryKey: USERS_KEY });
+  const before = qc.getQueriesData({ queryKey: USERS_KEY });
+  qc.setQueriesData({ queryKey: USERS_KEY }, (d: unknown) => {
+    if (d && typeof d === "object" && "items" in d && Array.isArray(d.items)) {
+      return { ...d, items: d.items.map((u: { id?: string }) => (u.id === id ? { ...u, ...patch } : u)) };
+    }
+    return d && typeof d === "object" && "id" in d && d.id === id ? { ...d, ...patch } : d;
+  });
+  return () => { for (const [key, data] of before) qc.setQueryData(key, data); };
+}
 
 /** A 404 is final (no retry); `enabled: false` once the user is deleted from their own page. */
 export function useUserDetail(id: string, enabled = true) {

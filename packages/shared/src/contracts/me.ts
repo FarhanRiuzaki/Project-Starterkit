@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { SESSION_SORTS } from "../paging";
+import { SAVED_VIEW_SORTS, SESSION_SORTS } from "../paging";
 import { Password } from "./auth";
 import { ListQuery, sortParam } from "./common";
 import { UserDto } from "./users";
@@ -65,3 +65,18 @@ export type ReauthBody = DisableTwoFactorBody;
 
 export const ConnectionProvider = z.enum(["google", "apple"]);
 export type ConnectionProvider = z.infer<typeof ConnectionProvider>;
+
+/** Most saved views one user keeps on one list page. */
+export const MAX_SAVED_VIEWS = 20;
+/** A list page's path ("/users", "/audit/activity"). */
+const ViewPage = z.string().regex(/^\/[a-z][a-z/-]{0,39}$/);
+/** A list's URL query without the page number ("status=active&sort=-createdAt"), at most 300 characters. */
+const ViewQuery = z.string().max(300).regex(/^[^#\s]*$/);
+
+/** A named list view (search, filters, sort, rows per page) the user saved on a list page, for them only. */
+export const SavedViewDto = z.object({ id: z.string(), path: ViewPage, name: z.string(), query: ViewQuery, createdAt: z.string() });
+export type SavedViewDto = z.infer<typeof SavedViewDto>;
+export const SavedViewListQuery = ListQuery.omit({ q: true }).extend({ path: ViewPage, sort: sortParam(SAVED_VIEW_SORTS) });
+export type SavedViewListQuery = z.infer<typeof SavedViewListQuery>;
+export const CreateSavedViewBody = z.object({ path: ViewPage, name: z.string().trim().min(1).max(40), query: ViewQuery }).strict();
+export type CreateSavedViewBody = z.infer<typeof CreateSavedViewBody>;

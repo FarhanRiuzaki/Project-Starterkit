@@ -228,13 +228,15 @@ function handlersOf(file: string, g: ReturnType<typeof graphOf>, useOk: string[]
 
 type Allow = { nonList: Record<string, string>; gates: Record<string, string>; authFiles: string[]; noActivity?: Record<string, string>; use?: string[] };
 
-/** GET routes that answer one record, a summary or the caller, not a list; every other GET pages through pageQuery. */
+/**
+ * GET routes that answer a summary or the caller, not a list. A GET whose path ends in a parameter (`/v1/x/:id`) answers
+ * one record and needs no entry; every other GET pages through pageQuery.
+ */
 const NON_LIST_GETS: Record<string, string> = {
   "GET /v1/dashboard": "summary numbers; its recent list is fixed at 5",
   "GET /v1/me": "the signed-in user",
-  "GET /v1/roles/:id": "one role",
-  "GET /v1/users/:id": "one user; its recent activity is fixed at 20",
 };
+const ONE_RECORD = /\/:\w+$/;
 /**
  * Routes that check their permission in the handler (`{ guard: null }`, then `ctx.perms.has(…)` before any service
  * call), because the permission depends on the body.
@@ -242,9 +244,11 @@ const NON_LIST_GETS: Record<string, string> = {
 const IN_HANDLER_GATES: Record<string, string> = {
   "POST /v1/users/bulk": "delete needs user.delete, the other actions user.edit: the session is checked (401), the body read, then the permission (403)",
 };
-/** Non-GET routes that change no record of the activity log's kind (an auth step), so they record no entry. */
+/** Non-GET routes that change no record of the activity log's kind (an auth step, a viewer's own list preference), so they record no entry. */
 const NO_ACTIVITY: Record<string, string> = {
   "POST /v1/me/reauth": "proves the user again on this session (stamps reauth_at); an auth step, and the sign-in log has no event for it",
+  "POST /v1/me/views": "saves the caller's own named list view: a viewer preference like the prefs cookie, seen by no one else",
+  "DELETE /v1/me/views/:id": "deletes the caller's own saved list view: a viewer preference, seen by no one else",
 };
 /** The sign-in controllers, by file: they answer before a session exists. A route elsewhere, even under /v1/auth, follows every rule. */
 const AUTH_ROUTE_FILES = ["modules/auth/controller.ts", "modules/oauth/controller.ts"];
@@ -290,7 +294,7 @@ function routeViolations(files: File[], allow: Allow = REAL_ALLOW): string[] {
       // (c) a change records activity
       if (h.method !== "GET" && !(key in (allow.noActivity ?? {})) && !reaches(recorders)) out.push(`${id}: no recordActivity (in the handler or a service it calls)`);
       // (d) lists page; a CSV branch calls a capped …Csv function
-      if (h.method === "GET" && !(key in allow.nonList) && !reaches(pagers)) out.push(`${id}: GET answers a list without pageQuery`);
+      if (h.method === "GET" && !(key in allow.nonList) && !ONE_RECORD.test(key) && !reaches(pagers)) out.push(`${id}: GET answers a list without pageQuery`);
       if (h.csv && !reaches(csvReach)) out.push(`${id}: format=csv branch without a …Csv function`);
       // (e) nothing answers 404 or reads data before the body
       const b = firstPos((c) => c.name === "body");
@@ -476,7 +480,9 @@ export async function tidy(ctx) { await db.transaction(async (tx) => { await tx.
 
   it("fixture (d): a list GET without pageQuery, a stale non-list entry, a CSV branch without a capped …Csv function", () => {
     expect(run(`.get("/v1/x", () => lookup(1), { guard: null })`)).toEqual([`${X} GET /v1/x: GET answers a list without pageQuery`]);
-    expect(run(`.get("/v1/x/:id", () => lookup(1), { guard: null })`, { ...NONE, nonList: { "GET /v1/x/:id": "one" } })).toEqual([]);
+    expect(run(`.get("/v1/x/:id", () => lookup(1), { guard: null })`)).toEqual([]); // one record: no entry needed
+    expect(run(`.get("/v1/x/:id/items", () => lookup(1), { guard: null })`)).toEqual([`${X} GET /v1/x/:id/items: GET answers a list without pageQuery`]);
+    expect(run(`.get("/v1/summary", () => lookup(1), { guard: null })`, { ...NONE, nonList: { "GET /v1/summary": "one" } })).toEqual([]);
     expect(run(`.get("/v1/x", () => thingPage({}), { guard: null })`, { ...NONE, nonList: { "GET /v1/gone": "x" } }))
       .toEqual(["GET /v1/gone: listed as a non-list GET but has no such handler"]);
     expect(run(`.get("/v1/x", ({ query }) => (query.format === "csv" ? lookup(1) : thingPage(query)), { query: Q, guard: null })`))

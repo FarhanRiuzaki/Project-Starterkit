@@ -7,6 +7,7 @@ import { log } from "../../kernel/log";
 import { activity as activityTable, authLog as authLogTable } from "../../modules/audit";
 import { hashPassword, LDAP_PASSWORD } from "../../modules/auth";
 import { userIdentities } from "../../modules/oauth";
+import { projects as projectsTable } from "../../modules/projects";
 import { roles, userRoles } from "../../modules/rbac";
 import { recoveryCodes, users as usersTable } from "../../modules/users";
 
@@ -34,6 +35,9 @@ const FIRST = ["Alya", "Bima", "Citra", "Dewa", "Eka", "Farah", "Gilang", "Hana"
 const LAST = ["Pratama", "Wijaya", "Santoso", "Lestari", "Hidayat", "Kusuma", "Nugroho", "Saputra", "Rahma", "Utama"];
 const DEVICES = ["Chrome on macOS", "Firefox on Windows", "Safari on iOS", "Edge on Windows", "Chrome on Android"];
 const PLACES = ["Jakarta, ID", "Bandung, ID", "Surabaya, ID", "Singapore, SG", null];
+/** Demo projects: more than one page of 15; every fourth archived. */
+const PROJECTS = ["Apollo", "Borobudur", "Cendana", "Dieng", "Elang", "Flores", "Garuda", "Halmahera", "Ijen", "Jatiluhur", "Kawi", "Lombok",
+  "Merapi", "Nias", "Orchid", "Prambanan", "Rinjani", "Sumba", "Toba", "Ubud"];
 
 type Over = { isActive?: boolean; isLdap?: boolean; twoFactor?: boolean; connected?: "google" | "apple" };
 const FIXED: { key: string; name: string; role: string; over?: Over }[] = [
@@ -129,6 +133,10 @@ export async function seedDemo(db: Tx, env: Record<string, string | undefined> =
     for (const u of users.filter((x) => x.connected)) {
       await tx.insert(userIdentities).values({ userId: u.id, provider: u.connected!, subject: `mock-${u.connected}-demo`, email: u.email });
     }
+    await tx.insert(projectsTable).values(PROJECTS.map((name, i) => {
+      const createdAt = at(now - (60 - i * 2) * DAY);
+      return { id: Bun.randomUUIDv7(), name, description: i % 3 ? `Demo project ${name}.` : null, status: i % 4 === 3 ? "archived" : "active", createdAt, updatedAt: createdAt };
+    }));
     await tx.insert(activityTable).values(activity);
     await tx.insert(authLogTable).values(authLog);
   });

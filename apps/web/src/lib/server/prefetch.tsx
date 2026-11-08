@@ -6,10 +6,11 @@ import type { z } from "zod";
 import { Hydrate } from "@/lib/client/hydrate";
 import { ActivityQuery, AuthLogQuery } from "@starterkit/shared/contracts/audit";
 import { SessionListQuery } from "@starterkit/shared/contracts/me";
+import { ProjectListQuery } from "@starterkit/shared/contracts/projects";
 import { PermissionListQuery, RoleListQuery } from "@starterkit/shared/contracts/rbac";
 import { UserListQuery } from "@starterkit/shared/contracts/users";
 import {
-  ACTIVITY, AUTH_LOG, dashboardRead, ME_KEY, MY_SESSIONS, PERMISSIONS_TABLE, roleKey, roleOptions, roleUrl, ROLES, SUPERADMINS,
+  ACTIVITY, AUTH_LOG, dashboardRead, ME_KEY, MY_SESSIONS, PERMISSIONS_TABLE, projectDetail, PROJECTS, roleKey, roleOptions, roleUrl, ROLES, SUPERADMINS,
   type TableDef, userDetail as userDetailQuery, USERS, userSessions as userSessionsTable,
 } from "@/lib/shared/queries";
 import { readTable, tableRequest } from "@/lib/shared/table-state";
@@ -55,6 +56,8 @@ export const reads = {
   permissions: (sp: URLSearchParams) => table(PERMISSIONS_TABLE, sp, PermissionListQuery),
   activity: (sp: URLSearchParams) => table(ACTIVITY, sp, ActivityQuery),
   authLog: (sp: URLSearchParams) => table(AUTH_LOG, sp, AuthLogQuery),
+  projects: (sp: URLSearchParams) => table(PROJECTS, sp, ProjectListQuery),
+  project: (id: string): Read => ({ key: projectDetail(id).key, path: projectDetail(id).url }),
 };
 
 /**

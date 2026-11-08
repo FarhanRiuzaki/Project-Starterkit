@@ -2,13 +2,15 @@
 // session 401 → body 400 → 404 → rules → change → activity (the last three in service.ts).
 import { Elysia } from "elysia";
 import {
-  ChangePasswordBody, ConnectionProvider, DisableTwoFactorBody, ReauthBody, SessionListQuery, TwoFactorEnableBody, UpdateProfileBody,
+  ChangePasswordBody, ConnectionProvider, CreateSavedViewBody, DisableTwoFactorBody, ReauthBody, SavedViewListQuery, SessionListQuery,
+  TwoFactorEnableBody, UpdateProfileBody,
 } from "@starterkit/shared/contracts/me";
 import { body } from "../../kernel/parse";
 import { guard, sessionPage } from "../auth";
 import {
   changePassword, confirmIdentity, disableTwoFactor, disconnect, enableTwoFactor, endOwnSession, startTwoFactor, toMe, updateProfile,
 } from "./service";
+import { deleteView, saveView, viewPage } from "./views";
 
 const OK = { ok: true } as const;
 
@@ -38,5 +40,12 @@ export const meController = () =>
     .get("/v1/me/sessions", ({ ctx, query }) => sessionPage(ctx.user.id, query, ctx.sid), { query: SessionListQuery, guard: null })
     .delete("/v1/me/sessions/:id", async ({ ctx, params }) => {
       await endOwnSession(ctx, params.id);
+      return OK;
+    }, { guard: null })
+    /** The caller's saved views of one list page (`path`); saving and deleting one records no activity (a preference). */
+    .get("/v1/me/views", ({ ctx, query }) => viewPage(ctx.user.id, query), { query: SavedViewListQuery, guard: null })
+    .post("/v1/me/views", async (c) => saveView(c.ctx, await body(c, CreateSavedViewBody)), { guard: null })
+    .delete("/v1/me/views/:id", async ({ ctx, params }) => {
+      await deleteView(ctx, params.id);
       return OK;
     }, { guard: null });

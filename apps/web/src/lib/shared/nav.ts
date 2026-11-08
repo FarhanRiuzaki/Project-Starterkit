@@ -1,6 +1,6 @@
 import type { PermissionName } from "@starterkit/shared/permissions";
 
-export type NavIcon = "dashboard" | "users" | "roles" | "permissions" | "activity" | "signin" | "ds" | "profile" | "users-all" | "users-active" | "users-inactive";
+export type NavIcon = "dashboard" | "users" | "roles" | "permissions" | "activity" | "signin" | "ds" | "profile" | "users-all" | "users-active" | "users-inactive" | "projects";
 export type NavGroup = "main" | "access" | "audit" | "personal";
 /**
  * `shortcut` is "" for an item without one; `perm` null = every signed-in user. `children`: views of the item's own
@@ -12,6 +12,7 @@ export type NavSection = { id: NavGroup; label: string; items: NavItem[] };
 
 export const NAV: readonly NavItem[] = [
   { href: "/", label: "Dashboard", icon: "dashboard", shortcut: "G D", group: "main", perm: null },
+  { href: "/projects", label: "Projects", icon: "projects", shortcut: "", group: "main", perm: "project.view" },
   { href: "/users", label: "Users", icon: "users", shortcut: "G U", group: "access", perm: "user.view", children: [
     { href: "/users", label: "All users", icon: "users-all" },
     { href: "/users?status=active", label: "Active users", icon: "users-active" },
@@ -80,5 +81,7 @@ export function pagePerm(pathname: string): PermissionName | null {
   const p = clean(pathname);
   if (p === "/users/new") return "user.create";
   if (/^\/users\/[^/]+\/edit$/.test(p)) return "user.edit";
+  if (p === "/projects/new") return "project.create";
+  if (/^\/projects\/[^/]+\/edit$/.test(p)) return "project.edit";
   return navItemOf(p)?.perm ?? null;
 }

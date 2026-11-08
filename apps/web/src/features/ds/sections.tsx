@@ -2,8 +2,8 @@
 
 import { BarChart, CHART_HEIGHT, HBarChart, Heatmap } from "@starterkit/ui/charts";
 import {
-  ActionMenu, Avatar, AvatarStack, BlockedButton, Brand, CategoryChip, Checkbox, ConfirmActionDialog, CountBadge, DataTable, EmptyState, ErrorState, Field, FilterChip, FilterMenu, PasswordChecks,
-  Kbd, LazyMount, Meter, Panel, QueryInput, SecretOnceDialog, Segmented, Spec, StatusChip, TickMeter, Toolbar, ToolbarFilters, Truncate,
+  ActionMenu, Avatar, AvatarStack, BlockedButton, Brand, CategoryChip, Checkbox, ConfirmActionDialog, CountBadge, ColumnsMenu, DataTable, EmptyState, ErrorState, Field, FilterLayout, FilterMenu, FilterSearch, PasswordChecks,
+  Kbd, LazyMount, Meter, Panel, SecretOnceDialog, Spec, StatusChip, TickMeter, Toolbar, Truncate,
   type Column, type SortDir,
 } from "@starterkit/ui/ds";
 import { formatNumber } from "@starterkit/ui/lib/format";
@@ -13,6 +13,7 @@ import { Button } from "@starterkit/ui/ui/button";
 import { Icon } from "@starterkit/ui/ui/icon";
 import { HeatmapIcon, InfoIcon, RefreshIcon, SessionsIcon, SurfacesIcon, UsersIcon } from "@starterkit/ui/ui/icons";
 import { Input } from "@starterkit/ui/ui/input";
+import { FormsSection } from "./forms-section";
 import { PasswordInput } from "@starterkit/ui/ui/password-input";
 import { Skeleton } from "@starterkit/ui/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@starterkit/ui/ui/tabs";
@@ -20,8 +21,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@starterkit/ui/ui/toolt
 import { useCallback, useState } from "react";
 import { SunnyGoMark, SunnyGoWordmark } from "@/components/brand";
 import { PermissionMatrix } from "@/components/permission-matrix";
-import { PERMISSIONS, type PermissionName } from "@starterkit/shared/permissions";
-import { DAYS, HEAT, RESULTS, ROWS, type Row, TOP_ERRORS } from "./fixtures";
+import { DAYS, HEAT, MATRIX_MODULES, RESULTS, ROWS, type Row, TOP_ERRORS } from "./fixtures";
 import { LibrarySection } from "./library-section";
 import { ComponentCatalog } from "./component-catalog";
 import { PackSection } from "./pack-section";
@@ -29,8 +29,9 @@ import { FormSectionGallery } from "./form-section";
 import { MotionSection } from "./motion-section";
 
 /** Matrix sample: the viewer holds every permission but role.delete and permission.create (those cells say why). */
-const MATRIX_ALLOWED: ReadonlySet<PermissionName> = new Set(PERMISSIONS.filter((p) => p !== "role.delete" && p !== "permission.create"));
-const MATRIX_START: PermissionName[] = ["user.view", "user.create", "user.edit", "role.view", "role.delete", "audit.view"];
+const MATRIX_ALLOWED: ReadonlySet<string> = new Set(MATRIX_MODULES.flatMap((m) => m.actions.map((a) => `${m.key}.${a}`))
+  .filter((p) => p !== "role.delete" && p !== "permission.create"));
+const MATRIX_START = ["user.view", "user.create", "user.edit", "role.view", "role.delete", "audit.view"];
 
 /** Fixed, obviously fake sample for the one-time secret demo (the gallery has no backend). */
 const SAMPLE_SECRET = "Sample-Pw-Not-Real-0000";
@@ -48,17 +49,17 @@ function SectionTitle({ children }: { children: string }) {
 }
 
 export function GallerySections() {
-  const [query, setQuery] = useState("status:degraded city:oslo");
+  const [query, setQuery] = useState("");
   const [status, setStatus] = useState<(typeof STATUS_OPTIONS)[number]["value"]>("all");
-  const [chip, setChip] = useState(true);
   const [role, setRole] = useState<(typeof ROLES)[number]["value"]>("");
   const [server, setServer] = useState({ page: 1, pageSize: 15, sort: { key: "name", dir: "asc" as SortDir } });
   const [dialog, setDialog] = useState(false);
   const [secret, setSecret] = useState(false);
   const [perms, setPerms] = useState<ReadonlySet<string>>(() => new Set(MATRIX_START));
+  const [hidden, setHidden] = useState<string[]>([]);
 
   const columns: Column<Row>[] = [
-    { key: "name", header: "User", icon: UsersIcon, sortable: true,
+    { key: "name", header: "User", sortable: true,
       cell: (r) => (
         <span className="flex min-w-0 max-w-72 items-center gap-2.5">
           <Avatar name={r.name} />
@@ -78,33 +79,35 @@ export function GallerySections() {
       <PackSection />
       <LibrarySection />
       <div id="ds-tables" className="scroll-mt-20"><SectionTitle>Toolbar and data table</SectionTitle></div>
-      {/* The list's toolbar sits on the panel's title row (ui-standard §1 item 4). */}
-      <Panel flush icon={UsersIcon} title="Users" count="12,345" legend={LEGEND}
-        description="Server-paged: page, page size and sort are requests; selection, row actions; the info button explains the statuses"
-        toolbar={<Toolbar>
-          <div className="w-full max-w-64 max-md:max-w-none"><QueryInput value={query} onChange={setQuery} keys={["status", "city"]} label="Search users" placeholder="status:degraded city:oslo" /></div>
-          <ToolbarFilters active={(status !== "all" ? 1 : 0) + (role ? 1 : 0)}>
-            <Segmented label="Status" value={status} onChange={setStatus} options={STATUS_OPTIONS} />
-            <FilterMenu label="Role" value={role} options={ROLES} onChange={setRole} />
-          </ToolbarFilters>
-          {chip && <FilterChip removeLabel="Remove filter role:viewer" onRemove={() => setChip(false)}>role:viewer</FilterChip>}
-        </Toolbar>}>
-        <DataTable label="Sample users" rowHeight="identity" columns={columns} rows={rows.slice(0, server.pageSize)} rowKey={(r) => r.id}
+      <FilterLayout values={{ query, status, role }} defaults={{ query: "", status: "all", role: "" }}
+        fields={[{ key: "query", label: "Search" }, { key: "status", label: "Status", format: v => STATUS_OPTIONS.find(o => o.value === v)?.label ?? v }, { key: "role", label: "Role" }]}
+        onApply={v => { setQuery(v.query); setStatus(STATUS_OPTIONS.find(o => o.value === v.status)?.value ?? "all"); setRole(ROLES.find(o => o.value === v.role)?.value ?? ""); }}
+        filters={(draft, patch) => <>
+          <FilterSearch label="Search sample users" value={draft.query} onChange={query => patch({ query })} placeholder="Name or email" />
+          <FilterMenu label="Status" value={draft.status} options={STATUS_OPTIONS} onChange={status => patch({ status })} />
+          <FilterMenu label="Role" value={draft.role} options={ROLES} onChange={role => patch({ role })} />
+        </>}>
+      {({ trigger, summary }) => <Panel flush icon={UsersIcon} title="Users" count="12,345" legend={LEGEND}
+        description="Server-paged results; filters apply together, with an active count and removable chips"
+        toolbar={<Toolbar end={<><ColumnsMenu columns={columns} hidden={hidden} onChange={setHidden} /></>}>{trigger}</Toolbar>}>
+        {summary}
+        <DataTable label="Sample users" rowHeight="identity" columns={columns} hidden={hidden} rows={rows.slice(0, server.pageSize)} rowKey={(r) => r.id}
           isSelected={(r) => r.id === "row-2"} empty={EMPTY} sort={server.sort} onSortChange={(sort) => setServer((s) => ({ ...s, page: 1, sort }))}
           paging={{ mode: "server", page: server.page, pageSize: server.pageSize, total: 12_345, maxPage: 1000, pageSizes: [15, 25, 50, 100],
             onPageChange: (p) => setServer((s) => ({ ...s, page: p })), onPageSizeChange: (n) => setServer((s) => ({ ...s, page: 1, pageSize: n })) }}
           rowActions={(r) => <><Button size="sm" variant="ghost">Open</Button><ActionMenu label={`Actions for ${r.name}`} actions={[{ id: "edit", label: "Edit user" }, { id: "delete", label: "Delete user", destructive: true }]} /></>} />
-      </Panel>
+      </Panel>}
+      </FilterLayout>
       <Panel flush title="Table states" description="Loading, error and empty">
         <div className="grid divide-y divide-line">
-          <DataTable label="Loading sample" columns={columns} rows={[]} rowKey={(r) => r.id} loading empty={EMPTY} />
-          <DataTable label="Error sample" columns={columns} rows={[]} rowKey={(r) => r.id} error={{ title: "Couldn't load users", cause: "The server didn't answer. Try again in a minute." }} empty={EMPTY} />
-          <DataTable label="Empty sample" columns={columns} rows={[]} rowKey={(r) => r.id} empty={EMPTY} />
+          <DataTable label="Loading sample" columns={columns} hidden={hidden} rows={[]} rowKey={(r) => r.id} loading empty={EMPTY} />
+          <DataTable label="Error sample" columns={columns} hidden={hidden} rows={[]} rowKey={(r) => r.id} error={{ title: "Couldn't load users", cause: "The server didn't answer. Try again in a minute." }} empty={EMPTY} />
+          <DataTable label="Empty sample" columns={columns} hidden={hidden} rows={[]} rowKey={(r) => r.id} empty={EMPTY} />
         </div>
       </Panel>
 
       <Panel flush title="Permission matrix" description="Sticky header and module column; on a phone it scrolls inside the card. Press a read-only cell for its reason">
-        <PermissionMatrix label="Permissions of Sample role" value={perms} allowed={MATRIX_ALLOWED} onChange={(edit) => setPerms((v) => edit(v))} />
+        <PermissionMatrix label="Permissions of Sample role" modules={MATRIX_MODULES} value={perms} allowed={MATRIX_ALLOWED} onChange={(edit) => setPerms((v) => edit(v))} />
       </Panel>
 
       <SectionTitle>Charts</SectionTitle>
@@ -193,6 +196,9 @@ export function GallerySections() {
           </div>
         </Panel>
       </div>
+
+      <SectionTitle>Forms and flows</SectionTitle>
+      <FormsSection />
 
       <div id="ds-foundations" className="scroll-mt-20"><SectionTitle>Tokens</SectionTitle></div>
       <Tokens />

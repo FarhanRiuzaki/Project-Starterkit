@@ -10,3 +10,9 @@ playwright-report/
 !.env.compose.example
 .DS_Store
 next-env.d.ts
+
+# Local assistant tooling, nested worktrees and generated Python caches.
+.agents/
+.claude/
+__pycache__/
+*.pyc

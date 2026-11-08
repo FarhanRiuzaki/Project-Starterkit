@@ -5,6 +5,7 @@ import { dashboardController } from "./dashboard";
 import { healthController, type Pingable } from "./health";
 import { meController } from "./me";
 import { oauthController } from "./oauth";
+import { projectsController } from "./projects";
 import { rbacController } from "./rbac";
 import { usersController } from "./users";
 
@@ -25,4 +26,5 @@ export const modules = (deps: AppDeps = {}) =>
     .use(rbacController())
     .use(usersController())
     .use(auditController())
-    .use(dashboardController());
+    .use(dashboardController())
+    .use(projectsController());

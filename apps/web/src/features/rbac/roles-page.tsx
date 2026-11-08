@@ -3,12 +3,13 @@
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useState } from "react";
-import { ActionMenu, type Column, DataTable, Notice, Panel, QueryInput, Toolbar } from "@starterkit/ui/ds";
+import { useState } from "react";
+import { ActionMenu, type Column, ColumnsMenu, DataTable, FilterLayout, FilterSearch, Notice, Panel, Toolbar } from "@starterkit/ui/ds";
 import { formatNumber, plural } from "@starterkit/ui/lib/format";
 import { Button } from "@starterkit/ui/ui/button";
 import { KeyIcon } from "@starterkit/ui/ui/icons";
 import { toast } from "@starterkit/ui/ui/toast";
+import { SavedViewsMenu } from "@/components/saved-views-menu";
 import { PageHeader } from "@/components/shell/page-header";
 import { api, errorText } from "@/lib/client/api";
 import { useAuth } from "@/lib/client/auth-context";
@@ -26,6 +27,9 @@ const loadDialog = () => import("@starterkit/ui/ds");
 const ConfirmActionDialog = dynamic(() => loadDialog().then((m) => m.ConfirmActionDialog), { ssr: false });
 const preloadDialog = () => void loadDialog();
 
+const FILTER_DEFAULTS = { q: "" };
+const FILTER_FIELDS = [{ key: "q", label: "Search" }] as const;
+
 const LINK = "font-medium text-fg hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary";
 
 export function RolesPage() {
@@ -33,14 +37,13 @@ export function RolesPage() {
   const router = useRouter();
   const t = useTableQuery<RoleDto, { q: string }>(ROLES);
   const set = t.set;
-  const onSearch = useCallback((q: string) => set({ q }), [set]);
   const changed = useAfterRbacChange();
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
   const [deleting, setDeleting] = useState<RoleDto | null>(null);
 
   const columns: Column<RoleDto>[] = [
-    { key: "name", header: "Role", icon: KeyIcon, sortable: true, mobile: "title", cell: (r) => (
+    { key: "name", header: "Role", sortable: true, mobile: "title", cell: (r) => (
       <span className="flex items-center gap-2"><Link href={rolePage(r.id)} className={LINK}>{r.name}</Link>{r.locked && <span className="text-caption text-fg-3">Locked</span>}</span>
     ) },
     { key: "permissions", header: "Permissions", sortable: true, align: "right", cell: (r) => formatNumber(r.permissions.length) },
@@ -68,11 +71,13 @@ export function RolesPage() {
       <PageHeader title="Roles" description="Each role is a set of permissions. A user gets the permissions of every role they have."
         actions={can("role.create") ? <Button onClick={() => { setName(""); setCreating(true); }}>Create role</Button> : undefined} />
       {t.staleError && <Notice tone="warn" live>Couldn&apos;t refresh the roles; showing the ones loaded before. {errorText(t.staleError)}</Notice>}
-      <Panel toolbar={<Toolbar>
-          <div className="w-full max-w-64 max-md:max-w-none"><QueryInput value={t.state.q} onChange={onSearch} keys={[]} label="Search roles" placeholder="Search role name" /></div>
-        </Toolbar>}
+      <FilterLayout values={{ q: t.state.q }} defaults={FILTER_DEFAULTS} fields={FILTER_FIELDS}
+        onApply={values => set(values, { history: "push" })} filters={(draft, patch) =>
+          <FilterSearch label="Search roles" value={draft.q} onChange={q => patch({ q })} placeholder="Role name" />}>
+      {({ trigger, summary }) => <Panel toolbar={<Toolbar end={<><SavedViewsMenu /><ColumnsMenu columns={columns} hidden={t.hidden} onChange={t.setHidden} /></>}>{trigger}</Toolbar>}
         flush icon={KeyIcon} title="All roles" count={t.count}>
-        <DataTable label="Roles" columns={columns} rows={t.rows} rowKey={(r) => r.id} loading={t.loading}
+        {summary}
+        <DataTable label="Roles" columns={columns} hidden={t.hidden} rows={t.rows} rowKey={(r) => r.id} loading={t.loading}
           sort={t.sort} onSortChange={t.onSortChange} paging={t.paging}
           error={t.loadError ? { title: "Couldn't load roles", cause: errorText(t.loadError), onRetry: () => void t.query.refetch() } : null}
           empty={t.state.q
@@ -85,7 +90,8 @@ export function RolesPage() {
               ...(can("role.delete") ? [{ id: "delete", label: "Delete role", destructive: true, disabled: !!block, hint: block ?? undefined, onSelect: () => setDeleting(r) }] : []),
             ]} />;
           }} />
-      </Panel>
+      </Panel>}
+      </FilterLayout>
       {creating && (
         <ConfirmActionDialog open onOpenChange={(o) => { if (!o) setCreating(false); }} auditFields={false} reasons={[]} title="Create role"
           description="The role starts with no permissions; you pick them on the next page." impact={[]} actionLabel="Create role"

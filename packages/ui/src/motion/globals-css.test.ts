@@ -13,17 +13,17 @@ const block = (name: string) => {
 };
 
 describe("motion utilities", () => {
-  it.each(["@keyframes pop", "@keyframes row-new", "@keyframes swap"])("%s animates only transform / opacity / background-color", (k) => {
+  it.each(["@keyframes pop", "@keyframes row-new", "@keyframes swap", "@keyframes progress-slide"])("%s animates only transform / opacity / background-color", (k) => {
     const b = block(k);
     expect(b).not.toBe("");
     const props = [...b.matchAll(/([a-z-]+)\s*:/g)].map((m) => m[1]);
     expect(props.every((p) => ["transform", "opacity", "background-color"].includes(p ?? ""))).toBe(true);
   });
-  it.each(["@utility animate-pop", "@utility animate-row-new", "@utility animate-swap", "@utility transition-sidebar"])("%s has a reduced-motion branch", (u) => {
+  it.each(["@utility animate-pop", "@utility animate-row-new", "@utility animate-swap", "@utility transition-sidebar", "@utility animate-progress"])("%s has a reduced-motion branch", (u) => {
     expect(block(u)).toMatch(/prefers-reduced-motion:\s*reduce/);
   });
   it("tokens only: utilities use var(--dur-*) and var(--ease-*)", () => {
-    for (const u of ["@utility animate-pop", "@utility animate-row-new", "@utility animate-swap", "@utility transition-sidebar"]) {
+    for (const u of ["@utility animate-pop", "@utility animate-row-new", "@utility animate-swap", "@utility transition-sidebar", "@utility animate-progress"]) {
       expect(block(u)).not.toMatch(/\d+ms|\d*\.\d+s\b/);
     }
   });

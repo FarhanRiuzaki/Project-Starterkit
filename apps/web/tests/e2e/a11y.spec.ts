@@ -8,7 +8,7 @@ import { axeSerious, pending2faState, withIds } from "./helpers";
  * global-setup; /login/2fa needs a sign-in waiting for its second factor (helpers.ts pending2faState).
  */
 /** `{name}` = a demo id (helpers.ts demoIds). */
-const SIGNED_IN = ["/", "/users", "/users/{admin}", "/roles", "/roles/{superadminRole}", "/roles/{adminRole}", "/permissions", "/audit/activity", "/audit/auth", "/me", "/me/security", "/me/sessions"];
+const SIGNED_IN = ["/", "/users", "/users/{admin}", "/roles", "/roles/{superadminRole}", "/roles/{adminRole}", "/permissions", "/projects", "/projects/{project}", "/audit/activity", "/audit/auth", "/me", "/me/security", "/me/sessions"];
 
 
 /** The theme follows the emulated color scheme (next-themes "system"), then axe runs on the settled page. */

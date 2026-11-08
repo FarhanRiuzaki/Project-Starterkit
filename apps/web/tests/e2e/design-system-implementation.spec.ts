@@ -63,19 +63,20 @@ test("palettes persist independently of theme and retain responsive layouts", as
 
 test("form pack supports keyboard search, paste, boundary controls and wizard validation", async ({ page }) => {
   await page.goto("/ds");
+  const wizard = page.locator("#ds-forms");
   await page.locator("#affix-prefix").scrollIntoViewIfNeeded();
   const inputTops = await page.locator("#affix-prefix, #affix-suffix, #affix-both").evaluateAll((inputs) => inputs.map((input) => input.getBoundingClientRect().top));
   expect(Math.max(...inputTops) - Math.min(...inputTops), "helper text must not shift neighboring inputs").toBeLessThan(1);
-  await page.getByRole("button", { name: "Continue", exact: true }).click();
-  await expect(page.getByLabel("Team name", { exact: true })).toBeFocused();
-  await page.getByLabel("Team name", { exact: true }).fill("Operations");
-  await page.getByRole("button", { name: "Continue", exact: true }).click();
-  await page.getByRole("spinbutton", { name: "team seats", exact: true }).fill("100");
-  await expect(page.getByRole("button", { name: "Increase team seats", exact: true })).toBeDisabled();
-  await page.getByRole("button", { name: "Continue", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Review your choices" })).toBeFocused();
-  await page.getByRole("button", { name: "Finish example", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Example complete", exact: true }).first()).toBeVisible();
+  await wizard.getByRole("button", { name: "Continue", exact: true }).click();
+  await expect(wizard.getByLabel("Team name", { exact: true })).toBeFocused();
+  await wizard.getByLabel("Team name", { exact: true }).fill("Operations");
+  await wizard.getByRole("button", { name: "Continue", exact: true }).click();
+  await wizard.getByRole("spinbutton", { name: "team seats", exact: true }).fill("100");
+  await expect(wizard.getByRole("button", { name: "Increase team seats", exact: true })).toBeDisabled();
+  await wizard.getByRole("button", { name: "Continue", exact: true }).click();
+  await expect(wizard.getByRole("heading", { name: "Review your choices" })).toBeFocused();
+  await wizard.getByRole("button", { name: "Finish example", exact: true }).click();
+  await expect(wizard.getByRole("heading", { name: "Example complete", exact: true }).first()).toBeVisible();
   await page.getByRole("button", { name: "Team members: Choose" }).click();
   await page.getByRole("combobox", { name: "Team members", exact: true }).fill("Priya");
   await page.keyboard.press("ArrowDown"); await page.keyboard.press("Enter"); await page.keyboard.press("Escape");

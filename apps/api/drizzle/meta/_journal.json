@@ -22,6 +22,27 @@
       "when": 1792500294901,
       "tag": "0002_session_reauth",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792522645708,
+      "tag": "0003_saved_views",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792566143518,
+      "tag": "0004_projects",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792566143732,
+      "tag": "0005_projects_search",
+      "breakpoints": true
     }
   ]
 }

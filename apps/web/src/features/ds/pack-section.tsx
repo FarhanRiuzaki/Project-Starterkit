@@ -1,6 +1,8 @@
 "use client";
+
+import { RadioGroup } from "@starterkit/ui/ds/form-options";
 import { useRef, useState } from "react";
-import { Accordion, ActivityItem, ApiKeyRow, BillingSummary, CheckboxGroup, ChoiceCard, Combobox, DatePicker, Field, FileItem, FileUpload, FilterRule, FormSection, IntegrationCard, NotificationItem, OnboardingChecklist, OtpInput, Panel, PlanCard, RadioGroup, RepeatableField, SettingsRow, Slider, Switch, TimeInput, WizardReview, WizardCompletion } from "@starterkit/ui/ds";
+import { Accordion, ActivityItem, ApiKeyRow, BillingSummary, CheckboxGroup, ChoiceCard, Combobox, DatePicker, Field, FileItem, FileUpload, FilterRule, FormSection, IntegrationCard, NotificationItem, OnboardingChecklist, OtpInput, Panel, PlanCard,  RepeatableField, SettingsRow, Slider, Switch, TimeInput, WizardReview, WizardCompletion } from "@starterkit/ui/ds";
 import { Button } from "@starterkit/ui/ui/button";
 import { Input } from "@starterkit/ui/ui/input";
 import { Textarea } from "@starterkit/ui/ui/textarea";
@@ -19,7 +21,7 @@ export function PackSection() {
   return <div className="grid gap-section">
     <FormSection title="Selection and input" description="Interactive examples. Values are local to this gallery.">
       <div className="grid gap-6 md:grid-cols-2">
-        <Field id="sample-description" label="Description" note={`Optional · ${formatNumber(notes.length)} / 500 characters`}><Textarea id="sample-description" maxLength={500} value={notes} onChange={(e) => setNotes(e.target.value)} /></Field>
+        <Field id="sample-description" label="Description" note={`Optional · ${formatNumber(notes.length)} / 500 characters`}><Textarea id="sample-description" limit={500} value={notes} onChange={(e) => setNotes(e.target.value)} /></Field>
         <RadioGroup legend="Default access" name="sample-access" value={role} onValueChange={setRole} options={[{ value: "viewer", label: "Viewer" }, { value: "editor", label: "Editor" }, { value: "admin", label: "Administrator" }]} />
         <CheckboxGroup legend="Notifications" value={checks} onValueChange={setChecks} options={[{ value: "email", label: "Email" }, { value: "digest", label: "Weekly digest" }]} />
         <Field id="sample-people" label="Team members"><Combobox id="sample-people" label="Team members" multiple value={people} onValueChange={setPeople} options={[{ value: "alex", label: "Alex Morgan" }, { value: "priya", label: "Priya Shah" }, { value: "noor", label: "Noor Chen" }]} /></Field>

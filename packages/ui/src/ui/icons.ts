@@ -20,6 +20,9 @@ export {
   UserListIcon as AllUsersIcon, // Nav child: all users
   UserCheck01Icon as ActiveUserIcon, // Nav child: active users
   UserBlock01Icon as InactiveUserIcon, // Nav child: inactive users
+  LayoutThreeColumnIcon as ColumnsIcon, // A table's column chooser (ColumnsMenu)
+  KeyboardIcon as ShortcutsIcon, // Keyboard shortcuts (account menu, palette)
+  Bookmark02Icon as ViewsIcon, // Saved list views (SavedViewsMenu)
 
   // Metrics
   CpuIcon,
@@ -45,7 +48,7 @@ export {
   BulbIcon as InsightIcon,
   GitBranchIcon as BranchIcon, // Git branch of a repository (Fleet Working on, Projects, Activity review)
   GitCommitIcon as CommitIcon, // Commits
-  Folder01Icon as FolderIcon, // Repositories, AI sessions outside a repository
+  Folder01Icon as FolderIcon, // Repositories, AI sessions outside a repository, projects (nav, list, empty states)
   Calendar03Icon as CalendarIcon, // Activity review period
   PrinterIcon as PrintIcon,
   PencilEdit02Icon as EditIcon, // Edit an About summary
@@ -78,6 +81,7 @@ export {
   LinkSquare02Icon as ExternalLinkIcon,
   Copy01Icon as CopyIcon,
   Tick02Icon as CheckIcon,
+  Image01Icon as ImageIcon, // An image file before its preview loads
   Cancel01Icon as CloseIcon,
   MoreHorizontalIcon as MoreIcon,
   CommandLineIcon as CommandsIcon,

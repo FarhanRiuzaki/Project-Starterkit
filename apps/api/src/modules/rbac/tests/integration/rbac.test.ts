@@ -323,7 +323,7 @@ describe("/v1/permissions", () => {
 
   it("filters by module, searches the name, sorts by name and action", async () => {
     expect((await perms("module=role")).map((p) => p.name)).toEqual(["role.view", "role.create", "role.edit", "role.delete"]);
-    expect((await perms("q=CREATE")).map((p) => p.name)).toEqual(["user.create", "role.create", "permission.create"]);
+    expect((await perms("q=CREATE")).map((p) => p.name)).toEqual(PERMISSIONS.filter((p) => p.endsWith(".create")));
     const byName = (await perms("sort=-name")).map((p) => p.name);
     expect(byName).toEqual([...byName].sort().reverse());
     expect((await perms("module=user&sort=action")).map((p) => p.name)).toEqual(["user.create", "user.delete", "user.edit", "user.view"]);

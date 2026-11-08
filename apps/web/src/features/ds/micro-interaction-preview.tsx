@@ -1,7 +1,9 @@
 "use client";
 
+import { RadioGroup } from "@starterkit/ui/ds/form-options";
+
 import { useEffect, useRef, useState } from "react";
-import { Accordion, Checkbox, CopyValue, Field, InputAffix, InteractiveCard, NumberInput, Panel, RadioGroup, Segmented, Slider, Stepper, Switch, ProgressBar, type IndicatorStep } from "@starterkit/ui/ds";
+import { Accordion, Checkbox, CopyValue, Field, InputAffix, InteractiveCard, NumberInput, Panel, Segmented, Slider, Stepper, Switch, ProgressBar, type IndicatorStep } from "@starterkit/ui/ds";
 import { Button } from "@starterkit/ui/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@starterkit/ui/ui/dialog";
 import { Input } from "@starterkit/ui/ui/input";

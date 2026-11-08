@@ -1,8 +1,14 @@
+import { readdirSync } from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import * as q from "./queries";
 
-/** Query keys start with the module that owns the data, so one invalidation by module refreshes all of it. */
-const MODULES = ["users", "rbac", "me", "audit", "dashboard"];
+/**
+ * Query keys start with the module that owns the data, so one invalidation by module refreshes all of it. The modules
+ * are the API's (`apps/api/src/modules/<m>/`), so a new module's keys pass without editing this test.
+ */
+const MODULES = readdirSync(path.resolve(import.meta.dirname, "../../../../api/src/modules"), { withFileTypes: true })
+  .filter((d) => d.isDirectory()).map((d) => d.name);
 
 describe("query keys: one scheme", () => {
   it("every key and table key exported by queries.ts starts with a module name", () => {

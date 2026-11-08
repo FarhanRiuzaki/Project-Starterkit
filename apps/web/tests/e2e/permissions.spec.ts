@@ -13,7 +13,7 @@ test("viewer: menu, direct API call and direct page", async ({ page, baseURL }) 
 
   const menu = page.getByRole("navigation", { name: "Menu" });
   for (const name of ["Dashboard", "Users", "Activity log", "Sign-in log", "Profile"]) await expect(menu.getByRole("link", { name })).toBeVisible();
-  for (const name of ["Roles", "Permissions"]) await expect(menu.getByRole("link", { name })).toHaveCount(0);
+  for (const name of ["Roles", "Permissions", "Projects"]) await expect(menu.getByRole("link", { name })).toHaveCount(0);
 
   const user = { name: "Not Created", username: "not.created", email: "not.created@example.com", roles: [], password: "Password123!x" };
   const post = (token: string) => page.request.post("/api/users", { headers: { "x-csrf-token": token }, data: user });
@@ -26,17 +26,20 @@ test("viewer: menu, direct API call and direct page", async ({ page, baseURL }) 
   expect(await res.json()).toEqual({ error: { code: "forbidden", message: expect.any(String) } });
   const roles = await page.request.get("/api/roles");
   expect(roles.status()).toBe(403);
+  expect((await page.request.get("/api/projects")).status()).toBe(403);
+  const project = await page.request.post("/api/projects", { headers: { "x-csrf-token": await csrfOf(page) }, data: { name: "Not created" } });
+  expect(project.status()).toBe(403);
 
   const users = await page.request.get("/api/users?q=not.created");
   expect((await users.json()).total, "nothing was created").toBe(0);
 
   // A document load of a page the role can't open is a real 404 (the (main) layout checks before streaming), with
   // nothing about the page or its data in the answer.
-  for (const path of ["/roles", "/roles/{adminRole}", "/permissions", "/users/new", "/users/{superadmin}/edit"]) {
+  for (const path of ["/roles", "/roles/{adminRole}", "/permissions", "/users/new", "/users/{superadmin}/edit", "/projects", "/projects/{project}", "/projects/new", "/projects/{project}/edit"]) {
     const direct = await page.goto(await withIds(path, baseURL));
     expect(direct?.status(), path).toBe(404);
     const html = await direct!.text();
-    for (const leak of ['href="/roles/', superadminRole, "Every permission", "Permissions of", "Create user", "Edit user", ">Roles<", ">Permissions<"]) {
+    for (const leak of ['href="/roles/', superadminRole, "Every permission", "Permissions of", "Create user", "Edit user", ">Roles<", ">Permissions<", ">Projects<", "Apollo"]) {
       expect(html, `${path} leaks ${leak}`).not.toContain(leak);
     }
     await heading(page, "Page not found");
@@ -73,7 +76,7 @@ test.describe("new user form", () => {
   test("an inactive new user can't get an invitation: the option is off, with the reason", async ({ page }) => {
     await page.goto("/users/new");
     await heading(page, "Create user");
-    const invite = page.getByRole("radio", { name: "Send an invitation link (valid 72 hours)" });
+    const invite = page.getByRole("radio", { name: "Send an invitation link" });
     await invite.check();
     await page.getByRole("checkbox", { name: "Active" }).uncheck();
     await expect(invite).toBeDisabled();

@@ -40,7 +40,8 @@
         "user",
         "role",
         "permission",
-        "audit"
+        "audit",
+        "project"
       ]
     }
   }

@@ -21,7 +21,7 @@ export function nextRole(text: string, value: string, names: readonly string[], 
  * One role, typed: for when there are more roles than a picker lists (`useRoleNames().more`). Suggestions come from
  * the server as you type (`q`, native datalist); see nextRole for what gets applied.
  */
-export function RoleSearch({ id, label, value, onChange }: { id?: string; label: string; value: string; onChange: (role: string) => void }) {
+export function RoleSearch({ id, label, value, onChange, className = "w-48" }: { id?: string; label: string; value: string; onChange: (role: string) => void; className?: string }) {
   const auto = useId();
   const inputId = id ?? auto;
   const [text, setText] = useState(value);
@@ -45,7 +45,8 @@ export function RoleSearch({ id, label, value, onChange }: { id?: string; label:
     commit(text, true);
   };
   return (
-    <div className="w-48">
+    <div className={className}>
+      <label htmlFor={inputId} className="mb-2 block text-label">{label}</label>
       <Input id={inputId} aria-label={label} list={`${inputId}-roles`} value={text} placeholder={`${label}: type, then Enter`} autoComplete="off"
         onChange={onInput} onKeyDown={onKeyDown} />
       <datalist id={`${inputId}-roles`}>{roles.names.map((n) => <option key={n} value={n} />)}</datalist>

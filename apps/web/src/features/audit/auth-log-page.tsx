@@ -44,6 +44,10 @@ export function AuthLogPage() {
       description="Sign-ins, failed attempts, one-time codes and sign-outs, with the method, IP address and device."
       columns={COLUMNS} rowLabel={(r) => `${EVENT_LABEL[r.event]}, ${r.login}`} legend={LEGEND}
       emptyHint="Entries appear here each time someone signs in, enters a one-time code or signs out."
+      filterFields={[
+        { key: "event", label: "Event", format: value => EVENTS.find(e => e.value === value)?.label ?? value },
+        { key: "method", label: "Method", format: value => METHODS.find(m => m.value === value)?.label ?? value },
+      ]}
       filters={(f, set) => <>
         <FilterMenu label="Event" value={f.event} options={EVENTS} onChange={(event) => set({ event })} />
         <FilterMenu label="Method" value={f.method} options={METHODS} onChange={(method) => set({ method })} />
