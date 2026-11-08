@@ -5,7 +5,9 @@ import { changeText, CSV_MAX_ROWS } from "@starterkit/shared/audit";
 import type { ActivityDto, ActivityQuery, AuthLogDto, AuthLogQuery } from "@starterkit/shared/contracts/audit";
 import type { Page } from "@starterkit/shared/contracts/common";
 import { CSV_BOM, toCsv } from "@starterkit/ui/lib/csv";
+import { resolveTimeRange } from "@starterkit/ui/lib/time-range";
 import { APP_TIME_ZONE } from "@starterkit/ui/lib/format";
+import { ApiError } from "../../kernel/errors";
 import { config } from "../../kernel/config";
 import { db, type Tx } from "../../kernel/db";
 import { likeEscape, one, pageQuery, sortSql } from "../../kernel/pagination";
@@ -29,10 +31,14 @@ const ACTIVITY_SORTS = { at: activity.at, actor: sql`lower(${activity.actorName}
 const AUTH_LOG_SORTS = { at: authLog.at, login: sql`lower(${authLog.login})`, event: authLog.event };
 
 /** The from–to calendar days in the app time zone, both whole; no range = no condition. */
-const inRange = (at: Column, q: { from?: string; to?: string }): SQL | undefined =>
-  q.from && q.to
-    ? sql`${at} >= (${q.from}::date)::timestamp at time zone ${APP_TIME_ZONE} and ${at} < ((${q.to}::date + 1)::timestamp at time zone ${APP_TIME_ZONE})`
-    : undefined;
+const inRange = (at: Column, q: { from?: string; to?: string; start?: string; end?: string }): SQL | undefined => {
+  if (q.start && q.end) {
+    const range = resolveTimeRange({ start: q.start, end: q.end }, Date.now())!;
+    if (!range) throw new ApiError("bad_request");
+    return sql`${at} >= ${new Date(range.start)} and ${at} < ${new Date(range.end)}`;
+  }
+  return q.from && q.to ? sql`${at} >= (${q.from}::date)::timestamp at time zone ${APP_TIME_ZONE} and ${at} < ((${q.to}::date + 1)::timestamp at time zone ${APP_TIME_ZONE})` : undefined;
+};
 
 /** `user` as a case-insensitive literal substring of `name`, of the id as text, or of that user's current email. */
 function matchesUser(user: string | undefined, name: Column, id: Column): SQL | undefined {

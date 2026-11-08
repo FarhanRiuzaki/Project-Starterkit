@@ -57,6 +57,11 @@ beforeEach(async () => {
 
 describe.each([["activity", activity], ["auth", auth]] as const)("GET /api/audit/%s: query", (_, get) => {
   it.each([
+    ["start=now-15m", "start without end"],
+    ["start=now&end=now-1h", "end before start"],
+    ["start=now-2y&end=now", "time span over one year"],
+    ["start=now.constructor&end=now", "invalid date math"],
+    ["start=now-1h&end=now&from=2026-10-01&to=2026-10-02", "mixed range formats"],
     ["from=2026-10-10&to=2026-10-09", "to before from"],
     ["from=2026-01-01&to=2026-04-03", "93 days"],
     ["from=2026-10-01", "from without to"],
@@ -263,5 +268,27 @@ describe("audit entries from real actions", () => {
     const top = (await page<ActivityDto>(await activity(token))).items[0]!;
     expect(top).toMatchObject({ action: "user.update", target: { id: viewerId } });
     expect(top.after).toMatchObject({ name: "Renamed Viewer" });
+  });
+});
+
+
+describe.each([["activity", activity], ["auth", auth]] as const)("%s precise time filters", (name, get) => {
+  it("filters millisecond boundaries in JSON and CSV and reevaluates now on refresh", async () => {
+    const token = await signIn("viewer");
+    const now = Date.parse("2026-11-08T03:00:00.000Z");
+    const rows = [now - 900001, now - 900000, now - 1, now].map((at, i) => ({ id: uuid(i + 1), at: new Date(at).toISOString() }));
+    if (name === "activity") await setActivity(rows); else await setAuthLog(rows);
+    setSystemTime(new Date(now));
+    const qs = new URLSearchParams({ start: "now-15m", end: "now" }).toString();
+    const result = await page<ActivityDto | AuthLogDto>(await get(token, qs));
+    expect(result.items.map(row => row.id)).toEqual([uuid(3), uuid(2)]);
+    const csv = await get(token, `${qs}&format=csv`);
+    expect(csv.status).toBe(200);
+    const body = await csv.text();
+    expect(body).toContain(rows[1]!.at); expect(body).toContain(rows[2]!.at);
+    expect(body).not.toContain(rows[0]!.at); expect(body).not.toContain(rows[3]!.at);
+    setSystemTime(new Date(now + 1));
+    expect((await page<ActivityDto | AuthLogDto>(await get(token, qs))).items.map(row => row.id)).toEqual([uuid(4), uuid(3)]);
+    setSystemTime();
   });
 });

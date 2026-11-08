@@ -1,6 +1,7 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useSearchParams } from "next/navigation";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { BarChart, CHART_HEIGHT, ChartLegend, legendItems } from "@starterkit/ui/charts";
 import { Avatar, type Column, DataTable, type Delta, EmptyState, ErrorState, LazyMount, Notice, Panel, RelativeTime, StatTile, StatTiles, StatTileSkeletons, Truncate } from "@starterkit/ui/ds";
@@ -15,7 +16,8 @@ import { useAuth } from "@/lib/client/auth-context";
 import { actionLabel } from "@starterkit/shared/audit";
 import type { ActivityDto } from "@starterkit/shared/contracts/audit";
 import type { DashboardDto } from "@starterkit/shared/contracts/dashboard";
-import { DASHBOARD_KEY } from "@/lib/shared/queries";
+import { timeRange } from "@/lib/shared/time-controls";
+import { dashboardRead } from "@/lib/shared/queries";
 
 // Sign-in outcomes are events, not health: slot 1 / slot 2 (design-system §3.3, §5.8), never the Down mark.
 const SERIES = [{ label: "Successful", slot: 0 }, { label: "Failed", slot: 1 }];
@@ -36,7 +38,8 @@ const RECENT: Column<ActivityDto>[] = [
 
 /** Home: headline numbers, sign-ins per day, and (with audit.view) the latest activity. */
 export function DashboardPage() {
-  const q = useQuery({ queryKey: DASHBOARD_KEY, queryFn: () => api<DashboardDto>("/api/dashboard") });
+  const sp = useSearchParams(), read = dashboardRead(sp);
+  const q = useQuery({ queryKey: read.key, queryFn: () => api<DashboardDto>(read.path), placeholderData: keepPreviousData });
   // What the server will send follows audit.view, so the loading shape matches the loaded one (no layout shift).
   const audit = useAuth().can("audit.view");
   const d = q.data;
@@ -47,7 +50,8 @@ export function DashboardPage() {
 
   return (
     <div className="grid gap-section">
-      <PageHeader title="Dashboard" description="Users, sessions and sign-ins across the app, as of when you opened this page." />
+      <PageHeader title="Dashboard" description="Users, sessions and sign-ins across the app." />
+      {q.isPlaceholderData && <Notice live>Updating the selected period…</Notice>}
       {q.error && d && <Notice tone="warn" live>Couldn&apos;t refresh the dashboard; showing the numbers loaded before. {errorText(q.error)}</Notice>}
 
       {q.error && !d ? (
@@ -58,21 +62,22 @@ export function DashboardPage() {
             {d && (
               <StatTiles>
                 <StatTile icon={UsersIcon} label="Active users" {...tile(d.activeUsers)} caption="Accounts that can sign in" />
-                <StatTile icon={IdentityIcon} label="New users" {...tile(d.newUsers7d)} caption="Last 7 days · vs previous 7 days"
-                  delta={change(d.newUsers7d, d.newUsersPrev7d, "7 days", "up")} />
+                <StatTile icon={IdentityIcon} label="New users" {...tile(d.period?.newUsers ?? d.newUsers7d)} caption={d.period ? "Selected period · vs preceding period" : "Last 7 days · vs previous 7 days"}
+                  delta={change(d.period?.newUsers ?? d.newUsers7d, d.period?.previousNewUsers ?? d.newUsersPrev7d, d.period ? "period" : "7 days", "up")} />
                 {d.failedLogins24h !== null && (
-                  <StatTile icon={FailedIcon} label="Failed sign-ins" {...tile(d.failedLogins24h)} caption="Last 24 hours · vs previous 24 hours"
-                    delta={change(d.failedLogins24h, d.failedLoginsPrev24h ?? 0, "24 hours", "down")} />
+                  <StatTile icon={FailedIcon} label="Failed sign-ins" {...tile(d.period?.failedSignIns ?? d.failedLogins24h)} caption={d.period ? "Selected period · vs preceding period" : "Last 24 hours · vs previous 24 hours"}
+                    delta={change(d.period?.failedSignIns ?? d.failedLogins24h, d.period?.previousFailedSignIns ?? d.failedLoginsPrev24h ?? 0, d.period ? "period" : "24 hours", "down")} />
                 )}
                 <StatTile icon={SessionsIcon} label="Active sessions" {...tile(d.activeSessions)} caption="Signed in now" />
               </StatTiles>
             )}
           </Reveal>
 
-          <Panel icon={ColumnChartIcon} title="Sign-ins per day" description={`Last 14 days · per day, ${APP_TIME_ZONE_LABEL}`}
+          <div className="grid gap-6 xl:grid-cols-[2fr_1fr]">
+          <Panel bodyClassName="overflow-clip" icon={ColumnChartIcon} title="Sign-ins per day" description={`${d?.period ? timeRange(sp).label : "Last 14 days"} · per day, ${APP_TIME_ZONE_LABEL}`}
             actions={<ChartLegend items={legendItems(series)} />}>
             <Reveal loading={!d} skeleton={<Skeleton className="w-full rounded-md" style={{ height: CHART_HEIGHT.standard }} />}>
-              {signIns === 0 ? <EmptyState icon={ColumnChartIcon} title="No sign-ins in the last 14 days" description="Each sign-in attempt is counted here on the day it happens." />
+              {signIns === 0 ? <EmptyState icon={ColumnChartIcon} title="No sign-ins in this period" description="Each sign-in attempt is counted here on the day it happens." />
                 : (
                   <LazyMount minHeight={CHART_HEIGHT.standard}>
                     <BarChart label="Sign-ins per day" hideLegend format={formatNumber}
@@ -82,6 +87,16 @@ export function DashboardPage() {
                 )}
             </Reveal>
           </Panel>
+          <Panel title="In this period" bodyClassName="grid content-start gap-4 p-6">
+            {!d ? <Skeleton className="h-36 w-full" /> : <>
+              <p className="text-stat tabular">{formatNumber(signIns)}</p>
+              <p className="text-body-sm text-fg-2">{audit ? "Sign-in attempts" : "Successful sign-ins"}</p>
+              <p className="border-t border-line pt-4 text-body-sm text-fg-2">{formatNumber(days.reduce((n, x) => n + x.success, 0))} successful{audit && ` · ${formatNumber(days.reduce((n, x) => n + (x.failed ?? 0), 0))} failed`}</p>
+              <p className="text-caption text-fg-3">Calendar days in {APP_TIME_ZONE_LABEL}. Active users and sessions are current snapshots.</p>
+              {audit && <Button asChild variant="secondary" className="justify-self-start"><Link href={`/audit/auth?${new URLSearchParams(d.period?.start && d.period.end ? { start: d.period.start, end: d.period.end } : d.period ? { from: d.period.from, to: d.period.to } : days.length ? { from: days[0]!.date, to: days[days.length - 1]!.date } : {})}`}>Open sign-in log</Link></Button>}
+            </>}
+          </Panel>
+          </div>
 
           {(d ? d.recent : audit) && (
             <Panel flush icon={LogIcon} title="Recent activity" description="The 5 newest changes"

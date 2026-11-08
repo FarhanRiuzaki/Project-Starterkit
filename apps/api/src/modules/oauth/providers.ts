@@ -5,11 +5,11 @@ import { Apple, Google } from "arctic";
 import { createRemoteJWKSet, type JWTVerifyGetKey, jwtVerify } from "jose";
 import { z } from "zod";
 import type { ConnectionProvider } from "@starterkit/shared/contracts/me";
-import { maskText } from "@starterkit/shared/log-redact";
 import { APPLE_KEYS, type Config, config, GOOGLE_KEYS } from "../../kernel/config";
 import { safeEqual } from "../../kernel/crypto";
 import { ApiError } from "../../kernel/errors";
 import { log } from "../../kernel/log";
+import { exchangeCode } from "./exchange";
 
 /** `POST /v1/auth/oauth/{provider}/start`: `bindingHash` = SHA-256 (base64url) of the browser's binding cookie. */
 export const OAuthStartBody = z.object({
@@ -87,11 +87,10 @@ export async function identityOf(p: ConnectionProvider, code: string, s: { verif
     return { subject: `mock-${p}-${s.userId ?? "demo"}`, email: null };
   }
   try {
-    const cl = client(p, c);
-    const tokens = cl instanceof Google ? await cl.validateAuthorizationCode(code, s.verifier) : await cl.validateAuthorizationCode(code);
-    return await verifyIdToken(p, tokens.idToken(), { clientId: p === "google" ? c.GOOGLE_CLIENT_ID! : c.APPLE_CLIENT_ID!, nonce: s.nonce });
+    const idToken = await exchangeCode(p, code, s.verifier, c);
+    return await verifyIdToken(p, idToken, { clientId: p === "google" ? c.GOOGLE_CLIENT_ID! : c.APPLE_CLIENT_ID!, nonce: s.nonce });
   } catch (e) {
-    log.warn({ provider: p, err: e instanceof Error ? { name: e.name, message: maskText(e.message) } : { name: typeof e } }, "oauth code refused");
+    log.warn({ provider: p, err: e instanceof Error ? { name: e.name } : { name: typeof e } }, "oauth code refused");
     throw new ApiError("invalid_credentials", NOT_CONFIRMED);
   }
 }

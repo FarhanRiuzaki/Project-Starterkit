@@ -3,19 +3,17 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useEffect, useState } from "react";
-import { BlockedButton, Segmented } from "@starterkit/ui/ds";
+import { BlockedButton, CategoryChip, InputAffix } from "@starterkit/ui/ds";
 import { Button, buttonVariants } from "@starterkit/ui/ui/button";
 import { Icon } from "@starterkit/ui/ui/icon";
 import { SecureIcon, SpinnerIcon } from "@starterkit/ui/ui/icons";
-import { Input } from "@starterkit/ui/ui/input";
 import { PasswordInput } from "@starterkit/ui/ui/password-input";
 import { api, errorText } from "@/lib/client/api";
+import { loginIdentifierBadge } from "@starterkit/shared/login-identifier";
 import type { LoginResult } from "@starterkit/shared/contracts/auth";
 import type { ConnectionProvider } from "@starterkit/shared/contracts/me";
 import { AuthCard, FormError } from "./auth-card";
 
-type Method = "password" | "ldap";
-const METHODS = [{ value: "password", label: "Password" }, { value: "ldap", label: "LDAP" }] as const;
 const PROVIDERS = [{ id: "google", label: "Google" }, { id: "apple", label: "Apple" }] as const;
 
 /**
@@ -25,8 +23,8 @@ const PROVIDERS = [{ id: "google", label: "Google" }, { id: "apple", label: "App
  */
 export function LoginForm({ next, providers, error: initialError = null }: { next: string; providers: Record<ConnectionProvider, boolean>; error?: string | null }) {
   const router = useRouter();
-  const [method, setMethod] = useState<Method>("password");
   const [login, setLogin] = useState("");
+  const badge = loginIdentifierBadge(login);
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(initialError);
   const [busy, setBusy] = useState(false);
@@ -41,7 +39,7 @@ export function LoginForm({ next, providers, error: initialError = null }: { nex
     setBusy(true);
     setError(null);
     try {
-      const r = await api<LoginResult>("/api/auth/login", { method: "POST", body: JSON.stringify({ method, login, password, next }) });
+      const r = await api<LoginResult>("/api/auth/login", { method: "POST", body: JSON.stringify({ method: "auto", login, password, next }) });
       router.replace(r.next);
       router.refresh();
     } catch (err) {
@@ -53,22 +51,21 @@ export function LoginForm({ next, providers, error: initialError = null }: { nex
   const errId = "login-error";
   const described = error ? { "aria-describedby": errId } : {};
   return (
-    <AuthCard title="Sign in" description={method === "ldap" ? "Use your directory username and password." : "Use your email or username and password."}>
+    <AuthCard title="Sign in" description="Use your email, username or NIP and password.">
       <form onSubmit={submit} className="grid gap-4">
-        <Segmented label="Sign-in method" value={method} options={METHODS} onChange={(m) => { setMethod(m); setError(null); }} />
         <div className="grid gap-1.5">
-          <label htmlFor="login" className="text-label text-fg">{method === "ldap" ? "Directory username" : "Email or username"}</label>
-          <Input id="login" className="h-10" autoComplete="username" autoFocus required value={login} onChange={(e) => setLogin(e.target.value)} {...described} />
+          <label htmlFor="login" className="text-label text-fg">Email, username or NIP</label>
+          <InputAffix id="login" name="login" className="h-10" autoComplete="username" autoCapitalize="none" spellCheck={false} autoFocus required maxLength={254} value={login} onChange={(e) => { setLogin(e.target.value); setError(null); }} suffix={badge ? <CategoryChip key={badge} label={badge} slot="neutral" className="animate-swap" /> : undefined} {...described} />
         </div>
         <div className="grid gap-1.5">
           <div className="flex items-baseline">
-            <label htmlFor="password" className="text-label text-fg">{method === "ldap" ? "Directory password" : "Password"}</label>
-            {method === "password" && <Link href="/forgot-password" className="ml-auto text-label text-primary-ink underline underline-offset-4 hover:decoration-2">Forgot password?</Link>}
+            <label htmlFor="password" className="text-label text-fg">Password</label>
+            <Link href="/forgot-password" className="ml-auto text-label text-primary-ink underline underline-offset-4 hover:decoration-2">Forgot password?</Link>
           </div>
-          <PasswordInput id="password" className="h-10" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} {...described} />
+          <PasswordInput id="password" className="h-10 pointer-coarse:h-12" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} {...described} />
         </div>
         {error && <FormError id={errId} message={error} />}
-        <Button type="submit" size="lg" className="h-10 w-full" disabled={busy}>
+        <Button type="submit" size="lg" className="h-10 w-full" disabled={busy} aria-busy={busy || undefined}>
           {busy && <Icon icon={SpinnerIcon} className="motion-safe:animate-spin" />}Sign in
         </Button>
       </form>

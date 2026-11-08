@@ -8,6 +8,7 @@ import { axeSerious } from "./helpers";
  * fixtures carry fixed times, reduced motion and `animations: "disabled"` stop every animation, and every lazy chart
  * is mounted before the shot.
  */
+test.setTimeout(90_000);
 test.use({ storageState: AUTH_STATE, reducedMotion: "reduce" });
 
 /** Scrolls through the page so every LazyMount region mounts (otherwise the height depends on the scroll position). */

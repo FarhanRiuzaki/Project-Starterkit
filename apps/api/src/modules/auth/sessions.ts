@@ -115,8 +115,8 @@ export async function resolveSession(token: string): Promise<AuthUser | null> {
 }
 
 /** The session proved the user just now (POST /v1/me/reauth). */
-export async function stampReauth(sid: string): Promise<void> {
-  await db.update(sessions).set({ reauthAt: sql`now()` }).where(eq(sessions.id, sid));
+export async function stampReauth(sid: string, tx: Tx = db): Promise<void> {
+  await tx.update(sessions).set({ reauthAt: sql`now()` }).where(eq(sessions.id, sid));
 }
 
 /** Ends one session (sign-out, terminate), through `tx` when given. */

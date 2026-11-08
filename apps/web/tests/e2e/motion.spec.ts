@@ -66,9 +66,10 @@ async function navigateTwice(page: Page) {
 }
 
 /** The segmented control's indicator box and the active option's box, relative to the control. */
-const indicatorFit = (page: Page) => page.getByRole("radiogroup", { name: "Sign-in method" }).evaluate((group) => {
-  const bar = group.querySelector<HTMLElement>(".indicator-move")!;
+const indicatorFit = (page: Page) => page.getByRole("radiogroup", { name: "Sign-in preview state" }).evaluate((group) => {
+  const bar = group.querySelector<HTMLElement>('[data-slot="motion-indicator"], .indicator-move');
   const on = group.querySelector<HTMLElement>("[role=radio][aria-checked=true]")!;
+  if (!bar || !on) return { dx: Infinity, dw: Infinity, visible: false };
   const g = group.getBoundingClientRect(), b = bar.getBoundingClientRect(), o = on.getBoundingClientRect();
   return { dx: Math.abs(b.left - o.left), dw: Math.abs(b.width - o.width), visible: b.width > 0 && b.left >= g.left - 1 && getComputedStyle(bar).opacity !== "0" };
 });
@@ -118,30 +119,36 @@ test.describe("reduced motion", () => {
   });
 });
 
-for (const reducedMotion of ["no-preference", "reduce"] as const) {
-  test(`segmented indicator (${reducedMotion === "reduce" ? "reduced motion: jumps" : "slides"}) and sits on the active option`, async ({ page }) => {
-    await page.emulateMedia({ reducedMotion });
-    await page.goto("/login");
-    const fits = async () => { const f = await indicatorFit(page); return f.visible && f.dx <= 1 && f.dw <= 1; };
-    await expect.poll(fits, { message: "the indicator covers Password" }).toBe(true);
-    // Every frame for 600 ms after the click: the indicator's left edge. A slide passes through in-between positions;
-    // a jump shows only the old and the new one.
-    const bar = page.getByRole("radiogroup", { name: "Sign-in method" }).locator(".indicator-move");
-    const lefts = bar.evaluate((el) => new Promise<number>((done) => {
-      const seen = new Set<number>();
-      const t0 = performance.now();
-      const tick = () => {
-        seen.add(Math.round(el.getBoundingClientRect().left));
-        if (performance.now() - t0 < 600) requestAnimationFrame(tick); else done(seen.size);
-      };
-      requestAnimationFrame(tick);
-    }));
-    await page.getByRole("radio", { name: "LDAP" }).click();
-    if (reducedMotion === "reduce") expect(await lefts, "positions the indicator passed through").toBeLessThanOrEqual(2);
-    else expect(await lefts, "positions the indicator passed through").toBeGreaterThan(3);
-    await expect.poll(fits, { message: "the indicator covers LDAP" }).toBe(true);
-  });
-}
+test.describe("shared segmented indicator", () => {
+  test.use({ storageState: AUTH_STATE });
+  for (const reducedMotion of ["no-preference", "reduce"] as const) {
+    test(`segmented indicator (${reducedMotion === "reduce" ? "reduced motion: jumps" : "slides"}) and sits on the active option`, async ({ page }) => {
+      await page.emulateMedia({ reducedMotion });
+      await page.goto("/ds#ds-compositions");
+      await page.getByRole("radiogroup", { name: "Sign-in preview state" }).scrollIntoViewIfNeeded();
+      const fits = async () => { const f = await indicatorFit(page); return f.visible && f.dx <= 1 && f.dw <= 1; };
+      await expect.poll(fits, { message: "the indicator covers Password" }).toBe(true);
+      // Every frame for 600 ms after the click: the indicator's left edge. A slide passes through in-between positions;
+      // a jump shows only the old and the new one.
+      const group = page.getByRole("radiogroup", { name: "Sign-in preview state" });
+      await expect(group.locator('[data-slot="motion-indicator"]')).toBeVisible();
+      const lefts = group.evaluate((el) => new Promise<number>((done) => {
+        const seen = new Set<number>();
+        const t0 = performance.now();
+        const tick = () => {
+          const indicator = el.querySelector('[data-slot="motion-indicator"], .indicator-move');
+          if (indicator) seen.add(Math.round(indicator.getBoundingClientRect().left));
+          if (performance.now() - t0 < 600) requestAnimationFrame(tick); else done(seen.size);
+        };
+        requestAnimationFrame(tick);
+      }));
+      await page.getByRole("radio", { name: "LDAP" }).click();
+      if (reducedMotion === "reduce") expect(await lefts, "positions the indicator passed through").toBeLessThanOrEqual(2);
+      else expect(await lefts, "positions the indicator passed through").toBeGreaterThan(3);
+      await expect.poll(fits, { message: "the indicator covers LDAP" }).toBe(true);
+    });
+  }
+});
 
 test.describe("console", () => {
   test.use({ storageState: AUTH_STATE });

@@ -9,7 +9,7 @@ import { SessionListQuery } from "@starterkit/shared/contracts/me";
 import { PermissionListQuery, RoleListQuery } from "@starterkit/shared/contracts/rbac";
 import { UserListQuery } from "@starterkit/shared/contracts/users";
 import {
-  ACTIVITY, AUTH_LOG, DASHBOARD_KEY, ME_KEY, MY_SESSIONS, PERMISSIONS_TABLE, roleKey, roleOptions, roleUrl, ROLES, SUPERADMINS,
+  ACTIVITY, AUTH_LOG, dashboardRead, ME_KEY, MY_SESSIONS, PERMISSIONS_TABLE, roleKey, roleOptions, roleUrl, ROLES, SUPERADMINS,
   type TableDef, userDetail as userDetailQuery, USERS, userSessions as userSessionsTable,
 } from "@/lib/shared/queries";
 import { readTable, tableRequest } from "@/lib/shared/table-state";
@@ -42,7 +42,7 @@ export function table<F extends Record<string, string>, Q>(def: TableDef<F>, sp:
 
 /** What each screen reads first (app/(main)/** page.tsx lists its own), each the GET its browser hook sends. */
 export const reads = {
-  dashboard: (): Read => ({ key: DASHBOARD_KEY, path: "/api/dashboard" }),
+  dashboard: (sp = new URLSearchParams()): Read => dashboardRead(sp),
   me: (): Read => ({ key: ME_KEY, path: "/api/me" }),
   mySessions: (sp: URLSearchParams) => table(MY_SESSIONS, sp, SessionListQuery),
   users: (sp: URLSearchParams) => table(USERS, sp, UserListQuery),

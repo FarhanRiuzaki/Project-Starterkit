@@ -22,6 +22,10 @@ import { SunnyGoMark, SunnyGoWordmark } from "@/components/brand";
 import { PermissionMatrix } from "@/components/permission-matrix";
 import { PERMISSIONS, type PermissionName } from "@starterkit/shared/permissions";
 import { DAYS, HEAT, RESULTS, ROWS, type Row, TOP_ERRORS } from "./fixtures";
+import { LibrarySection } from "./library-section";
+import { ComponentCatalog } from "./component-catalog";
+import { PackSection } from "./pack-section";
+import { FormSectionGallery } from "./form-section";
 import { MotionSection } from "./motion-section";
 
 /** Matrix sample: the viewer holds every permission but role.delete and permission.create (those cells say why). */
@@ -69,7 +73,11 @@ export function GallerySections() {
 
   return (
     <>
-      <SectionTitle>Toolbar and data table</SectionTitle>
+      <ComponentCatalog />
+      <div id="ds-forms" className="scroll-mt-20"><FormSectionGallery /></div>
+      <PackSection />
+      <LibrarySection />
+      <div id="ds-tables" className="scroll-mt-20"><SectionTitle>Toolbar and data table</SectionTitle></div>
       {/* The list's toolbar sits on the panel's title row (ui-standard §1 item 4). */}
       <Panel flush icon={UsersIcon} title="Users" count="12,345" legend={LEGEND}
         description="Server-paged: page, page size and sort are requests; selection, row actions; the info button explains the statuses"
@@ -108,7 +116,7 @@ export function GallerySections() {
         <Panel icon={HeatmapIcon} title="Load heatmap" description="One tile per node" className="col-span-12"><Heatmap label="Load per node" cells={HEAT} /></Panel>
       </div>
 
-      <SectionTitle>Components</SectionTitle>
+      <div id="ds-primitives" className="scroll-mt-20"><SectionTitle>Components</SectionTitle></div>
       <div className="grid grid-cols-12 gap-gutter">
         <Panel title="Buttons and inputs" className="col-span-12 md:col-span-6">
           <div className="grid gap-4">
@@ -186,7 +194,7 @@ export function GallerySections() {
         </Panel>
       </div>
 
-      <SectionTitle>Tokens</SectionTitle>
+      <div id="ds-foundations" className="scroll-mt-20"><SectionTitle>Tokens</SectionTitle></div>
       <Tokens />
 
       <MotionSection />

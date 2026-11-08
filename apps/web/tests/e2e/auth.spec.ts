@@ -1,11 +1,51 @@
 import { expect, test } from "@playwright/test";
-import { heading, SEED, signIn, totp } from "./helpers";
+import { axeSerious, expectNoHorizontalScroll, heading, SEED, signIn, totp } from "./helpers";
 
 /**
  * Sign-in end to end, one seed account per method, each in a fresh browser context (no shared session is touched).
  * Every sign-in counts against the sign-in rate limit, so each method signs in once.
  */
 const account = (name: string) => `${name}, account menu`;
+
+test("identifier detects email, username and NIP in an inset badge without looking up accounts", async ({ browser, baseURL }, testInfo) => {
+  for (const colorScheme of ["light", "dark"] as const) {
+    for (const width of [390, 1440]) {
+      const context = await browser.newContext({ baseURL, colorScheme, reducedMotion: "reduce", viewport: { width, height: 900 }, isMobile: width === 390, hasTouch: width === 390 });
+      const page = await context.newPage();
+      await page.goto("/login");
+      const lookups: string[] = [];
+      const track = (request: import("@playwright/test").Request) => { if (new URL(request.url()).pathname.startsWith("/api/")) lookups.push(request.url()); };
+      page.on("request", track);
+      await expect(page.getByRole("radiogroup", { name: "Sign-in method" })).toHaveCount(0);
+      const input = page.getByLabel("Email, username or NIP", { exact: true });
+      const field = input.locator("..");
+      const badge = field.locator('[data-slot="category-chip"]').first();
+      for (const [value, label] of [["alex.morgan", "Username"], ["alex.morgan@example.com", "Email"], ["00220283", "LDAP"]]) {
+        await input.fill(value!);
+        await expect(badge).toHaveText(label!);
+        expect(await input.inputValue()).toBe(value);
+        const { box, chip, editable, password } = await input.evaluate(el => ({
+          box: el.parentElement!.getBoundingClientRect().toJSON(),
+          chip: el.parentElement!.querySelector('[data-slot="category-chip"]')!.getBoundingClientRect().toJSON(),
+          editable: el.getBoundingClientRect().toJSON(),
+          password: document.querySelector("#password")!.getBoundingClientRect().toJSON(),
+        }));
+        expect(box.height).toBe(password.height);
+        expect(chip!.x + chip!.width).toBeLessThan(box!.x + box!.width);
+        expect(editable!.x + editable!.width).toBeLessThanOrEqual(chip!.x);
+        expect(Math.abs((chip!.y + chip!.height / 2) - (box!.y + box!.height / 2))).toBeLessThan(1);
+      }
+      await page.screenshot({ path: testInfo.outputPath(`login-nip-${colorScheme}-${width}.png`), fullPage: true });
+      await expectNoHorizontalScroll(page);
+      expect(await axeSerious(page)).toEqual([]);
+      await input.fill("");
+      await expect(field.locator('[data-slot="category-chip"]')).toHaveCount(0);
+      expect(lookups).toEqual([]);
+      page.off("request", track);
+      await context.close();
+    }
+  }
+});
 
 test("password: email or username and password lands on the dashboard", async ({ page }) => {
   await signIn(page, "admin");
@@ -61,7 +101,7 @@ test("a failed Google/Apple sign-in shows its message once, then drops ?error= f
 });
 
 test("LDAP: directory username and directory password", async ({ page }) => {
-  await signIn(page, "ldap", SEED.ldapPassword, "LDAP");
+  await signIn(page, "ldap", SEED.ldapPassword);
   await expect(page).toHaveURL("/");
   await expect(page.getByRole("button", { name: account("Directory User") })).toBeVisible();
 });

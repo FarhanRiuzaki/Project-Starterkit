@@ -7,6 +7,9 @@
 .git
 .github
 .superpowers
+# Local agent tooling and nested worktrees can contain private env files and build caches.
+.agents
+.claude
 docs
 **/.DS_Store
 # Tests never reach an image (apps/api: modules/*/tests, kernel/tests, test/; web: e2e and the *.test.ts beside the source).

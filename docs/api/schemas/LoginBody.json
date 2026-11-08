@@ -14,9 +14,10 @@
       "maxLength": 256
     },
     "method": {
-      "default": "password",
+      "default": "auto",
       "type": "string",
       "enum": [
+        "auto",
         "password",
         "ldap"
       ]

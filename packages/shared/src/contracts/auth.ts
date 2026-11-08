@@ -7,7 +7,8 @@ export type AuthMethod = "password" | "ldap" | "google" | "apple";
 export const LoginBody = z.object({
   login: z.string().min(1).max(254),
   password: z.string().min(1).max(256),
-  method: z.enum(["password", "ldap"]).default("password"),
+  /** Auto selects the registered account provider; explicit methods remain supported for API clients. */
+  method: z.enum(["auto", "password", "ldap"]).default("auto"),
   /** Deep link to return to; the server keeps it only when internal (afterSignIn). */
   next: z.string().max(2048).optional(),
 });

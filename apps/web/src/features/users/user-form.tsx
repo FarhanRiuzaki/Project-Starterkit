@@ -98,7 +98,7 @@ function UserForm({ user }: { user?: UserDetailDto }) {
   return (
     <Panel icon={UsersIcon} title={user ? "Edit user" : "New user"} description={user ? "Name, sign-in names, roles and status" : "They sign in with the method you choose below"}>
       {blocked && <div className="mb-4"><Notice>{blocked}</Notice></div>}
-      <form onSubmit={save} className="grid max-w-md gap-4">
+      <form onSubmit={save} className="grid w-full gap-6">
         <fieldset disabled={!!blocked} className="contents">
         <Field id="u-name" label="Name"><Input id="u-name" value={name} maxLength={100} required onChange={(e) => setName(e.target.value)} autoComplete="off" /></Field>
         <Field id="u-username" label="Username" note="3–32 characters: letters, numbers, dot, dash or underscore.">

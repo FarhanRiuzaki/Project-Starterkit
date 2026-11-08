@@ -10,12 +10,12 @@ import { formatDateTime, formatDateTimeLong, formatRelative } from "../lib/forma
  * A touch screen has no hover: under a coarse pointer the short absolute time ("16 Oct, 14:05") is a second line in
  * fg-3, in the server HTML and switched by CSS. `touchDate={false}` when the caller already prints the absolute time.
  */
-export function RelativeTime({ at, touchDate = true }: { at: number | null; touchDate?: boolean }) {
+export function RelativeTime({ at, touchDate = true, now }: { at: number | null; touchDate?: boolean; now?: number }) {
   if (at == null) return <span className="text-fg-3">–</span>;
   return (
     <>
       <Tooltip>
-        <TooltipTrigger asChild><time dateTime={new Date(at).toISOString()} className="cursor-default" suppressHydrationWarning>{formatRelative(at)}</time></TooltipTrigger>
+        <TooltipTrigger asChild><time dateTime={new Date(at).toISOString()} className="cursor-default" suppressHydrationWarning>{formatRelative(at, now)}</time></TooltipTrigger>
         <TooltipContent>{formatDateTimeLong(at)}</TooltipContent>
       </Tooltip>
       {touchDate && <span className="hidden text-caption text-fg-3 pointer-coarse:block">{formatDateTime(at)}</span>}

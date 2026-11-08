@@ -1,5 +1,6 @@
 "use client";
 
+import { CardSurface } from "@starterkit/ui/ds/card-surface";
 import { PageError } from "@/components/page-error";
 
 /**
@@ -9,9 +10,9 @@ import { PageError } from "@/components/page-error";
 export default function RootError({ error, retry }: { error: Error & { digest?: string }; retry: () => void }) {
   return (
     <main className="grid min-h-screen place-items-center bg-bg px-4 py-10">
-      <div className="grid w-full max-w-100 rounded-xl border border-line bg-card p-4 shadow-card">
+      <CardSurface className="w-full max-w-100">
         <PageError error={error} retry={retry} />
-      </div>
+      </CardSurface>
     </main>
   );
 }

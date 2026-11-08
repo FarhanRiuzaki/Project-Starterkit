@@ -72,6 +72,9 @@ export {
   SearchRemoveIcon as NoResultsIcon,
   RefreshIcon, // Refresh, reload, try again
   Download04Icon as ExportIcon,
+  Upload01Icon as UploadIcon,
+  File02Icon as FileIcon,
+  Delete02Icon as RemoveIcon,
   LinkSquare02Icon as ExternalLinkIcon,
   Copy01Icon as CopyIcon,
   Tick02Icon as CheckIcon,

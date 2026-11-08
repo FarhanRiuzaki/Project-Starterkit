@@ -13,6 +13,8 @@
   --color-raised: var(--raised);
   --color-line: var(--line);
   --color-line-strong: var(--line-strong);
+  --color-control-border: var(--control-border);
+  --color-auth-art-accent: var(--auth-art-accent);
   --color-grid: var(--grid);
   --color-fg: var(--fg);
   --color-fg-2: var(--fg-2);
@@ -83,6 +85,7 @@
   --spacing-dense: 8px;
 
   /* type scale (spec §3.5) */
+  --text-welcome: 56px; --text-welcome--line-height: 62px; --text-welcome--letter-spacing: -0.03em; --text-welcome--font-weight: 400;
   --text-display: 32px;   --text-display--line-height: 40px;   --text-display--letter-spacing: -0.02em;   --text-display--font-weight: 400;
   --text-title-1: 22px;   --text-title-1--line-height: 28px;   --text-title-1--letter-spacing: -0.02em;   --text-title-1--font-weight: 600;
   --text-title-2: 15px;   --text-title-2--line-height: 22px;   --text-title-2--letter-spacing: -0.01em;   --text-title-2--font-weight: 500;
@@ -293,8 +296,12 @@ details[open]::details-content { block-size: auto; opacity: 1; }
   position: relative;
   transition: transform var(--dur-fast) var(--ease-standard), border-color var(--dur-fast) var(--ease-standard);
   &::after { content: ""; position: absolute; inset: -1px; border-radius: inherit; box-shadow: var(--shadow-sm); opacity: 0; transition: opacity var(--dur-fast) linear; pointer-events: none; }
-  &:hover { transform: translateY(-1px); border-color: var(--line-strong); }
-  &:hover::after { opacity: 1; }
+  &:focus-within { border-color: var(--line-strong); }
+  &:focus-within::after { opacity: 1; }
+  @media (hover: hover) and (pointer: fine) {
+    &:hover { transform: translateY(-1px); border-color: var(--line-strong); }
+    &:hover::after { opacity: 1; }
+  }
   &:active { transform: scale(0.995); }
   @media (prefers-reduced-motion: reduce) { &:hover, &:active { transform: none; } }
 }
@@ -327,3 +334,96 @@ details[open]::details-content { block-size: auto; opacity: 1; }
   .print-break { break-after: page; }
   .print-keep { break-inside: avoid; }
 }
+
+/* Connected tree branches: each row continues the trunk; the last row ends at its curved elbow. */
+.nav-tree > a::before {
+  content: "";
+  position: absolute;
+  left: calc(-0.75rem - 1px);
+  top: -0.25rem;
+  bottom: -0.25rem;
+  border-left: 1px solid var(--line-strong);
+}
+.nav-tree > a:last-child::before { bottom: calc(50% + 0.5rem); }
+.nav-tree-branch {
+  position: absolute;
+  left: calc(-0.75rem - 1px);
+  top: calc(50% - 0.5rem);
+  width: 0.75rem;
+  height: 0.5rem;
+  border-left: 1px solid var(--line-strong);
+  border-bottom: 1px solid var(--line-strong);
+  border-bottom-left-radius: var(--radius-md);
+  pointer-events: none;
+}
+.app-shell { --topbar-h: calc(3.5rem + env(safe-area-inset-top)); }
+.app-shell:has([data-time-controls="visible"]) { --topbar-h: calc(7rem + env(safe-area-inset-top)); }
+
+/* Shared micro-interactions. Semantics are the selectors: composed controls inherit the same feedback as their
+   primitives. Defaults have zero specificity; state selectors override static token utilities. */
+@layer utilities {
+  :where(button, summary, [role="button"], [role="tab"], [role="option"], [role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"], [role="radio"], [role="checkbox"], [data-slot="sidebar-nav"] a, [data-slot="nav-item"], [data-slot="route-tabs"] a, [data-slot="breadcrumb"] a) {
+    transition: background-color var(--dur-fast) var(--ease-standard), border-color var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard), opacity var(--dur-fast) var(--ease-standard);
+    -webkit-tap-highlight-color: transparent;
+  }
+  :where([data-slot="input"], [data-slot="select"], [data-slot="textarea"], [data-slot="input-affix"], [data-slot="number-input"], [data-slot="time-range-input"], [data-slot="file-dropzone"], [data-slot="otp-cell"], [data-slot="radio"], [data-slot="step-marker"], [data-slot="checkbox-mark"], [data-slot="category-chip"]) {
+    transition: border-color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard), box-shadow var(--dur-fast) var(--ease-standard);
+  }
+  /* Large surfaces and lists use color only, never an animated shadow or changing dimensions. */
+  :where([data-slot="file-dropzone"], [data-slot="radio"], [data-slot="step-marker"], [data-slot="category-chip"], [data-slot="checkbox-mark"]) {
+    transition-property: border-color, background-color, color;
+  }
+  [data-slot="button"][data-variant="ghost"]:is([data-state="open"], [aria-expanded="true"]) { background-color: var(--tray); color: var(--fg); }
+  :where([data-slot="command-input"]):focus-visible { outline: none; }
+  [data-slot="command-input"] { caret-color: var(--primary); }
+  [data-slot="command-search"] { transition: border-color var(--dur-fast) var(--ease-standard); }
+  [data-slot="command-search"]:focus-within { border-color: var(--primary); }
+  [data-slot="command-search"]:focus-within > svg { color: var(--primary); }
+  [data-slot="radio-mark"] { transition: border-color var(--dur-instant) var(--ease-standard); }
+  [data-slot="radio-mark"] > span { opacity: 0; transform: scale(var(--choice-press-scale)); transition: opacity var(--dur-instant) var(--ease-out), transform var(--dur-instant) var(--ease-out); }
+  [data-slot="radio"]:has(input:checked) [data-slot="radio-mark"] > span { opacity: 1; transform: scale(1); }
+  [data-slot="command"]:has([data-slot="command-input"]:focus-visible) [data-slot="command-input"] { color: var(--fg); }
+  [data-slot="otp-input"]:has(input:focus-visible) > [data-current="true"] { border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary-soft); }
+  [data-slot="otp-input"]:has(input[aria-invalid="true"]) > [data-slot="otp-cell"] { border-color: var(--down-mark); }
+  [data-slot="otp-input"]:has(input[aria-invalid="true"]:focus-visible) > [data-current="true"] { box-shadow: 0 0 0 2px var(--down-soft); }
+  [data-slot="otp-cell"][data-filled="true"] { background-color: var(--tray); }
+  [data-slot="slider"] { transition: opacity var(--dur-fast) var(--ease-standard); }
+  [data-slot="slider"]:disabled { cursor: not-allowed; }
+  [data-slot="disclosure-icon"] { transition: transform var(--dur-fast) var(--ease-out); }
+  :is([aria-expanded="true"], [data-state="open"]) > [data-slot="disclosure-icon"] { transform: rotate(180deg); }
+  [data-slot="button"][aria-busy="true"] { cursor: progress; }
+  :is(button, [role="button"])[aria-disabled="true"] { cursor: not-allowed; }
+
+  @media (hover: hover) and (pointer: fine) {
+    :where([data-slot="input"], [data-slot="select"], [data-slot="textarea"]):hover:not(:disabled, [readonly], [aria-invalid="true"], :focus),
+    :where([data-slot="input-affix"], [data-slot="number-input"]):hover:not([data-disabled], [data-readonly], [data-invalid], :focus-within, :has(input:disabled)),
+    [data-slot="file-dropzone"]:hover:not([data-disabled], [data-invalid], [data-dragging]) { border-color: var(--fg-3); }
+    [data-slot="radio"]:not(:has(input:disabled, input[readonly])):hover { color: var(--primary-ink); }
+    [data-slot="accordion-trigger"]:hover:not(:disabled) { color: var(--primary-ink); }
+    [data-slot="switch"]:not(:has(input:disabled, input[readonly])):hover > span:first-of-type { border-color: var(--primary); }
+    [data-slot="slider"]:hover:not(:disabled) { opacity: 0.85; }
+  }
+}
+
+/* Press never changes layout or delays an action. Only small controls opt in; a disabled/read-only/busy
+   trigger and a parent disabled fieldset have no press response. No extra JS or per-control event listeners. */
+@utility press-feedback {
+  transition-property: background-color, border-color, color, opacity, transform;
+  transition-duration: var(--dur-fast);
+  transition-timing-function: var(--ease-standard);
+  @media (prefers-reduced-motion: no-preference) {
+    &:active:not(:disabled, [aria-disabled="true"], [aria-readonly="true"], [aria-busy="true"], .press-static) {
+      transform: scale(var(--press-scale));
+      transition-duration: var(--dur-instant);
+    }
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  [data-slot="switch"]:has(input:active:not(:disabled, [readonly])) > span:last-of-type { scale: var(--choice-press-scale); }
+  [data-slot="switch"] > span:last-of-type { transition: translate var(--dur-instant) var(--ease-out), transform var(--dur-instant) var(--ease-out), scale var(--dur-instant) var(--ease-out); }
+}
+[data-motion-preview="reduced"] .press-feedback:active { transform: none !important; }
+[data-motion-preview="reduced"] [data-slot="switch"] > span:last-of-type { scale: 1 !important; }
+
+[data-motion-preview="reduced"] [data-slot="radio-mark"] > span { transform: none !important; }
+@media (prefers-reduced-motion: reduce) { [data-slot="radio-mark"] > span { transform: none; } }

@@ -4,9 +4,9 @@
 import { afterEach, beforeEach, describe, expect, it, spyOn } from "bun:test";
 import { asc, desc, eq, sql } from "drizzle-orm";
 import type { SelectedFields } from "drizzle-orm/pg-core";
-import { exportPKCS8, generateKeyPair } from "jose";
+import { exportPKCS8, generateKeyPair, jwtVerify } from "jose";
 import { call, resetData, signIn } from "../../../../../test/helpers/app";
-import { rows, sqlColumns } from "../../../../../test/helpers/db";
+import { holdTx, lockWaiters, rows, sqlColumns } from "../../../../../test/helpers/db";
 import { AUD, idToken, trustedKeys } from "../../../../../test/helpers/id-token";
 import * as conf from "../../../../kernel/config";
 import { hashToken } from "../../../../kernel/crypto";
@@ -47,6 +47,19 @@ const identitiesOf = (userId: string, cols: SelectedFields = { one: sql`1` }) =>
 beforeEach(resetData);
 
 describe("mock provider (OAUTH_MOCK)", () => {
+  it("a provider sign-in waiting on the account cannot use an identity unlinked meanwhile", async () => {
+    const userId = await idOf("google");
+    const state = stateOf((await (await start("google")).json()).url);
+    const holder = await holdTx(tx => tx.select({ one: sql`1` }).from(users).where(eq(users.id, userId)).for("update"));
+    try {
+      const pending = callback("google", { code: "mock", state });
+      expect(await lockWaiters(1, '%')).toBe(true);
+      await holder.commit(tx => tx.delete(userIdentities).where(eq(userIdentities.userId, userId)));
+      expect((await pending).status).toBe(401);
+      expect(await count("sessions")).toBe(0);
+    } finally { await holder.rollback(); }
+  });
+
   it("mock login signs in google@example.com: session, login_success with the provider, lastLoginAt", async () => {
     const r = await mockFlow("google");
     expect(r.status).toBe(200);
@@ -198,6 +211,20 @@ describe("linking (mode link)", () => {
       .toEqual({ mode: "link", user_id: await idOf("admin"), session_id: (await sessionOf(token)).id, next: null });
   });
 
+  it("a link callback waiting on the account cannot attach an identity after session revocation", async () => {
+    const token = await signIn("admin");
+    const userId = await idOf("admin");
+    const state = stateOf((await (await start("google", { mode: "link" }, token)).json()).url);
+    const holder = await holdTx(tx => tx.select({ one: sql`1` }).from(users).where(eq(users.id, userId)).for("update"));
+    try {
+      const pending = callback("google", { code: "mock", state });
+      expect(await lockWaiters(1, '%"user%')).toBe(true);
+      await holder.commit(tx => tx.delete(sessions).where(eq(sessions.tokenHash, hashToken(token))));
+      expect((await pending).status).toBe(401);
+      expect(await identitiesOf(userId)).toHaveLength(0);
+    } finally { await holder.rollback(); }
+  });
+
   it("a link state whose session ended fails and links nothing (sign-out cascades; an idle session is checked)", async () => {
     const token = await signIn("twofa");
     const first = await (await start("apple", { mode: "link" }, token)).json();
@@ -321,7 +348,12 @@ describe("real providers", () => {
     expect(r.status).toBe(200);
     expect(await sessionOf((await r.json()).token)).toMatchObject({ user_id: await idOf("apple"), method: "apple" });
     expect(seen[0]!.url).toBe("https://appleid.apple.com/auth/token");
-    expect(seen[0]!.body.get("client_secret")!.split(".")).toHaveLength(3);
+    const signed = await jwtVerify(seen[0]!.body.get("client_secret")!, appleKey.publicKey, {
+      algorithms: ["ES256"], issuer: REAL.APPLE_TEAM_ID, audience: "https://appleid.apple.com",
+    });
+    expect(signed.protectedHeader.kid).toBe(REAL.APPLE_KEY_ID);
+    expect(signed.payload.sub).toBe(REAL.APPLE_CLIENT_ID);
+    expect(signed.payload.exp! - signed.payload.iat!).toBe(300);
   });
 
   it("login with an unlinked identity is invalid_credentials and creates no user", async () => {

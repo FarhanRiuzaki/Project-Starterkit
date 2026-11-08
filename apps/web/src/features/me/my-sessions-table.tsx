@@ -2,7 +2,7 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { ConfirmActionDialog } from "@starterkit/ui/ds";
+import { LazyConfirmActionDialog } from "@/components/lazy-confirm";
 import { Button } from "@starterkit/ui/ui/button";
 import { toast } from "@starterkit/ui/ui/toast";
 import { SessionsTable } from "@/components/sessions-table";
@@ -24,7 +24,7 @@ export function MySessionsPage() {
         action={(r) => r.current
           ? <span className="text-caption text-fg-3">Sign out from the account menu</span>
           : <Button size="sm" variant="ghost" onClick={() => setEnding(r)}>End session</Button>} />
-      <ConfirmActionDialog open={ending !== null} onOpenChange={(o) => { if (!o) setEnding(null); }} auditFields={false} reasons={[]}
+      <LazyConfirmActionDialog open={ending !== null} onOpenChange={(o) => { if (!o) setEnding(null); }} auditFields={false} reasons={[]}
         title="End this session" description={ending ? `${ending.device} · ${ending.ip}` : ""}
         impact={["That device is signed out and must sign in again."]} actionLabel="End session" destructive
         onConfirm={async () => {

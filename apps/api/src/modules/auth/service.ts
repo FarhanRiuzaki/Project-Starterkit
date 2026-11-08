@@ -20,7 +20,7 @@ import { authChallenges, loginBackoff, rateLimits, sessions, userTokens } from "
 import { createSession, deviceOf, endUserSessions, providersOf, rolesOf, sessionLive, toUserRow, type UserRow } from "./sessions";
 import { matchTotpStep } from "./totp";
 
-const BAD_LOGIN = "The sign-in details don't match an account. Check them and the sign-in method, then try again.";
+const BAD_LOGIN = "The sign-in details don't match an account. Check your email, username or NIP and password, then try again.";
 const EXPIRED = "The sign-in expired. Start again with your email and password.";
 const BAD_CODE = "That code didn't match. Enter the current code from your authenticator app or an unused recovery code.";
 const BAD_LINK = "This reset link expired or was already used. Request a new link.";
@@ -39,6 +39,20 @@ export function findUser(login: string): Promise<UserRow | null> {
 /** A user by id. */
 export const userById = (id: string): Promise<UserRow | null> => selectUser(eq(users.id, id));
 
+/** Recheck a proven account under its row lock before committing credentials or a sign-in.
+ * Password/directory work stays outside the transaction; revocation and this write serialize on the user.
+ */
+export async function lockAuthUser(tx: Tx, proof: Pick<UserRow, "id" | "passwordHash" | "isLdap" | "totpSecret" | "email" | "username">) {
+  const [current] = await tx.select().from(users).where(eq(users.id, proof.id)).for("update");
+  if (!current) throw new ApiError("unauthenticated", EXPIRED);
+  if (!current.isActive) throw new ApiError("account_inactive");
+  if (current.passwordHash !== proof.passwordHash || current.isLdap !== proof.isLdap || current.totpSecret !== proof.totpSecret
+    || current.email !== proof.email || current.username !== proof.username) {
+    throw new ApiError("unauthenticated", "Your account changed during this request. Sign in again.");
+  }
+  return current;
+}
+
 /** One sign-in log entry for this request (IP and device from the client headers), through `tx`. */
 export function logAuth(tx: Tx, client: Client, event: AuthLogDto["event"], method: AuthMethod, login: string, userId: string | null): Promise<void> {
   return recordAuth(tx, { event, method, login, userId, ip: client.ip, device: deviceOf(client.ua), location: null });
@@ -46,6 +60,7 @@ export function logAuth(tx: Tx, client: Client, event: AuthLogDto["event"], meth
 
 /** Full sign-in inside `tx`: a new session (device, IP, method) and the user's lastLoginAt stamped. Returns the session token. */
 export async function completeSignIn(tx: Tx, user: UserRow, method: AuthMethod, client: Client): Promise<string> {
+  await lockAuthUser(tx, user);
   const { token } = await createSession(tx, { userId: user.id, method, client });
   await stampSignIn(tx, user.id);
   return token;
@@ -95,17 +110,28 @@ export async function createInvite(tx: Tx, userId: string, token: string): Promi
   await tx.insert(userTokens).values({ tokenHash: hashToken(token), userId, kind: "invite", expiresAt: sql`now() + interval '72 hours'` });
 }
 
-/** Spends every reset and invitation link of the user. */
+/** Spends reset/invitation links and pending password proofs after a credential or identity change. */
 export async function deleteUserTokens(tx: Tx, userId: string): Promise<void> {
   await tx.delete(userTokens).where(eq(userTokens.userId, userId));
+  await tx.delete(authChallenges).where(eq(authChallenges.userId, userId));
 }
 
 /**
- * Password users by argon2 hash; LDAP users only by the LDAP method, against the directory. Every login costs the same
+ * Auto accepts only the registered account provider. Explicit password users use argon2; explicit LDAP uses the directory.
+ * Every explicit login costs the same
  * work whatever it matched: one argon2 verify (a null hash when no password user matched), or one directory check
  * (the typed login when no LDAP user matched; one dummy argon2 verify when no directory is configured).
  */
-async function credentialOk(user: UserRow | null, login: string, method: "password" | "ldap", password: string): Promise<boolean> {
+async function credentialOk(user: UserRow | null, login: string, method: LoginBody["method"], password: string): Promise<boolean> {
+  if (method === "auto") {
+    // A successful local proof needs no directory request. Every failed local proof (including unknown and LDAP
+    // accounts) costs one argon2 verify followed by the same directory check, without a provider-discovery endpoint.
+    const localOk = await verifyPassword(password, user && !user.isLdap ? user.passwordHash : null);
+    if (localOk) return true;
+    const dir = directory();
+    const directoryOk = dir ? await dir.verify(user?.isLdap ? user.username : login.trim(), password) : false;
+    return directoryOk && !!user?.isLdap;
+  }
   if (method === "password") return verifyPassword(password, user && !user.isLdap ? user.passwordHash : null);
   const dir = directory();
   const ok = dir ? await dir.verify(user?.isLdap ? user.username : login.trim(), password) : await verifyPassword(password, null);
@@ -124,10 +150,11 @@ async function totpOk(user: UserRow, code: string): Promise<boolean> {
  */
 export async function login(b: LoginBody, client: Client): Promise<{ next: string; challenge: string } | { next: string; token: string }> {
   const user = await findUser(b.login);
+  const method = b.method === "auto" ? (user?.isLdap ? "ldap" : "password") : b.method;
   const name = (user?.username ?? b.login.trim()).toLowerCase();
   // The log names the account by its email when the login matched one, else by what was typed.
   const login = user?.email ?? b.login;
-  const fail = () => logAuth(db, client, "login_failed", b.method, login, user?.id ?? null);
+  const fail = () => logAuth(db, client, "login_failed", method, login, user?.id ?? null);
   // The gate reserves this attempt as a failure; it stays unless the credential is right.
   const wait = await loginGate(loginLimits, { step: "login", ip: client.ip, username: name });
   if (wait != null) {
@@ -149,16 +176,17 @@ export async function login(b: LoginBody, client: Client): Promise<{ next: strin
   if (user.twoFactorEnabled) {
     const challenge = randomToken();
     await db.transaction(async (tx) => {
+      await lockAuthUser(tx, user);
       await tx.insert(authChallenges).values({
-        id: Bun.randomUUIDv7(), tokenHash: hashToken(challenge), userId: user.id, method: b.method, expiresAt: sql`now() + interval '10 minutes'`,
+        id: Bun.randomUUIDv7(), tokenHash: hashToken(challenge), userId: user.id, method, expiresAt: sql`now() + interval '10 minutes'`,
       });
-      await logAuth(tx, client, "password_ok", b.method, login, user.id); // not a sign-in yet: the code step logs 2fa_success
+      await logAuth(tx, client, "password_ok", method, login, user.id); // not a sign-in yet: the code step logs 2fa_success
     });
     return { next: twoFactorPath(next), challenge };
   }
   const token = await db.transaction(async (tx) => {
-    const t = await completeSignIn(tx, user, b.method, client);
-    await logAuth(tx, client, "login_success", b.method, login, user.id);
+    const t = await completeSignIn(tx, user, method, client);
+    await logAuth(tx, client, "login_success", method, login, user.id);
     return t;
   });
   return { next, token };
@@ -199,6 +227,7 @@ export async function secondFactor(key: string | null, b: TwoFactorBody, client:
     throw new ApiError("account_inactive");
   }
   const token = await db.transaction(async (tx) => {
+    await lockAuthUser(tx, user);
     // Deleted in the same transaction: of two concurrent finishes of one challenge, only one gets a session.
     // ponytail: the loser has already spent its code (TOTP step or recovery code); fine for one user racing themself.
     const gone = await tx.delete(authChallenges).where(eq(authChallenges.id, p.id)).returning({ id: authChallenges.id });
@@ -235,10 +264,15 @@ export async function forgot(email: string, client: Client): Promise<void> {
     .where(and(eq(sql`lower(${users.email})`, key), users.isActive, not(users.isLdap), isNotNull(users.passwordHash)));
   if (!u) return;
   const token = randomToken();
-  // One live link per user: this one replaces the earlier one.
-  // ponytail: a known email costs this one extra round trip over an unknown one (same body); queue the write if it matters.
-  await db.insert(userTokens).values({ tokenHash: hashToken(token), userId: u.id, kind: "reset", expiresAt: sql`now() + interval '30 minutes'` })
-    .onConflictDoUpdate({ target: userTokens.userId, set: { tokenHash: sql`excluded.token_hash`, kind: sql`excluded.kind`, expiresAt: sql`excluded.expires_at` } });
+  // Serialize with email/credential changes, so a read of the old address cannot mint a fresh link afterwards.
+  const stored = await db.transaction(async tx => {
+    const [current] = await tx.select().from(users).where(eq(users.id, u.id)).for("update");
+    if (!current?.isActive || current.isLdap || !current.passwordHash || current.email.toLowerCase() !== key) return false;
+    await tx.insert(userTokens).values({ tokenHash: hashToken(token), userId: u.id, kind: "reset", expiresAt: sql`now() + interval '30 minutes'` })
+      .onConflictDoUpdate({ target: userTokens.userId, set: { tokenHash: sql`excluded.token_hash`, kind: sql`excluded.kind`, expiresAt: sql`excluded.expires_at` } });
+    return true;
+  });
+  if (!stored) return;
   sendMail({
     to: u.email,
     subject: "Reset your password",
@@ -252,17 +286,27 @@ export async function forgot(email: string, client: Client): Promise<void> {
  * (directory user, inactive user); all of the user's sessions end.
  */
 export async function reset(b: ResetPasswordBody, client: Client): Promise<void> {
-  const [t] = await db.delete(userTokens).where(eq(userTokens.tokenHash, hashToken(b.token)))
-    .returning({ userId: userTokens.userId, live: sql<boolean>`${userTokens.expiresAt} > now()` });
-  const [u] = t ? await db.select({ id: users.id, email: users.email, isLdap: users.isLdap, isActive: users.isActive }).from(users).where(eq(users.id, t.userId)) : [];
-  if (!t?.live || !u || u.isLdap || !u.isActive) throw new ApiError("invalid_code", BAD_LINK);
-  const hash = await hashPassword(b.password);
-  await db.transaction(async (tx) => {
-    await setPassword(tx, u.id, hash);
-    await endUserSessions(tx, u.id);
-    await logAuth(tx, client, "password_reset", "password", u.email, u.id);
+  // Locate the owner without spending the token. Revocation and consumption must serialize on that user.
+  const [candidate] = await db.select({ userId: userTokens.userId }).from(userTokens).where(eq(userTokens.tokenHash, hashToken(b.token)));
+  if (!candidate) throw new ApiError("invalid_code", BAD_LINK);
+  const proof = await db.transaction(async (tx) => {
+    const [u] = await tx.select().from(users).where(eq(users.id, candidate.userId)).for("update");
+    const [t] = await tx.delete(userTokens).where(eq(userTokens.tokenHash, hashToken(b.token)))
+      .returning({ live: sql<boolean>`${userTokens.expiresAt} > now()` });
+    // Claim once before expensive hashing. Return so an expired/refused link is still spent on commit.
+    return t?.live && u?.isActive && !u.isLdap ? u : null;
   });
-  log.info({ userId: u.id }, "password reset");
+  if (!proof) throw new ApiError("invalid_code", BAD_LINK);
+  const hash = await hashPassword(b.password);
+  await db.transaction(async tx => {
+    // Hash outside the lock, then refuse a password/identity change that happened after the claim.
+    await lockAuthUser(tx, proof);
+    await setPassword(tx, proof.id, hash);
+    await endUserSessions(tx, proof.id);
+    await deleteUserTokens(tx, proof.id);
+    await logAuth(tx, client, "password_reset", "password", proof.email, proof.id);
+  });
+  log.info({ userId: candidate.userId }, "password reset");
 }
 
 const ONE = { one: sql`1` };

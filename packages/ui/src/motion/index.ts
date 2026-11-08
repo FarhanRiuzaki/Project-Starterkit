@@ -13,3 +13,6 @@ export { useChangeKey } from "./use-change-key";
 export { useNewKeys } from "./use-new-keys";
 export { useDelayedFlag } from "./use-delayed-flag";
 export { barDelay, CHART_STAGGER, cssEase, DUR, EASE, LOADING, OVERLAY_MOTION, SHIFT_ENTER, SPRING_FLIP, SPRING_INDICATOR, SPRING_SOFT, SPRING_TWEEN, STAGGER, staggerDelay, tweenDuration } from "./tokens";
+
+export { ReducedMotionScope } from "./preference";
+export { usePrefersReducedMotion } from "./reduced-motion";

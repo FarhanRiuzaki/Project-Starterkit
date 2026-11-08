@@ -5,7 +5,7 @@ import { type Column, CountBadge, DataTable, Panel, Segmented, StatusChip } from
 import { cn } from "@starterkit/ui/lib/cn";
 import { formatNumber } from "@starterkit/ui/lib/format";
 import { HEALTH } from "@starterkit/ui/lib/status";
-import { CHART_STAGGER, cssEase, DUR, EASE, LOADING, NumberTween, OVERLAY_MOTION, Reveal, SPRING_FLIP, SPRING_INDICATOR, SPRING_SOFT, Stagger, STAGGER, StaggerItem, tweenDuration } from "@starterkit/ui/motion";
+import { CHART_STAGGER, cssEase, DUR, EASE, LOADING, NumberTween, OVERLAY_MOTION, ReducedMotionScope, Reveal, SPRING_FLIP, SPRING_INDICATOR, SPRING_SOFT, Stagger, STAGGER, StaggerItem, tweenDuration } from "@starterkit/ui/motion";
 import { Button } from "@starterkit/ui/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@starterkit/ui/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, menuLoader } from "@starterkit/ui/ui/dropdown-menu";
@@ -14,6 +14,7 @@ import { CheckIcon, RefreshIcon, SessionsIcon } from "@starterkit/ui/ui/icons";
 import { Skeleton } from "@starterkit/ui/ui/skeleton";
 import { useScrollsX } from "@starterkit/ui/ui/table";
 import { toast } from "@starterkit/ui/ui/toast";
+import { MicroInteractionPreview } from "./micro-interaction-preview";
 
 type Spring = { stiffness: number; damping: number; mass: number };
 export const fmtMs = (s: number) => `${Math.round(s * 1000)} ms`;
@@ -275,7 +276,7 @@ export function MotionSection() {
   const [rulesBox, rulesScroll] = useScrollsX<HTMLDivElement>();
   const [preview, setPreview] = useState<"off" | "reduced">("off");
   return (
-    <section data-motion-section="" data-motion-preview={preview === "reduced" ? "reduced" : undefined} aria-labelledby="motion-title" className="grid gap-section">
+    <ReducedMotionScope active={preview === "reduced"}><section data-motion-section="" data-motion-preview={preview === "reduced" ? "reduced" : undefined} aria-labelledby="motion-title" className="grid gap-section">
       <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
         <h2 id="motion-title" className="text-title-3 text-fg-2">Motion</h2>
         <div className="grid justify-items-end gap-1.5">
@@ -284,7 +285,7 @@ export function MotionSection() {
             <Segmented label="Preview reduced motion" value={preview} onChange={setPreview} options={[{ value: "off", label: "Off" }, { value: "reduced", label: "Reduced" }]} />
           </div>
           <p className="max-w-xl text-right text-caption text-fg-3">
-            Applies to the inline demos. Dialog, menu and toast render outside this section and follow your system setting; count-ups and page transitions read the system setting too. The Reduced motion column below is the rule.
+            Applies to the inline demos. Dialog, menu and toast render outside this section and follow your system setting. Count-ups and indicators follow this preview too; page transitions follow the system setting. The Reduced motion column below is the rule.
           </p>
         </div>
       </div>
@@ -296,7 +297,7 @@ export function MotionSection() {
             <TokenRows rows={[["SPRING_INDICATOR", fmtSpring(SPRING_INDICATOR)], ["SPRING_SOFT", fmtSpring(SPRING_SOFT)], ["SPRING_FLIP", fmtSpring(SPRING_FLIP)]]} />
           </div>
         </Panel>
-        <Panel title="Patterns" description="Replay re-runs the pattern" className="col-span-12">
+        <Panel title="Patterns" description="Replay re-runs the pattern" actions={<MicroInteractionPreview />} className="col-span-12">
           <ul aria-label="Motion patterns" className="grid grid-cols-3 gap-3 max-md:grid-cols-1">
             <PageEnterDemo /><StaggerDemo /><RevealDemo /><DialogDemo /><MenuDemo /><ToastDemo /><BadgePopDemo /><ChipChangeDemo />
             <NewRowDemo /><NumberTweenDemo /><IndicatorDemo /><SidebarWidthDemo /><CopyCheckDemo /><DisclosureDemo />
@@ -324,6 +325,6 @@ export function MotionSection() {
           </table></div>
         </Panel>
       </div>
-    </section>
+    </section></ReducedMotionScope>
   );
 }

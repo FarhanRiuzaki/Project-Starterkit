@@ -1,8 +1,8 @@
 /** Response security headers (proxy.ts). Pure so the policy is unit-tested. */
-export function securityHeaders(o: { nonce: string; secure: boolean }): Record<string, string> {
+export function securityHeaders(o: { nonce: string; secure: boolean; development?: boolean }): Record<string, string> {
   const csp = [
     "default-src 'self'",
-    `script-src 'self' 'nonce-${o.nonce}' 'strict-dynamic'`,
+    `script-src 'self' 'nonce-${o.nonce}' 'strict-dynamic'${o.development ? " 'unsafe-eval'" : ""}`,
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob:",
     "font-src 'self'",

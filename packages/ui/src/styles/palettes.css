@@ -1,0 +1,261 @@
+/* Approved SunnyGo Figma semantic palettes. Current remains the default in tokens.css. */
+
+:root[data-palette="mocha"]:not(.dark) {
+  --bg: #fffefa;
+  --tray: #fffdf4;
+  --inset: #fffdf4;
+  --line: #e5e2e2;
+  --line-strong: #988d8c;
+  --grid: #eae8e8;
+  --fg: #432f2e;
+  --fg-2: #61504f;
+  --fg-3: #7a6b6b;
+  --fg-4: #928686;
+  --brand-ink: #432f2e;
+  --brand-sun: #fff0b5;
+  --primary: #432f2e;
+  --primary-hover: #382727;
+  --primary-soft: #f9fbfd;
+  --primary-ink: #432f2e;
+  --action: #432f2e;
+  --action-hover: #382727;
+  --row-selected: #f9fbfd;
+  --seg-active: #f6fafc;
+  --chart-1: #557e91;
+  --chart-2: #432f2e;
+  --tip: #432f2e;
+  --tip-fg: #ffffff;
+  --tip-2: #fff0b5;
+  --control-border: #988d8c;
+  --auth-art-accent: #432f2e;
+}
+
+:root[data-palette="mocha"].dark {
+  --bg: #141315;
+  --sheet: #1d1c20;
+  --tray: #27262a;
+  --card: #1d1c20;
+  --inset: #27262a;
+  --raised: #1d1c20;
+  --line: #3c3b43;
+  --line-strong: #7c7b86;
+  --grid: #37363d;
+  --fg: #f6f5f3;
+  --fg-2: #cecdd0;
+  --fg-3: #a9a9b0;
+  --fg-4: #aaa1a1;
+  --brand-ink: #f6f5f3;
+  --brand-sun: #fff0b5;
+  --primary: #fff0b5;
+  --primary-hover: #fff3c2;
+  --primary-foreground: #432f2e;
+  --primary-soft: #393d44;
+  --primary-ink: #f6f5f3;
+  --action: #fff0b5;
+  --action-fg: #432f2e;
+  --action-hover: #fff3c2;
+  --row-selected: #434750;
+  --seg-active: #4a4e58;
+  --chart-1: #c1dbe8;
+  --chart-2: #fff0b5;
+  --tip: #432f2e;
+  --tip-fg: #ffffff;
+  --tip-2: #fff0b5;
+  --control-border: #7c7b86;
+  --auth-art-accent: #f6f5f3;
+}
+
+:root[data-palette="burgundy"]:not(.dark) {
+  --bg: #fffced;
+  --tray: #fff9d9;
+  --inset: #fff9d9;
+  --line: #e1dedf;
+  --line-strong: #8a7d82;
+  --grid: #e8e5e6;
+  --fg: #2b121b;
+  --fg-2: #4d383f;
+  --fg-3: #68575d;
+  --fg-4: #b56b7e;
+  --brand-ink: #2b121b;
+  --brand-sun: #ffd700;
+  --primary: #800020;
+  --primary-hover: #6c001b;
+  --primary-soft: #ffece6;
+  --primary-ink: #2b121b;
+  --action: #800020;
+  --action-hover: #6c001b;
+  --row-selected: #ffece6;
+  --seg-active: #ffe3d9;
+  --chart-1: #c63600;
+  --chart-2: #800020;
+  --tip: #800020;
+  --tip-fg: #ffffff;
+  --tip-2: #ffd700;
+  --control-border: #8a7d82;
+  --auth-art-accent: #2b121b;
+}
+
+:root[data-palette="burgundy"].dark {
+  --bg: #181014;
+  --sheet: #21191f;
+  --tray: #2a2329;
+  --card: #21191f;
+  --inset: #2a2329;
+  --raised: #21191f;
+  --line: #403842;
+  --line-strong: #807886;
+  --grid: #3a333c;
+  --fg: #f6f3e8;
+  --fg-2: #ceccc5;
+  --fg-3: #a9a7a5;
+  --fg-4: #c68c9b;
+  --brand-ink: #f6f3e8;
+  --brand-sun: #ffd700;
+  --primary: #ffd700;
+  --primary-hover: #ffde2e;
+  --primary-foreground: #800020;
+  --primary-soft: #412b28;
+  --primary-ink: #f6f3e8;
+  --action: #ffd700;
+  --action-fg: #800020;
+  --action-hover: #ffde2e;
+  --row-selected: #4d2f2b;
+  --seg-active: #533735;
+  --chart-1: #ff4500;
+  --chart-2: #ffd700;
+  --tip: #800020;
+  --tip-fg: #ffffff;
+  --tip-2: #ffd700;
+  --control-border: #807886;
+  --auth-art-accent: #f6f3e8;
+}
+
+:root[data-palette="onyx"]:not(.dark) {
+  --bg: #fdfdfd;
+  --tray: #fbfbfb;
+  --inset: #fbfbfb;
+  --line: #dddddd;
+  --line-strong: #787878;
+  --grid: #e4e4e4;
+  --fg: #0a0a0a;
+  --fg-2: #313131;
+  --fg-3: #515151;
+  --fg-4: #717171;
+  --brand-ink: #0a0a0a;
+  --brand-sun: #536878;
+  --primary: #536878;
+  --primary-hover: #465765;
+  --primary-soft: #eef0f2;
+  --primary-ink: #0a0a0a;
+  --action: #536878;
+  --action-hover: #465765;
+  --row-selected: #eef0f2;
+  --seg-active: #e5e8eb;
+  --chart-1: #536878;
+  --chart-2: #0a0a0a;
+  --tip: #0a0a0a;
+  --tip-fg: #ffffff;
+  --tip-2: #e5e4e2;
+  --control-border: #787878;
+  --auth-art-accent: #0a0a0a;
+}
+
+:root[data-palette="onyx"].dark {
+  --bg: #111112;
+  --sheet: #1a1a1e;
+  --tray: #232328;
+  --card: #1a1a1e;
+  --inset: #232328;
+  --raised: #1a1a1e;
+  --line: #393941;
+  --line-strong: #797984;
+  --grid: #33333b;
+  --fg: #f4f4f6;
+  --fg-2: #cdcdd3;
+  --fg-3: #a8a8b3;
+  --fg-4: #919191;
+  --brand-ink: #f4f4f6;
+  --brand-sun: #536878;
+  --primary: #e5e4e2;
+  --primary-hover: #eae9e7;
+  --primary-foreground: #0a0a0a;
+  --primary-soft: #2c2f37;
+  --primary-ink: #f4f4f6;
+  --action: #e5e4e2;
+  --action-fg: #0a0a0a;
+  --action-hover: #eae9e7;
+  --row-selected: #31353e;
+  --seg-active: #3a3d47;
+  --chart-1: #536878;
+  --chart-2: #e5e4e2;
+  --tip: #0a0a0a;
+  --tip-fg: #ffffff;
+  --tip-2: #e5e4e2;
+  --control-border: #797984;
+  --auth-art-accent: #f4f4f6;
+}
+
+:root[data-palette="espresso"]:not(.dark) {
+  --bg: #fffcfa;
+  --tray: #fff9f5;
+  --inset: #fff9f5;
+  --line: #e6e1e0;
+  --line-strong: #9e8b86;
+  --grid: #ece8e7;
+  --fg: #4e2c23;
+  --fg-2: #6a4e46;
+  --fg-3: #816963;
+  --fg-4: #98857f;
+  --brand-ink: #4e2c23;
+  --brand-sun: #ffdab9;
+  --primary: #4e2c23;
+  --primary-hover: #42251d;
+  --primary-soft: #fcf1ef;
+  --primary-ink: #4e2c23;
+  --action: #4e2c23;
+  --action-hover: #42251d;
+  --row-selected: #fcf1ef;
+  --seg-active: #fbeae6;
+  --chart-1: #b44e39;
+  --chart-2: #4e2c23;
+  --tip: #4e2c23;
+  --tip-fg: #ffffff;
+  --tip-2: #ffdab9;
+  --control-border: #9e8b86;
+  --auth-art-accent: #4e2c23;
+}
+
+:root[data-palette="espresso"].dark {
+  --bg: #151314;
+  --sheet: #1e1c1f;
+  --tray: #27252a;
+  --card: #1e1c1f;
+  --inset: #27252a;
+  --raised: #1e1c1f;
+  --line: #3d3b42;
+  --line-strong: #7d7b86;
+  --grid: #37353c;
+  --fg: #f6f3f3;
+  --fg-2: #ceccd1;
+  --fg-3: #a9a7b1;
+  --fg-4: #afa09c;
+  --brand-ink: #f6f3f3;
+  --brand-sun: #ffdab9;
+  --primary: #ffdab9;
+  --primary-hover: #ffe1c6;
+  --primary-foreground: #4e2c23;
+  --primary-soft: #3d3033;
+  --primary-ink: #f6f3f3;
+  --action: #ffdab9;
+  --action-fg: #4e2c23;
+  --action-hover: #ffe1c6;
+  --row-selected: #483639;
+  --seg-active: #4f3e42;
+  --chart-1: #e2725b;
+  --chart-2: #ffdab9;
+  --tip: #4e2c23;
+  --tip-fg: #ffffff;
+  --tip-2: #ffdab9;
+  --control-border: #7d7b86;
+  --auth-art-accent: #f6f3f3;
+}

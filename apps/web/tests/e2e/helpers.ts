@@ -44,9 +44,8 @@ export function ageReauth(email: string) {
  * Signs in through the sign-in form (each call counts against the sign-in rate limit: 10 per minute per client,
  * 5 per username). Lands wherever the app sends the user next; the caller checks where.
  */
-export async function signIn(page: Page, login: string, password: string = SEED.password, method: "Password" | "LDAP" = "Password") {
+export async function signIn(page: Page, login: string, password: string = SEED.password) {
   await page.goto("/login");
-  if (method === "LDAP") await page.getByRole("radio", { name: "LDAP" }).click();
   await page.locator("#login").fill(login);
   await page.locator("#password").fill(password);
   await page.getByRole("button", { name: "Sign in" }).click();

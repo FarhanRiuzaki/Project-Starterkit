@@ -52,6 +52,16 @@ describe("/api/auth (cookie and same origin in Next; credentials checked by the 
     expect(seen).toEqual([]);
   });
 
+  it("forwards automatic NIP credentials unchanged and seals the resulting session", async () => {
+    const seen = fakeApi(() => Response.json({ next: "/", token: "nip-session" }));
+    const credentials = { method: "auto", login: "00220283", password: "Directory-password" };
+    const response = await post(login, credentials);
+    expect(response.status).toBe(200);
+    expect(await seen[0]!.json()).toEqual(credentials);
+    expect(await response.json()).toEqual({ next: "/" });
+    expect(await cookieOf(jar)).toMatchObject({ token: "nip-session" });
+  });
+
   it("login stores the session token and a new CSRF token; the browser gets only next", async () => {
     const seen = fakeApi(() => Response.json({ next: "/users", token: "t1" }));
     const r = await post(login, LOGIN);

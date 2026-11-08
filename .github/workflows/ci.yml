@@ -74,6 +74,7 @@ jobs:
         with:
           node-version: 24
       - run: bun install --frozen-lockfile
+      - run: bun run audit:dependencies
       - run: bun run check
 
   e2e:

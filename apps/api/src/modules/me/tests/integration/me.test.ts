@@ -7,12 +7,12 @@ import { BRAND } from "@starterkit/shared/brand";
 import type { Page } from "@starterkit/shared/contracts/common";
 import { asc, eq, sql } from "drizzle-orm";
 import { call, resetData } from "../../../../../test/helpers/app";
-import { rows, sqlColumns } from "../../../../../test/helpers/db";
+import { holdTx, lockWaiters, rows, sqlColumns } from "../../../../../test/helpers/db";
 import { LDAP_PASSWORD, RECOVERY_CODES, SEED_PASSWORD } from "../../../../db/seed/demo";
 import { decryptSecret, hashToken } from "../../../../kernel/crypto";
 import { db } from "../../../../kernel/db";
 import { activity } from "../../../audit";
-import { createSession, sessions, totpCode, userTokens } from "../../../auth";
+import { createSession, hashPassword, sessions, totpCode, userTokens } from "../../../auth";
 import { userIdentities } from "../../../oauth";
 import { recoveryCodes as codesTable, users } from "../../../users"; // tests name their answers `recoveryCodes`
 
@@ -45,6 +45,35 @@ async function signedIn(username: string) {
 }
 
 beforeEach(resetData);
+
+describe("credential changes serialize with re-authentication", () => {
+  it("a password change cannot overwrite a password replaced while it waited", async () => {
+    const token = await signIn("admin");
+    const id = await idOf("admin");
+    const replacement = await hashPassword("Replacement-password-123!");
+    const holder = await holdTx(tx => tx.select({ one: sql`1` }).from(users).where(eq(users.id, id)).for("update"));
+    try {
+      const pending = me("POST", "/password", token, { current: SEED_PASSWORD, next: NEW_PW });
+      expect(await lockWaiters(1, '%for update%')).toBe(true);
+      await holder.commit(tx => tx.update(users).set({ passwordHash: replacement }).where(eq(users.id, id)));
+      expect((await pending).status).toBe(401);
+      expect((await userRow("admin")).password_hash).toBe(replacement);
+    } finally { await holder.rollback(); }
+  });
+
+  it("a profile mutation cannot finish after the authorizing session was revoked", async () => {
+    const token = await signIn("admin");
+    const id = await idOf("admin");
+    const holder = await holdTx(tx => tx.select({ one: sql`1` }).from(users).where(eq(users.id, id)).for("update"));
+    try {
+      const pending = me("PATCH", "", token, { name: "Unexpected change" });
+      expect(await lockWaiters(1, '%for update%')).toBe(true);
+      await holder.commit(tx => tx.delete(sessions).where(eq(sessions.tokenHash, hashToken(token))));
+      expect((await pending).status).toBe(401);
+      expect((await userRow("admin")).name).toBe("Admin User");
+    } finally { await holder.rollback(); }
+  });
+});
 
 describe("GET/PATCH /api/me", () => {
   it("needs a session", async () => {

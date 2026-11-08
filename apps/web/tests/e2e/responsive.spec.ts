@@ -131,20 +131,22 @@ test.describe("phone", () => {
   const menuButton = (page: Page) => page.getByRole("button", { name: "Open navigation" });
   const drawer = (page: Page) => page.getByRole("dialog", { name: "Navigation" });
 
-  test("the top bar: menu button, logo, page title, search and account; no sidebar", async ({ page }) => {
+  test("the top bar: menu button, logo, page title, search; account inside the navigation drawer", async ({ page }) => {
     await open(page, "/users");
     await expect(page.getByRole("complementary", { name: "Main navigation" })).toBeHidden();
     await expect(menuButton(page)).toBeVisible();
     await expect(page.getByRole("img", { name: BRAND.name }).first()).toBeVisible();
     await expect(page.getByRole("navigation", { name: "Breadcrumb" })).toContainText("Users");
     await expect(page.getByRole("button", { name: "Search pages" })).toBeVisible();
-    await expect(page.getByRole("button", { name: /account menu/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /account menu/ })).toBeHidden();
+    await menuButton(page).click();
+    await expect(drawer(page).getByRole("button", { name: /account menu/ })).toBeVisible();
   });
 
-  test("under a notch the top bar keeps its 56 px row: its min-height adds the safe-area inset to 3.5rem", async ({ page }) => {
+  test("under a notch the two-row top bar keeps its 112 px height plus the safe-area inset", async ({ page }) => {
     await open(page, "/users");
     // Chromium can't emulate a notch (env() is 0), so read the CSS that sizes the bar: a matching rule must add the
-    // inset to the min-height (pt-safe alone would eat into the 56 px).
+    // inset to the min-height (pt-safe alone would eat into the two 56 px rows).
     const minHeights = await page.evaluate(() => {
       const bar = document.querySelector<HTMLElement>('[data-print="hide"]:has(> [data-slot="drawer-trigger"])')!;
       const out: string[] = [];
@@ -179,7 +181,7 @@ test.describe("phone", () => {
       for (const sh of document.styleSheets) { const v = find(sh.cssRules); if (v) return v; }
       return "";
     });
-    expect(token).toMatch(/^calc\(3\.5rem \+ env\(safe-area-inset-top\)\)$/);
+    expect(token).toMatch(/^calc\(7rem \+ env\(safe-area-inset-top\)\)$/);
   });
 
   test("the drawer opens from the menu button and reaches every nav item", async ({ page }) => {

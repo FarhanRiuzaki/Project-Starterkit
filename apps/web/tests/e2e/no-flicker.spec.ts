@@ -384,17 +384,23 @@ test.describe("client navigation and table changes", () => {
     test.skip(!!test.info().project.use.isMobile, PHONE);
     await page.addInitScript(installProbe);
     let hydrated = false;
+    let blocked = 0;
     await page.route("**/_next/static/chunks/*.js", async (route) => {
       const res = await route.fetch();
       const body = await res.text();
-      // The recharts chunk, asked for by the lazy chart after hydration: a 404, as after a deploy removed it.
-      if (hydrated && body.includes("ResponsiveContainer")) return route.fulfill({ status: 404, body: "" });
+      // Match the rendered library class; production minification removes the ResponsiveContainer symbol.
+      // Return a 404 as when a deploy removes a lazy chart chunk.
+      if (hydrated && body.includes("recharts-responsive-container")) {
+        blocked++;
+        return route.fulfill({ status: 404, body: "" });
+      }
       return route.fulfill({ response: res, body });
     });
     await page.goto("/users");
     await settle(page);
     hydrated = true;
     await page.getByRole("navigation", { name: "Menu" }).getByRole("link", { name: "Dashboard" }).click();
+    await expect.poll(() => blocked, { message: "the lazy chart chunk was actually rejected" }).toBeGreaterThan(0);
     await expect(page.getByText("Couldn't load this part of the page")).toBeVisible();
     await expect(page.getByRole("heading", { level: 1, name: "Dashboard" })).toBeVisible(); // the page stays
     await expect(page.locator('[data-slot="stat-tile"]').first()).toBeVisible();

@@ -43,6 +43,9 @@ export function parseConfig(env: Record<string, string | undefined>): Config {
   if (prod && !c.SESSION_SECRET) throw new Error("SESSION_SECRET is required in production (at least 32 characters).");
   if (prod && !c.API_BASE_URL) throw new Error("API_BASE_URL is required in production.");
   if (prod && !c.APP_URL) throw new Error("APP_URL is required in production (the site's public origin, e.g. https://app.example.com).");
+  if (prod && c.APP_URL && new URL(c.APP_URL).protocol === "https:" && !c.COOKIE_SECURE) {
+    throw new Error("COOKIE_SECURE must be true when APP_URL uses HTTPS in production.");
+  }
   // Production over HTTPS is a deployment. E2E runs a production build over plain HTTP with the mock, so NODE_ENV alone
   // can't refuse it; the API refuses OAUTH_MOCK in production either way.
   if (prod && c.COOKIE_SECURE && c.OAUTH_MOCK) throw new Error("OAUTH_MOCK must be false in production over HTTPS (COOKIE_SECURE=true).");

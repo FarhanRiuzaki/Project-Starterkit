@@ -1,6 +1,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
+import { useReducedMotionScope } from "./preference";
 
 const QUERY = "(prefers-reduced-motion: reduce)";
 const subscribe = (cb: () => void) => {
@@ -13,5 +14,7 @@ const read = () => typeof window !== "undefined" && !!window.matchMedia?.(QUERY)
 
 /** prefers-reduced-motion as a hook (server: false). A few bytes instead of motion's useReducedMotion. */
 export function usePrefersReducedMotion(): boolean {
-  return useSyncExternalStore(subscribe, read, () => false);
+  const scoped = useReducedMotionScope();
+  const system = useSyncExternalStore(subscribe, read, () => false);
+  return scoped || system;
 }

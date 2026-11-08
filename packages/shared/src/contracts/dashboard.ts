@@ -1,5 +1,12 @@
 import { z } from "zod";
 import { ActivityDto } from "./audit";
+import { MAX_RANGE_DAYS, rangeProblem } from "../audit";
+
+import { isTimeExpression, timeRangeProblem, MAX_TIME_RANGE_DAYS } from "@starterkit/ui/lib/time-range";
+
+export const DashboardQuery = z.object({ from: z.iso.date().optional(), to: z.iso.date().optional(), start: z.string().max(100).refine(isTimeExpression).optional(), end: z.string().max(100).refine(isTimeExpression).optional() })
+  .refine((q) => rangeProblem(q.from, q.to) === null && timeRangeProblem(q, Date.now()) === null, { message: `Choose both dates in order, up to ${MAX_RANGE_DAYS} days.` });
+export type DashboardQuery = z.infer<typeof DashboardQuery>;
 
 /** Days in `loginsPerDay`. */
 export const DASHBOARD_DAYS = 14;
@@ -21,7 +28,12 @@ export const DashboardDto = z.object({
   failedLoginsPrev24h: z.number().int().nullable(),
   /** Live store sessions of active users. */
   activeSessions: z.number().int(),
-  loginsPerDay: z.array(z.object({ date: z.iso.date(), success: z.number().int(), failed: z.number().int().nullable() })).length(DASHBOARD_DAYS),
+  loginsPerDay: z.array(z.object({ date: z.iso.date(), success: z.number().int(), failed: z.number().int().nullable() })).min(1).max(MAX_TIME_RANGE_DAYS + 1),
+  /** Present for an explicitly selected range. Snapshot counts and recent activity keep their own scope. */
+  period: z.object({
+    from: z.iso.date(), to: z.iso.date(), start: z.iso.datetime().optional(), end: z.iso.datetime().optional(), newUsers: z.number().int(), previousNewUsers: z.number().int(),
+    failedSignIns: z.number().int().nullable(), previousFailedSignIns: z.number().int().nullable(),
+  }).optional(),
   /** The 5 newest activity entries. */
   recent: z.array(ActivityDto).max(5).nullable(),
 });

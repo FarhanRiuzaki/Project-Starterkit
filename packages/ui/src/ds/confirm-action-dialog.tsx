@@ -131,7 +131,7 @@ export function ConfirmActionDialog(p: Props) {
             {canDetach
               ? <Button type="button" variant="ghost" onClick={detach}>Close</Button>
               : <Button type="button" variant="ghost" onClick={close} disabled={busy}>Cancel</Button>}
-            <Button type="submit" variant={p.destructive ? "destructive" : "default"} disabled={busy || !!p.unavailableReason || !p.onConfirm}>
+            <Button type="submit" variant={p.destructive ? "destructive" : "default"} aria-busy={busy || undefined} disabled={busy || !!p.unavailableReason || !p.onConfirm}>
               {busy && <Icon icon={SpinnerIcon} className="motion-safe:animate-spin" />}{p.actionLabel}
             </Button>
           </DialogFooter>

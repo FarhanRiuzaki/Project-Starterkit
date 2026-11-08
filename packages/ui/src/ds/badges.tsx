@@ -33,12 +33,12 @@ export function CategoryChip({ label, slot, className }: { label: string; slot: 
  * Active filter chip (spec §5.6): 24 px, radius 6, --primary-soft, primary text, × 14 px removes it. The × is 20 px
  * drawn; a pseudo-element extends its hit area to 28 px (desktop target minimum).
  */
-export function FilterChip({ children, onRemove, removeLabel }: { children: ReactNode; onRemove: () => void; removeLabel: string }) {
+export function FilterChip({ children, onRemove, removeLabel, monospace = true, disabled }: { children: ReactNode; onRemove: () => void; removeLabel: string; monospace?: boolean; disabled?: boolean }) {
   return (
-    <span data-slot="filter-chip" className="inline-flex h-6 items-center gap-1 rounded-sm bg-primary-soft pr-0.5 pl-2 font-mono text-label text-primary-ink">
+    <span data-slot="filter-chip" className={cn("inline-flex h-6 items-center gap-1 rounded-sm bg-primary-soft pr-0.5 pl-2 text-label text-primary-ink", monospace && "font-mono")}>
       {children}
-      <button type="button" aria-label={removeLabel} onClick={onRemove}
-        className="relative inline-grid size-5 cursor-pointer place-items-center rounded-xs outline-none after:absolute after:-inset-1 after:content-[''] hover:bg-primary/15 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary">
+      <button type="button" aria-label={removeLabel} onClick={onRemove} disabled={disabled}
+        className="press-feedback relative inline-grid size-5 cursor-pointer place-items-center rounded-xs outline-none after:absolute after:-inset-1 after:content-[''] hover:bg-primary/15 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary">
         <Icon icon={CloseIcon} className="size-3.5" />
       </button>
     </span>

@@ -7,7 +7,7 @@ export { LDAP_PASSWORD } from "./ldap";
 export { hitIp, oauthStartLimits, retryText } from "./limits";
 export { hashPassword, verifyPassword } from "./password";
 export { oauthOnly } from "./rules";
-export { completeSignIn, createInvite, deleteUserTokens, logAuth, purgeAuth, reauth, userById } from "./service";
+export { completeSignIn, createInvite, deleteUserTokens, lockAuthUser, logAuth, purgeAuth, reauth, userById } from "./service";
 export {
   actorPermissions, type AuthUser, createSession, endSession, endUserSessions, isLiveSession, lockLiveSession, permsOf, providersOf, resolveSession, rolesOf,
   sessionLive, sessionPage, stampReauth, toUserRow, type UserRow,

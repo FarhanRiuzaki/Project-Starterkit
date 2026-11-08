@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Button } from "@starterkit/ui/ui/button";
+import { RouteTabs } from "@starterkit/ui/ds/navigation";
 
 const TABS = [
   { href: "/me", label: "Profile" },
@@ -14,12 +14,12 @@ const TABS = [
 export function MeNav() {
   const path = usePathname();
   return (
-    <nav aria-label="Account" className="flex gap-1">
+    <RouteTabs aria-label="Account">
       {TABS.map((t) => (
-        <Button key={t.href} asChild size="sm" variant={path === t.href ? "secondary" : "ghost"}>
-          <Link href={t.href} aria-current={path === t.href ? "page" : undefined}>{t.label}</Link>
-        </Button>
+
+          <Link key={t.href} href={t.href} aria-current={path === t.href ? "page" : undefined}>{t.label}</Link>
+
       ))}
-    </nav>
+    </RouteTabs>
   );
 }

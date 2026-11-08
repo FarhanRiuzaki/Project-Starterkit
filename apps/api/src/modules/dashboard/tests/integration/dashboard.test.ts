@@ -4,7 +4,7 @@
 // sessions (like sessionPage) and does not delete them in a GET.
 import { afterEach, beforeEach, describe, expect, it, setSystemTime } from "bun:test";
 import type { AuthLogDto } from "@starterkit/shared/contracts/audit";
-import type { DashboardDto } from "@starterkit/shared/contracts/dashboard";
+import { DashboardDto } from "@starterkit/shared/contracts/dashboard";
 import { and, desc, eq, gte, lt, sql } from "drizzle-orm";
 import { call, resetData, signIn } from "../../../../../test/helpers/app";
 import { db } from "../../../../kernel/db";
@@ -44,6 +44,27 @@ beforeEach(async () => {
 afterEach(() => setSystemTime());
 
 describe("GET /api/dashboard", () => {
+  it("rejects an invalid range before reading the session", async () => {
+    for (const query of ["start=now-15m", "start=now&end=now-1h", "start=now-2y&end=now", "start=now.constructor&end=now", "start=now-1h&end=now&from=2026-10-01&to=2026-10-02", "from=2026-02-30&to=2026-03-01", "from=2026-10-01", "from=2026-10-20&to=2026-10-01", "from=2026-01-01&to=2026-10-20"])
+      expect((await call("GET", `/v1/dashboard?${query}`)).status).toBe(400);
+  });
+
+  it("filters calendar days and returns the same period's comparison, retaining audit permission", async () => {
+    const midnight = Date.UTC(2026, 9, 18, 17);
+    await setAuthLog([[1, midnight - 1, "login_success"], [2, midnight, "login_success"], [3, midnight + HOUR, "login_failed"], [4, midnight + 24 * HOUR, "login_success"]]);
+    const token = await signIn("viewer");
+    const response = await call("GET", "/v1/dashboard?from=2026-10-19&to=2026-10-19", { token });
+    expect(response.status).toBe(200);
+    const b = DashboardDto.parse(await response.json());
+    expect(b.loginsPerDay).toEqual([{ date: "2026-10-19", success: 1, failed: 1 }]);
+    expect(b.period).toMatchObject({ from: "2026-10-19", to: "2026-10-19", failedSignIns: 1 });
+    await setPerms("Viewer", ["user.view"]);
+    const restricted = DashboardDto.parse(await (await call("GET", "/v1/dashboard?from=2026-10-19&to=2026-10-19", { token })).json());
+    expect(restricted.period!.failedSignIns).toBeNull();
+    expect(restricted.period!.previousFailedSignIns).toBeNull();
+    expect(restricted.loginsPerDay[0]!.failed).toBeNull();
+  });
+
   it("needs a session (any signed-in user, no permission)", async () => {
     expect((await get()).status).toBe(401);
     await setPerms("Viewer", []);
@@ -131,4 +152,20 @@ describe("dashboard sign-in counts and sessions", () => {
     await db.update(sessions).set({ lastSeenAt: sql`now() - interval '121 minutes'` }).where(eq(sessions.id, idle));
     expect((await body(token)).activeSessions).toBe(n);
   });
+});
+
+
+it("filters rolling minute windows precisely and preserves audit visibility", async () => {
+  const token = await signIn("viewer");
+  const now = Date.now();
+  await setAuthLog([[1, now - 900001, "login_success"], [2, now - 900000, "login_success"], [3, now - 1, "login_failed"], [4, now, "login_success"]]);
+  const read = async () => DashboardDto.parse(await (await call("GET", "/v1/dashboard?start=now-15m&end=now", { token })).json());
+  const first = await read();
+  expect(first.loginsPerDay.reduce((n, row) => n + row.success, 0)).toBe(1);
+  expect(first.period!.failedSignIns).toBe(1);
+  expect(Date.parse(first.period!.end!) - Date.parse(first.period!.start!)).toBe(900000);
+  await setPerms("Viewer", ["user.view"]);
+  const restricted = await read();
+  expect(restricted.period!.failedSignIns).toBeNull();
+  expect(restricted.loginsPerDay.every(row => row.failed === null)).toBe(true);
 });

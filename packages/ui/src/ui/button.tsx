@@ -10,7 +10,7 @@ import { Slot } from "radix-ui";
  * `outline` is kept as an alias of secondary for older callers.
  */
 const buttonVariants = cva(
-  "inline-flex shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-md border text-body font-medium whitespace-nowrap transition-[background-color,border-color,color,transform] duration-(--dur-fast) ease-standard outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary motion-safe:active:scale-[.98] active:duration-(--dur-instant) disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "inline-flex shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-md border text-body font-medium whitespace-nowrap transition-[background-color,border-color,color,opacity,transform] duration-(--dur-fast) ease-standard outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary press-feedback active:duration-(--dur-instant) disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
@@ -19,7 +19,7 @@ const buttonVariants = cva(
         outline: "border-line-strong bg-card text-fg shadow-xs hover:bg-tray",
         ghost: "border-transparent bg-transparent text-fg-2 hover:bg-tray hover:text-fg",
         destructive: "border-down-mark/40 bg-card text-down-ink shadow-xs hover:bg-down-soft",
-        link: "h-auto border-transparent px-0 text-primary-ink underline underline-offset-4 hover:decoration-2 motion-safe:active:scale-100",
+        link: "h-auto border-transparent px-0 text-primary-ink underline underline-offset-4 hover:decoration-2 press-static",
       },
       size: {
         sm: "h-7 px-2.5 text-body-sm [&_svg:not([class*='size-'])]:size-3.5",

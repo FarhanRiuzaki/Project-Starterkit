@@ -112,7 +112,7 @@ starterkit.
 ```
 
 - Sidebar 248 px expanded, 64 px collapsed (icon rail, tooltips); collapse state persists per viewer.
-- Sheet inset 8 px top/right/bottom; content padding 32 px horizontal, 24 px top, 40 px bottom.
+- Sheet inset 8 px top/right/bottom; content padding 24 px horizontal, 24 px top, 40 px bottom.
 - At 1440: content width 1440 − 248 − 8 − 8 − 64 = 1112 px; 12 columns, 16 px gutters → column 78.0 px.
 - The content fills the sheet at every width (no max width): at 1920, or with the sidebar collapsed, the grid widens
   instead of leaving empty margins. At 1280: 952 px content, same 12 columns.
@@ -335,7 +335,7 @@ in nav, toolbars, panel headers and KPI tiles, 14 px in chips and table headers,
 ┌──────────────────────┐ ┌───────────────────────────────────────────────────────────────────┐
 │ [■] App name      [⫞]│ │ ▦ Users / Rina Wulandari                                          │
 │ ──────────────────── │ │ ───────────────────────────────────────────────────────────────── │
-│ [⌕ Search pages… ⌘K] │ │                                                                   │
+│                      │ │                                                                   │
 │ MAIN                 │ │  Page title            [Last 24 h ▾] [Legend] [Action]            │
 │ [▦ Dashboard       ] │ │  One sentence scope + freshness.                                  │
 │  ▣ Users             │ │  ┌ All users 50 ───────────── [⌕ Search] [Role ▾] [Status ▾] ⓘ ┐ │
@@ -352,12 +352,10 @@ in nav, toolbars, panel headers and KPI tiles, 14 px in chips and table headers,
 └──────────────────────┘ └───────────────────────────────────────────────────────────────────┘
 ```
 
-The search sits in the sidebar under the logo (a field in the expanded sidebar, an icon in the rail; ⌘K anywhere); the
-theme switch is in the account menu. The top bar holds the breadcrumb.
+The top navbar holds the breadcrumb, applicable custom date range/refresh controls and search (⌘K anywhere). Account, profile, theme, palette and density live in the sidebar footer (inside the navigation drawer on phones). Date controls appear only on Dashboard and audit logs; refresh appears only on live-data modules. Forms and other modules without live data hide both controls. Shared Calendar/DatePicker and RefreshControl use custom popovers/menus. The range picker has a calendar quick-select segment, a Show dates summary and separate Absolute / Relative / Now endpoint editors. Quick select includes amount/unit, common and recent ranges, and Refresh every; precise ranges apply as one draft. Header range arrows, date trigger, refresh group and search share a 32 px drawn height and vertical alignment; touch targets remain at least 44 px. Submenu trunks connect with curved elbows and stop at the last child. Route tabs use grey active fill. Login artwork covers the entire page without a frame.
 
 Phone (below 768 px): the sidebar is not shown. The top bar holds the menu button ("Open navigation", 32 px), the logo
-mark, the nav page's name as its title, search as a 32 px icon button and the account menu (avatar; the theme switch
-is in it). The menu button opens the same sections in a drawer from the left (`Drawer`, `packages/ui/src/ui/drawer.tsx`:
+mark, the nav page's name as its title and search as a 32 px icon button. Account and theme stay in the drawer footer. Applicable time controls occupy a second row. The menu button opens the same sections in a drawer from the left (`Drawer`, `packages/ui/src/ui/drawer.tsx`:
 a Radix dialog loaded through `deferred-overlay`): 288 px (at most 5/6 of the width), items 44 px, focus trapped,
 Escape and the scrim close it, any route change closes it, the page behind is `inert`, focus returns to the menu
 button (`packages/ui/src/ui/drawer.test.ts`, `responsive.spec.ts` "phone"). The bar is server-rendered and switched by
@@ -368,12 +366,17 @@ Rules: the nav is exactly Dashboard, Users, Roles, Permissions, Activity log, Si
 badges; count badges elsewhere are counts, never words ("New" pills are not used). A hairline separates the logo from
 the nav. The nav scrolls inside the sidebar when the menu is longer than the window, in a `ScrollArea`
 (`packages/ui/src/ui/scroll-area.tsx`): no native scrollbar, a 4 px thumb drawn in the sidebar's padding, shown on
-hover, focus or while scrolling, so the search, the menu and the account row share one width on every system. In the
-rail (below 1280 px, or collapsed) every control, the search included, is a centred 36 px square, and a hairline
+hover, focus or while scrolling, so menu rows share one width on every system. In the
+rail (below 1280 px, or collapsed) each navigation control is a centred 36 px square, and a hairline
 separates the groups in place of their hidden labels. An item may have `children`
 (`NavItem.children` in `apps/web/src/lib/shared/nav.ts`): views of its own page
-(Users → All users, Active users, Inactive users), shown under it on a guide line while the page is open, in the
-expanded sidebar (≥ 1280 px) and the phone menu; the open child carries the highlight (`activeChild`).
+(Users → All users, Active users, Inactive users), shown under it with a connected vertical trunk and curved branch lines while the page is open, in the
+expanded sidebar (≥ 1280 px) and the phone menu; the open child carries the highlight (`activeChild`). In the icon
+rail, leaf links use the standard inverse tooltip on hover/focus. A parent shows the same label tooltip and a small
+chevron; click, tap, Enter or ArrowDown opens the shared non-modal menu to its right with its child views and current-view
+highlight. Tooltips contain labels only. The flyout supports arrow keys, Escape, outside dismissal and focus return;
+its tooltip stays quiet while the menu is open and when focus returns. Expanding the sidebar or resizing out of the
+rail closes the flyout when CSS hides its trigger. The expanded tree and phone drawer retain their existing links.
 
 Breadcrumb (top bar): the nav page, then the open page's parents and itself: `Users / Rina Wulandari`, `Users /
 Rina Wulandari / Edit user`, `Roles / Admin`, `Profile / Security`. `PageHeader` publishes its title as the last crumb
@@ -392,8 +395,7 @@ filled; **dark** `#26262b` fill · focus ring 2 px `--primary` offset 2. Section
 
 ### 5.2 Top bar
 56 px, bottom 1 px `--line`. Breadcrumb: 16 px icon + `body` per crumb, separator `/` in `--fg-4`, current crumb fg,
-ancestors fg-2 (links). Search: 32 × 280 px, radius 8, 1 px `--line-strong`, leading icon, `⌘K` kbd (20 px, radius 6,
-`--tray`). Icon buttons 32 × 32 radius 8.
+ancestors fg-2 (links). Header controls share a 32 px drawn height, radius 8 and aligned centers. Search: 176 px wide on desktop, 32 px icon button below desktop, 1 px `--line-strong`, leading icon; ⌘K opens it globally. Range arrows are 32 × 32. The refresh group includes its border within the 32 px height. Date and refresh controls hide when unused; phone time controls use a second row.
 
 ### 5.3 Buttons
 | Variant | Fill | Text | Border | Height |
@@ -417,7 +419,7 @@ Padding 0 12, icon 16 + 6 gap, radius 8, `label`→ `body` 14/500. Press: scale 
 - Title `title-2` with a 16 px fg-3 icon; optional count pill; actions right. A tray may hold 2–4 cards side by side
   with a 4 px gap (KPI strip, legend cards).
 - Tables: the table **is** the card (header row on the card top uses `--tray`, rows `--card`).
-- Variant `flat` (no tray, card only) for dialogs and the login card.
+- Every standalone content card, including login, forms and Home summaries, uses the outer tray. `flat` is reserved for content already enclosed by a floating dialog.
 
 ### 5.5 KPI tile (`StatTile`)
 Lives in a KPI tray (4 tiles, 4 px gap). Tile = card, padding 16, min-height 104.
@@ -484,7 +486,7 @@ text, × 14 px).
 from the name hash over the 6 categorical softs; 1 px `--line` ring. Stacks overlap −6 px with a 2 px surface ring.
 
 ### 5.12 Inputs
-32 px (login 40 px), radius 8, 1 px `--line-strong`, `--card` bg, padding 0 10, leading icon 16 fg-3, placeholder
+32 px (login 40 px), radius 8, 1 px `--control-border`, `--card` bg, padding 0 10, leading icon 16 fg-3, placeholder
 fg-3 (format only). Focus: 1 px primary border + 3 px `--primary-soft` ring. Error: Down mark border + message
 under the field in Down ink `body-sm`.
 
@@ -702,6 +704,33 @@ Rulings recorded here:
 - **Per-card status legend.** The status legend is the `Panel` `legend` prop: an info button ("Status legend") at
   the end of the card header; page-level and inline legends were removed (see §5.8 status chips, which carry the tooltip text from
   `packages/ui/src/lib/status.ts`).
+
+### 7.9 Component micro-interactions
+
+The behavior lives in `packages/ui/src/styles/base.css` and the shared components, so app screens and `/ds` use
+one implementation. `/ds` → Motion → **Explore micro-interactions** opens an interactive preview using those same
+components. The existing motion tokens set every duration/easing; `--press-scale` and `--choice-press-scale` set
+press geometry. Static information stays still; feedback indicates an action or an actual state change.
+
+| Family | Feedback | Keyboard, touch and reduced motion |
+|---|---|---|
+| Buttons, icon buttons, copy, pagination, calendar days, revisitable steps | Hover color; press at `--press-scale`, `DUR.instant`; release `DUR.fast`. Copy confirms with an icon and live text. | Native activation stays immediate. Disabled, read-only and busy controls do not press. Reduced motion keeps color and focus with no scale. |
+| Input, password, select, textarea, affix, number input | Border/fill/focus transitions use `DUR.fast`; grouped fields highlight their outer border. Invalid fields keep the error color. | Focus remains visible, values and caret stay intact. Hover enhancement requires a fine pointer. Read-only/disabled fields do not suggest editing. |
+| Checkbox, radio, choice cards, switch | Checkbox/check confirmation; radio dot opacity/scale; switch thumb settles with `DUR.instant`; choice card selection uses its fill and border. | Space/arrows keep their native semantics. State motion is immediate under reduced motion. Read-only selection cannot be toggled. |
+| Search, command palette, combobox, menu | Shared highlight transitions; search focus marks its container; disclosure chevrons follow expanded state. Existing overlays keep their open/close tokens. | Roving focus, typeahead, Escape and focus return are preserved. No moving menu rows. |
+| Calendar and date/time controls | Day press/selection feedback, trigger fill and chevron state. The whole date input opens the calendar; the range summary opens quick select. Shared custom menus choose month/year directly, bounded by min/max. | Typing remains available on keyboard focus; Alt+Down opens the calendar. Selection/Escape returns focus to the opening input or icon. Changing month/year only navigates, clamps leap days and bounds, and never commits a date until a day is chosen. The grid and live region keep their identity. |
+| Tabs, segmented controls, sidebar, breadcrumb, route tabs | Shared selection indicator where already supported; navigation color transitions and stable targets. | Keyboard focus stays on the control; reduced indicators jump to the actual state. Navigation never lifts. |
+| Upload | `FileUpload` has a dashed card, centered upload icon and whole-area browse trigger. Border/fill and a small icon shift follow drag-over; validation remains visible. Files render below as `FileItem` rows: selected, uploading (inline progress + cancel), confirmed success (size / row count + check), or error (retained message + remove). Busy uploads reject further selection and drag highlighting. | Native file picker remains the keyboard/touch path. No drag-only action. Disabled keeps the reason visible; cancel is available during transfer. Removal targets one file and returns focus to browse. Progress uses shared meter motion; reduced motion omits icon shift. Selection is never presented as confirmed upload. |
+| OTP and password checks | Current OTP cell gets the focus mark; changed digits and newly met checks settle once. The actual OTP input stays mounted. | Paste, autofill, caret and selection stay native. Reduced motion fades; no validation shake. |
+| Stepper, wizard, onboarding | Marker colors transition; completing a step confirms its check. Revisiting a completed step has button feedback. | Completion animation is keyed to a state change, not refetch/re-render. Current-step content can use `animate-reveal-in` without remounting form inputs. |
+| Progress and meters | Fill interpolates `scaleX`, `DUR.enter`, anchored left. No width animation or layout shift. | Accessible value is the final value. Reduced motion switches immediately. Sliders follow the pointer directly. |
+| Cards, tables and charts | Whole-card links/actions use shared `InteractiveCard` (grey `CardSurface` + `card-lift`, native button or `asChild` link). Disabled/busy cards suppress hover/press and activation. Table rows use color only. All loading blocks use shared `Skeleton`, with its token-driven CSS shimmer. `/ds` → Motion → Explore micro-interactions previews both foundations. | Reading surfaces do not imply clickability. Card hover lift requires a fine pointer; keyboard gets its border/elevation without moving. Secondary interactive controls stay outside a whole-card action. Reduced motion stops card movement and the shimmer sweep. |
+| Feedback, badges, loading and overlays | Existing swap/pop/reveal and delayed loading patterns; state swaps only at meaningful changes. | Live regions announce outcomes, not every animation frame. Reduced preview and system preference follow the same rules. |
+
+No new animation runtime or per-control pointer listeners are needed. Data refresh never replays page/list enters.
+No permanent `will-change`, cursor follower, parallax, validation shake, or layout animation on tables is introduced.
+Motion preferences follow [WCAG 2.2, Animation from Interactions](https://www.w3.org/WAI/WCAG22/Understanding/animation-from-interactions).
+
 
 ---
 

@@ -2,6 +2,7 @@
 
 import { type ComponentType, createContext, type ReactNode, useContext, useEffect, useState } from "react";
 import { createLoader, whenIdle } from "./gate";
+import { useReducedMotionScope } from "./preference";
 
 /** What the deferred chunk (framer.tsx) provides once loaded. Nothing here is in the first-load JS. */
 export type MotionKit = {
@@ -38,5 +39,7 @@ export function MotionLayer({ children }: { children: ReactNode }) {
 
 /** The loaded framer kit, or null (not loaded yet, blocked, or outside a MotionLayer): fall back to CSS. */
 export function useMotionLayer(): MotionKit | null {
-  return useContext(Ctx);
+  const kit = useContext(Ctx);
+  const reduced = useReducedMotionScope();
+  return reduced ? null : kit;
 }

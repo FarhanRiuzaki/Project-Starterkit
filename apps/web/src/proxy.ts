@@ -7,7 +7,8 @@ import { securityHeaders } from "./security-headers";
  */
 export function proxy(request: NextRequest) {
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
-  const sec = securityHeaders({ nonce, secure: process.env.COOKIE_SECURE === "true" });
+  // React's development stack reconstruction needs eval; production keeps the nonce-only script policy.
+  const sec = securityHeaders({ nonce, secure: process.env.COOKIE_SECURE === "true", development: process.env.NODE_ENV === "development" });
   const headers = new Headers(request.headers);
   headers.set("x-nonce", nonce);
   headers.set("Content-Security-Policy", sec["Content-Security-Policy"]!);

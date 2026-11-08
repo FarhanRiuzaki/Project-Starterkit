@@ -177,7 +177,10 @@ docker compose -f docker-compose.dev.yml down                     # -v also drop
 ```
 
 A changed `bun.lock` is installed on `docker compose -f docker-compose.dev.yml restart app`. Stop a local
-`bun run dev` first: both use port 3000.
+`bun run dev` first: both use port 3000. After a Next upgrade, restart the dev runtime before using the updated
+packages; a process still running the old version can fail with mixed route-module code. If switching checkouts,
+run `up -d --force-recreate` from the intended checkout so the source bind mount points there. Keep the database and
+state volumes; deleting them is not required for a dependency/runtime restart.
 
 ### Demo accounts
 
@@ -333,7 +336,7 @@ or invalid value stops the process with an error that names the key, never the v
 | `API_BASE_URL` | yes | `http://127.0.0.1:4000` | The API, `http(s)` only; never reaches the browser. |
 | `APP_URL` | yes | `http://localhost:3000` | Public origin of the site: an `/api/auth/*` POST without `Sec-Fetch-Site` must send this `Origin`; `metadataBase` (absolute `og:image` and icon URLs). |
 | `SESSION_TTL_HOURS` | no | `12` | Cookie lifetime, 1 to 24 hours (the API ends sessions by its own settings). |
-| `COOKIE_SECURE` | `true` behind HTTPS | `false` | `Secure` cookies and `Strict-Transport-Security`. |
+| `COOKIE_SECURE` | required `true` for HTTPS | `false` | `Secure` cookies and `Strict-Transport-Security`; production refuses HTTPS with insecure cookies. |
 | `TRUSTED_PROXY` | no | `false` | `true` only behind a proxy that appends `X-Forwarded-For` and sets `X-Forwarded-Host`/`-Proto`: the client IP is then the right-most `X-Forwarded-For` hop, and the forwarded origin counts as same-origin. Without it those headers are ignored and every client IP is "unknown", so the per-IP limits are off (the fleet-wide breakers and the per-account limits still apply). |
 | `LOG_LEVEL` | no | `info` | pino level. |
 | `OAUTH_MOCK` | must be `false` | `false` | Fake Google/Apple authorize page (the API needs it too); refused in production with `COOKIE_SECURE=true`. |
@@ -390,11 +393,14 @@ docker compose --env-file .env.compose down             # `down -v` also drops t
   ```
 
   Tables that already exist need `grant select, insert, update, delete on all tables in schema public to starterkit_app;`.
+- Security findings, local retests, measured performance and remaining integration requirements: [security and performance audit](docs/security-performance-audit.md). Run `bun run audit:dependencies` for the full dependency advisory gate (also enforced by CI), or `bun run audit:production` for runtime dependencies only. The two narrowly scoped tooling overrides and their compatibility checks are described in the [change review](docs/security-change-review.md).
+- Before configuring an external environment, follow the [staging readiness guide](docs/staging-readiness.md). It distinguishes the completed local production rehearsal from live LDAP, SMTP, OAuth and ingress checks that still need an authorized staging environment.
 - Images: `apps/api/Dockerfile` (`oven/bun:1.4.3`, user `bun`, `HEALTHCHECK` on `/healthz`) and `apps/web/Dockerfile`
   (built with Bun on `node:24-slim`, Next standalone, user `node`, `HEALTHCHECK` on `/login`). Neither image carries
   tests or env files (`.dockerignore`).
 - The API answers `SIGTERM` by stopping the janitor and waiting up to 10 s for requests in flight before it closes the
   pool. `/healthz` (process up) and `/readyz` (database answers within 2 s, else 503) need no token.
+- The standalone web image includes `public` and `.next/static`. After building it, run `node scripts/smoke-web-image.mjs <local-image-tag>` to check the non-root runtime, login and public artwork without external network access.
 - TLS ends in front of the web (a proxy or load balancer); then set `COOKIE_SECURE=true`, and `TRUSTED_PROXY=true` when
   that proxy sets `X-Forwarded-*`. Without `TRUSTED_PROXY` the web can't see client addresses (no socket address reaches
   a Next route handler), so every request counts as IP "unknown" and the per-IP limits are off; the fleet-wide

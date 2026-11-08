@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, spyOn } from "bun:test";
 import { and, desc, eq, gt, isNull, like, sql } from "drizzle-orm";
 import { PERMISSIONS } from "@starterkit/shared/permissions";
 import { call, resetData, signIn } from "../../../../../test/helpers/app";
-import { rows, sqlColumns } from "../../../../../test/helpers/db";
+import { holdTx, lockWaiters, rows, sqlColumns } from "../../../../../test/helpers/db";
 import { LDAP_PASSWORD, SEED_PASSWORD, TOTP_SECRET } from "../../../../db/seed/demo";
 import { config } from "../../../../kernel/config";
 import { hashToken } from "../../../../kernel/crypto";
@@ -14,7 +14,7 @@ import { log } from "../../../../kernel/log";
 import { clearMail, sentMail } from "../../../../kernel/mailer";
 import { authLog } from "../../../audit";
 import { recoveryCodes, users } from "../../../users";
-import { resolveSession, retryText, totpCode, verifyPassword } from "../..";
+import { hashPassword, resolveSession, retryText, totpCode, verifyPassword } from "../..";
 import * as ldap from "../../ldap";
 import { authChallenges, loginBackoff, rateLimits, sessions, userTokens } from "../../schema";
 import { findUser, reauth } from "../../service";
@@ -54,6 +54,141 @@ beforeEach(async () => {
 });
 
 describe("POST /v1/auth/login", () => {
+  it("a login waiting on the account cannot use a password replaced before session creation", async () => {
+    const id = (await findUser("admin"))!.id;
+    const replacement = await hashPassword("Replacement-password-123!");
+    const holder = await holdTx(tx => tx.select({ one: sql`1` }).from(users).where(eq(users.id, id)).for("update"));
+    try {
+      const pending = signInWith("admin");
+      expect(await lockWaiters(1, '%')).toBe(true);
+      await holder.commit(tx => tx.update(users).set({ passwordHash: replacement }).where(eq(users.id, id)));
+      const response = await pending;
+      expect(response.status).toBe(401);
+      expect(await count("sessions")).toBe(0);
+    } finally { await holder.rollback(); }
+  });
+
+  it("a login waiting on the account cannot skip a second factor enabled meanwhile", async () => {
+    const id = (await findUser("admin"))!.id;
+    // Use the seeded second-factor account's encrypted secret without exposing it.
+    const [two] = await db.select({ totpSecret: users.totpSecret }).from(users).where(sql`${users.totpSecret} is not null`).limit(1);
+    expect(two?.totpSecret).toBeTruthy();
+    const holder = await holdTx(tx => tx.select({ one: sql`1` }).from(users).where(eq(users.id, id)).for("update"));
+    try {
+      const pending = signInWith("admin");
+      expect(await lockWaiters(1, '%')).toBe(true);
+      await holder.commit(tx => tx.update(users).set({ totpSecret: two!.totpSecret }).where(eq(users.id, id)));
+      expect((await pending).status).toBe(401);
+      expect(await count("sessions")).toBe(0);
+    } finally { await holder.rollback(); }
+  });
+
+  it("auto chooses the registered provider for email, username and numeric NIP, and stores the actual method", async () => {
+    for (const login of [" ADMIN@example.com ", "ADMIN"]) {
+      const r = await post("login", { login, password: SEED_PASSWORD });
+      expect(r.status).toBe(200);
+      expect(await sessionOf((await r.json()).token)).toMatchObject({ method: "password" });
+      expect(await lastAuth()).toMatchObject({ event: "login_success", method: "password" });
+    }
+    for (const login of ["LDAP@example.com", "ldap"]) {
+      const r = await post("login", { method: "auto", login, password: LDAP_PASSWORD });
+      expect(r.status).toBe(200);
+      expect(await sessionOf((await r.json()).token)).toMatchObject({ method: "ldap" });
+    }
+    await db.update(users).set({ username: "00220283" }).where(eq(users.username, "ldap"));
+    const verify = spyOn(ldap.directory()!, "verify").mockImplementation(async (name, password) => name === "00220283" && password === LDAP_PASSWORD);
+    try {
+      const r = await post("login", { login: "00220283", password: LDAP_PASSWORD });
+      expect(r.status).toBe(200);
+      expect(verify).toHaveBeenCalledWith("00220283", LDAP_PASSWORD);
+      expect(await sessionOf((await r.json()).token)).toMatchObject({ method: "ldap" });
+      expect(await lastAuth()).toMatchObject({ event: "login_success", method: "ldap" });
+    } finally { verify.mockRestore(); }
+  });
+
+  it("numeric presentation does not switch a local account to LDAP", async () => {
+    await db.update(users).set({ username: "22020283" }).where(eq(users.username, "admin"));
+    const dir = spyOn(ldap.directory()!, "verify");
+    try {
+      const r = await post("login", { login: "22020283", password: SEED_PASSWORD });
+      expect(r.status).toBe(200);
+      expect(dir).not.toHaveBeenCalled();
+      expect(await sessionOf((await r.json()).token)).toMatchObject({ method: "password" });
+    } finally { dir.mockRestore(); }
+  });
+
+  it("auto attempts still share the username backoff and cannot bypass it by switching identifier", async () => {
+    for (const login of ["admin", "admin@example.com", "ADMIN"]) {
+      expect((await post("login", { method: "auto", login, password: "Wrong-password-1" })).status).toBe(401);
+    }
+    const r = await post("login", { login: "admin@example.com", password: SEED_PASSWORD });
+    expect(r.status).toBe(429);
+    expect(await count("sessions")).toBe(0);
+  });
+
+  it("auto failures share an answer and one argon2 plus one directory check; directory cannot authenticate a local account", async () => {
+    const verify = spyOn(Bun.password, "verify");
+    const dir = spyOn(ldap.directory()!, "verify").mockResolvedValue(true);
+    try {
+      const bodies = [];
+      for (const login of ["nobody", "admin@example.com"]) {
+        verify.mockClear(); dir.mockClear();
+        const r = await post("login", { method: "auto", login, password: "Wrong-password-1" });
+        expect(r.status).toBe(401);
+        bodies.push(await r.text());
+        expect(verify).toHaveBeenCalledTimes(1);
+        expect(dir).toHaveBeenCalledTimes(1);
+      }
+      dir.mockResolvedValue(false); verify.mockClear(); dir.mockClear();
+      const r = await post("login", { login: "ldap", password: "Wrong-password-1" });
+      expect(r.status).toBe(401); bodies.push(await r.text());
+      expect(verify).toHaveBeenCalledTimes(1);
+      expect(dir).toHaveBeenCalledTimes(1);
+      expect(new Set(bodies).size).toBe(1);
+      expect(await count("sessions")).toBe(0);
+    } finally { verify.mockRestore(); dir.mockRestore(); }
+  });
+
+  it("auto local proof works without directory access, while LDAP requires a configured directory", async () => {
+    const dir = spyOn(ldap, "directory").mockReturnValue(null);
+    try {
+      expect((await post("login", { login: "admin", password: SEED_PASSWORD })).status).toBe(200);
+      expect(dir).not.toHaveBeenCalled();
+      expect((await post("login", { login: "ldap", password: LDAP_PASSWORD })).status).toBe(401);
+      expect((await post("login", { login: "inactive", password: SEED_PASSWORD })).status).toBe(403);
+    } finally { dir.mockRestore(); }
+  });
+
+  it("auto preserves 2FA challenges and their actual provider", async () => {
+    const r = await post("login", { login: "twofa", password: SEED_PASSWORD, next: "/users" });
+    expect(r.status).toBe(200);
+    const body = await r.json();
+    expect(body.next).toBe("/login/2fa?next=%2Fusers");
+    expect(body.token).toBeUndefined();
+    const [challenge] = await rows(db.select({ method: authChallenges.method }).from(authChallenges).where(eq(authChallenges.tokenHash, hashToken(body.challenge))));
+    expect(challenge.method).toBe("password");
+    expect(await count("sessions")).toBe(0);
+    const complete = await post("2fa", { code: "aaaa-1111" }, { challenge: body.challenge });
+    expect(complete.status).toBe(200);
+    expect(await sessionOf((await complete.json()).token)).toMatchObject({ method: "password" });
+  });
+
+  it("auto LDAP 2FA keeps the LDAP provider through challenge and recovery completion", async () => {
+    await db.update(users).set({ isLdap: true, passwordHash: null }).where(eq(users.username, "twofa"));
+    const dir = spyOn(ldap.directory()!, "verify").mockImplementation(async (name, password) => name === "twofa" && password === LDAP_PASSWORD);
+    try {
+      const r = await post("login", { login: "twofa@example.com", password: LDAP_PASSWORD });
+      expect(r.status).toBe(200);
+      const body = await r.json();
+      expect(body.token).toBeUndefined();
+      const [challenge] = await rows(db.select({ method: authChallenges.method }).from(authChallenges).where(eq(authChallenges.tokenHash, hashToken(body.challenge))));
+      expect(challenge.method).toBe("ldap");
+      const complete = await post("2fa", { code: "aaaa-1111" }, { challenge: body.challenge });
+      expect(complete.status).toBe(200);
+      expect(await sessionOf((await complete.json()).token)).toMatchObject({ method: "ldap" });
+    } finally { dir.mockRestore(); }
+  });
+
   it("unknown user, wrong password, and LDAP user via password method give identical 401 bodies", async () => {
     const answers = [
       await signInWith("nobody@example.com", "Whatever-123"),
@@ -241,6 +376,37 @@ describe("logout", () => {
 });
 
 describe("password reset", () => {
+  it("a reset waiting on the account cannot overwrite credentials after its link was revoked", async () => {
+    await post("forgot", { email: "admin@example.com" });
+    const token = mailedToken()!;
+    const id = (await findUser("admin"))!.id;
+    const replacement = await hashPassword("Replacement-password-123!");
+    const holder = await holdTx(tx => tx.select({ one: sql`1` }).from(users).where(eq(users.id, id)).for("update"));
+    try {
+      const pending = post("reset", { token, password: "Unexpected-password-123!" });
+      expect(await lockWaiters(1, '%')).toBe(true);
+      await holder.commit(async tx => {
+        await tx.update(users).set({ passwordHash: replacement }).where(eq(users.id, id));
+        await tx.delete(userTokens).where(eq(userTokens.userId, id));
+      });
+      expect((await pending).status).toBe(400);
+      expect((await findUser("admin"))!.passwordHash).toBe(replacement);
+    } finally { await holder.rollback(); }
+  });
+
+  it("a reset request waiting on the account cannot mail a new link to its previous email", async () => {
+    const id = (await findUser("admin"))!.id;
+    const holder = await holdTx(tx => tx.select({ one: sql`1` }).from(users).where(eq(users.id, id)).for("update"));
+    try {
+      const pending = post("forgot", { email: "admin@example.com" });
+      expect(await lockWaiters(1, '%')).toBe(true);
+      await holder.commit(tx => tx.update(users).set({ email: "changed@example.com" }).where(eq(users.id, id)));
+      expect((await pending).status).toBe(200);
+      expect(sentMail()).toHaveLength(0);
+      expect(await count("user_tokens")).toBe(0);
+    } finally { await holder.rollback(); }
+  });
+
   it("forgot-password answers the same for unknown and known emails", async () => {
     const spy = spyOn(log, "info");
     const known = await post("forgot", { email: "admin@example.com" });
@@ -284,6 +450,14 @@ describe("password reset", () => {
     expect(expired.status).toBe(400);
     expect((await expired.json()).error.code).toBe("invalid_code");
     expect(await count("user_tokens")).toBe(0); // spent even when expired
+  });
+
+  it("a password reset invalidates a pending first-factor proof", async () => {
+    const challenge = await challengeOf();
+    await post("forgot", { email: "twofa@example.com" });
+    expect((await post("reset", { token: mailedToken()!, password: "Replacement-password-123!" })).status).toBe(200);
+    expect((await post("2fa", { code: totpCode(TOTP_SECRET) }, { challenge })).status).toBe(401);
+    expect(await count("sessions")).toBe(0);
   });
 
   it("reset ends the user's sessions", async () => {

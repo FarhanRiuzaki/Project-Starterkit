@@ -46,13 +46,14 @@ export function useTableQuery<T, F extends Record<string, string>>({ key, path, 
   const set = useCallback((patch: Partial<TableState<F>>) => {
     const next = writeTable(state, patch, spec);
     if (!next) return;
+    if (sp.get("refresh")) next.set("refresh", sp.get("refresh")!);
     const href = next.size ? `${pathname}?${next}` : pathname;
     // Native history (Next keeps useSearchParams in sync): the URL changes in place, without a server round trip for
     // the page, so the next page loads from /api with the previous rows kept and the busy dim. The server prefetch
     // covers document loads and route changes only.
     if (historyMode(patch, spec) === "replace") window.history.replaceState(null, "", href);
     else window.history.pushState(null, "", href);
-  }, [state, spec, pathname]);
+  }, [state, spec, pathname, sp]);
 
   const { filterQuery, url } = tableRequest(path, state, spec, params);
   const q = useQuery({ queryKey: [key, url], queryFn: () => api<Page<T>>(url), enabled, placeholderData: keepPreviousData });
@@ -63,8 +64,9 @@ export function useTableQuery<T, F extends Record<string, string>>({ key, path, 
     // replace, not push: Back should not return to the empty page.
     if (!lastPage) return;
     const next = writeTable(state, { page: lastPage } as Partial<TableState<F>>, spec);
+    if (next && sp.get("refresh")) next.set("refresh", sp.get("refresh")!);
     if (next) window.history.replaceState(null, "", next.size ? `${pathname}?${next}` : pathname);
-  }, [lastPage, state, spec, pathname]);
+  }, [lastPage, state, spec, pathname, sp]);
 
   const paging = {
     mode: "server", page: state.page, pageSize: state.pageSize, total: tv.total ?? 0, totalCapped: tv.totalCapped,

@@ -8,8 +8,11 @@ export const meterTrack = (onInset = false) => (onInset ? "bg-line" : "bg-inset 
 
 /** Fill of every usage bar (Meter): tone colour by threshold, striped by default. */
 export function MeterFill({ ratio, tone, striped = true }: { ratio: number | null; tone?: MeterTone; striped?: boolean }) {
-  return <span aria-hidden="true" className={cn("absolute inset-y-0 left-0 rounded-full transition-[width] duration-(--dur-enter)", FILL[tone ?? meterTone(ratio)], striped && "striped")}
-    style={{ width: `${clampRatio(ratio) * 100}%` }} />;
+  const fill = clampRatio(ratio);
+  return <span aria-hidden="true" className={cn("absolute inset-0 origin-left overflow-hidden rounded-full transition-transform duration-(--dur-enter) ease-standard", FILL[tone ?? meterTone(ratio)])}
+    data-slot="meter-fill" style={{ transform: `scaleX(${fill})` }}>
+    {striped && <span className="striped absolute inset-0 origin-left" style={{ transform: `scaleX(${fill > 0 ? Math.min(1 / fill, 100) : 1})` }} />}
+  </span>;
 }
 
 /**

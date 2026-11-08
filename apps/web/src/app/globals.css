@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "@starterkit/ui/styles/tokens.css";
+@import "@starterkit/ui/styles/palettes.css";
 @import "@starterkit/ui/styles/base.css";
 
 @source "../../../../packages/ui/src";
@@ -11,3 +12,7 @@
 /* While that copy is up it is the only image of the old page: a page the Framer layer is fading out (its content is
    inert while it leaves, motion/framer.tsx Frozen) is hidden, so the two never show doubled. */
 body:has(> [data-frozen-holder]) [data-page-swap]:has(> [inert]) { visibility: hidden; }
+
+/* Decorative auth artwork is loaded only for the active theme, using the existing full-bleed composition. */
+.auth-landscape { background: url("/illustrations/auth-landscape.svg") bottom / cover no-repeat; opacity: .85; }
+.dark .auth-landscape { background-image: url("/illustrations/auth-landscape-dark.svg"); opacity: .64; }

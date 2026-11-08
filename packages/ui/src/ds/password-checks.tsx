@@ -12,8 +12,8 @@ export function PasswordChecks({ id, checks }: { id: string; checks: { label: st
   return (
     <ul id={id} className="grid gap-1 text-caption">
       {checks.map((c, i) => (
-        <li key={i} className={cn("flex items-center gap-1.5", c.met ? "text-fg" : "text-fg-3")}>
-          {c.met ? <Icon icon={CheckIcon} className="size-3.5 shrink-0" /> : <span aria-hidden="true" className="mx-0.5 size-2.5 shrink-0 rounded-full border border-line-strong" />}
+        <li key={i} className={cn("flex items-center gap-1.5 transition-colors duration-(--dur-fast)", c.met ? "text-fg" : "text-fg-3")}>
+          {c.met ? <Icon icon={CheckIcon} className="size-3.5 shrink-0 animate-swap" /> : <span aria-hidden="true" className="mx-0.5 size-2.5 shrink-0 rounded-full border border-line-strong" />}
           {c.label}<span className="sr-only">{c.met ? ", done" : ", not yet"}</span>
         </li>
       ))}

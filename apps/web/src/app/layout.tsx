@@ -5,6 +5,8 @@ import { Providers } from "@/components/providers";
 import { BRAND } from "@starterkit/shared/brand";
 import { config } from "@/lib/server/config";
 import { PREFS_COOKIE, parsePrefs } from "@/lib/shared/prefs";
+import { PALETTE_COOKIE, parsePalette } from "@/lib/shared/palette";
+import { PaletteProvider } from "@/lib/client/palette-context";
 import { fontVariables } from "./fonts";
 import "./globals.css";
 
@@ -26,15 +28,16 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // The same nonce goes on next-themes' inline script, which sets the theme class before first paint.
   const nonce = (await headers()).get("x-nonce") ?? undefined;
   // Density from the viewer's cookie, so compact survives a reload (tokens.css keys on :root[data-density]).
+  const palette = parsePalette((await cookies()).get(PALETTE_COOKIE)?.value);
   const density = parsePrefs((await cookies()).get(PREFS_COOKIE)?.value).density;
   return (
-    <html lang="en" suppressHydrationWarning className={fontVariables} data-density={density}>
+    <html lang="en" suppressHydrationWarning className={fontVariables} data-density={density} data-palette={palette}>
       {/* The page streams in after the shell as a Suspense segment (loading.tsx). If the browser paints a frame before
           React's reveal script runs, React holds the page back 300 ms past that frame ($RT throttle) and the region
           paints blank. No element has this id, so first paint waits for the end of the document and the page shows on
           it (Chromium; elsewhere the link is ignored). */}
       <head><link rel="expect" href="#document-parsed" blocking="render" /></head>
-      <body className="min-h-screen font-sans"><Providers nonce={nonce}>{children}</Providers></body>
+      <body className="min-h-screen font-sans"><PaletteProvider initial={palette} secure={config().COOKIE_SECURE}><Providers nonce={nonce}>{children}</Providers></PaletteProvider></body>
     </html>
   );
 }

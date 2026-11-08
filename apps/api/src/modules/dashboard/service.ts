@@ -2,8 +2,10 @@
 // owners' exported tables (read-only) and audit's recentActivity.
 import { and, count, eq, gt, gte, inArray, lt, lte, sql } from "drizzle-orm";
 import { FULL_SIGN_INS } from "@starterkit/shared/audit";
-import { DASHBOARD_DAYS, type DashboardDto } from "@starterkit/shared/contracts/dashboard";
+import { DASHBOARD_DAYS, type DashboardDto, type DashboardQuery } from "@starterkit/shared/contracts/dashboard";
+import { resolveTimeRange } from "@starterkit/ui/lib/time-range";
 import { appDate, appDayStart, APP_TIME_ZONE, shiftDate } from "@starterkit/ui/lib/format";
+import { ApiError } from "../../kernel/errors";
 import { db } from "../../kernel/db";
 import { authLog, recentActivity } from "../audit";
 import { type Ctx, sessionLive, sessions } from "../auth";
@@ -20,14 +22,19 @@ const failedBetween = (from: number, to: number) =>
  * activity) need audit.view. Each audit number is an indexed query bounded by time (the 14 days shown, the last 24 hours
  * and the 24 before) or by LIMIT 5; only a completed sign-in (login_success, 2fa_success) counts as a success.
  */
-export async function dashboard(ctx: Ctx): Promise<DashboardDto> {
+export async function dashboard(ctx: Ctx, query: DashboardQuery = {}): Promise<DashboardDto> {
   const now = Date.now();
   const audit = ctx.perms.has("audit.view");
   const today = appDate(now);
-  const first = shiftDate(today, 1 - DASHBOARD_DAYS);
-  const from = new Date(appDayStart(first)), to = new Date(appDayStart(shiftDate(today, 1)));
+  const timed = query.start && query.end ? resolveTimeRange({ start: query.start, end: query.end }, now)! : null;
+  if (query.start && query.end && !timed) throw new ApiError("bad_request");
+  const first = timed ? appDate(timed.start) : query.from ?? shiftDate(today, 1 - DASHBOARD_DAYS);
+  const last = timed ? appDate(timed.end - 1) : query.to ?? today;
+  const from = new Date(timed?.start ?? appDayStart(first)), to = new Date(timed?.end ?? appDayStart(shiftDate(last, 1)));
+  const dayCount = Math.round((appDayStart(last) - appDayStart(first)) / (24 * HOUR)) + 1;
+  const previous = new Date(from.getTime() - (to.getTime() - from.getTime()));
   const success = inArray(authLog.event, [...FULL_SIGN_INS]), failedEvent = eq(authLog.event, "login_failed");
-  const [[people], [live], perDay, failed, failedBefore, recent] = await Promise.all([
+  const [[people], [live], perDay, failed, failedBefore, recent, selected] = await Promise.all([
     db.select({
       active: sql<number>`count(*) filter (where ${users.isActive})::int`,
       fresh: sql<number>`count(*) filter (where ${gte(users.createdAt, new Date(now - 7 * 24 * HOUR))})::int`,
@@ -43,6 +50,12 @@ export async function dashboard(ctx: Ctx): Promise<DashboardDto> {
     audit ? failedBetween(now - 24 * HOUR, now) : null,
     audit ? failedBetween(now - 48 * HOUR, now - 24 * HOUR) : null,
     audit ? recentActivity() : null,
+    (query.from || timed) ? Promise.all([
+      db.$count(users, and(gte(users.createdAt, from), lt(users.createdAt, to))),
+      db.$count(users, and(gte(users.createdAt, previous), lt(users.createdAt, from))),
+      audit ? db.$count(authLog, and(failedEvent, gte(authLog.at, from), lt(authLog.at, to))) : null,
+      audit ? db.$count(authLog, and(failedEvent, gte(authLog.at, previous), lt(authLog.at, from))) : null,
+    ]) : null,
   ]);
   const byDay = new Map(perDay.map((d) => [d.day, d]));
   return {
@@ -52,7 +65,8 @@ export async function dashboard(ctx: Ctx): Promise<DashboardDto> {
     failedLogins24h: failed,
     failedLoginsPrev24h: failedBefore,
     activeSessions: live!.n,
-    loginsPerDay: Array.from({ length: DASHBOARD_DAYS }, (_, i) => {
+    ...(selected ? { period: { from: first, to: last, ...(timed ? { start: from.toISOString(), end: to.toISOString() } : {}), newUsers: selected[0], previousNewUsers: selected[1], failedSignIns: selected[2], previousFailedSignIns: selected[3] } } : {}),
+    loginsPerDay: Array.from({ length: dayCount }, (_, i) => {
       const date = shiftDate(first, i), d = byDay.get(date);
       return { date, success: d?.success ?? 0, failed: audit ? (d?.failed ?? 0) : null };
     }),

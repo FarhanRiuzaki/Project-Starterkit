@@ -3,10 +3,12 @@
 // for and the browser never fetches it again. Pure (no React, no zod).
 // Key scheme: the first element is the module that owns the data (users, rbac, me, audit, dashboard), then what
 // identifies the read (a table's URL, "detail" + id, …), so invalidating a module's key refreshes all of it.
+import { isTimeExpression, resolveTimeRange } from "@starterkit/ui/lib/time-range";
 import { ACTION_OPTIONS, ACTIVITY_SORTS, AUDIT_RANGES, AUTH_EVENTS, AUTH_LOG_SORTS, AUTH_METHODS, presetRange, rangeProblem } from "@starterkit/shared/audit";
 import type { AuthLogDto } from "@starterkit/shared/contracts/audit";
 import { PERMISSION_SORTS, ROLE_SORTS, SESSION_SORTS, USER_SORTS } from "@starterkit/shared/paging";
 import { MODULES } from "@starterkit/shared/permissions";
+import { timeRange } from "./time-controls";
 import { type FilterParser, isoDate, oneOf, type TableSpec, text } from "./table-state";
 
 /** A server-driven table: query-key prefix, API path, URL state spec, and (optionally) URL filters → API params. */
@@ -16,6 +18,12 @@ export type TableDef<F extends Record<string, string>> = {
 export type NoFilters = Record<never, string>;
 
 export const DASHBOARD_KEY = ["dashboard"] as const;
+export function dashboardRead(sp: Pick<URLSearchParams, "get">) {
+  if (!sp.get("range") && !sp.get("from") && !sp.get("to") && !sp.get("start") && !sp.get("end")) return { key: DASHBOARD_KEY, path: "/api/dashboard" };
+  const { params } = timeRange(sp);
+  const path = `/api/dashboard?${new URLSearchParams(params)}`;
+  return { key: [...DASHBOARD_KEY, path], path };
+}
 
 /** The signed-in user; own sessions live under the same prefix, so one invalidation refreshes both. */
 export const ME_KEY = ["me"] as const;
@@ -53,12 +61,13 @@ export const PERMISSIONS_TABLE: TableDef<{ q: string; module: string }> = {
 export const AUDIT_KEY = ["audit"] as const;
 
 /** Filters both audit logs share: who (free text, debounced) and the range: a preset, or a custom from–to pair that wins when valid. */
-export type AuditFilters = { user: string; range: (typeof AUDIT_RANGES)[number]; from: string; to: string };
-const AUDIT_FILTERS = { user: text(64), range: oneOf(AUDIT_RANGES, "7d"), from: isoDate, to: isoDate } satisfies { [K in keyof AuditFilters]: FilterParser<AuditFilters[K]> };
+export type AuditFilters = { user: string; range: (typeof AUDIT_RANGES)[number]; from: string; to: string; start: string; end: string };
+const timeExpression: FilterParser<string> = raw => raw && isTimeExpression(raw) ? raw : "";
+const AUDIT_FILTERS = { start: timeExpression, end: timeExpression, user: text(64), range: oneOf(AUDIT_RANGES, "7d"), from: isoDate, to: isoDate } satisfies { [K in keyof AuditFilters]: FilterParser<AuditFilters[K]> };
 export const customRange = (f: { from: string; to: string }) => (f.from && f.to && rangeProblem(f.from, f.to) === null ? { from: f.from, to: f.to } : null);
 /** API parameters: a valid custom from–to, else the preset as from/to calendar dates (app time zone, today included). */
-const auditParams = ({ range, from, to, ...rest }: AuditFilters & Record<string, string>) =>
-  ({ ...rest, ...(customRange({ from, to }) ?? presetRange(range, Date.now())) });
+const auditParams = ({ range, from, to, start, end, ...rest }: AuditFilters & Record<string, string>) =>
+  ({ ...rest, ...(resolveTimeRange({ start, end }, Date.now()) ? { start, end } : customRange({ from, to }) ?? presetRange(range, Date.now())) });
 
 export type ActivityFilters = AuditFilters & { action: string };
 export const ACTIONS = [{ value: "", label: "Any" }, ...ACTION_OPTIONS];

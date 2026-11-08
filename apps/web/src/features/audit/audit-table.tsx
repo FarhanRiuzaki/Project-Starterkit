@@ -1,67 +1,25 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { type ReactNode, useCallback, useId, useState } from "react";
-import { BlockedButton, type Column, DataTable, type LegendItem, Notice, Panel, QueryInput, RelativeTime, TimeRangePicker, Toolbar, ToolbarFilters } from "@starterkit/ui/ds";
+import { type ReactNode, useCallback, useState } from "react";
+import { BlockedButton, type Column, DataTable, type LegendItem, Notice, Panel, QueryInput, RelativeTime, Toolbar, ToolbarFilters } from "@starterkit/ui/ds";
 import { APP_TIME_ZONE_LABEL, appDayStart, formatDateTimeLong, formatDate, formatNumber } from "@starterkit/ui/lib/format";
 import { Button } from "@starterkit/ui/ui/button";
 import { Icon, type IconData } from "@starterkit/ui/ui/icon";
 import { ExportIcon } from "@starterkit/ui/ui/icons";
-import { Input } from "@starterkit/ui/ui/input";
 import { toast } from "@starterkit/ui/ui/toast";
 import { PageHeader } from "@/components/shell/page-header";
 import { download, errorText } from "@/lib/client/api";
 import { useTableQuery } from "@/lib/client/use-table-query";
-import { AUDIT_RANGES, CSV_MAX_ROWS, MAX_RANGE_DAYS, RANGE_LABEL, rangeProblem } from "@starterkit/shared/audit";
+import { CSV_MAX_ROWS, RANGE_LABEL } from "@starterkit/shared/audit";
+import { timeRange } from "@/lib/shared/time-controls";
 import { type AuditFilters, customRange, type TableDef } from "@/lib/shared/queries";
 import type { FilterParser, TableState } from "@/lib/shared/table-state";
 
 const EntryDialog = dynamic(() => import("./entry-dialog").then((m) => m.EntryDialog), { ssr: false });
 
 /** Filters that set the time range, not the match: "Clear filters" leaves them. */
-const RANGE_KEYS = new Set(["range", "from", "to"]);
-
-const RANGE_ERROR = {
-  pair: "Pick an end date too.",
-  order: "The start date must be on or before the end date.",
-  span: `Pick ${MAX_RANGE_DAYS} days or fewer.`,
-} as const;
-
-/**
- * Custom from–to (native date inputs). A valid pair is applied at once; a broken one stays a draft with its problem
- * announced (aria-live), and the list keeps its last range. Clearing both dates returns to the preset.
- */
-function CustomRange({ from, to, onCommit }: { from: string; to: string; onCommit: (from: string, to: string) => void }) {
-  const id = useId();
-  const [draft, setDraft] = useState({ from, to });
-  // The URL changed elsewhere (a preset picked, Back): adopt it while rendering.
-  const [synced, setSynced] = useState(`${from}|${to}`);
-  if (synced !== `${from}|${to}`) { setSynced(`${from}|${to}`); setDraft({ from, to }); }
-  const problem = draft.from || draft.to ? rangeProblem(draft.from || undefined, draft.to || undefined) : null;
-
-  function change(next: { from: string; to: string }) {
-    setDraft(next);
-    if (!next.from && !next.to) onCommit("", "");
-    else if (customRange(next)) onCommit(next.from, next.to);
-  }
-  const field = (key: "from" | "to", label: string) => (
-    <label className="flex items-center gap-1.5 text-body-sm text-fg-3">
-      {label}
-      <Input type="date" value={draft[key]} onChange={(e) => change({ ...draft, [key]: e.target.value })} className="w-38 font-mono text-body-sm"
-        aria-invalid={problem && problem !== "pair" ? true : undefined} aria-describedby={`${id}-msg`} />
-    </label>
-  );
-  return (
-    <fieldset className="flex flex-wrap items-center gap-2">
-      <legend className="sr-only">Custom date range, {APP_TIME_ZONE_LABEL}</legend>
-      {field("from", "From")}
-      {field("to", "to")}
-      <p id={`${id}-msg`} aria-live="polite" className={problem === "pair" ? "text-body-sm text-fg-3" : "text-body-sm text-down-ink"}>
-        {problem ? RANGE_ERROR[problem] : ""}
-      </p>
-    </fieldset>
-  );
-}
+const RANGE_KEYS = new Set(["range", "from", "to", "start", "end"]);
 
 /** Time column cell: relative, with the absolute time under it. */
 export const timeCell = (at: string) => (
@@ -122,10 +80,10 @@ export function AuditTable<T extends { id: string; at: string }, F extends Audit
 
   const shown = open && detail(open);
   const custom = customRange(f);
+  const timeLabel = f.start && f.end ? timeRange(new URLSearchParams(f), 7).label : null;
   return (
     <div className="grid gap-section">
-      <PageHeader title={title} description={description}
-        actions={<TimeRangePicker value={custom ? null : f.range} ranges={AUDIT_RANGES} onChange={(range) => set({ range, from: "", to: "" } as Partial<TableState<F>>)} />} />
+      <PageHeader title={title} description={description} />
       {t.staleError && <Notice tone="warn" live>Couldn&apos;t refresh the {noun}; showing the ones loaded before. {errorText(t.staleError)}</Notice>}
       <Panel toolbar={<Toolbar end={<>
           <BlockedButton variant="secondary" reason={t.total === 0 ? `No ${noun} match, so there is nothing to export.` : null}
@@ -134,16 +92,14 @@ export function AuditTable<T extends { id: string; at: string }, F extends Audit
           </BlockedButton>
         </>}>
           <div className="w-full max-w-64 max-md:max-w-none"><QueryInput value={f.user} onChange={onUser} keys={[]} label="Search by user" placeholder="Search by user name or email" /></div>
-          {/* Phone: in the Filters sheet; its count = the log's own filters + a custom date range. */}
-          <ToolbarFilters active={narrowed.filter(([k]) => k !== "user").length + (custom ? 1 : 0)}>
+          {/* Phone: log filters live in the Filters sheet; the navbar owns the date range. */}
+          <ToolbarFilters active={narrowed.filter(([k]) => k !== "user").length}>
             {filters(f, set)}
             {narrowed.length > 0 && <Button variant="ghost" size="sm" onClick={clear}>Clear filters</Button>}
-            {/* Keyed by the preset: picking another one drops a half-filled custom pair and its hint. */}
-            <CustomRange key={f.range} from={f.from} to={f.to} onCommit={(from, to) => set({ from, to } as Partial<TableState<F>>)} />
           </ToolbarFilters>
         </Toolbar>}
         flush icon={icon} title="All entries" legend={legend} count={t.count}
-        description={`${custom ? rangeText(custom) : RANGE_LABEL[f.range]} · times in ${APP_TIME_ZONE_LABEL}`}
+        description={`${timeLabel ?? (custom ? rangeText(custom) : RANGE_LABEL[f.range])} · times in ${APP_TIME_ZONE_LABEL}`}
         footnote={`Export CSV saves every matching entry, newest first, up to ${formatNumber(CSV_MAX_ROWS)} rows.`}>
         <DataTable label={title} rowHeight="identity" columns={columns} rows={t.rows} rowKey={(r) => r.id} loading={t.loading}
           sort={t.sort} onSortChange={t.onSortChange} paging={t.paging}

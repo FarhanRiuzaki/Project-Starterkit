@@ -47,7 +47,7 @@ export function StatTile({ label, value, unit, delta, caption: captionProp, tren
   const tone = delta ? deltaTone(delta) : "neutral";
   const arrow = delta?.direction === "up" ? ArrowUpIcon : delta?.direction === "down" ? ArrowDownIcon : null;
   return (
-    <div data-slot="stat-tile" className="flex min-h-26 min-w-0 flex-col gap-2.5 rounded-lg border border-line bg-card p-4 shadow-card">
+    <div data-slot="stat-tile" className="flex min-h-26 min-w-0 flex-col gap-2.5 rounded-lg border border-line bg-card p-4">
       <div className="flex min-w-0 items-center gap-2 text-body-sm text-fg-2">
         {icon && <Icon icon={icon} className="size-4 shrink-0 text-fg-3" />}
         <span className="min-w-0 truncate" title={label}>{label}</span>
@@ -79,7 +79,7 @@ export function StatTile({ label, value, unit, delta, caption: captionProp, tren
  */
 export function StatTileSkeletons({ count = 4, trend = false, caption = true, progress = false }: { count?: number; trend?: boolean; caption?: boolean; progress?: boolean }) {
   return Array.from({ length: count }, (_, i) => (
-    <div key={i} className="flex min-h-26 flex-col gap-2.5 rounded-lg border border-line bg-card p-4 shadow-card" aria-hidden="true">
+    <div key={i} className="flex min-h-26 flex-col gap-2.5 rounded-lg border border-line bg-card p-4" aria-hidden="true">
       <div className="flex h-4.5 items-center"><Skeleton className="h-2.5 w-1/2" /></div>
       <div className="flex h-8 items-center"><Skeleton className="h-7 w-1/3" /></div>
       {progress && <Skeleton className="h-1.5 w-full rounded-full" />}

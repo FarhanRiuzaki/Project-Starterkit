@@ -13,6 +13,10 @@ one it doesn't serve.
 Request schemas (`…Body`, `…Query`) describe what the client sends: a field with a `default` may be left out. Every
 other schema describes the answer exactly (`additionalProperties: false`).
 
+## Time filters
+
+Dashboard and both audit GET endpoints accept either an inclusive calendar pair `from` / `to` (YYYY-MM-DD, at most 92 days), or a precise `start` / `end` pair (at most 366 days). The two forms cannot be mixed. Precise windows include start and exclude end. Endpoints are ISO timestamps with an explicit zone, `now`, or restricted date math (`now-15m`, `now-1M`, `now/d`, `now/w+1w`). Units are seconds `s`, minutes `m`, hours `h`, days `d`, weeks `w`, months `M` and years `y`. Rounding uses the app time zone; weeks begin on Monday. Each request resolves both endpoints against one clock. JSON pages and CSV exports apply identical filters. Dashboard day buckets aggregate only matching events; its period includes resolved start/end timestamps.
+
 ## Rules for every endpoint
 
 - The browser calls only same-origin `/api/*` on the Next server. The backend is reached from Next server code
@@ -46,6 +50,7 @@ other schema describes the answer exactly (`additionalProperties: false`).
 - `/api/auth/*` POSTs carry no CSRF token (there is no session yet) but must be same-origin: `Sec-Fetch-Site:
   same-origin` (or `none`), or an `Origin` equal to the site's public origin (`APP_URL`); otherwise 403 `forbidden`. Sign out with a
   full session needs `x-csrf-token` too.
+- Credential sign-in defaults to `method: "auto"`: email, username or NIP resolves the registered account, then only its provider can authorize it. Explicit `password` and `ldap` remain supported. Failed automatic proofs run one argon2 verification plus one directory check when configured; successful local proofs do not depend on directory availability. The input badge is a format hint (numeric NIP → LDAP), not an account lookup.
 - A sign-in that passed the password step of a 2FA account holds only the pending marker (10 minutes): every guarded
   endpoint answers it 401; it can only finish (`/api/auth/2fa`) or cancel (`/api/auth/logout`).
 - A session ends `SESSION_TTL_HOURS` (default 12) after sign-in (`expiresAt`, absolute) or after
@@ -217,7 +222,7 @@ endpoint adds to the guard's 401/403 and the 400 for an invalid body or query.
 | GET | `/api/auth/oauth/{provider}/callback` | the `sk_oauth` cookie of the browser that started it | query `code`, `state` (or `error`) from the provider | 200 page that moves on with `<meta http-equiv="refresh">`: sign-in → the session cookie, then `next` (internal, else `/`); link → `/me/security?connected={provider}` (logs `me.connect`; already linked: no entry). Failure → `/login?error=oauth` (`/login?error=inactive` for an inactive account) or `/me/security?oauth=failed` | none (every failure lands on a page); the state is spent on first use |
 | POST | `/api/auth/oauth/{provider}/callback` | as GET | form fields `code`, `state` (Apple posts its answer: `response_mode=form_post`) | as GET | as GET |
 | GET | `/api/auth/oauth/{provider}/mock-authorize` | `OAUTH_MOCK=true` in the web and the API (else 404) | query `state` | 303 to the callback with `code=mock` | `not_found` |
-| GET | `/api/dashboard` | signed in (audit numbers need `audit.view`, else null) | none | [DashboardDto](schemas/DashboardDto.json) | none |
+| GET | `/api/dashboard` | signed in (audit numbers need `audit.view`, else null) | [DashboardQuery](schemas/DashboardQuery.json) (optional inclusive `from`/`to`, max 92 calendar days) | [DashboardDto](schemas/DashboardDto.json) | none |
 | GET | `/api/me` | signed in | none | [MeDto](schemas/MeDto.json) | none |
 | PATCH | `/api/me` | signed in | [UpdateProfileBody](schemas/UpdateProfileBody.json) (`currentPassword` when `email` changes) | [MeDto](schemas/MeDto.json) | `bad_request` (new email without `currentPassword`), `invalid_credentials` (400), `rate_limited`, `self_action` (Google or Apple only account), `duplicate` |
 | POST | `/api/me/2fa` | signed in | none (starts setup) | [TwoFactorSetupDto](schemas/TwoFactorSetupDto.json) | `already_enabled`, `bad_request` (Google or Apple only account) |

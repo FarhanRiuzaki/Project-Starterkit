@@ -1,6 +1,7 @@
 {
   "name": "starterkit",
   "private": true,
+  "packageManager": "bun@1.4.3",
   "workspaces": ["apps/*", "packages/*"],
   "scripts": {
     "dev": "bun run --filter '@starterkit/web' --filter '@starterkit/api' dev",
@@ -15,6 +16,8 @@
     "lint": "eslint --max-warnings 0 .",
     "test": "bun run --filter '*' test",
     "test:changed": "bun run --filter '*' test:changed",
+    "audit:dependencies": "bun audit",
+    "audit:production": "bun audit --production",
     "check": "bun run typecheck && bun run lint && bun run test",
     "e2e": "bun run --filter @starterkit/web e2e",
     "budget": "node apps/web/scripts/bundle-budget.mjs",
@@ -22,7 +25,15 @@
   },
   "devDependencies": {
     "eslint": "9.39.5",
-    "eslint-config-next": "16.3.8",
+    "eslint-config-next": "16.4.5",
     "typescript": "6.0.3"
+  },
+  "overrides": {
+    "@esbuild-kit/core-utils": {
+      "esbuild": "0.25.12"
+    },
+    "@typescript-eslint/typescript-estree": {
+      "minimatch": "11.0.1"
+    }
   }
 }

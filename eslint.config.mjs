@@ -14,7 +14,8 @@ const config = [
     },
   },
   { settings: { next: { rootDir: ["apps/web/"] } } },
-  { ignores: [".next/**", "node_modules/**", "test-results/**", "next-env.d.ts", "**/.next/**", "**/.next-e2e/**", ".superpowers/**"] },
+  // Local assistant skill scripts are tooling with their own runtime conventions, outside the application.
+  { ignores: [".next/**", "node_modules/**", "test-results/**", "next-env.d.ts", "**/.next/**", "**/.next-e2e/**", ".superpowers/**", ".agents/**", ".claude/**"] },
 ];
 
 export default config;

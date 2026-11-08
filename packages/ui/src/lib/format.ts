@@ -1,4 +1,7 @@
 // Display formats: en-GB, Asia/Jakarta time zone (WIB). Missing value → "–".
+import { LOCALE, nf0, nf1 } from "./number-format";
+export { LOCALE } from "./number-format";
+export { formatBytes } from "./format-bytes";
 /**
  * The one display time zone. `APP_UTC_OFFSET_SEC` and `APP_TIME_ZONE_LABEL` both describe it: change all three
  * together (Asia/Jakarta has no DST, so a fixed offset is exact). Nothing else in packages/ui hardcodes them.
@@ -6,11 +9,8 @@
 export const APP_TIME_ZONE = "Asia/Jakarta";
 export const APP_UTC_OFFSET_SEC = 7 * 3600;
 export const APP_TIME_ZONE_LABEL = "WIB";
-export const LOCALE = "en-GB";
 /** en-GB writes "Sept"; the house format uses three-letter months everywhere. */
 const month3 = (s: string) => s.replace(/\bSept\b/, "Sep");
-const nf0 = new Intl.NumberFormat(LOCALE, { maximumFractionDigits: 0 });
-const nf1 = new Intl.NumberFormat(LOCALE, { maximumFractionDigits: 1 });
 const timeFmt = new Intl.DateTimeFormat(LOCALE, { timeZone: APP_TIME_ZONE, hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 const dateTimeFmt = new Intl.DateTimeFormat(LOCALE, {
   timeZone: APP_TIME_ZONE, day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23",
@@ -21,18 +21,6 @@ type N = number | null | undefined;
 
 export function formatNumber(n: N): string {
   return n == null || !Number.isFinite(n) ? "–" : nf0.format(n);
-}
-
-export function formatBytes(n: N): string {
-  if (n == null || !Number.isFinite(n)) return "–";
-  const units = ["B", "KB", "MB", "GB", "TB"];
-  let i = 0;
-  let v = n;
-  while (v >= 1024 && i < units.length - 1) {
-    v /= 1024;
-    i++;
-  }
-  return `${(v < 10 && (i > 0 || !Number.isInteger(v)) ? nf1 : nf0).format(v)} ${units[i]}`;
 }
 
 /** Ratio as a percentage, whole by default; `digits` keeps up to that many decimals (SLO objectives: "99.5%"). */
@@ -135,6 +123,14 @@ export function formatDateTimeLong(ms: N): string {
   if (ms == null || !Number.isFinite(ms)) return "–";
   const p = Object.fromEntries(longFmt.formatToParts(ms).map((x) => [x.type, x.value]));
   return `${p.day} ${month3(p.month ?? "")} ${p.year}, ${p.hour}:${p.minute} ${APP_TIME_ZONE_LABEL}`;
+}
+
+/** Precise timestamp for time-range endpoints; zone is shown by the shared picker. */
+const preciseFmt = new Intl.DateTimeFormat(LOCALE, { timeZone: APP_TIME_ZONE, day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", fractionalSecondDigits: 3, hourCycle: "h23" });
+export function formatDateTimePrecise(ms: N): string {
+  if (ms == null || !Number.isFinite(ms)) return "–";
+  const p = Object.fromEntries(preciseFmt.formatToParts(ms).map(part => [part.type, part.value]));
+  return `${p.day} ${month3(p.month ?? "")} ${p.year} @ ${p.hour}:${p.minute}:${p.second}.${p.fractionalSecond}`;
 }
 
 /** Signed delta for a stat tile: "+18%", "−4%", "0%". */

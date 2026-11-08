@@ -5,6 +5,10 @@
    shadcn names (--background, --card, …) keep the primitives working; shadcn --accent = neutral hover (tray),
    the brand accent is --primary. Hex literals only inside :root and .dark (tokens.test resolves var() aliases). */
 :root {
+  /* Micro-interaction geometry; durations and easings use the shared motion tokens. */
+  --press-scale: 0.98;
+  --choice-press-scale: 0.92;
+
   /* surfaces */
   --bg: #f3f3f4;
   --sheet: #ffffff;
@@ -15,6 +19,8 @@
   /* lines */
   --line: #ececee;
   --line-strong: #dcdce0;
+  --control-border: #858591;
+  --auth-art-accent: #4f7de8;
   --grid: #ececee;
   /* ink */
   --fg: #151518;
@@ -77,7 +83,7 @@
   --touch-min: 44px;
   --text-input-touch: 16px;
   /* phone top bar (below 768 px): its 56 px row under the safe-area inset; also where sticky bars under it stop */
-  --topbar-h: calc(3.5rem + env(safe-area-inset-top));
+  --topbar-h: calc(7rem + env(safe-area-inset-top));
   /* motion (spec §7.1; mirrored in components/motion/tokens.ts) */
   --dur-instant: 100ms;
   --dur-fast: 150ms;
@@ -115,6 +121,8 @@
 }
 
 .dark {
+  --control-border: #80808c;
+  --auth-art-accent: #6e9efa;
   --bg: #0e0e10;
   --sheet: #151517;
   --tray: #1a1a1d;

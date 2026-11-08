@@ -12,16 +12,19 @@ import { useTheme } from "next-themes";
 import Link from "next/link";
 import { api } from "@/lib/client/api";
 import { useAuth } from "@/lib/client/auth-context";
+import { PALETTES } from "@/lib/shared/palette";
+import { usePalette } from "@/lib/client/palette-context";
 import { usePrefs } from "@/lib/client/prefs-context";
 
 /**
- * Account row at the bottom of the sidebar: profile, security, sessions, theme, density, Sign out. `bar`: the phone top
- * bar's copy (avatar only, opens downwards, aligned to the right edge).
+ * Sidebar account menu: profile, security, sessions, theme, density and Sign out.
+ * The drawer shows full labels; the tablet/collapsed rail shows the avatar.
  */
-export function AccountMenu({ compact, bar }: { compact?: boolean; bar?: boolean }) {
+export function AccountMenu({ compact, drawer }: { compact?: boolean; drawer?: boolean }) {
   const { user } = useAuth();
   const { theme, setTheme } = useTheme();
   const { prefs, update } = usePrefs();
+  const { palette, change } = usePalette();
   const role = user.roles.join(", ") || "No role";
   async function logout() {
     await api("/api/auth/logout", { method: "POST" }).catch(() => null);
@@ -34,16 +37,16 @@ export function AccountMenu({ compact, bar }: { compact?: boolean; bar?: boolean
       <DropdownMenuTrigger asChild>
         {/* 32 px initials avatar, name + role, chevron; avatar only in the rail. */}
         <button type="button" aria-label={`${user.name}, account menu`}
-          className={cn("flex h-11 w-full cursor-pointer items-center justify-center gap-2.5 rounded-md px-1.5 text-left outline-none hover:bg-tray focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary data-[state=open]:bg-tray", !compact && "xl:justify-start")}>
+          className={cn("flex h-11 w-full cursor-pointer items-center justify-center gap-2.5 rounded-md px-1.5 text-left outline-none hover:bg-tray focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary data-[state=open]:bg-tray", drawer ? "justify-start" : !compact && "xl:justify-start")}>
           <Avatar name={user.name} seed={user.username} size={32} />
-          <span className={cn("hidden min-w-0 flex-1 leading-tight", !compact && "xl:grid")}>
+          <span className={cn("hidden min-w-0 flex-1 leading-tight", drawer ? "grid" : !compact && "xl:grid")}>
             <span className="truncate text-body-sm font-medium text-fg">{user.name}</span>
             <span className="truncate text-caption text-fg-3">{role}</span>
           </span>
-          <Icon icon={ChevronsUpDownIcon} className={cn("hidden size-4 shrink-0 text-fg-3", !compact && "xl:block")} />
+          <Icon icon={ChevronsUpDownIcon} className={cn("hidden size-4 shrink-0 text-fg-3", drawer ? "block" : !compact && "xl:block")} />
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align={bar ? "end" : "start"} side={bar ? "bottom" : "top"} className="w-64">
+      <DropdownMenuContent align="start" side="top" className="w-64">
         <DropdownMenuLabel className="grid gap-0.5 font-normal">
           <span className="text-body-sm font-medium text-fg">{user.name}</span>
           <span className="truncate text-caption text-fg-3">{user.email}</span>
@@ -58,6 +61,10 @@ export function AccountMenu({ compact, bar }: { compact?: boolean; bar?: boolean
           <DropdownMenuRadioItem value="system">Match system</DropdownMenuRadioItem>
           <DropdownMenuRadioItem value="light">Light</DropdownMenuRadioItem>
           <DropdownMenuRadioItem value="dark">Dark</DropdownMenuRadioItem>
+        </DropdownMenuRadioGroup>
+        <DropdownMenuLabel className="text-caption font-normal text-fg-3">Color palette</DropdownMenuLabel>
+        <DropdownMenuRadioGroup value={palette} onValueChange={change}>
+          {PALETTES.map((p) => <DropdownMenuRadioItem key={p.value} value={p.value}>{p.label}</DropdownMenuRadioItem>)}
         </DropdownMenuRadioGroup>
         <DropdownMenuLabel className="text-caption font-normal text-fg-3">Density</DropdownMenuLabel>
         <DropdownMenuRadioGroup value={prefs.density} onValueChange={(v) => update({ density: v === "compact" ? "compact" : "comfortable" })}>

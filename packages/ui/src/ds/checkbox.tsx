@@ -1,6 +1,7 @@
 "use client";
 
 import { useId } from "react";
+import { useChangeKey } from "../motion";
 import { cn } from "../lib/cn";
 import { Icon } from "../ui/icon";
 import { CheckIcon } from "../ui/icons";
@@ -16,14 +17,15 @@ export function Checkbox({ checked, onToggle, label, readOnly, reason, className
 }) {
   const id = useId();
   const fixed = readOnly || !!reason;
+  const change = useChangeKey(checked);
   const box = (
-    <button type="button" role="checkbox" aria-checked={checked} aria-label={label} aria-readonly={fixed || undefined}
+    <button data-slot="checkbox" type="button" role="checkbox" aria-checked={checked} aria-label={label} aria-readonly={fixed || undefined}
       aria-describedby={reason ? id : undefined} onClick={fixed ? undefined : onToggle}
       className={cn("inline-grid size-7 shrink-0 place-items-center rounded-md outline-none focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary",
-        fixed ? "cursor-default" : "cursor-pointer hover:bg-tray", className)}>
-      <span aria-hidden="true" className={cn("grid size-4 place-items-center rounded-xs border",
-        checked ? "border-primary bg-primary text-primary-foreground" : "border-line-strong bg-card", fixed && "opacity-60")}>
-        {checked === true && <Icon icon={CheckIcon} size={12} strokeWidth={2.5} />}
+        fixed ? "cursor-default" : "press-feedback cursor-pointer hover:bg-tray", className)}>
+      <span data-slot="checkbox-mark" aria-hidden="true" className={cn("grid size-4 place-items-center rounded-xs border",
+        checked ? "border-primary bg-primary text-primary-foreground" : "border-control-border bg-card", fixed && "opacity-60")}>
+        {checked === true && <Icon key={change} icon={CheckIcon} size={12} strokeWidth={2.5} className={change > 0 ? "animate-swap" : undefined} />}
         {checked === "mixed" && <span className="h-0.5 w-2 rounded-full bg-current" />}
       </span>
     </button>

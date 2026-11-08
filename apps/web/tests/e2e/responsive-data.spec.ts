@@ -119,7 +119,7 @@ test.describe("phone: stacked rows", () => {
     await open(page, "/audit/activity");
     await page.getByRole("button", { name: "Filters", exact: true }).tap();
     const sheet = page.getByRole("dialog", { name: "Filters" });
-    await expect(sheet.getByLabel("From")).toBeVisible();
+    await expect(sheet.getByLabel("From")).toHaveCount(0);
     await sheet.getByLabel("Action").selectOption({ index: 1 });
     await expect(page).toHaveURL(/action=/);
   });

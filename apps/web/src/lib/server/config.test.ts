@@ -5,7 +5,7 @@ import { CONFIG_KEYS, DEV_API_BASE_URL, DEV_APP_URL, parseConfig } from "./confi
 
 const TOKEN = "t".repeat(32);
 const base = { SESSION_SECRET: "s".repeat(32), INTERNAL_API_TOKEN: TOKEN };
-const prod = { ...base, NODE_ENV: "production", API_BASE_URL: "http://api:4000", APP_URL: "https://app.example.com" };
+const prod = { ...base, NODE_ENV: "production", API_BASE_URL: "http://api:4000", APP_URL: "https://app.example.com", COOKIE_SECURE: "true" };
 
 describe("config", () => {
   it("defaults: cookie not secure, 12 h sessions, the dev API address", () => {
@@ -20,6 +20,12 @@ describe("config", () => {
     const a = parseConfig({ ...base, NODE_ENV: "development", SESSION_SECRET: "" }).SESSION_SECRET;
     expect(a.length).toBeGreaterThanOrEqual(32);
     expect(parseConfig({ INTERNAL_API_TOKEN: TOKEN }).SESSION_SECRET).toBe(a);
+  });
+  it("production HTTPS refuses an insecure session cookie; HTTP local production tests stay supported", () => {
+    for (const APP_URL of ["https://app.example.com", "HTTPS://app.example.com"]) {
+      expect(() => parseConfig({ ...prod, APP_URL, COOKIE_SECURE: "false" })).toThrow(/COOKIE_SECURE/);
+    }
+    expect(parseConfig({ ...prod, APP_URL: "http://localhost:3123", COOKIE_SECURE: "false" }).COOKIE_SECURE).toBe(false);
   });
   it("COOKIE_SECURE accepts only true/false", () => {
     expect(parseConfig({ ...base, COOKIE_SECURE: "true" }).COOKIE_SECURE).toBe(true);
@@ -46,7 +52,7 @@ describe("config", () => {
   it("OAUTH_MOCK: true/false only; refused in production over HTTPS (E2E runs a production build over plain HTTP)", () => {
     expect(parseConfig({ ...base, OAUTH_MOCK: "true" }).OAUTH_MOCK).toBe(true);
     expect(() => parseConfig({ ...base, OAUTH_MOCK: "yes" })).toThrow();
-    expect(parseConfig({ ...prod, OAUTH_MOCK: "true" }).OAUTH_MOCK).toBe(true);
+    expect(parseConfig({ ...prod, APP_URL: "http://localhost:3123", COOKIE_SECURE: "false", OAUTH_MOCK: "true" }).OAUTH_MOCK).toBe(true);
     expect(() => parseConfig({ ...prod, COOKIE_SECURE: "true", OAUTH_MOCK: "true" })).toThrow(/OAUTH_MOCK/);
     expect(parseConfig({ ...prod, COOKIE_SECURE: "true" }).OAUTH_MOCK).toBe(false);
   });

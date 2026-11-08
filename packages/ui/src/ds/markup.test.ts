@@ -18,11 +18,11 @@ describe("Panel (tray + card)", () => {
     expect(out).toContain('<h2 class="text-title-2 text-fg">Sessions</h2>');
     expect(out).toMatch(/data-slot="count-badge"[^>]*>312</);
     expect(out).toContain("Newest first");
-    expect(out).toMatch(/<div class="[^"]*rounded-lg border border-line bg-card shadow-card p-4[^"]*"><p>body<\/p><\/div>/);
+    expect(out).toMatch(/<div class="[^"]*rounded-lg border border-line bg-card p-4[^"]*"><p>body<\/p><\/div>/);
   });
   it("flush: the card has no padding (a table is the card); footnote sits under the card", () => {
     const out = html(h(Panel, { title: "Table", flush: true, footnote: "Data from 14:02 WIB · Metrics", children: h("table") }));
-    expect(out).toMatch(/bg-card shadow-card overflow-clip"><table><\/table><\/div><div class="[^"]*text-caption text-fg-3">Data from 14:02 WIB · Metrics<\/div>/);
+    expect(out).toMatch(/bg-card overflow-clip"><table><\/table><\/div><div class="[^"]*text-caption text-fg-3">Data from 14:02 WIB · Metrics<\/div>/);
   });
   it("description: after a middot on the title row; on a phone its own line, no middot", () => {
     const out = html(h(Panel, { title: "Users", description: "Select rows", children: "x" }));

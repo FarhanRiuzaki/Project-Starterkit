@@ -63,7 +63,7 @@ export function FilterMenu<T extends string>({ label, value, options, onChange }
       <DropdownMenuTrigger asChild>
         <Button variant="secondary" aria-label={`${label}: ${current}`} className="gap-1 px-2.5 text-body-sm font-normal">
           <span className="text-fg-3">{label}:</span><span className="font-medium text-fg">{current}</span>
-          <Icon icon={ChevronDownIcon} className="size-3.5 text-fg-3" />
+          <Icon data-slot="disclosure-icon" icon={ChevronDownIcon} className="size-3.5 text-fg-3" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="min-w-48">

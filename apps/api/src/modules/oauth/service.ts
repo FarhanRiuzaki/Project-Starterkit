@@ -8,7 +8,7 @@ import { db, type Tx } from "../../kernel/db";
 import { ApiError, tooManyAttempts } from "../../kernel/errors";
 import type { Client } from "../../kernel/plugins/context";
 import { recordActivity } from "../audit";
-import { type AuthUser, completeSignIn, endSession, hitIp, isLiveSession, logAuth, oauthStartLimits, retryText, userById } from "../auth";
+import { type AuthUser, completeSignIn, endSession, hitIp, isLiveSession, lockAuthUser, lockLiveSession, logAuth, oauthStartLimits, retryText, userById } from "../auth";
 import { authorizeUrl, identityOf, type OAuthCallbackBody, type OAuthStartBody, providerEnabled } from "./providers";
 import { oauthStates, userIdentities } from "./schema";
 
@@ -79,6 +79,8 @@ export async function callback(p: ConnectionProvider, b: z.infer<typeof OAuthCal
     const user = live ? await userById(s.userId!) : null;
     if (!user?.isActive) throw new ApiError("unauthenticated");
     await db.transaction(async (tx) => {
+      await lockAuthUser(tx, user);
+      if (!(await lockLiveSession(tx, user.id, s.sessionId!))) throw new ApiError("unauthenticated");
       const added = await tx.insert(userIdentities).values({ userId: user.id, provider: p, subject: id.subject, email: id.email })
         .onConflictDoNothing().returning({ userId: userIdentities.userId });
       if (added.length) return recordActivity(tx, { user }, { action: "me.connect", target: { type: "user", id: user.id, label: user.name }, after: { provider: p } });
@@ -96,6 +98,10 @@ export async function callback(p: ConnectionProvider, b: z.infer<typeof OAuthCal
     throw user ? new ApiError("account_inactive") : new ApiError("invalid_credentials", NOT_CONNECTED);
   }
   const token = await db.transaction(async (tx) => {
+    await lockAuthUser(tx, user);
+    // Unlinking uses the same user lock; a detached identity cannot finish an in-flight sign-in.
+    const [current] = await tx.select({ userId: userIdentities.userId }).from(userIdentities).where(identity(p, id.subject));
+    if (current?.userId !== user.id) throw new ApiError("invalid_credentials", NOT_CONNECTED);
     // One browser, one session: the session the browser had at start ends (its cookie can't reach the web here).
     if (s.sessionId) await endSession(s.sessionId, tx);
     const t = await completeSignIn(tx, user, p, client);

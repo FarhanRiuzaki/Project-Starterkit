@@ -73,7 +73,7 @@ function Form({ user }: { user: MeDto }) {
   }
 
   return (
-    <form onSubmit={save} className="grid max-w-md gap-4">
+    <form onSubmit={save} className="grid w-full gap-6">
       <Field id="me-name" label="Name"><Input id="me-name" value={name} maxLength={100} required onChange={(e) => setName(e.target.value)} autoComplete="name" /></Field>
       <Field id="me-email" label="Email" note={providerEmail ? "Your email comes from your connected Google or Apple account." : undefined}>
         <Input id="me-email" type="email" value={email} maxLength={254} required readOnly={providerEmail} onChange={(e) => setEmail(e.target.value)} autoComplete="email" />

@@ -1,9 +1,9 @@
 "use client";
 
-import { Brand, Kbd } from "@starterkit/ui/ds";
+import { Brand } from "@starterkit/ui/ds";
 import { cn } from "@starterkit/ui/lib/cn";
 import { Icon } from "@starterkit/ui/ui/icon";
-import { SearchIcon, SidebarCollapseIcon, SidebarExpandIcon } from "@starterkit/ui/ui/icons";
+import { SidebarCollapseIcon, SidebarExpandIcon } from "@starterkit/ui/ui/icons";
 import { ScrollArea } from "@starterkit/ui/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@starterkit/ui/ui/tooltip";
 import Link from "next/link";
@@ -13,16 +13,16 @@ import { useAuth } from "@/lib/client/auth-context";
 import { usePrefs } from "@/lib/client/prefs-context";
 import { activeChild, isActive, navFor } from "@/lib/shared/nav";
 import { viewHref } from "@/lib/shared/prefs";
-import { AccountMenu } from "./account-menu";
-import { openPalette } from "./command-palette";
 import { NavGlyph } from "./nav-icon";
+import { AccountMenu } from "./account-menu";
+import { SidebarRailMenu } from "./sidebar-rail-menu";
 
 /**
  * Sidebar. 248 px from 1280 px (`xl`), collapsible to the 64 px icon rail (preference per viewer, kept in a cookie);
  * 768–1279 px it is always the rail, so the page never scrolls sideways; below 768 px it is not shown and the same
  * sections open from the top bar's menu button (MobileNav, a drawer). Sections come from
  * `navFor(perms)`: a link the viewer cannot open is not shown. An item's `children` (views of its page) open under it,
- * on a guide line, while its page is open in the expanded sidebar (≥ 1280 px). Account row pinned to the bottom. The logo nodes come
+ * on a guide line, while its page is open in the expanded sidebar (≥ 1280 px). Account controls live in the sidebar footer. The logo nodes come
  * from the server (AppShell), so the wordmark's path data stays out of the client bundle.
  */
 export function Sidebar({ mark, wordmark }: { mark: ReactNode; wordmark: ReactNode }) {
@@ -58,22 +58,7 @@ export function Sidebar({ mark, wordmark }: { mark: ReactNode; wordmark: ReactNo
         )}
       </div>
       <div aria-hidden="true" className="mx-1.5 mt-3 border-t border-line" />
-      {/* Search (opens the ⌘K palette): a field in the expanded sidebar, an icon button in the rail. */}
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <button type="button" onClick={openPalette} aria-label="Search pages"
-            className={cn("mt-3 flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-md border border-line-strong bg-card text-body-sm text-fg-3 shadow-xs transition-colors duration-(--dur-fast) hover:border-fg-4 hover:text-fg-2",
-              square, !collapsed && "xl:h-8 xl:justify-start xl:pr-1.5 xl:pl-2.5")}>
-            <Icon icon={SearchIcon} className="size-4 shrink-0" />
-            <span className={cn("hidden min-w-0 flex-1 truncate text-left", !collapsed && "xl:inline")}>Search pages…</span>
-            <span className={cn("hidden", !collapsed && "xl:contents")}><Kbd keys={["⌘K"]} /></span>
-          </button>
-        </TooltipTrigger>
-        <TooltipContent side="right" className={cn(!collapsed && "xl:hidden")}>Search pages (⌘K)</TooltipContent>
-      </Tooltip>
-      {/* ScrollArea: its thumb takes no room, so the menu is exactly as wide as the search and the account row above and
-          below it on every system (classic or overlay scrollbars); the thumb sits in the sidebar's padding. */}
-      <nav aria-label="Menu" className="mt-1 flex min-h-0 flex-1 flex-col">
+      <nav data-slot="sidebar-nav" aria-label="Menu" className="mt-1 flex min-h-0 flex-1 flex-col">
         <ScrollArea className="-mx-1 px-1" thumbClassName="-right-2">
         {navFor(perms).map((s, si) => (
           <div key={s.id} role="group" aria-labelledby={`nav-section-${s.id}`} className={cn("grid gap-0.5", si > 0 && "mt-3")}>
@@ -86,28 +71,30 @@ export function Sidebar({ mark, wordmark }: { mark: ReactNode; wordmark: ReactNo
               const child = active ? activeChild(n, path, sp) : null;
               return (
                 <div key={n.href} className="grid gap-0.5">
-                <Tooltip>
+                {n.children?.length ? <SidebarRailMenu item={n} active={active} child={child} collapsed={collapsed} /> : null}
+                {(!n.children?.length || !collapsed) && <Tooltip>
                   <TooltipTrigger asChild>
                     {/* aria-label: the text label is hidden in the rail; the link keeps its name. */}
                     {/* With a child view open (expanded sidebar), the child carries the highlight and the item just reads fg. */}
                     <Link href={viewHref(n.href, prefs)} aria-label={n.label} aria-current={active && !(child && !collapsed) ? "page" : undefined}
                       className={cn("relative flex h-9 items-center justify-center gap-2.5 rounded-md border px-2.5 text-body text-fg-2 transition-colors duration-(--dur-fast)",
-                        square, !collapsed && "xl:justify-start",
-                        active ? "border-line bg-raised text-fg shadow-sm" : "border-transparent hover:bg-tray hover:text-fg",
+                        square, !collapsed && "xl:h-8 xl:justify-start xl:text-body-sm",
+                        !!n.children?.length && "hidden xl:flex",
+                        active ? "border-line bg-raised text-fg" : "border-transparent hover:bg-tray hover:text-fg",
                         active && child && !collapsed && "xl:border-transparent xl:bg-transparent xl:shadow-none")}>
                       <NavGlyph icon={n.icon} className="size-4 shrink-0" />
                       <span key={`label-${collapsed}`} className={cn("hidden min-w-0 flex-1 truncate", label("xl:inline"))}>{n.label}</span>
                     </Link>
                   </TooltipTrigger>
                   <TooltipContent side="right" className={cn(!collapsed && "xl:hidden")}>{n.label}</TooltipContent>
-                </Tooltip>
-                {child && !collapsed && (
-                  <div className="ml-4.5 hidden gap-0.5 border-l border-line pl-2 xl:grid">
+                </Tooltip>}
+                {active && n.children && !collapsed && (
+                  <div className="nav-tree ml-4.5 hidden gap-0.5 pl-3 xl:grid">
                     {n.children!.map((c) => (
                       <Link key={c.href} href={c.href} aria-current={c === child ? "page" : undefined}
-                        className={cn("flex h-8 items-center gap-2.5 rounded-md border px-2.5 text-body-sm text-fg-2 transition-colors duration-(--dur-fast)",
-                          c === child ? "border-line bg-raised text-fg shadow-sm" : "border-transparent hover:bg-tray hover:text-fg")}>
-                        <NavGlyph icon={c.icon} className="size-4 shrink-0" /><span className="min-w-0 truncate">{c.label}</span>
+                        className={cn("relative flex h-8 items-center gap-2.5 rounded-md border px-2.5 text-body-sm text-fg-2 transition-colors duration-(--dur-fast)",
+                          c === child ? "border-line bg-raised text-fg" : "border-transparent hover:bg-tray hover:text-fg")}>
+                        <span aria-hidden="true" className="nav-tree-branch" /><NavGlyph icon={c.icon} className="size-4 shrink-0" /><span className="min-w-0 truncate">{c.label}</span>
                       </Link>
                     ))}
                   </div>
@@ -120,14 +107,14 @@ export function Sidebar({ mark, wordmark }: { mark: ReactNode; wordmark: ReactNo
         </ScrollArea>
       </nav>
       <div className="grid gap-2 border-t border-line pt-3">
+        <AccountMenu compact={collapsed} />
         {collapsed && (
-          // The rail is wide enough for the logo only, so the expand toggle sits above the account row (≥ 1280 only).
+          // The rail is wide enough for the logo only, so the expand toggle sits at the bottom (≥ 1280 only).
           <button ref={toggleRef} type="button" onClick={() => toggle("expanded")} aria-label="Expand sidebar" aria-expanded="false"
             className="hidden h-9 cursor-pointer place-items-center rounded-md text-fg-3 hover:bg-tray hover:text-fg xl:grid">
             <Icon icon={SidebarExpandIcon} className="size-4" />
           </button>
         )}
-        <AccountMenu compact={collapsed} />
       </div>
     </aside>
   );

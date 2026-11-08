@@ -8,16 +8,23 @@ import type {
 } from "@starterkit/shared/contracts/me";
 import { MeDto } from "@starterkit/shared/contracts/me";
 import { decryptSecret, encryptSecret } from "../../kernel/crypto";
-import { db } from "../../kernel/db";
+import { db, type Tx } from "../../kernel/db";
 import { ApiError, currentSession } from "../../kernel/errors";
 import { isUuid } from "../../kernel/parse";
 import { recordActivity } from "../audit";
 import {
-  type Ctx, deleteUserTokens, endSession, endUserSessions, hashPassword, lockLiveSession, matchTotpStep, newRecoveryCodes, newTotpSecret,
+  type Ctx, deleteUserTokens, endSession, endUserSessions, hashPassword, lockAuthUser, lockLiveSession, matchTotpStep, newRecoveryCodes, newTotpSecret,
   oauthOnly, otpauthUrl, reauth, stampReauth, userById, type UserRow,
 } from "../auth";
 import { otherIdentities, unlinkIdentity } from "../oauth";
-import { disableTotp, duplicateOf, enableTotp, lockUser, startTotp, updateUser } from "../users";
+import { disableTotp, duplicateOf, enableTotp, startTotp, updateUser } from "../users";
+
+/** Serialize account changes with revocation, then recheck the session authorizing this write. */
+async function lockAccount(tx: Tx, ctx: Ctx) {
+  const user = await lockAuthUser(tx, ctx.user);
+  if (!(await lockLiveSession(tx, user.id, ctx.sid))) throw new ApiError("unauthenticated");
+  return user;
+}
 
 /** A unique index refused the write (the driver error arrives wrapped by Drizzle). */
 const isUniqueViolation = (e: unknown) => ((e as { cause?: { errno?: string } }).cause ?? (e as { errno?: string })).errno === "23505";
@@ -46,7 +53,7 @@ export async function updateProfile(ctx: Ctx, b: UpdateProfileBody): Promise<MeD
   const DUPLICATE = () => new ApiError("duplicate", "Another user already has this email. Use a different one.");
   try {
     await db.transaction(async (tx) => {
-      const cur = (await lockUser(tx, u.id))!;
+      const cur = await lockAccount(tx, ctx);
       const name = b.name ?? cur.name;
       const email = b.email ?? cur.email;
       if (name === cur.name && email === cur.email) return;
@@ -68,7 +75,7 @@ export async function changePassword(ctx: Ctx, b: ChangePasswordBody): Promise<v
   await reauth(u, { password: b.current });
   const hash = await hashPassword(b.next);
   await db.transaction(async (tx) => {
-    await lockUser(tx, u.id);
+    await lockAccount(tx, ctx);
     await updateUser(tx, u.id, { passwordHash: hash });
     await endUserSessions(tx, u.id, ctx.sid);
     await deleteUserTokens(tx, u.id);
@@ -86,6 +93,7 @@ export async function startTwoFactor(ctx: Ctx): Promise<{ secret: string; otpaut
   if (oauthOnly(u)) throw new ApiError("bad_request", "Two-factor authentication doesn't apply to an account that signs in with Google or Apple: the provider checks you.");
   const secret = newTotpSecret();
   await db.transaction(async (tx) => {
+    await lockAccount(tx, ctx);
     if (!(await startTotp(tx, u.id, encryptSecret(secret)))) throw new ApiError("already_enabled", ALREADY_ON);
     await recordActivity(tx, ctx, { action: "me.2fa_setup", target: target(u) }); // the secret itself is never logged
   });
@@ -101,6 +109,7 @@ export async function enableTwoFactor(ctx: Ctx, b: TwoFactorEnableBody): Promise
   const recoveryCodes = newRecoveryCodes();
   const codeHashes = await Promise.all(recoveryCodes.map(hashPassword));
   await db.transaction(async (tx) => {
+    await lockAccount(tx, ctx);
     if (!(await enableTotp(tx, u.id, { pending: u.pendingTotpSecret!, step, codeHashes }))) throw new ApiError("invalid_code", WRONG_CODE);
     await recordActivity(tx, ctx, { action: "me.2fa_enable", target: target(u) });
   });
@@ -120,6 +129,7 @@ export async function disableTwoFactor(ctx: Ctx, b: DisableTwoFactorBody): Promi
   if (!proof) throw new ApiError("bad_request", only ? "Enter one of your recovery codes." : "Enter your current password.");
   await reauth(u, proof);
   await db.transaction(async (tx) => {
+    await lockAccount(tx, ctx);
     if (!(await disableTotp(tx, u.id))) throw off();
     await recordActivity(tx, ctx, { action: "me.2fa_disable", target: target(u) });
   });
@@ -129,8 +139,8 @@ export async function disableTwoFactor(ctx: Ctx, b: DisableTwoFactorBody): Promi
 export async function disconnect(ctx: Ctx, provider: ConnectionProvider): Promise<MeDtoType> {
   const u = ctx.user;
   await db.transaction(async (tx) => {
-    const cur = (await lockUser(tx, u.id))!;
-    if (!cur.hasPassword && !u.isLdap && (await otherIdentities(tx, u.id, provider)) === 0) {
+    const cur = await lockAccount(tx, ctx);
+    if (!cur.passwordHash && !u.isLdap && (await otherIdentities(tx, u.id, provider)) === 0) {
       throw new ApiError("only_sign_in_method", "This is your only way to sign in. Set a password or connect another account first.");
     }
     // a provider that isn't linked changes nothing, so it leaves no entry
@@ -152,7 +162,10 @@ export async function confirmIdentity(ctx: Ctx, b: ReauthBody): Promise<void> {
   const proof = only ? (b.recoveryCode === undefined ? null : { recoveryCode: b.recoveryCode }) : b.password === undefined ? null : { password: b.password };
   if (!proof) throw new ApiError("bad_request", only ? "Enter one of your recovery codes." : "Enter your current password.");
   await reauth(u, proof);
-  await stampReauth(ctx.sid);
+  await db.transaction(async tx => {
+    await lockAccount(tx, ctx);
+    await stampReauth(ctx.sid, tx);
+  });
 }
 
 /** End one of your own other sessions. Someone else's id, or an ended session, answers like an unknown one (404). */
@@ -160,6 +173,7 @@ export async function endOwnSession(ctx: Ctx, id: string): Promise<void> {
   const gone = () => new ApiError("not_found", "This session doesn't exist or has already ended.");
   if (!isUuid(id)) throw gone();
   await db.transaction(async (tx) => {
+    await lockAccount(tx, ctx);
     const s = await lockLiveSession(tx, ctx.user.id, id);
     if (!s) throw gone();
     if (id === ctx.sid) throw currentSession();

@@ -141,3 +141,19 @@ describe("scroll-quiet (inner scroll areas)", () => {
     expect(BASE.replace(rule, "").replace(/\/\*[\s\S]*?\*\//g, "")).not.toMatch(/scrollbar-color/);
   });
 });
+
+
+const PALETTES_CSS = readFileSync(path.resolve(import.meta.dirname, "./palettes.css"), "utf8");
+describe("Figma palettes", () => {
+  for (const match of PALETTES_CSS.matchAll(/(:root[^\{]+)\{([^}]+)\}/g)) {
+    const selector = match[1]!, dark = selector.includes(".dark") && !selector.includes(":not");
+    const overrides = Object.fromEntries([...match[2]!.matchAll(/--([a-z0-9-]+):\s*([^;]+);/g)].map((m) => [m[1]!, m[2]!.trim()]));
+    const t = { ...theme(dark), ...overrides };
+    it(`${selector} keeps body text, action labels and field boundaries accessible`, () => {
+      for (const ink of ["fg", "fg-2", "fg-3"]) for (const surface of ["card", "sheet", "tray"])
+        expect(contrast(t[ink]!, t[surface]!), `${ink} on ${surface}`).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(t["action-fg"]!, t.action!)).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(t["control-border"]!, t.card!)).toBeGreaterThanOrEqual(3);
+    });
+  }
+});

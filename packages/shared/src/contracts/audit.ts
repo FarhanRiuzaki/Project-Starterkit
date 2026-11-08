@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ACTIVITY_SORTS, AUTH_EVENTS, AUTH_LOG_SORTS, AUTH_METHODS, MAX_RANGE_DAYS, rangeProblem } from "../audit";
+import { isTimeExpression, timeRangeProblem } from "@starterkit/ui/lib/time-range";
 import { ListQuery, sortParam } from "./common";
 
 export const ActivityDto = z.object({
@@ -35,14 +36,16 @@ export type AuthLogDto = z.infer<typeof AuthLogDto>;
  * newest first, up to CSV_MAX_ROWS).
  */
 const AuditQuery = ListQuery.omit({ q: true }).extend({
+  start: z.string().max(100).refine(isTimeExpression).optional(),
+  end: z.string().max(100).refine(isTimeExpression).optional(),
   from: z.iso.date().optional(),
   to: z.iso.date().optional(),
   user: z.string().trim().max(64).optional(),
   format: z.enum(["json", "csv"]).default("json"),
 });
 const validRange = [
-  (q: { from?: string; to?: string }) => rangeProblem(q.from, q.to) === null,
-  { message: `Dates: both or neither, to on or after from, at most ${MAX_RANGE_DAYS} days.` },
+  (q: { from?: string; to?: string; start?: string; end?: string }) => rangeProblem(q.from, q.to) === null && timeRangeProblem(q, Date.now()) === null,
+  { message: `Choose a valid calendar range (up to ${MAX_RANGE_DAYS} days) or a time range (up to 366 days).` },
 ] as const;
 
 /** GET /api/audit/activity. `user` matches the actor's name, id or current email; `action` is exact. */
