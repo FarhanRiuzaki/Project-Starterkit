@@ -35,13 +35,35 @@
       ]
     },
     "module": {
-      "type": "string",
-      "enum": [
-        "user",
-        "role",
-        "permission",
-        "audit",
-        "project"
+      "anyOf": [
+        {
+          "type": "string",
+          "const": ""
+        },
+        {
+          "type": "string",
+          "enum": [
+            "user",
+            "role",
+            "permission",
+            "audit",
+            "project"
+          ]
+        },
+        {
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "user",
+              "role",
+              "permission",
+              "audit",
+              "project"
+            ]
+          }
+        }
       ]
     }
   }

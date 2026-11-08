@@ -1,6 +1,7 @@
 import { Elysia } from "elysia";
 import { log } from "../log";
-import { firstValues } from "../parse";
+import { queryValues } from "../parse";
+import { MULTI_FILTER_KEYS } from "@starterkit/shared/filter-selection";
 
 /** The caller as Next reports it (`X-Client-Ip`/`X-Client-Ua`); trusted only behind internal-auth. */
 export type Client = { ip: string; ua: string };
@@ -13,7 +14,7 @@ export const requestMeta = (r: Request): Meta | undefined => metas.get(r);
 
 /**
  * Request id (`X-Request-Id` from Next, else a new UUIDv7) and client ip/ua from the `X-Client-*` headers on every
- * request; the query string as the first value per key (before validation); then one access log line (method, route
+ * request; raw repeated category values and first scalar values (before validation); then one access log line (method, route
  * pattern, status, ms; never the query) and `Cache-Control: no-store` on every answer.
  */
 export const context = new Elysia({ name: "kernel.context" })
@@ -27,7 +28,7 @@ export const context = new Elysia({ name: "kernel.context" })
     set.headers["cache-control"] = "no-store";
   })
   .onTransform({ as: "global" }, (c) => {
-    c.query = firstValues(c.request.url);
+    Object.assign(c, { query: queryValues(c.request.url, MULTI_FILTER_KEYS) });
   })
   .derive({ as: "global" }, ({ request }) => {
     const m = metas.get(request)!;

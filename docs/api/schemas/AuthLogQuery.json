@@ -61,24 +61,69 @@
       ]
     },
     "event": {
-      "type": "string",
-      "enum": [
-        "login_success",
-        "password_ok",
-        "login_failed",
-        "logout",
-        "2fa_success",
-        "2fa_failed",
-        "password_reset"
+      "anyOf": [
+        {
+          "type": "string",
+          "const": ""
+        },
+        {
+          "type": "string",
+          "enum": [
+            "login_success",
+            "password_ok",
+            "login_failed",
+            "logout",
+            "2fa_success",
+            "2fa_failed",
+            "password_reset"
+          ]
+        },
+        {
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "login_success",
+              "password_ok",
+              "login_failed",
+              "logout",
+              "2fa_success",
+              "2fa_failed",
+              "password_reset"
+            ]
+          }
+        }
       ]
     },
     "method": {
-      "type": "string",
-      "enum": [
-        "password",
-        "ldap",
-        "google",
-        "apple"
+      "anyOf": [
+        {
+          "type": "string",
+          "const": ""
+        },
+        {
+          "type": "string",
+          "enum": [
+            "password",
+            "ldap",
+            "google",
+            "apple"
+          ]
+        },
+        {
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "password",
+              "ldap",
+              "google",
+              "apple"
+            ]
+          }
+        }
       ]
     }
   }

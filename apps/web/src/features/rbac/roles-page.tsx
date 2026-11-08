@@ -4,7 +4,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { ActionMenu, type Column, ColumnsMenu, DataTable, FilterLayout, FilterSearch, Notice, Panel, Toolbar } from "@starterkit/ui/ds";
+import { ActionMenu, type Column, ColumnsMenu, DataTable, FilterLayout, FilterSurface, FilterSearch, Notice, Panel, Toolbar } from "@starterkit/ui/ds";
 import { formatNumber, plural } from "@starterkit/ui/lib/format";
 import { Button } from "@starterkit/ui/ui/button";
 import { KeyIcon } from "@starterkit/ui/ui/icons";
@@ -70,11 +70,13 @@ export function RolesPage() {
     <div className="grid gap-section" onPointerDown={preloadDialog} onFocus={preloadDialog}>
       <PageHeader title="Roles" description="Each role is a set of permissions. A user gets the permissions of every role they have."
         actions={can("role.create") ? <Button onClick={() => { setName(""); setCreating(true); }}>Create role</Button> : undefined} />
+      <FilterSurface>
       {t.staleError && <Notice tone="warn" live>Couldn&apos;t refresh the roles; showing the ones loaded before. {errorText(t.staleError)}</Notice>}
-      <FilterLayout values={{ q: t.state.q }} defaults={FILTER_DEFAULTS} fields={FILTER_FIELDS}
-        onApply={values => set(values, { history: "push" })} filters={(draft, patch) =>
+      {t.viewNotRemembered && <Notice>This filter selection works at this URL, but is too long to remember in navigation. Save a named view to reopen it.</Notice>}
+      <FilterLayout busy={t.paging.busy} values={{ q: t.state.q }} defaults={FILTER_DEFAULTS} fields={FILTER_FIELDS}
+        onApply={(values, options) => set(values, options)} filters={(draft, patch) =>
           <FilterSearch label="Search roles" value={draft.q} onChange={q => patch({ q })} placeholder="Role name" />}>
-      {({ trigger, summary }) => <Panel toolbar={<Toolbar end={<><SavedViewsMenu /><ColumnsMenu columns={columns} hidden={t.hidden} onChange={t.setHidden} /></>}>{trigger}</Toolbar>}
+      {({ summary }) => <Panel toolbar={<Toolbar end={<><SavedViewsMenu /><ColumnsMenu columns={columns} hidden={t.hidden} onChange={t.setHidden} /></>}>{null}</Toolbar>}
         flush icon={KeyIcon} title="All roles" count={t.count}>
         {summary}
         <DataTable label="Roles" columns={columns} hidden={t.hidden} rows={t.rows} rowKey={(r) => r.id} loading={t.loading}
@@ -92,6 +94,7 @@ export function RolesPage() {
           }} />
       </Panel>}
       </FilterLayout>
+      </FilterSurface>
       {creating && (
         <ConfirmActionDialog open onOpenChange={(o) => { if (!o) setCreating(false); }} auditFields={false} reasons={[]} title="Create role"
           description="The role starts with no permissions; you pick them on the next page." impact={[]} actionLabel="Create role"

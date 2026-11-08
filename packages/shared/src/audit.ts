@@ -57,7 +57,7 @@ export const ACTION_LABEL = {
 /** An action of the vocabulary (what the API records). */
 export type ActivityAction = keyof typeof ACTION_LABEL;
 /** Readable name of an activity action; an action this build doesn't know shows as recorded. */
-export const actionLabel = (action: string) => (ACTION_LABEL as Record<string, string>)[action] ?? action;
+export const actionLabel = (action: string) => Object.hasOwn(ACTION_LABEL, action) ? (ACTION_LABEL as Record<string, string>)[action]! : action;
 /** Actions the activity filter offers, in label order. */
 export const ACTION_OPTIONS = Object.entries(ACTION_LABEL).map(([value, label]) => ({ value, label })).sort((a, b) => a.label.localeCompare(b.label));
 

@@ -1,4 +1,5 @@
 import type { PermissionName } from "@starterkit/shared/permissions";
+import { canonicalSelection } from "@starterkit/shared/filter-selection";
 
 export type NavIcon = "dashboard" | "users" | "roles" | "permissions" | "activity" | "signin" | "ds" | "profile" | "users-all" | "users-active" | "users-inactive" | "projects";
 export type NavGroup = "main" | "access" | "audit" | "personal";
@@ -13,11 +14,7 @@ export type NavSection = { id: NavGroup; label: string; items: NavItem[] };
 export const NAV: readonly NavItem[] = [
   { href: "/", label: "Dashboard", icon: "dashboard", shortcut: "G D", group: "main", perm: null },
   { href: "/projects", label: "Projects", icon: "projects", shortcut: "", group: "main", perm: "project.view" },
-  { href: "/users", label: "Users", icon: "users", shortcut: "G U", group: "access", perm: "user.view", children: [
-    { href: "/users", label: "All users", icon: "users-all" },
-    { href: "/users?status=active", label: "Active users", icon: "users-active" },
-    { href: "/users?status=inactive", label: "Inactive users", icon: "users-inactive" },
-  ] },
+  { href: "/users", label: "Users", icon: "users", shortcut: "G U", group: "access", perm: "user.view" },
   { href: "/roles", label: "Roles", icon: "roles", shortcut: "G R", group: "access", perm: "role.view" },
   { href: "/permissions", label: "Permissions", icon: "permissions", shortcut: "G P", group: "access", perm: "permission.view" },
   { href: "/audit/activity", label: "Activity log", icon: "activity", shortcut: "G A", group: "audit", perm: "audit.view" },
@@ -53,7 +50,7 @@ export function activeChild(item: NavItem, pathname: string, sp: URLSearchParams
   if (!item.children || clean(pathname) !== item.href) return null;
   const q = (c: NavChild) => new URLSearchParams(c.href.split("?")[1] ?? "");
   const keys = [...new Set(item.children.flatMap((c) => [...q(c).keys()]))];
-  return item.children.find((c) => keys.every((k) => (q(c).get(k) ?? "") === (sp.get(k) ?? ""))) ?? null;
+  return item.children.find((c) => keys.every((k) => JSON.stringify(canonicalSelection(q(c).getAll(k))) === JSON.stringify(canonicalSelection(sp.getAll(k))))) ?? null;
 }
 
 const clean = (pathname: string) => (pathname.split(/[?#]/)[0] ?? "/").replace(/\/+$/, "") || "/";

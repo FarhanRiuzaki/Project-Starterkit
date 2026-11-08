@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { SAVED_VIEW_QUERY_MAX } from "../views";
 import { SAVED_VIEW_SORTS, SESSION_SORTS } from "../paging";
 import { Password } from "./auth";
 import { ListQuery, sortParam } from "./common";
@@ -70,8 +71,8 @@ export type ConnectionProvider = z.infer<typeof ConnectionProvider>;
 export const MAX_SAVED_VIEWS = 20;
 /** A list page's path ("/users", "/audit/activity"). */
 const ViewPage = z.string().regex(/^\/[a-z][a-z/-]{0,39}$/);
-/** A list's URL query without the page number ("status=active&sort=-createdAt"), at most 300 characters. */
-const ViewQuery = z.string().max(300).regex(/^[^#\s]*$/);
+/** A list's URL query without the page number ("status=active&sort=-createdAt"), at most 4096 characters. */
+const ViewQuery = z.string().max(SAVED_VIEW_QUERY_MAX).regex(/^[^#\s]*$/);
 
 /** A named list view (search, filters, sort, rows per page) the user saved on a list page, for them only. */
 export const SavedViewDto = z.object({ id: z.string(), path: ViewPage, name: z.string(), query: ViewQuery, createdAt: z.string() });

@@ -14,7 +14,7 @@
     },
     "query": {
       "type": "string",
-      "maxLength": 300,
+      "maxLength": 4096,
       "pattern": "^[^#\\s]*$"
     }
   },

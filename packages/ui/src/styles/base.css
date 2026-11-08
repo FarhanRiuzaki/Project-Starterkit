@@ -434,3 +434,16 @@ details[open]::details-content { block-size: auto; opacity: 1; }
 
 [data-motion-preview="reduced"] [data-slot="radio-mark"] > span { transform: none !important; }
 @media (prefers-reduced-motion: reduce) { [data-slot="radio-mark"] > span { transform: none; } }
+
+/* A short viewport gets the same compact filter launcher in SSR and hydration.
+   Expanded panel scrolling still uses its actual owning surface on explicit open. */
+@media (min-width: 768px) and (max-height: 399px) {
+  .filter-rail { height: 2.75rem; }
+  .filter-rail-button {
+    height: 100%;
+    flex-direction: column;
+    gap: 0.125rem;
+    padding-block: 0;
+  }
+  .filter-rail-toggle, .filter-rail-label { display: none; }
+}

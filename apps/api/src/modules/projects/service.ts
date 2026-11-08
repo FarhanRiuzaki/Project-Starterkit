@@ -1,5 +1,5 @@
 // Projects: the logic of /v1/projects*. 404 → change → activity entry, in one transaction per change.
-import { and, eq, ilike, sql } from "drizzle-orm";
+import { and, eq, ilike, inArray, sql } from "drizzle-orm";
 import type { Page } from "@starterkit/shared/contracts/common";
 import type { CreateProjectBody, ProjectDto, ProjectListQuery, ProjectStatus, UpdateProjectBody } from "@starterkit/shared/contracts/projects";
 import { db, type Tx } from "../../kernel/db";
@@ -22,7 +22,7 @@ const dto = (r: Row): ProjectDto => ({
 export function projectPage(q: ProjectListQuery): Promise<Page<ProjectDto>> {
   const where = and(
     q.q?.trim() ? ilike(projects.name, `%${likeEscape(q.q.trim())}%`) : undefined,
-    q.status ? eq(projects.status, q.status) : undefined,
+    q.status?.length ? inArray(projects.status, q.status) : undefined,
   );
   return pageQuery({
     rows: db.select().from(projects).where(where).$dynamic(),

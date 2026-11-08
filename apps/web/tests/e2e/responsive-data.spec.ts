@@ -24,34 +24,28 @@ const TABLES = [
 
 const firstRowKey = (page: Page, table: string) => page.getByRole("table", { name: table }).getByRole("row").first().locator('[data-mobile="title"]').innerText();
 
-test("module filter card: atomic Apply, persistent active markers, individual removal and Back", async ({ page }) => {
+test("module filters: live checkbox flush, persistent active markers, individual removal and Back", async ({ page }) => {
   await open(page, "/users?page=2&pageSize=25&sort=-createdAt");
-  await page.getByRole("button", { name: "Filters", exact: true }).click();
-  const desktop = page.viewportSize()!.width >= 1280;
-  const card = desktop ? page.getByRole("complementary", { name: "Filters", exact: true }) : page.getByRole("dialog", { name: "Filters", exact: true });
+  await page.getByRole("button", { name: "Expand filters", exact: true }).click();
+  const card = page.getByRole("dialog", { name: "Filters", exact: true });
   await card.getByLabel("Search users", { exact: true }).fill("superadmin");
-  await card.getByRole("radio", { name: "Active", exact: true }).check();
-  await expect(page).not.toHaveURL(/q=|status=/);
-  await card.getByRole("button", { name: "Apply filters", exact: true }).click();
+  await card.getByRole("checkbox", { name: "Active", exact: true }).click();
   await expect(page).toHaveURL(/q=superadmin/);
   await expect(page).toHaveURL(/status=active/);
   await expect(page).not.toHaveURL(/page=2/);
-  if (desktop) {
-    const box = (await card.boundingBox())!;
-    const results = (await page.getByRole("table", { name: "Users", exact: true }).boundingBox())!;
-    expect(results.x + results.width).toBeLessThanOrEqual(box.x);
-    await card.getByRole("button", { name: "Close filters" }).click();
-  } else await expect(card).toBeHidden();
-  await expect(page.getByRole("button", { name: "Filters, 2 active", exact: true })).toBeVisible();
+  await expect(card).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(card).toBeHidden();
+  await expect(page.getByRole("button", { name: "Expand filters, 2 active selections", exact: true })).toBeVisible();
   await expect(page.locator('[data-slot="filter-active-summary"]:visible')).toContainText("Status: Active");
   await page.getByRole("button", { name: "Remove filter Search: superadmin", exact: true }).click();
   await expect(page).not.toHaveURL(/q=/);
   await expect(page).toHaveURL(/status=active/);
   await expect(page).toHaveURL(/pageSize=25/);
   await expect(page).toHaveURL(/sort=-createdAt/);
-  await expect(page.getByRole("button", { name: "Filters, 1 active", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Expand filters, 1 active selections", exact: true })).toBeVisible();
   await page.goBack();
-  await expect(page.getByRole("button", { name: "Filters, 2 active", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Expand filters, 2 active selections", exact: true })).toBeVisible();
   await expectNoHorizontalScroll(page);
 });
 
@@ -114,26 +108,26 @@ test.describe("phone: stacked rows", () => {
     await expect(page.getByRole("table", { name: "Users" }).getByRole("row")).toHaveCount(25);
   });
 
-  test("users: draft filters apply together, with a persistent active count and removable chips", async ({ page }) => {
+  test("users: live checkboxes keep the sheet open, with an applied count and removable chips", async ({ page }) => {
     await open(page, "/users");
     await expect(page.getByRole("textbox", { name: "Search users" })).toBeHidden();
     await expect(page.getByRole("button", { name: /^Status:/ })).toBeHidden();
-    await page.getByRole("button", { name: "Filters", exact: true }).tap();
+    await page.getByRole("button", { name: "Expand filters", exact: true }).tap();
     const sheet = page.getByRole("dialog", { name: "Filters" });
     await expect(sheet).toBeVisible();
     await settleAnimations(page);
     const box = (await sheet.boundingBox())!;
     const vp = page.viewportSize()!;
     expect(box.y + box.height, "a bottom sheet").toBeCloseTo(vp.height, 0);
-    await sheet.getByRole("radio", { name: "Inactive", exact: true }).check();
-    await expect(page).not.toHaveURL(/status=inactive/);
-    await sheet.getByRole("button", { name: "Apply filters" }).tap();
+    await sheet.getByRole("checkbox", { name: "Inactive", exact: true }).tap();
     await expect(page).toHaveURL(/status=inactive/);
+    await expect(sheet).toBeVisible();
+    await sheet.getByRole("button", { name: "Close filters", exact: true }).tap();
     await expect(sheet).toBeHidden();
-    const button = page.getByRole("button", { name: "Filters, 1 active" });
+    const button = page.getByRole("button", { name: "Expand filters, 1 active selections" });
     await expect(button).toBeVisible();
     await expect(page.getByRole("table", { name: "Users" }).getByRole("row").first()).toContainText("Inactive");
-    await page.getByRole("button", { name: "Clear filters", exact: true }).tap();
+    await page.getByRole("button", { name: "Clear all", exact: true }).tap();
     await expect(page).not.toHaveURL(/status=/);
     await page.goBack();
     await expect(page).toHaveURL(/status=inactive/);
@@ -141,20 +135,17 @@ test.describe("phone: stacked rows", () => {
 
   test("permissions and the activity log: their filters live in the sheet too", async ({ page }) => {
     await open(page, "/permissions");
-    await page.getByRole("button", { name: "Filters", exact: true }).tap();
-    await page.getByRole("dialog", { name: "Filters" }).getByLabel("Module").selectOption({ label: "Audit" });
-    await expect(page).not.toHaveURL(/module=audit/);
-    await page.getByRole("dialog", { name: "Filters" }).getByRole("button", { name: "Apply filters" }).tap();
+    await page.getByRole("button", { name: "Expand filters", exact: true }).tap();
+    await page.getByRole("dialog", { name: "Filters" }).getByRole("checkbox", { name: "Audit", exact: true }).tap();
+    await page.getByRole("dialog", { name: "Filters" }).getByRole("button", { name: "Close filters", exact: true }).tap();
     await expect(page).toHaveURL(/module=audit/);
-    await expect(page.getByRole("button", { name: "Filters, 1 active" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Expand filters, 1 active selections" })).toBeVisible();
 
     await open(page, "/audit/activity");
-    await page.getByRole("button", { name: "Filters", exact: true }).tap();
+    await page.getByRole("button", { name: "Expand filters", exact: true }).tap();
     const sheet = page.getByRole("dialog", { name: "Filters" });
     await expect(sheet.getByLabel("From")).toHaveCount(0);
-    await sheet.getByLabel("Action").selectOption({ index: 1 });
-    await expect(page).not.toHaveURL(/action=/);
-    await sheet.getByRole("button", { name: "Apply filters" }).tap();
+    await sheet.getByRole("checkbox").first().tap();
     await expect(page).toHaveURL(/action=/);
   });
 
@@ -271,7 +262,7 @@ test.describe("phone: stacked rows", () => {
     test(`axe with the Filters sheet open (${colorScheme})`, async ({ page }) => {
       await page.emulateMedia({ colorScheme });
       await open(page, "/users");
-      await page.getByRole("button", { name: "Filters", exact: true }).tap();
+      await page.getByRole("button", { name: "Expand filters", exact: true }).tap();
       await expect(page.getByRole("dialog", { name: "Filters" })).toBeVisible();
       expect(await axeSerious(page)).toEqual([]);
     });
@@ -319,7 +310,7 @@ test.describe("tablet and desktop: the table stays a table", () => {
     await expect(table.locator("thead")).toBeVisible();
     expect(await table.getByRole("row").nth(1).evaluate((el) => getComputedStyle(el).display)).toBe("table-row");
     await expect(page.getByLabel("Sort by")).toBeHidden();
-    await expect(page.getByRole("button", { name: "Filters", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Expand filters", exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: /^Status:/ })).toBeHidden();
     const pager = page.getByRole("navigation", { name: "Users pages" });
     await expect(pager.getByRole("button", { name: "Page 2", exact: true })).toBeVisible();

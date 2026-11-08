@@ -58,10 +58,10 @@ export function PageHeader({ title, status, actions, more, description, trail = 
   usePublishTrail(usePathname(), [...trail, { label: title }]);
   const extra = more?.length ? more : null;
   return (
-    <header className="flex flex-wrap items-start gap-x-3 gap-y-3">
+    <header data-slot="page-header" className="flex flex-wrap items-start gap-x-3 gap-y-3">
       <div className="grid min-w-0 gap-1">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <h1 className="min-w-0 text-title-1 wrap-anywhere text-fg">{title}</h1>
+          <h1 tabIndex={-1} className="min-w-0 text-title-1 wrap-anywhere text-fg">{title}</h1>
           {status}
         </div>
         {description && <p className="max-w-[72ch] text-body-sm wrap-anywhere text-fg-3">{description}</p>}

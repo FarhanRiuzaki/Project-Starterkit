@@ -54,7 +54,7 @@ export function apiSchemas(): Record<string, string> {
     if (!(schema instanceof z.ZodType)) continue;
     const file = `${name}.json`;
     if (file in out) throw new Error(`two contracts are named ${name}`);
-    const { $schema, ...json } = z.toJSONSchema(schema, { io: /(Body|Query)$/.test(name) ? "input" : "output" });
+    const { $schema, ...json } = z.toJSONSchema(schema, { io: /(Body|Query)$/.test(name) || name === "BulkUserFilter" ? "input" : "output" });
     out[file] = `${JSON.stringify({ $schema, title: name, ...json }, null, 2)}\n`;
   }
   return out;

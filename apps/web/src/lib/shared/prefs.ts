@@ -1,3 +1,5 @@
+import { REMEMBERED_VIEW_QUERY_MAX } from "@starterkit/shared/views";
+import { canonicalFilterQuery } from "@starterkit/shared/filter-selection";
 /**
  * `views`: the last table view (filters, sort, rows per page) of each list page, so the navigation reopens a list
  * as it was left (the server reads the cookie, so the page renders filtered on first paint). Never the page number or
@@ -15,7 +17,7 @@ export const DEFAULT_PREFS: Prefs = { sidebar: "expanded", density: "comfortable
 /** The list pages whose view is remembered (each a `useTableQuery` screen). */
 export const VIEW_PAGES = ["/users", "/roles", "/permissions", "/audit/activity", "/audit/auth", "/projects"] as const;
 export type ViewPage = (typeof VIEW_PAGES)[number];
-const VIEW_MAX = 300; // characters per view: the whole cookie stays far under the 4 KB limit
+const VIEW_MAX = REMEMBERED_VIEW_QUERY_MAX; // characters per view: the whole cookie stays far under the 4 KB limit
 /** Hidden column keys of one page: a column key's shape, at most 20 (anything else in the cookie is dropped). */
 const hiddenKeys = (v: string | null): string[] => [...new Set((v ?? "").split(",").filter((k) => /^[a-zA-Z][a-zA-Z0-9]{0,39}$/.test(k)))].slice(0, 20);
 const isViewPage = (p: string): p is ViewPage => (VIEW_PAGES as readonly string[]).includes(p);
@@ -24,7 +26,7 @@ const isViewPage = (p: string): p is ViewPage => (VIEW_PAGES as readonly string[
 export function savedView(sp: URLSearchParams, search: readonly string[] = []): string {
   const q = new URLSearchParams(sp);
   for (const k of ["page", ...search]) q.delete(k);
-  return q.toString();
+  return canonicalFilterQuery(q).toString();
 }
 
 /** Viewer preference from the cookie value; anything unknown falls back to the default. */

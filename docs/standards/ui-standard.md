@@ -59,12 +59,15 @@ through `next/font`.
    "Last 7 days", "Last 7 days · vs previous 7 days" (with a delta pill), or "Today, since 00:00 WIB"
    for today-counters. One icon per metric on every page, by meaning from `packages/ui/src/ui/icons.ts` (Hugeicons Stroke Rounded). A new
    meaning gets a new export there first; never import `@hugeicons/core-free-icons` elsewhere (architecture test).
-4. **Filters** — use `FilterLayout` with its trigger on `Panel toolbar`: the view title/count left, Filters and
-   supported secondary actions right. A desktop opens a separate 320 px floating grey tray/card in a reserved right
-   gutter; below `xl` it opens a dialog (phone: bottom sheet). Search and module filters live there. Apply commits
-   the draft to the URL together, resets page 1 and creates a Back entry; Close preserves drafts, Reset all resets
-   them. Applied filters show a numeric badge/selected trigger plus removable chips inside the results card, even
-   while closed. Clear filters leaves the header time range and refresh alone. See design-system §5.6.
+4. **Filters** — use shared `FilterLayout`, default collapsed right rail from `md`, outside tab/Panel toolbar.
+   Rail48 hugs icon/badge/label content; constant end clearance64 protects actions. Rail/open starts at first content
+   after PageHeader; expanded320 remains nonmodal and adds no result resize. No full-height collapsed track.
+   Phone uses a separate launcher row and modal bottom sheet. Category groups are multi-checkbox, auto-apply and
+   stay open; search300ms/history replace, Clear all immediate. No Apply/category radio/facet counts. Badge and chips
+   describe applied selections. Saved views, columns and supported export remain in the result toolbar.
+   Outside focus/action on desktop collapses without stealing target focus; explicit Close/Escape returns to rail.
+   See design-system §5.6 and design.md FIL-DES-003/004 for anchor, hug rail, stable first paint and responsive focus;
+   FIL-DES-002 retains the live multi/filter recovery contract.
 5. **Panels** — `Panel` with title (noun phrase), optional description (sentence case), optional actions slot.
    Charts above tables. Below-the-fold charts in `LazyMount`. The **description is the scope** (period and
    granularity, one shape everywhere: "Last 24 hours · per hour, WIB" or "Last 7 days"); the **footnote is provenance** (`StaleNote`, source notes).
@@ -215,8 +218,8 @@ same kind extends this list (and its check) first.
 | A form with typed, unsaved changes asks before a link click drops them (`useLeaveGuard` + a "Leave without saving" `ConfirmActionDialog`). | NN/g heuristic 5 (error prevention) | `apps/web/src/lib/client/use-leave-guard.ts`; `user-form.tsx`, `profile-form.tsx`, `role-detail.tsx` |
 | A list page reopens as it was left: its last filters, sort and rows per page (not the page or the search) live in the prefs cookie, and the sidebar, phone menu, breadcrumb, palette and `G` shortcuts open that view. A new list page joins `VIEW_PAGES`. | Airform "design for the tenth visit"; Laws of UX: Working Memory | `apps/web/src/lib/shared/prefs.ts` (+ test); `use-table-query.ts`; `tests/e2e/ux-patterns.spec.ts` |
 | The breadcrumb names the parents and the open page (`Users / Rina Wulandari / Edit user`); every crumb but the last links back. A screen gets it by rendering `PageHeader` (and `trail` for a middle parent). | Laws of UX: Jakob's Law, Working Memory | `components/shell/top-bar.tsx`, `page-header.tsx`, `lib/client/crumb-trail.ts`, `lib/shared/nav.ts` (+ test); `ux-patterns.spec.ts` |
-| A nav item may list views of its page as `children` (Users → All / Active / Inactive users), opened under it on a guide line while the page is open. | Airform sidebar; Laws of UX: Chunking | `lib/shared/nav.ts` `activeChild` (+ test); `sidebar.tsx`, `mobile-nav.tsx` |
-| A list's Filters trigger sits on its panel's title row (`Panel toolbar`); `FilterLayout` keeps fields in the separate card and applied chips inside the results. | Airform admin mockups; Laws of UX: Proximity, Common Region | `packages/ui/src/ds/{panel,filter-layout}.tsx`; §1 item 4 |
+| A nav item may optionally list views of its own page as `children`, opened under it on a guide line while the page is open. Users has one direct destination in expanded/collapsed navigation, the phone drawer, palette and G U; status views stay in filters/chips/saved views and old URLs. Users reopens its remembered view. | DEC-022; Airform sidebar; Laws of UX: Chunking | `lib/shared/nav.ts` `activeChild` (+ test); `prefs.ts`; `sidebar.tsx`, `mobile-nav.tsx`; `tests/e2e/sidebar-rail.spec.ts` |
+| A list uses a collapsed right filter rail/nonmodal sidebar from md and a launcher/sheet on phone; checkbox multi auto-applies, Clear all is immediate, chips remain in results. | Owner Bifrost references / DEC-017; Laws of UX: Proximity, Common Region | `packages/ui/src/ds/filter-layout.tsx`; `docs/design.md` FIL-DES-002; §1 item 4 |
 | A headline number has context: a count over a period shows its change against the period before (`StatTile delta`, `formatSignedNumber`), with `good` set by meaning (more failed sign-ins is bad, never green). | Airform "numbers need context" | `features/dashboard/dashboard-page.tsx`; `GET /v1/dashboard` |
 | A dashboard answers first, explains second, details last: KPI tray → charts → tables. | Airform "decide what goes at the top" | §1 page anatomy |
 | Records show words, not codes: activity actions through `actionLabel`, glossary terms only (copy guide). | NN/g heuristic 2 (match the real world) | `packages/shared/src/audit.ts` |

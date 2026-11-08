@@ -77,6 +77,24 @@ describe("guard and check order", () => {
 });
 
 describe("GET /v1/projects", () => {
+  it("ORs repeated status selections and ANDs them with search without duplicate rows", async () => {
+    await make("Match active");
+    await make("Match archived", { status: "archived" });
+    await make("Other");
+    const result = await page("status=active&status=archived&status=active&q=Match");
+    expect(result.total).toBe(2);
+    expect(result.items.map(p => p.name)).toEqual(["Match active", "Match archived"]);
+    expect(await names("status=archived")).toEqual(["Match archived"]);
+  });
+
+  it("validates every repeated value and the raw 50-value limit before the session guard", async () => {
+    for (const query of ["status=active&status=deleted", "status=active&status=", Array(51).fill("status=active").join("&")]) {
+      expect((await get(`/v1/projects?${query}`)).status).toBe(400);
+    }
+    expect((await get(`/v1/projects?${Array(50).fill("status=active").join("&")}`)).status).toBe(401);
+    expect((await get("/v1/projects?status=")).status).toBe(401);
+  });
+
   it("pages, name A–Z by default, searches the name literally, filters by status, sorts by createdAt", async () => {
     await make("beta");
     await make("Alpha", { status: "archived" });

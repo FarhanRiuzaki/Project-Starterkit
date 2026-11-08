@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useState } from "react";
-import { type Column, ColumnsMenu, DataTable, Field, FilterLayout, FilterMenu, FilterSearch, Notice, Panel, Toolbar } from "@starterkit/ui/ds";
+import { type Column, ColumnsMenu, DataTable, Field, FilterLayout, FilterSurface, FilterChecks, FilterSearch, Notice, Panel, Toolbar } from "@starterkit/ui/ds";
 import { plural } from "@starterkit/ui/lib/format";
 import { Button } from "@starterkit/ui/ui/button";
 import { SecureIcon } from "@starterkit/ui/ui/icons";
@@ -31,7 +31,7 @@ const preloadDialog = () => void loadDialog();
 const MODULE_OPTIONS = PERMISSION_MODULES.map((m) => ({ value: m, label: m ? permissionLabel(m) : "Any" }));
 type Filters = { q: string; module: string };
 const FILTER_DEFAULTS: Filters = { q: "", module: "" };
-const FILTER_FIELDS = [{ key: "q", label: "Search" }, { key: "module", label: "Module", format: permissionLabel }] as const;
+const FILTER_FIELDS = [{ key: "q", label: "Search" }, { key: "module", label: "Module", multiple: true, format: permissionLabel }] as const;
 
 /** Phone card: the name is the title (it already says module and action), the roles a line under it. */
 const COLUMNS: Column<PermissionDto>[] = [
@@ -71,13 +71,15 @@ export function PermissionsPage() {
     <div className="grid gap-section" onPointerDown={preloadDialog} onFocus={preloadDialog}>
       <PageHeader title="Permissions" description="Everything a role can allow. Roles decide who has each permission."
         actions={can("permission.create") ? <Button onClick={() => { setActions(""); setAdding(true); }}>Add permissions</Button> : undefined} />
+      <FilterSurface>
       {t.staleError && <Notice tone="warn" live>Couldn&apos;t refresh the permissions; showing the ones loaded before. {errorText(t.staleError)}</Notice>}
-      <FilterLayout values={{ q: f.q, module: f.module }} defaults={FILTER_DEFAULTS} fields={FILTER_FIELDS}
-        onApply={values => set(values, { history: "push" })} filters={(draft, patch) => <>
+      {t.viewNotRemembered && <Notice>This filter selection works at this URL, but is too long to remember in navigation. Save a named view to reopen it.</Notice>}
+      <FilterLayout busy={t.paging.busy} values={{ q: f.q, module: f.module }} defaults={FILTER_DEFAULTS} fields={FILTER_FIELDS}
+        onApply={(values, options) => set(values, options)} filters={(draft, patch) => <>
           <FilterSearch label="Search permissions" value={draft.q} onChange={q => patch({ q })} placeholder="Permission name" />
-          <FilterMenu label="Module" value={draft.module} options={MODULE_OPTIONS} onChange={module => patch({ module })} />
+          <FilterChecks label="Module" value={draft.module} options={MODULE_OPTIONS} onChange={module => patch({ module })} />
         </>}>
-      {({ trigger, summary }) => <Panel toolbar={<Toolbar end={<><SavedViewsMenu /><ColumnsMenu columns={COLUMNS} hidden={t.hidden} onChange={t.setHidden} /></>}>{trigger}</Toolbar>}
+      {({ summary }) => <Panel toolbar={<Toolbar end={<><SavedViewsMenu /><ColumnsMenu columns={COLUMNS} hidden={t.hidden} onChange={t.setHidden} /></>}>{null}</Toolbar>}
         flush icon={SecureIcon} title="All permissions" count={t.count} description="Grant them to roles on each role's page">
         {summary}
         <DataTable label="Permissions" columns={COLUMNS} hidden={t.hidden} rows={t.rows} rowKey={(p) => p.id} loading={t.loading}
@@ -88,6 +90,7 @@ export function PermissionsPage() {
             : { icon: SecureIcon, title: "No permissions yet", description: "Permissions appear here after they are added." }} />
       </Panel>}
       </FilterLayout>
+      </FilterSurface>
       {adding && (
         <ConfirmActionDialog open onOpenChange={(o) => { if (!o) setAdding(false); }} auditFields={false} reasons={[]} title="Add permissions"
           description="Each name is the module and an action, for example audit.export."

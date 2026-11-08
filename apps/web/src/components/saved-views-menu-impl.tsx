@@ -1,6 +1,8 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { SAVED_VIEW_QUERY_MAX } from "@starterkit/shared/views";
+import { FILTER_EXTERNAL_CHANGE } from "@starterkit/ui/ds/filter-layout";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { Field } from "@starterkit/ui/ds";
@@ -69,12 +71,13 @@ export function SavedViewsMenuImpl() {
             : q.error ? <DropdownMenuItem onSelect={(e) => { e.preventDefault(); void q.refetch(); }}>Couldn&apos;t load your views. Try again</DropdownMenuItem>
             : q.data.items.length === 0 ? <p className="px-2 py-1.5 text-body-sm text-fg-3">No saved views yet. Save this list&apos;s search and filters to come back to them.</p>
             : (
-              <DropdownMenuRadioGroup value={current?.id ?? ""} onValueChange={(id) => { const v = q.data.items.find((x) => x.id === id); if (v) router.push(viewLink(path, v.query)); }}>
+              <DropdownMenuRadioGroup value={current?.id ?? ""} onValueChange={(id) => { const v = q.data.items.find((x) => x.id === id); if (v) { window.dispatchEvent(new Event(FILTER_EXTERNAL_CHANGE)); router.push(viewLink(path, v.query)); } }}>
                 {q.data.items.map((v) => <DropdownMenuRadioItem key={v.id} value={v.id} className="truncate">{v.name}</DropdownMenuRadioItem>)}
               </DropdownMenuRadioGroup>
             )}
           <DropdownMenuSeparator />
-          <DropdownMenuItem onSelect={() => { setName(""); setSaving(true); }}>Save view as…</DropdownMenuItem>
+          <DropdownMenuItem disabled={here.length > SAVED_VIEW_QUERY_MAX} onSelect={() => { setName(""); setSaving(true); }}>Save view as…</DropdownMenuItem>
+          {here.length > SAVED_VIEW_QUERY_MAX && <p role="status" className="px-2 py-1.5 text-body-sm text-fg-2">This view is too long to save. Remove some selections, then try again. The current URL still works.</p>}
           {current && <DropdownMenuItem variant="destructive" onSelect={() => void remove(current)}>Delete “{current.name}”</DropdownMenuItem>}
         </DropdownMenuContent>
       </DropdownMenu>

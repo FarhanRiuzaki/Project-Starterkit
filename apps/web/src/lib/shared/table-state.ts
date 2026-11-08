@@ -1,11 +1,14 @@
 // URL state of a server-driven table: page, pageSize, sort and the page's own filters. Pure (no React, no zod), so
 // the browser hook (lib/client/use-table-query.ts) and tests share it.
+import { selectionState, selectionValues } from "@starterkit/shared/filter-selection";
 import { formatNumber } from "@starterkit/ui/lib/format";
 import type { Page } from "@starterkit/shared/contracts/common";
 import { DEFAULT_PAGE_SIZE, MAX_PAGE, PAGE_SIZES, type PageSize } from "@starterkit/shared/paging";
 
 /** Reads one filter from the URL: the raw value (null when absent) → the value to use, its own fallback on junk. */
-export type FilterParser<V extends string> = (raw: string | null) => V;
+export type FilterParser<V extends string> = ((raw: string | null) => V) & { multiple?: true };
+/** Multiple URL values are wrapped before decoding, so JSON-looking role names remain literal. */
+export const multiChoice = (): FilterParser<string> => Object.assign((raw: string | null) => selectionState(selectionValues(raw ?? "")), { multiple: true as const });
 export type TableSpec<F extends Record<string, string>> = {
   /** Sort keys the endpoint whitelists (`sortParam`). */
   sorts: readonly string[];
@@ -37,7 +40,7 @@ export function readTable<F extends Record<string, string>>(sp: URLSearchParams,
   const p = int(sp.get("page"));
   const size = int(sp.get("pageSize"));
   const sort = sp.get("sort") ?? "";
-  const filters = Object.fromEntries(Object.entries(spec.filters).map(([k, parse]) => [k, (parse as FilterParser<string>)(sp.get(k))])) as F;
+  const filters = Object.fromEntries(Object.entries(spec.filters).map(([k, parse]) => [k, (parse as FilterParser<string>)((parse as FilterParser<string>).multiple ? JSON.stringify(sp.getAll(k).filter(value => value !== "")) : sp.get(k))])) as F;
   return {
     page: p >= 1 ? Math.min(p, MAX_PAGE) : 1,
     pageSize: (PAGE_SIZES as readonly number[]).includes(size) ? (size as PageSize) : DEFAULT_PAGE_SIZE,
@@ -53,7 +56,8 @@ function serialize<F extends Record<string, string>>(t: TableState<F>, spec: Tab
   if (t.sort !== spec.defaultSort) out.set("sort", t.sort);
   for (const [k, parse] of Object.entries(spec.filters)) {
     const v = t[k as keyof F] as string;
-    if (v !== (parse as FilterParser<string>)(null)) out.set(k, v);
+    if ((parse as FilterParser<string>).multiple) selectionValues(v).forEach(value => out.append(k, value));
+    else if (v !== (parse as FilterParser<string>)(null)) out.set(k, v);
   }
   return out;
 }
@@ -89,7 +93,12 @@ export function historyMode(patch: object, spec: { search?: readonly string[] })
  */
 export function tableRequest<F extends Record<string, string>>(path: string, state: TableState<F>, spec: TableSpec<F>, params?: (filters: F) => Record<string, string>) {
   const filters = Object.fromEntries(Object.keys(spec.filters).map((k) => [k, state[k]])) as F;
-  const filterQuery = new URLSearchParams(Object.entries(params ? params(filters) : filters).filter(([, v]) => v !== "")).toString();
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(params ? params(filters) : filters)) {
+    if ((spec.filters[key] as FilterParser<string> | undefined)?.multiple) selectionValues(value).forEach(item => query.append(key, item));
+    else if (value !== "") query.set(key, value);
+  }
+  const filterQuery = query.toString();
   const paging = new URLSearchParams({ page: String(state.page), pageSize: String(state.pageSize), sort: state.sort });
   return { filterQuery, url: `${path}?${filterQuery}${filterQuery ? "&" : ""}${paging}` };
 }

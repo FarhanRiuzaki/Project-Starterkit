@@ -57,16 +57,16 @@ for (const file of walk(path.join(NEXT, "server", "app"))) {
     const files = new Set(rootMain);
     for (const list of Object.values(m.entryJSFiles ?? {})) for (const f of list) files.add(f);
     const bytes = [...files].reduce((a, f) => a + size(f), 0);
-    rows.push({ route, kb: Math.round((bytes / 1024) * 10) / 10, chunks: files.size });
+    rows.push({ route, bytes, kb: bytes / 1024, headroomBytes: budgetKb * 1024 - bytes, chunks: files.size });
   }
 }
 rows.sort((a, b) => a.route.localeCompare(b.route));
-const over = rows.filter((r) => r.kb > budgetKb);
+const over = rows.filter((r) => r.bytes > budgetKb * 1024);
 
 if (asJson) console.log(JSON.stringify({ budgetKb, rows }, null, 1));
 else {
   console.log(`First-load JS (gzip) per route — budget ${budgetKb} kB`);
-  for (const r of rows) console.log(`${r.kb > budgetKb ? "OVER" : "ok  "}  ${r.route.padEnd(24)} ${String(r.kb).padStart(7)} kB  (${r.chunks} chunks)`);
+  for (const r of rows) console.log(`${r.bytes > budgetKb * 1024 ? "OVER" : "ok  "}  ${r.route.padEnd(24)} ${r.kb.toFixed(1).padStart(7)} kB  (${r.chunks} chunks; ${r.headroomBytes} bytes headroom)`);
 }
 if (rows.length === 0) { console.error("No client reference manifests found — run `next build` first."); process.exit(2); }
 if (over.length) { console.error(`${over.length} route(s) over the ${budgetKb} kB budget.`); process.exit(1); }

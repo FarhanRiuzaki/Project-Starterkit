@@ -7,6 +7,7 @@ import type { DataTablePaging } from "@starterkit/ui/ds";
 import { api } from "@/lib/client/api";
 import { usePrefs } from "@/lib/client/prefs-context";
 import type { Page } from "@starterkit/shared/contracts/common";
+import { REMEMBERED_VIEW_QUERY_MAX } from "@starterkit/shared/views";
 import { MAX_PAGE, PAGE_SIZES, type PageSize } from "@starterkit/shared/paging";
 import { savedView, VIEW_PAGES, type ViewPage } from "@/lib/shared/prefs";
 import { historyMode, readTable, type SortState, sortState, tableRequest, tableView, type TableSpec, type TableState, toSortParam, writeTable } from "@/lib/shared/table-state";
@@ -42,12 +43,16 @@ export function useTableQuery<T, F extends Record<string, string>>({ key, path, 
   const { prefs, update } = usePrefs();
   const view = (VIEW_PAGES as readonly string[]).includes(pathname) ? savedView(new URLSearchParams(sp.toString()), spec.search) : null;
   useEffect(() => {
-    if (view === null || view === (prefs.views[pathname as ViewPage] ?? "")) return;
-    update({ views: { ...prefs.views, [pathname]: view } });
+    if (view === null) return;
+    // An oversized view explicitly clears the cookie even if SSR saw no entry:
+    // the departing page may have written its older view after this request began.
+    const remembered = view.length <= REMEMBERED_VIEW_QUERY_MAX ? view : "";
+    if (remembered === prefs.views[pathname as ViewPage] || (view === "" && !prefs.views[pathname as ViewPage])) return;
+    update({ views: { ...prefs.views, [pathname]: remembered } });
   }, [view, pathname, prefs.views, update]);
 
   const set = useCallback((patch: Partial<TableState<F>>, options?: { history: "push" | "replace" }) => {
-    const next = writeTable(state, patch, spec);
+    const next = writeTable(readTable(new URLSearchParams(window.location.search), spec), patch, spec);
     if (!next) return;
     if (sp.get("refresh")) next.set("refresh", sp.get("refresh")!);
     const href = next.size ? `${pathname}?${next}` : pathname;
@@ -56,7 +61,7 @@ export function useTableQuery<T, F extends Record<string, string>>({ key, path, 
     // covers document loads and route changes only.
     if ((options?.history ?? historyMode(patch, spec)) === "replace") window.history.replaceState(null, "", href);
     else window.history.pushState(null, "", href);
-  }, [state, spec, pathname, sp]);
+  }, [spec, pathname, sp]);
 
   const { filterQuery, url } = tableRequest(path, state, spec, params);
   const q = useQuery({ queryKey: [key, url], queryFn: () => api<Page<T>>(url), enabled, placeholderData: keepPreviousData });
@@ -86,6 +91,7 @@ export function useTableQuery<T, F extends Record<string, string>>({ key, path, 
 
   return {
     state, set, query: q, filterQuery, paging, hidden, setHidden,
+    viewNotRemembered: view !== null && view.length > REMEMBERED_VIEW_QUERY_MAX,
     rows: tv.rows, total: tv.total, totalCapped: tv.totalCapped, count: tv.count,
     sort: sortState(state.sort),
     onSortChange: (s: SortState) => set({ sort: toSortParam(s) } as Partial<TableState<F>>),

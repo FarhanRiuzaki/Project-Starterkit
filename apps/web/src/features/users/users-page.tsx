@@ -1,16 +1,18 @@
 "use client";
 
+import { selectionValues } from "@starterkit/shared/filter-selection";
 import { useQueryClient } from "@tanstack/react-query";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
-import { ActionMenu, BlockedButton, ColumnsMenu, DataTable, FilterLayout, Notice, Panel, Toolbar } from "@starterkit/ui/ds";
+import { ActionMenu, BlockedButton, ColumnsMenu, DataTable, FilterLayout, FilterSurface, Notice, Panel, Toolbar } from "@starterkit/ui/ds";
 import { cn } from "@starterkit/ui/lib/cn";
 import { formatNumber } from "@starterkit/ui/lib/format";
 import { HEALTH } from "@starterkit/ui/lib/status";
 import { Button } from "@starterkit/ui/ui/button";
 import { Icon } from "@starterkit/ui/ui/icon";
+import { Skeleton } from "@starterkit/ui/ui/skeleton";
 import { SpinnerIcon, UsersIcon } from "@starterkit/ui/ui/icons";
 import { toast } from "@starterkit/ui/ui/toast";
 import { SavedViewsMenu } from "@/components/saved-views-menu";
@@ -18,16 +20,15 @@ import { PageHeader } from "@/components/shell/page-header";
 import { api, errorText } from "@/lib/client/api";
 import { useAuth } from "@/lib/client/auth-context";
 import { useTableQuery } from "@/lib/client/use-table-query";
-import type { BulkResult } from "@starterkit/shared/contracts/common";
 import type { UserRowDto } from "@starterkit/shared/contracts/users";
 import { BULK_ALL_MAX } from "@/lib/shared/bulk";
 import { USER_STATUSES, type UserFilters, USERS } from "@/lib/shared/queries";
 import type { Pending } from "./users-action-dialog";
 import { userColumns } from "./user-columns";
-import { patchUserCache, skipReason, USERS_KEY, protection, rankBlock, useLastSuperadminId, useRoleNames } from "./use-users";
+import { patchUserCache, USERS_KEY, protection, rankBlock, useLastSuperadminId, useRoleNames } from "./use-users";
 
 const FILTER_DEFAULTS: UserFilters = { q: "", role: "", status: "" };
-const FILTER_FIELDS = [{ key: "q", label: "Search" }, { key: "role", label: "Role" }, { key: "status", label: "Status", format: (value: string) => value === "active" ? "Active" : "Inactive" }] as const;
+const FILTER_FIELDS = [{ key: "q", label: "Search" }, { key: "role", label: "Role", multiple: true }, { key: "status", label: "Status", multiple: true, format: (value: string) => value === "active" ? "Active" : "Inactive" }] as const;
 /** The table names the view it shows, as the sidebar's Users children do (the page bar already says "Users"). */
 const VIEW_TITLE: Record<(typeof USER_STATUSES)[number], string> = { "": "All users", active: "Active users", inactive: "Inactive users" };
 /**
@@ -35,8 +36,8 @@ const VIEW_TITLE: Record<(typeof USER_STATUSES)[number], string> = { "": "All us
  * table, where it would push the name column into a sideways scroll) and on any touch screen it is an item of the
  * row's Actions menu instead, with its reason inline.
  */
-const ROW_ONLY = "max-xl:hidden group-data-[filters-open]/filter-layout:hidden";
-const MENU_ON_TOUCH = "hidden max-xl:flex pointer-coarse:flex group-data-[filters-open]/filter-layout:flex";
+const ROW_ONLY = "max-xl:hidden";
+const MENU_ON_TOUCH = "hidden max-xl:flex pointer-coarse:flex";
 const LEGEND = (["healthy", "stopped"] as const).map((h) => ({ health: h, label: h === "healthy" ? "Active" : "Inactive", description: h === "healthy" ? "Can sign in." : HEALTH.stopped.description }));
 
 /**
@@ -47,7 +48,9 @@ const loadDialog = () => import("./users-action-dialog");
 const UsersActionDialog = dynamic(() => loadDialog().then((m) => m.UsersActionDialog), { ssr: false });
 const preloadDialog = () => void loadDialog();
 
-const UsersFilters = dynamic(() => import("./users-filters").then(m => m.UsersFilters));
+const UsersFilters = dynamic(() => import("./users-filters").then(m => m.UsersFilters), {
+  loading: () => <div role="status" className="grid gap-4"><span className="sr-only">Loading filter fields…</span><Skeleton className="h-8" /><Skeleton className="h-8" /><Skeleton className="h-20" /></div>,
+});
 
 export function UsersPage() {
   const { user: me, perms, can } = useAuth();
@@ -83,19 +86,8 @@ export function UsersPage() {
 
   async function confirm() {
     const p = pending!;
-    if (p.kind === "one") {
-      await api(`/api/users/${p.user.id}`, { method: "DELETE" });
-      toast(`Deleted ${p.user.name}.`);
-    } else {
-      if (p.action === "assignRole" && !role) throw new Error("Pick a role: type its name and choose it from the list.");
-      const r = await api<BulkResult>("/api/users/bulk", { method: "POST", body: JSON.stringify({ action: p.action, ...(p.filter ? { filter: p.filter } : { ids: p.ids }), ...(p.action === "assignRole" ? { role } : {}) }) });
-      const reasons = [...new Set(r.skipped.map((s) => skipReason(s.code)))].join(", ");
-      const text = `${r.done.length} updated, ${r.skipped.length} skipped`;
-      if (r.skipped.length && !r.done.length) toast.error(text, { description: `Skipped: ${reasons}.` });
-      else toast(text, { description: r.skipped.length ? `Skipped: ${reasons}.` : undefined });
-      setSelected(new Set());
-      setEveryMatch(false);
-    }
+    await (await loadDialog()).confirmUserAction(p, role);
+    if (p.kind === "bulk") { setSelected(new Set()); setEveryMatch(false); }
     await refresh();
   }
 
@@ -115,19 +107,21 @@ export function UsersPage() {
   const ids = [...selected];
   // What a bulk button acts on: the picked rows, or every match ("Select all N users"; the list's own search and filters).
   const scope = everyMatch
-    ? { ids: [], count: total, filter: { ...(f.q ? { q: f.q } : {}), ...(f.role ? { role: f.role } : {}), ...(f.status ? { status: f.status } : {}) } }
+    ? { ids: [], count: total, filter: { ...(f.q ? { q: f.q } : {}), ...(f.role ? { role: selectionValues(f.role) } : {}), ...(f.status ? { status: selectionValues(f.status) } : {}) } }
     : { ids, count: ids.length };
 
   return (
     <div className="grid gap-section" onPointerDown={preloadDialog} onFocus={preloadDialog}>
       <PageHeader title="Users" description="Accounts that can sign in, their roles and status."
         actions={can("user.create") ? <Button asChild><Link href="/users/new">Create user</Link></Button> : undefined} />
+      <FilterSurface>
       {t.staleError && <Notice tone="warn" live>Couldn&apos;t refresh the users; showing the ones loaded before. {errorText(t.staleError)}</Notice>}
-      <FilterLayout values={{ q: f.q, role: f.role, status: f.status }} defaults={FILTER_DEFAULTS} fields={FILTER_FIELDS}
-        onApply={values => set(values, { history: "push" })} description="Narrow this list to the people you need."
+      {t.viewNotRemembered && <Notice>This filter selection works at this URL, but is too long to remember in navigation. Save a named view to reopen it.</Notice>}
+      <FilterLayout busy={t.paging.busy} values={{ q: f.q, role: f.role, status: f.status }} defaults={FILTER_DEFAULTS} fields={FILTER_FIELDS}
+        onApply={(values, options) => set(values, options)} description="Narrow this list to the people you need."
         filters={(draft, patch) => <UsersFilters draft={draft} patch={patch} />}>
-      {({ trigger, summary }) => <Panel toolbar={<Toolbar end={<><SavedViewsMenu /><ColumnsMenu columns={columns} hidden={t.hidden} onChange={t.setHidden} /></>}>{trigger}</Toolbar>}
-        flush icon={UsersIcon} title={VIEW_TITLE[f.status]} count={t.count} description="Select rows for bulk actions" legend={LEGEND}>
+      {({ summary }) => <Panel toolbar={<Toolbar end={<><SavedViewsMenu /><ColumnsMenu columns={columns} hidden={t.hidden} onChange={t.setHidden} /></>}>{null}</Toolbar>}
+        flush icon={UsersIcon} title={VIEW_TITLE[(selectionValues(f.status).length === 1 ? selectionValues(f.status)[0] : "") as keyof typeof VIEW_TITLE]} count={t.count} description="Select rows for bulk actions" legend={LEGEND}>
         {summary}
         {canAct && rows.length > 0 && (
           // On a phone, with rows selected, the bar sticks under the top bar so the actions stay in reach while scrolling the cards.
@@ -189,6 +183,7 @@ export function UsersPage() {
           }} />
       </Panel>}
       </FilterLayout>
+      </FilterSurface>
       {pending && <UsersActionDialog pending={pending} role={role} onRole={setRole} roles={roles} onClose={() => setPending(null)} onConfirm={confirm} />}
     </div>
   );

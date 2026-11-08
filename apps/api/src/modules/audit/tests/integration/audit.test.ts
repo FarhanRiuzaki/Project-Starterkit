@@ -55,6 +55,43 @@ beforeEach(async () => {
   await resetData();
 });
 
+describe("multivalue list and CSV predicates", () => {
+  it("activity action OR and user AND apply to every matching CSV row beyond the first page", async () => {
+    const token = await signIn("superadmin");
+    const at = new Date().toISOString();
+    await setActivity(Array.from({ length: 33 }, (_, i) => ({ id: uuid(i + 1), at,
+      action: i < 32 ? i % 2 ? "user.create" : "user.update" : "user.delete",
+      actor: { id: "00000000-0000-4000-8000-000000000099", name: "Multi actor" },
+      target: { type: "user", id: uuid(i + 100), label: `Selected row ${i}` },
+    })));
+    const query = "action=user.create&action=user.update&user=Multi%20actor";
+    const result = await page<ActivityDto>(await activity(token, query));
+    expect(result.total).toBe(32);
+    expect(result.items).toHaveLength(15);
+    const csv = await (await activity(token, `${query}&format=csv`)).text();
+    expect(csv.trim().split(/\r?\n/)).toHaveLength(33);
+    expect(csv).not.toContain("Selected row 32");
+    for (let i = 0; i < 32; i++) expect(csv).toContain(`Selected row ${i}`);
+  });
+  it("auth event OR and method OR combine with AND identically in count, list and CSV", async () => {
+    const token = await signIn("superadmin");
+    const pairs = [["login_success", "password"], ["login_failed", "password"], ["login_success", "google"], ["login_failed", "apple"], ["logout", "password"], ["login_success", "ldap"]] as const;
+    await setAuthLog(Array.from({ length: 48 }, (_, i) => ({ id: uuid(i + 1), at: new Date().toISOString(), login: "Multi login",
+      event: pairs[i % pairs.length]![0], method: pairs[i % pairs.length]![1], ip: `10.0.0.${i + 1}`,
+    })));
+    const query = "event=login_success&event=login_failed&method=password&method=apple&user=Multi";
+    const result = await page<AuthLogDto>(await auth(token, query));
+    expect(result.total).toBe(24);
+    expect(result.items).toHaveLength(15);
+    const csv = await (await auth(token, `${query}&format=csv`)).text();
+    expect(csv.trim().split(/\r?\n/)).toHaveLength(25);
+  });
+  it("rejects an invalid later enum and the raw limit before the guard", async () => {
+    for (const query of ["event=login_success&event=invalid", "method=password&method=invalid", Array(51).fill("method=password").join("&")]) expect((await auth(undefined, query)).status).toBe(400);
+    expect((await activity(undefined, Array(51).fill("action=user.update").join("&"))).status).toBe(400);
+  });
+});
+
 describe.each([["activity", activity], ["auth", auth]] as const)("GET /api/audit/%s: query", (_, get) => {
   it.each([
     ["start=now-15m", "start without end"],
@@ -166,12 +203,41 @@ describe("GET /api/audit/activity", () => {
       const lines = (await r.text()).replace(/^﻿/, "").trimEnd().split("\r\n");
       expect(lines).toHaveLength(3); // header + x2 + x1 (x3 filtered out)
       expect(lines[1]).toContain("2026-10-19T01:00:00.000Z");
-      expect(lines[1]).toContain("name: Old → New");
+      expect(lines[1]).toContain("Name: Old → New");
       expect(lines[2]).toContain(`"'=HYPERLINK(""http://evil.example"",""click"")"`);
       expect(lines.join("\n")).not.toMatch(/,=HYPERLINK|,"=HYPERLINK/);
     } finally {
       setSystemTime();
     }
+  });
+
+  it("CSV keeps recorded presence, known permission deltas and masking consistent without changing columns", async () => {
+    const token = await signIn("viewer");
+    const at = new Date().toISOString();
+    await setActivity([
+      { id: uuid(1), at, action: "role.update", before: { name: "Old" }, after: { name: "New", added: ["user.view"], removed: [] } },
+      { id: uuid(2), at, action: "user.update", before: { description: null, email: "", password: "old-secret" }, after: { description: "", password: "new-secret" } },
+      { id: uuid(3), at, action: "role.delete", before: { permissions: ["user.view"] } },
+      { id: uuid(5), at, action: "user.update", before: { nested: { token: null } }, after: { nested: { token: "••••" } } },
+      { id: uuid(4), at, action: "legacy.event", after: { nested: { token: "never-reveal" }, values: ["b", "a"] } },
+    ]);
+    const response = await activity(token, "format=csv");
+    expect(response.status).toBe(200);
+    const csv = await response.text();
+    expect(csv.replace(/^\uFEFF/, "").split("\r\n")[0]).toBe("Time (UTC),Actor,Actor ID,Action,Target type,Target ID,Target,Changes");
+    expect(csv).toContain("Name: Old → New; Permissions added: user.view; Permissions removed: None");
+    expect(csv).toContain("Description: Not set → Empty text");
+    expect(csv).toContain("Email: Empty text → Not recorded");
+    expect(csv).toContain("Permissions before deletion: user.view");
+    expect(csv).toContain('""token"":""••••""');
+    expect(csv).toContain('nested: {""token"":null} → {""token"":""••••""}');
+    expect(csv).toContain('values: Not recorded → [""b"",""a""]');
+    for (const secret of ["old-secret", "new-secret", "never-reveal"]) expect(csv).not.toContain(secret);
+    expect(csv).not.toContain("password:");
+    // Presentation does not rewrite the stored DTO (or sort unknown arrays).
+    const json = await page<ActivityDto>(await activity(token));
+    expect(json.items.find(row => row.id === uuid(1))?.after).toEqual({ name: "New", added: ["user.view"], removed: [] });
+    expect(json.items.find(row => row.id === uuid(4))?.after).toMatchObject({ values: ["b", "a"] });
   });
 
   const bulk = () => db.insert(activityTable).select(db.select({

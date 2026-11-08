@@ -55,9 +55,9 @@ starterkit.
        every width, switched in CSS (no second list, no hydration difference); the table keeps its semantics through
        explicit ARIA roles. Sorting is a "Sort by" select, pagination is compact (previous / "Page x of y" / next +
        rows per page); URL state, `placeholderData` and the delayed skeleton are the same, and the loading shape is a card.
-     - Module lists use `FilterLayout` with an applied-count trigger, a separate desktop card and a narrow-screen
-       "Filters" button with the active count opening a bottom sheet (deferred chunk) where `FilterMenu` is a labelled
-       select. Apply commits the draft together; Close preserves it. Active values show a numeric badge and removable chips.
+     - Module lists use shared `FilterLayout`: a default collapsed right rail and nonmodal checkbox sidebar from `md`,
+       a launcher row and modal sheet on phones. Checkbox selections auto-apply; search debounces300ms. Clear all acts
+       immediately. Badge/chips show applied selections; geometry, coverage and focus follow §5.6.
      - The users list's bulk bar sticks under the top bar (`--topbar-h`, the token the top bar's height uses) while
        rows are selected (`Panel flush` clips with `overflow: clip`, so a sticky child sticks to the page).
      - A `Panel` description takes its own line under the title row, without the middot.
@@ -362,22 +362,28 @@ Escape and the scrim close it, any route change closes it, the page behind is `i
 button (`packages/ui/src/ui/drawer.test.ts`, `responsive.spec.ts` "phone"). The bar is server-rendered and switched by
 CSS, so it never shifts on first paint.
 
-Rules: the nav is exactly Dashboard, Users, Roles, Permissions, Activity log, Sign-in log, Design system and Profile
+Rules: the nav is exactly Dashboard, Projects, Users, Roles, Permissions, Activity log, Sign-in log, Design system and Profile
 (own sessions live at /me/sessions and on a user's detail page; there is no global Sessions page). Nav items carry no
 badges; count badges elsewhere are counts, never words ("New" pills are not used). A hairline separates the logo from
 the nav. The nav scrolls inside the sidebar when the menu is longer than the window, in a `ScrollArea`
 (`packages/ui/src/ui/scroll-area.tsx`): no native scrollbar, a 4 px thumb drawn in the sidebar's padding, shown on
 hover, focus or while scrolling, so menu rows share one width on every system. In the
 rail (below 1280 px, or collapsed) each navigation control is a centred 36 px square, and a hairline
-separates the groups in place of their hidden labels. An item may have `children`
-(`NavItem.children` in `apps/web/src/lib/shared/nav.ts`): views of its own page
-(Users → All users, Active users, Inactive users), shown under it with a connected vertical trunk and curved branch lines while the page is open, in the
+separates the groups in place of their hidden labels. An item may optionally have `children`
+(`NavItem.children` in `apps/web/src/lib/shared/nav.ts`): views of its own page,
+shown under it with a connected vertical trunk and curved branch lines while the page is open, in the
 expanded sidebar (≥ 1280 px) and the phone menu; the open child carries the highlight (`activeChild`). In the icon
 rail, leaf links use the standard inverse tooltip on hover/focus. A parent shows the same label tooltip and a small
 chevron; click, tap, Enter or ArrowDown opens the shared non-modal menu to its right with its child views and current-view
 highlight. Tooltips contain labels only. The flyout supports arrow keys, Escape, outside dismissal and focus return;
 its tooltip stays quiet while the menu is open and when focus returns. Expanding the sidebar or resizing out of the
 rail closes the flyout when CSS hides its trigger. The expanded tree and phone drawer retain their existing links.
+
+Users is a single direct destination, without All/Active/Inactive navigation children (DEC-022). This applies to the
+expanded sidebar, collapsed/tablet rail, phone drawer, command palette and G U. The rail uses the leaf tooltip/link,
+not a Users submenu. Status multi-selection, chips and saved views remain on the Users page; old filtered URLs stay
+valid. Navigation restores the existing remembered view rather than resetting to All (`viewHref`, `prefs.test.ts`,
+`nav.test.ts`, `tests/e2e/sidebar-rail.spec.ts`). Optional child support remains available for other nav items.
 
 Breadcrumb (top bar): the nav page, then the open page's parents and itself: `Users / Rina Wulandari`, `Users /
 Rina Wulandari / Edit user`, `Roles / Admin`, `Profile / Security`. `PageHeader` publishes its title as the last crumb
@@ -438,22 +444,69 @@ ink on Down soft, neutral = fg-2 on `--tray`. Direction of "good" is set per met
 together with its label.
 
 ### 5.6 Toolbar & filters
-Module lists use `FilterLayout` around the result `Panel`. Its `Filters` trigger sits in `Panel toolbar`; one
-Export action, where supported, stays at the right. Search and module-specific fields live in a separate floating
-card: 320 px width, 24 px reserved gutter, mandatory grey tray and inner card, overlay shadow. It sticks below
-the header; long fields scroll within it and Apply/Reset stay reachable. Results never sit underneath the card.
-Below `xl`, the same draft opens in the deferred filter dialog (phone: bottom sheet). `FilterMenu` becomes a
-labelled select inside the card/sheet; `FilterSearch` reuses `QueryInput` in immediate mode so Apply includes the
-latest keystroke. A normal standalone `QueryInput` retains its debounce.
+Active direction: **FIL-DES-004 / DEC-019** rail/refresh, **FIL-DES-003 / DEC-018** anchor, DEC-017 live multi.
+Module lists share FilterLayout. From `md`, collapsed rail is48 px wide and **hugs its content**, with py12/gap12:
+sidebar toggle16, filter16, optional CountBadge18, vertical Filters box44 (Inter14/500/line20). Center items with at
+least4 px side clearance. Reference156 px with badge /126 without is derived from content/padding/border, not a fixed
+height. No full-height/min-height track, bottom constraint or empty stretch on collapsed rail.
 
-Edits are drafts until Apply. Closing preserves them; Reset all resets the draft and Apply commits it. Apply is
-one URL/history update and resets pagination to page 1; Back restores the previous applied state. External URL
-changes replace the draft. Date/range and refresh remain exclusively in the header where the module uses them.
-The applied values determine the **numeric badge and selected trigger style**, never an unapplied draft. A visible
-Active filters row inside the results card shows removable `FilterChip`s and Clear filters. Clearing a chip keeps
-other filters, sorting, page size and header time state. No badge when zero filters are active. A polite status
-announces the complete active-count phrase; Escape/Close returns focus to the trigger. `/ds` demonstrates this
-same component. Legacy `ToolbarFilters` remains available for compact, immediately applied controls.
+For the RIGHT filter, expand-left uses SidebarCollapseIcon (PanelLeftOpenIcon); expanded collapse-right uses
+SidebarExpandIcon (PanelLeftCloseIcon). Their aliases describe the left navigation, so preserve the action's physical
+direction and accessible name. No generic chevrons. Phone Close remains X.
+
+Rail/panel start **at the first visible content surface after the nearest local PageHeader, with no added gap**.
+A preceding Notice/KPI counts; hidden siblings do not. Use the outer card/table region, not thead or global header.
+Nested gallery demos without a local PageHeader use their own results. Maintain constant64 px end clearance so rail
+cannot cover row actions. Expansion320 adds no further gutter/reflow; desktop is nonmodal without scrim/inert/trap.
+Expanded header stays fixed, body scrolls, bottom clearance16. Saved views, Columns and Export remain in Panel toolbar.
+
+Scroll bounds protect visible PageHeader: max(16, content.top, visiblePageHeader.bottom). Stable CSS inline sticky rail
+in its owning first-surface wrapper is accepted; naturally offscreen content is never hoisted over earlier sections.
+Pointer events belong only to visible controls, not the transparent lane. Keyboard focus may scroll its own surface
+into view. Do not reparent the collapsed rail or switch JS visibility to mask hydration. Initial SSR/count/theme/height
+must match the final collapsed state and content layout; no wrong-position/full-track flash or independent rail entry
+pop/fade/translate on refresh. If a measurement fallback is unavoidable, insert once statically at correct geometry;
+hiding until hydrated alone does not prove the flicker fixed.
+
+At CSS viewport-height<=399 px, desktop uses one48x44 compact button: filter16 over optional badge18/gap2, no toggle
+glyph or vertical label. At>=400 regular hug is used. This is CSS from first paint, not a post-hydration height change.
+Explicit open with available height<160 may scroll the actual surface to safe16 then remeasure/focus; no scroll-back
+on collapse. Expanded portal height remains unchanged. User-triggered toggle motion keeps existing tokens; reduced
+motion is opacity-only/no spatial movement. Startup whole-page motion must not introduce an independent rail cycle.
+Check rail and ancestor animationName/opacity/transform through SETTLED, not just READY or a final still image.
+
+Below `md`, keep the horizontal Filters/count launcher row and modal phone bottom sheet (max90dvh, safe-area,
+scrollable body, Close header, no Apply footer). Initial open focuses heading. Explicit Close/Escape restores trigger;
+desktop outside click/focus collapses while preserving target action/focus, no pointer through opaque panel. Resize
+preserves open/search/selections/groups and restores the same field by stable id; Radix semantic remount is allowed,
+with one visible control tree. Coarse targets44 px and input16 px remain required.
+
+Search remains visible. Category filters use independently collapsible **multi-checkbox groups**, expanded on first
+open, with local group state retained across collapse/reopen. None selected means unrestricted; OR within a group,
+AND across groups. Selected-option summaries/counts are not facet counts. Do not add domain fields or option result
+counts from screenshots. Roles search-only has no invented category. Static groups show6 options then Show more/less;
+roles remain paged/searchable, preserving selected values outside the current options page. Option loading/error has
+local skeleton/retry and never clears selections or claims an error is an empty result.
+
+Checkbox changes auto-apply immediately, history push/page1, and keep the sidebar open. Search uses **300ms debounce**,
+history replace; Enter/blur/collapse flush. A checkbox flushes pending search and its toggle as one atomic snapshot.
+Clear all immediately clears text/categories and cancels the timer, preserving sort/pageSize/header date; push only
+when applied criteria change. Pending text alone still enables Clear. Back/view/chip/external state cancels pending
+search and adopts the latest snapshot; late results cannot restore old criteria. Badge = selected checkbox options +1
+for nonempty applied search. Chips are per selected option; there is no draft, Apply, Applied, Unapplied or category radio.
+
+Keep checked state/URL on GET error. Retained results show Updating results or an honest error/stale notice with Retry;
+requests must match the latest snapshot. At50 selections/group, block only additional unchecked choices with an inline
+reason; uncheck/Clear remain enabled. Named views allow4096 characters; automatic remembered navigation remains300:
+over300 clears stale remembered state and explains Save view, without truncating URL criteria. Over4096 Save gives a
+recoverable error. API encoding/canonical rules remain DEC-017's contract, not a design-only parser choice.
+
+Keep deferred overlays recoverable: before primitive arrives, launcher busy/status+Retry without claiming modal;
+after shell is available, local fields can load/retry with Close reachable. Use existing colors/radii/motion/shadow,
+Inter/Geist Mono and reduced motion. `/ds` demonstrates the shared pattern; do not ship per-feature variants.
+[Complete active UX and QA acceptance](../design.md#fil-des-004--rail-hug-content-ikon-sidebar-dan-refresh-stabil) and
+[Figma v1.0.4 review](https://www.figma.com/design/yWRVvatRqyDZapm52tQHWA?node-id=211-10924) are In review;
+implementation approval waits for review of the delivered revision.
 
 ### 5.7 DataTable
 | Part | Spec |

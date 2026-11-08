@@ -6,9 +6,29 @@ import { Select } from "@starterkit/ui/ui/select";
 import type { BulkUserFilter, UserRowDto } from "@starterkit/shared/contracts/users";
 import { RoleSearch } from "./role-search";
 
+import type { BulkResult } from "@starterkit/shared/contracts/common";
+import { toast } from "@starterkit/ui/ui/toast";
+import { api } from "@/lib/client/api";
+import { skipReason } from "./use-users";
+
 export type BulkAction = "activate" | "deactivate" | "delete" | "assignRole";
 /** A bulk action on the rows picked (`ids`) or on every user the list matches (`filter`, "Select all N users"); `count` names it. */
 export type Pending = { kind: "bulk"; action: BulkAction; ids: string[]; filter?: BulkUserFilter; count: number } | { kind: "one"; action: "delete"; user: UserRowDto };
+
+/** Runs only after this dialog has opened; the page owns selection and query invalidation. */
+export async function confirmUserAction(p: Pending, role: string) {
+  if (p.kind === "one") {
+    await api(`/api/users/${p.user.id}`, { method: "DELETE" });
+    toast(`Deleted ${p.user.name}.`);
+    return;
+  }
+  if (p.action === "assignRole" && !role) throw new Error("Pick a role: type its name and choose it from the list.");
+  const r = await api<BulkResult>("/api/users/bulk", { method: "POST", body: JSON.stringify({ action: p.action, ...(p.filter ? { filter: p.filter } : { ids: p.ids }), ...(p.action === "assignRole" ? { role } : {}) }) });
+  const reasons = [...new Set(r.skipped.map(s => skipReason(s.code)))].join(", ");
+  const text = `${r.done.length} updated, ${r.skipped.length} skipped`;
+  if (r.skipped.length && !r.done.length) toast.error(text, { description: `Skipped: ${reasons}.` });
+  else toast(text, { description: r.skipped.length ? `Skipped: ${reasons}.` : undefined });
+}
 
 const VERB: Record<BulkAction, string> = { activate: "Activate", deactivate: "Deactivate", delete: "Delete", assignRole: "Assign role to" };
 const BULK_NOTE: Record<BulkAction, string> = {

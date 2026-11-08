@@ -8,14 +8,51 @@
       "maxLength": 200
     },
     "role": {
-      "type": "string",
-      "maxLength": 64
+      "anyOf": [
+        {
+          "type": "string",
+          "const": ""
+        },
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        {
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        }
+      ]
     },
     "status": {
-      "type": "string",
-      "enum": [
-        "active",
-        "inactive"
+      "anyOf": [
+        {
+          "type": "string",
+          "const": ""
+        },
+        {
+          "type": "string",
+          "enum": [
+            "active",
+            "inactive"
+          ]
+        },
+        {
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "active",
+              "inactive"
+            ]
+          }
+        }
       ]
     }
   },

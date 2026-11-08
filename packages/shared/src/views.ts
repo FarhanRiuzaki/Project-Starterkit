@@ -1,0 +1,2 @@
+export const SAVED_VIEW_QUERY_MAX = 4096;
+export const REMEMBERED_VIEW_QUERY_MAX = 300;

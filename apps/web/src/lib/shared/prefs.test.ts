@@ -20,7 +20,7 @@ describe("remembered table views", () => {
     for (const p of VIEW_PAGES) expect(NAV.map((n) => n.href)).toContain(p);
   });
   it("round-trip through the cookie for the list pages only", () => {
-    const views = { "/users": "role=Admin&sort=-createdAt", "/audit/activity": "range=30d&pageSize=50" };
+    const views = { "/users": "role=Admin&sort=-createdAt", "/audit/activity": "pageSize=50&range=30d" };
     expect(parsePrefs(value(prefsCookie({ sidebar: "expanded", density: "comfortable", views, hidden: {}, keys: "on" }, false))).views).toEqual(views);
     expect(parsePrefs(new URLSearchParams({ "view:/me": "a=1", "view:/users/x": "b=2" }).toString()).views).toEqual({});
   });
@@ -29,7 +29,7 @@ describe("remembered table views", () => {
     expect(parsePrefs(new URLSearchParams({ "view:/users": `q=${"x".repeat(400)}` }).toString()).views).toEqual({});
   });
   it("savedView keeps filters, sort and page size, not the page or the search", () => {
-    expect(savedView(new URLSearchParams("page=4&q=bima&role=Admin&sort=-createdAt&pageSize=50"), ["q"])).toBe("role=Admin&sort=-createdAt&pageSize=50");
+    expect(savedView(new URLSearchParams("page=4&q=bima&role=Admin&sort=-createdAt&pageSize=50"), ["q"])).toBe("pageSize=50&role=Admin&sort=-createdAt");
     expect(savedView(new URLSearchParams("page=2&q=x"), ["q"])).toBe("");
   });
   it("viewHref reopens the saved view; the path itself never changes", () => {

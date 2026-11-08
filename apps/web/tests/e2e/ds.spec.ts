@@ -1,5 +1,6 @@
+import path from "node:path";
 import { expect, type Page, test } from "@playwright/test";
-import { AUTH_STATE } from "./global-setup";
+import { AUTH_STATE, SCRATCH } from "./global-setup";
 import { axeSerious } from "./helpers";
 
 /**
@@ -27,7 +28,7 @@ for (const colorScheme of ["light", "dark"] as const) {
   test.describe(colorScheme, () => {
     test.use({ colorScheme });
 
-    test(`gallery screenshot matches the ${colorScheme} baseline`, async ({ page }) => {
+    test(`gallery screenshot matches the ${colorScheme} baseline`, async ({ page }, testInfo) => {
       await page.goto("/ds");
       await expect(page.getByRole("heading", { level: 1, name: "Design system" })).toBeVisible();
       await expect(page.locator("html")).toHaveClass(colorScheme === "dark" ? /\bdark\b/ : /^(?!.*\bdark\b)/);
@@ -36,6 +37,13 @@ for (const colorScheme of ["light", "dark"] as const) {
       // The gallery itself, not the shell around it (the account row differs per signed-in user).
       // CSS pixels (`scale: "css"`): the phone baseline (3× screen) stays the size of the page, as the desktop one.
       await expect(page.locator("#content > div").first()).toHaveScreenshot(`ds-${colorScheme}.png`, { animations: "disabled", maxDiffPixelRatio: 0.002, scale: "css" });
+      // A viewport capture keeps the changed filter example readable beside the very tall gallery baseline.
+      await page.locator('[data-slot="filter-layout"]').first().evaluate(element => {
+        const header = document.querySelector<HTMLElement>('[data-shell-header]');
+        const offset = window.innerWidth < 768 ? (header?.offsetHeight ?? 0) + 16 : 48;
+        window.scrollTo({ top: window.scrollY + element.getBoundingClientRect().top - offset, behavior: "instant" });
+      });
+      await page.screenshot({ path: path.join(SCRATCH, `gallery-filter-${testInfo.project.name}-${colorScheme}.png`), animations: "disabled", scale: "css" });
     });
 
     test("gallery: no serious axe violations", async ({ page }) => {

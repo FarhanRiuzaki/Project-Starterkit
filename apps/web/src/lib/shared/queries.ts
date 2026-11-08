@@ -4,12 +4,11 @@
 // Key scheme: the first element is the module that owns the data (users, rbac, me, audit, dashboard, projects), then what
 // identifies the read (a table's URL, "detail" + id, …), so invalidating a module's key refreshes all of it.
 import { isTimeExpression, resolveTimeRange } from "@starterkit/ui/lib/time-range";
-import { ACTION_OPTIONS, ACTIVITY_SORTS, AUDIT_RANGES, AUTH_EVENTS, AUTH_LOG_SORTS, AUTH_METHODS, presetRange, rangeProblem } from "@starterkit/shared/audit";
-import type { AuthLogDto } from "@starterkit/shared/contracts/audit";
+import { ACTION_OPTIONS, ACTIVITY_SORTS, AUDIT_RANGES, AUTH_LOG_SORTS, presetRange, rangeProblem } from "@starterkit/shared/audit";
 import { PERMISSION_SORTS, PROJECT_SORTS, ROLE_SORTS, SESSION_SORTS, USER_SORTS } from "@starterkit/shared/paging";
 import { MODULES } from "@starterkit/shared/permissions";
 import { timeRange } from "./time-controls";
-import { type FilterParser, isoDate, oneOf, type TableSpec, text } from "./table-state";
+import { type FilterParser, isoDate, multiChoice, oneOf, type TableSpec, text } from "./table-state";
 
 /** A server-driven table: query-key prefix, API path, URL state spec, and (optionally) URL filters → API params. */
 export type TableDef<F extends Record<string, string>> = {
@@ -34,16 +33,16 @@ export const savedViews = (path: string) => ({ key: [...ME_KEY, "views", path] a
 
 export const USERS_KEY = ["users"] as const;
 export const USER_STATUSES = ["", "active", "inactive"] as const;
-export type UserFilters = { q: string; role: string; status: (typeof USER_STATUSES)[number] };
+export type UserFilters = { q: string; role: string; status: string };
 export const USERS: TableDef<UserFilters> = {
   key: USERS_KEY[0], path: "/api/users",
-  spec: { sorts: USER_SORTS, defaultSort: "name", search: ["q"], filters: { q: text(200), role: text(64), status: oneOf(USER_STATUSES, "") } },
+  spec: { sorts: USER_SORTS, defaultSort: "name", search: ["q"], filters: { q: text(200), role: multiChoice(), status: multiChoice() } },
 };
 export const userDetail = (id: string) => ({ key: [...USERS_KEY, "detail", id] as const, url: `/api/users/${encodeURIComponent(id)}` });
 export const userSessions = (id: string): TableDef<NoFilters> => ({ key: USERS_KEY[0], path: `/api/users/${encodeURIComponent(id)}/sessions`, spec: SESSIONS_SPEC });
 /** Role pickers ask for one page of 100 (name A–Z), or the roles matching `q`. */
-export const roleOptions = (q = "") => ({
-  key: [...USERS_KEY, "roles", q] as const, url: `/api/users/roles?${new URLSearchParams(q ? { pageSize: "100", q } : { pageSize: "100" })}`,
+export const roleOptions = (q = "", page = 1) => ({
+  key: [...USERS_KEY, "roles", q, ...(page === 1 ? [] : [page])] as const, url: `/api/users/roles?${new URLSearchParams({ pageSize: "100", ...(q ? { q } : {}), ...(page === 1 ? {} : { page: String(page) }) })}`,
 });
 /** Active Superadmins, to know whether one is the last (it can't be deactivated or deleted). */
 export const SUPERADMINS = { key: [...USERS_KEY, "superadmins"] as const, url: "/api/users?role=Superadmin&status=active" };
@@ -57,15 +56,15 @@ export const ROLES: TableDef<{ q: string }> = {
 export const PERMISSION_MODULES = ["", ...MODULES.map((m) => m.key)];
 export const PERMISSIONS_TABLE: TableDef<{ q: string; module: string }> = {
   key: RBAC_KEY[0], path: "/api/permissions",
-  spec: { sorts: PERMISSION_SORTS, defaultSort: "module", search: ["q"], filters: { q: text(200), module: oneOf(PERMISSION_MODULES, "") } },
+  spec: { sorts: PERMISSION_SORTS, defaultSort: "module", search: ["q"], filters: { q: text(200), module: multiChoice() } },
 };
 
 export const PROJECTS_KEY = ["projects"] as const;
 export const PROJECT_STATUSES = ["", "active", "archived"] as const;
-export type ProjectFilters = { q: string; status: (typeof PROJECT_STATUSES)[number] };
+export type ProjectFilters = { q: string; status: string };
 export const PROJECTS: TableDef<ProjectFilters> = {
   key: PROJECTS_KEY[0], path: "/api/projects",
-  spec: { sorts: PROJECT_SORTS, defaultSort: "name", search: ["q"], filters: { q: text(200), status: oneOf(PROJECT_STATUSES, "") } },
+  spec: { sorts: PROJECT_SORTS, defaultSort: "name", search: ["q"], filters: { q: text(200), status: multiChoice() } },
 };
 export const projectDetail = (id: string) => ({ key: [...PROJECTS_KEY, "detail", id] as const, url: `/api/projects/${encodeURIComponent(id)}` });
 
@@ -84,13 +83,13 @@ export type ActivityFilters = AuditFilters & { action: string };
 export const ACTIONS = [{ value: "", label: "Any" }, ...ACTION_OPTIONS];
 export const ACTIVITY: TableDef<ActivityFilters> = {
   key: AUDIT_KEY[0], path: "/api/audit/activity", params: auditParams,
-  spec: { sorts: ACTIVITY_SORTS, defaultSort: "-at", search: ["user"], filters: { ...AUDIT_FILTERS, action: oneOf(ACTIONS.map((a) => a.value), "") } },
+  spec: { sorts: ACTIVITY_SORTS, defaultSort: "-at", search: ["user"], filters: { ...AUDIT_FILTERS, action: multiChoice() } },
 };
-export type AuthLogFilters = AuditFilters & { event: AuthLogDto["event"] | ""; method: AuthLogDto["method"] | "" };
+export type AuthLogFilters = AuditFilters & { event: string; method: string };
 export const AUTH_LOG: TableDef<AuthLogFilters> = {
   key: AUDIT_KEY[0], path: "/api/audit/auth", params: auditParams,
   spec: {
     sorts: AUTH_LOG_SORTS, defaultSort: "-at", search: ["user"],
-    filters: { ...AUDIT_FILTERS, event: oneOf(["", ...AUTH_EVENTS], ""), method: oneOf(["", ...AUTH_METHODS], "") },
+    filters: { ...AUDIT_FILTERS, event: multiChoice(), method: multiChoice() },
   },
 };

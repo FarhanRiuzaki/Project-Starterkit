@@ -156,11 +156,11 @@ function userWhere(q: BulkUserFilter) {
   const like = `%${likeEscape(needle ?? "")}%`;
   return and(
     needle ? or(ilike(users.name, like), ilike(users.username, like), ilike(users.email, like)) : undefined,
-    q.role
+    q.role?.length
       ? exists(db.select(one).from(userRoles).innerJoin(roles, eq(roles.id, userRoles.roleId))
-        .where(and(eq(userRoles.userId, users.id), eq(sql`lower(${roles.name})`, sql`lower(${q.role})`))))
+        .where(and(eq(userRoles.userId, users.id), or(...q.role.map(role => eq(sql`lower(${roles.name})`, sql`lower(${role})`))))))
       : undefined,
-    q.status ? eq(users.isActive, q.status === "active") : undefined,
+    q.status?.length ? inArray(users.isActive, q.status.map(status => status === "active")) : undefined,
   );
 }
 

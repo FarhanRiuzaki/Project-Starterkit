@@ -1,11 +1,25 @@
 import { describe, expect, it } from "vitest";
-import { historyMode, isoDate, oneOf, readTable, sortState, tableRequest, tableView, text, toSortParam, writeTable } from "./table-state";
+import { historyMode, isoDate, multiChoice, oneOf, readTable, sortState, tableRequest, tableView, text, toSortParam, writeTable } from "./table-state";
 
 const SPEC = {
   sorts: ["at", "login"], defaultSort: "-at", search: ["user"] as const,
   filters: { user: text(64), event: oneOf(["", "login_failed", "logout"] as const, ""), range: oneOf(["7d", "30d"] as const, "7d"), from: isoDate },
 };
 const read = (qs: string) => readTable(new URLSearchParams(qs), SPEC);
+
+describe("multiple category URL state", () => {
+  const spec = { sorts: ["name"], defaultSort: "name", filters: { role: multiChoice(), q: text(200) } };
+  it("roundtrips repeated, comma, Unicode and JSON-looking legacy values as literal choices", () => {
+    const params = new URLSearchParams();
+    for (const role of ['["Admin"]', "Design, Team", "日本", "Design, Team"]) params.append("role", role);
+    const state = readTable(params, spec);
+    const request = tableRequest("/api/users", state, spec);
+    expect(new URLSearchParams(request.filterQuery).getAll("role")).toEqual(["Design, Team", '["Admin"]', "日本"]);
+    const changed = writeTable(state, { q: "person" }, spec)!;
+    expect(changed.getAll("role")).toEqual(["Design, Team", '["Admin"]', "日本"]);
+    expect(tableRequest("/api/users", readTable(changed, spec), spec).filterQuery).toContain("q=person");
+  });
+});
 
 describe("readTable", () => {
   it("defaults: page 1, 15 rows, the spec's sort, each filter's fallback", () => {

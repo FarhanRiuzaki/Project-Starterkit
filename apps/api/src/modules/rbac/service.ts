@@ -1,7 +1,7 @@
 // Roles, the permission catalog and role grants: the logic of /v1/roles, /v1/permissions and /v1/users/roles, and the
 // role reads and writes the users module makes. Every escalation check reads the actor's permissions inside the
 // transaction (actorPermissions), never the request's earlier ctx.perms.
-import { and, type Column, eq, ilike, inArray, like, type SQL, sql } from "drizzle-orm";
+import { and, type Column, eq, ilike, inArray, like, or, type SQL, sql } from "drizzle-orm";
 import type { Page } from "@starterkit/shared/contracts/common";
 import {
   CATALOG_MAX, type CreatePermissionsResult, type CreateRoleBody, PERMISSION_ROLES_SHOWN, type PermissionDto, type PermissionListQuery, type RoleDetailDto, type RoleDto,
@@ -86,7 +86,7 @@ export function permissionPage(q: PermissionListQuery): Promise<Page<PermissionD
     n: sql<number>`count(*)::int`.as("role_count"),
     names: sql<string[]>`(array_agg(${roles.name} order by lower(${roles.name}), ${roles.name}))[1:${PERMISSION_ROLES_SHOWN}]`.as("names"),
   }).from(rolePermissions).innerJoin(roles, eq(roles.id, rolePermissions.roleId)).groupBy(rolePermissions.permission).as("h");
-  const where = and(matches(permissions.name, q.q), q.module ? like(permissions.name, `${likeEscape(q.module)}.%`) : undefined);
+  const where = and(matches(permissions.name, q.q), q.module?.length ? or(...q.module.map(module => like(permissions.name, `${likeEscape(module)}.%`))) : undefined);
   const sorts = { module: permissions.position, name: permissions.name, action: sql`split_part(${permissions.name}, '.', 2)` };
   return pageQuery({
     rows: db.select({ name: permissions.name, roles: sql<string[]>`coalesce(${h.names}, '{}')`, roleCount: sql<number>`coalesce(${h.n}, 0)` })

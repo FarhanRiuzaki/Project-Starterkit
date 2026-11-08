@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { filterSelection } from "./filter-selection";
 import { PROJECT_SORTS } from "../paging";
 import { PROJECT_DESCRIPTION_MAX, PROJECT_NAME_MAX, PROJECT_STATUSES } from "../projects";
 import { ListQuery, sortParam } from "./common";
@@ -19,7 +20,7 @@ export type ProjectDto = z.infer<typeof ProjectDto>;
 export { PROJECT_SORTS };
 
 /** GET /api/projects: `q` matches the name; `status` is exact. */
-export const ProjectListQuery = ListQuery.extend({ sort: sortParam(PROJECT_SORTS), status: z.enum(PROJECT_STATUSES).optional() });
+export const ProjectListQuery = ListQuery.extend({ sort: sortParam(PROJECT_SORTS), status: filterSelection(z.enum(PROJECT_STATUSES)).optional() });
 export type ProjectListQuery = z.infer<typeof ProjectListQuery>;
 
 const name = z.string().trim().min(1).max(PROJECT_NAME_MAX);

@@ -1,8 +1,10 @@
 "use client";
 
+import { selectionValues } from "@starterkit/shared/filter-selection";
+
 import { BarChart, CHART_HEIGHT, HBarChart, Heatmap } from "@starterkit/ui/charts";
 import {
-  ActionMenu, Avatar, AvatarStack, BlockedButton, Brand, CategoryChip, Checkbox, ConfirmActionDialog, CountBadge, ColumnsMenu, DataTable, EmptyState, ErrorState, Field, FilterLayout, FilterMenu, FilterSearch, PasswordChecks,
+  ActionMenu, Avatar, AvatarStack, BlockedButton, Brand, CategoryChip, Checkbox, ConfirmActionDialog, CountBadge, ColumnsMenu, DataTable, EmptyState, ErrorState, Field, FilterLayout, FilterChecks, FilterSearch, PasswordChecks,
   Kbd, LazyMount, Meter, Panel, SecretOnceDialog, Spec, StatusChip, TickMeter, Toolbar, Truncate,
   type Column, type SortDir,
 } from "@starterkit/ui/ds";
@@ -50,8 +52,8 @@ function SectionTitle({ children }: { children: string }) {
 
 export function GallerySections() {
   const [query, setQuery] = useState("");
-  const [status, setStatus] = useState<(typeof STATUS_OPTIONS)[number]["value"]>("all");
-  const [role, setRole] = useState<(typeof ROLES)[number]["value"]>("");
+  const [status, setStatus] = useState("");
+  const [role, setRole] = useState("");
   const [server, setServer] = useState({ page: 1, pageSize: 15, sort: { key: "name", dir: "asc" as SortDir } });
   const [dialog, setDialog] = useState(false);
   const [secret, setSecret] = useState(false);
@@ -70,7 +72,8 @@ export function GallerySections() {
     { key: "city", header: "City", sortable: true, cell: (r) => r.city },
     { key: "seen", header: "Last seen", align: "right", cell: (r) => <span className="tabular">{r.lastSeen}</span> },
   ];
-  const rows = status === "all" ? ROWS : ROWS.filter((r) => r.status === status);
+  const selectedStatuses = selectionValues(status);
+  const rows = ROWS.filter(r => (!selectedStatuses.length || selectedStatuses.includes(r.status)) && (!query.trim() || `${r.name} ${r.email}`.toLowerCase().includes(query.trim().toLowerCase())));
 
   return (
     <>
@@ -79,17 +82,17 @@ export function GallerySections() {
       <PackSection />
       <LibrarySection />
       <div id="ds-tables" className="scroll-mt-20"><SectionTitle>Toolbar and data table</SectionTitle></div>
-      <FilterLayout values={{ query, status, role }} defaults={{ query: "", status: "all", role: "" }}
-        fields={[{ key: "query", label: "Search" }, { key: "status", label: "Status", format: v => STATUS_OPTIONS.find(o => o.value === v)?.label ?? v }, { key: "role", label: "Role" }]}
-        onApply={v => { setQuery(v.query); setStatus(STATUS_OPTIONS.find(o => o.value === v.status)?.value ?? "all"); setRole(ROLES.find(o => o.value === v.role)?.value ?? ""); }}
+      <FilterLayout values={{ query, status, role }} defaults={{ query: "", status: "", role: "" }}
+        fields={[{ key: "query", label: "Search" }, { key: "status", label: "Status", multiple: true, format: v => STATUS_OPTIONS.find(o => o.value === v)?.label ?? v }, { key: "role", label: "Role", multiple: true }]}
+        onApply={v => { setQuery(v.query); setStatus(v.status); setRole(v.role); }}
         filters={(draft, patch) => <>
           <FilterSearch label="Search sample users" value={draft.query} onChange={query => patch({ query })} placeholder="Name or email" />
-          <FilterMenu label="Status" value={draft.status} options={STATUS_OPTIONS} onChange={status => patch({ status })} />
-          <FilterMenu label="Role" value={draft.role} options={ROLES} onChange={role => patch({ role })} />
+          <FilterChecks label="Status" value={draft.status} options={STATUS_OPTIONS.filter(option => option.value !== "all")} onChange={status => patch({ status })} />
+          <FilterChecks label="Role" value={draft.role} options={ROLES} onChange={role => patch({ role })} />
         </>}>
-      {({ trigger, summary }) => <Panel flush icon={UsersIcon} title="Users" count="12,345" legend={LEGEND}
-        description="Server-paged results; filters apply together, with an active count and removable chips"
-        toolbar={<Toolbar end={<><ColumnsMenu columns={columns} hidden={hidden} onChange={setHidden} /></>}>{trigger}</Toolbar>}>
+      {({ summary }) => <Panel flush icon={UsersIcon} title="Users" count="12,345" legend={LEGEND}
+        description="Sample data; live filters with selected-option badges and removable chips"
+        toolbar={<Toolbar end={<><ColumnsMenu columns={columns} hidden={hidden} onChange={setHidden} /></>}>{null}</Toolbar>}>
         {summary}
         <DataTable label="Sample users" rowHeight="identity" columns={columns} hidden={hidden} rows={rows.slice(0, server.pageSize)} rowKey={(r) => r.id}
           isSelected={(r) => r.id === "row-2"} empty={EMPTY} sort={server.sort} onSortChange={(sort) => setServer((s) => ({ ...s, page: 1, sort }))}

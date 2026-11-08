@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { activeChild, crumbs, isActive, isSubPage, NAV, navFor, pagePerm } from "./nav";
+import { activeChild, crumbs, isActive, isSubPage, NAV, navFor, pagePerm, type NavItem } from "./nav";
+import { DEFAULT_PREFS, viewHref } from "./prefs";
 import { PERMISSIONS } from "@starterkit/shared/permissions";
 
 const labels = (perms: Parameters<typeof navFor>[0]) => navFor(perms).flatMap((s) => s.items.map((i) => i.label));
@@ -66,13 +67,21 @@ describe("pagePerm", () => {
 
 describe("nav children", () => {
   const users = NAV.find((n) => n.href === "/users")!;
-  it("Users lists all, active and inactive users as views of its own list", () => {
-    expect(users.children!.map((c) => [c.label, c.href])).toEqual([["All users", "/users"], ["Active users", "/users?status=active"], ["Inactive users", "/users?status=inactive"]]);
+  it("Users has one navigation entry; its status views remain URL filters and the remembered view is preserved", () => {
+    expect(users.children).toBeUndefined();
+    expect(users.shortcut).toBe("G U");
+    expect(navFor(new Set(PERMISSIONS)).flatMap(s => s.items).filter(n => n.href === "/users")).toHaveLength(1);
+    const query = "pageSize=25&role=Viewer&status=active&status=inactive";
+    expect(viewHref(users.href, { ...DEFAULT_PREFS, views: { "/users": query } })).toBe(`/users?${query}`);
   });
-  it("activeChild: the child whose status matches the URL, other parameters aside; none off the list page", () => {
-    expect(activeChild(users, "/users", new URLSearchParams(""))?.label).toBe("All users");
-    expect(activeChild(users, "/users", new URLSearchParams("status=inactive&sort=-createdAt&page=2"))?.label).toBe("Inactive users");
-    expect(activeChild(users, "/users", new URLSearchParams("role=Admin"))?.label).toBe("All users");
-    expect(activeChild(users, "/users/u-1", new URLSearchParams(""))).toBeNull();
+  it("activeChild remains available for another module with named child views", () => {
+    const item: NavItem = { ...users, children: [
+      { href: "/users", label: "All", icon: "users" },
+      { href: "/users?status=inactive", label: "Inactive", icon: "users" },
+    ] };
+    expect(activeChild(item, "/users", new URLSearchParams(""))?.label).toBe("All");
+    expect(activeChild(item, "/users", new URLSearchParams("status=inactive&sort=-createdAt&page=2"))?.label).toBe("Inactive");
+    expect(activeChild(item, "/users", new URLSearchParams("role=Admin"))?.label).toBe("All");
+    expect(activeChild(item, "/users/u-1", new URLSearchParams(""))).toBeNull();
   });
 });

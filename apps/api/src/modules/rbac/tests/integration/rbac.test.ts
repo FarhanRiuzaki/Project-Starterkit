@@ -41,6 +41,16 @@ async function fillCatalog(total: number) {
 }
 
 let sa: string;
+it("permission modules use OR within the group, AND with search, and validate all raw selections before guard", async () => {
+  await resetData();
+  const token = await signIn("superadmin");
+  const response = await call("GET", "/v1/permissions?module=user&module=project&q=view", { token });
+  expect(response.status).toBe(200);
+  const result = (await response.json()) as Page<PermissionDto>;
+  expect(result.items.map((item: { name: string }) => item.name).sort()).toEqual(["project.view", "user.view"]);
+  expect(result.total).toBe(2);
+  for (const query of ["module=user&module=unknown", Array(51).fill("module=user").join("&")]) expect((await call("GET", `/v1/permissions?${query}`)).status).toBe(400);
+});
 beforeEach(async () => {
   await resetData();
   await db.delete(activity);

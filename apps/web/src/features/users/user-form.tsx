@@ -99,7 +99,7 @@ function UserForm({ user }: { user?: UserDetailDto }) {
         const isLdap = v.method === "directory";
         const body = { ...profile, roles, isActive, isLdap, ...(isLdap ? {} : v.method === "invite" ? { invite: true } : { password: v.password }) };
         const created = await api<UserDto>("/api/users", { method: "POST", body: JSON.stringify(body) });
-        toast(`Created ${created.name}.`, { description: v.method === "invite" ? `An invitation link was sent to ${created.email}. It works for 72 hours.` : undefined });
+        toast(`Created ${created.name}.`, { description: v.method === "invite" ? "Email delivery isn't confirmed here." : undefined });
         id = created.id;
       }
       await qc.invalidateQueries({ queryKey: USERS_KEY });
@@ -157,8 +157,8 @@ function UserForm({ user }: { user?: UserDetailDto }) {
             <FormSection title="First sign-in" description="How the user signs in the first time.">
               <RadioGroup name="u-method" legend="Sign-in method" required value={method} onChange={(m) => f.set("method", m)} options={[
                 { value: "password", label: "Set a password now", description: "You set it here and give it to the user." },
-                { value: "invite", label: "Send an invitation link", disabled: !isActive,
-                  description: isActive ? "The user chooses a password. The link works for 72 hours." : "An inactive user can't use an invitation. Set the user active to send one." },
+                { value: "invite", label: "Invite by email", disabled: !isActive,
+                  description: isActive ? "The user chooses a password using a link valid for 72 hours. Email delivery isn't confirmed here." : "Activate this user to use an invitation." },
                 { value: "directory", label: "Directory user", description: "Signs in with the directory password. No password or invitation is set here." },
               ]} />
               {method === "password" && (

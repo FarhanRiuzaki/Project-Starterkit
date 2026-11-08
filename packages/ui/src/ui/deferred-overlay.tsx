@@ -59,7 +59,7 @@ export function deferredOverlay<M extends OverlayImpl>(kind: OverlayKind, slot: 
         switched.current = true;
         refocus.current = twinEl.current != null && twinEl.current === document.activeElement;
         keyOpen.current = how === "key";
-        setState({ impl: m, openWith: how });
+        setState(previous => ({ impl: m, openWith: previous.openWith ?? how }));
       });
     }, []);
     const { impl, openWith } = state;
@@ -72,12 +72,26 @@ export function deferredOverlay<M extends OverlayImpl>(kind: OverlayKind, slot: 
       impl,
       twin: (el: HTMLElement | null) => { twinEl.current = el; },
       real: (el: HTMLElement | null) => { if (el && refocus.current) { refocus.current = false; el.focus(); } },
-      open: (how: OpenHow) => { intent.current = { how, at: Date.now() }; fetchImpl(); },
+      open: (how: OpenHow) => {
+        // Preload may have queued a closed handoff while this stand-in still handles the key. Transfer that
+        // fresh intent synchronously; the earlier queued update must preserve it when React rebases lanes.
+        if (switched.current && !impl) {
+          const loaded = loader.get();
+          if (loaded) {
+            intent.current = null;
+            refocus.current = twinEl.current != null && twinEl.current === document.activeElement;
+            keyOpen.current = how === "key";
+            setState({ impl: loaded, openWith: how });
+            return;
+          }
+        }
+        intent.current = { how, at: Date.now() }; fetchImpl();
+      },
       preload: fetchImpl,
       takeKeyOpen: () => { const k = keyOpen.current; keyOpen.current = false; return k; },
     }), [impl, fetchImpl]);
     const R = impl?.Root;
-    return <C.Provider value={value}>{R ? <R {...props} defaultOpen={defaultOpen ?? openWith != null}>{children}</R> : children}</C.Provider>;
+    return <C.Provider value={value}>{R ? <R {...props} defaultOpen={openWith != null || defaultOpen}>{children}</R> : children}</C.Provider>;
   }
 
   function Trigger({ asChild, children, onPointerDown, onKeyDown, onClick, onFocus, onPointerEnter, ref, ...props }: TriggerProps) {

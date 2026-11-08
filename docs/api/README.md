@@ -10,8 +10,25 @@ import; `schemas/` holds one JSON Schema (draft 2020-12) per schema, generated b
 `apps/api/test/architecture/conformance.test.ts` fails when the endpoint table below misses a route of the API or lists
 one it doesn't serve.
 
-Request schemas (`…Body`, `…Query`) describe what the client sends: a field with a `default` may be left out. Every
+Request schemas (`…Body`, `…Query`, `BulkUserFilter`) describe what the client sends: a field with a `default` may be left out. Every
 other schema describes the answer exactly (`additionalProperties: false`).
+
+## Category selections and saved views
+
+List category parameters accept legacy scalar values and repeated singular keys: users `role`/`status`, projects
+`status`, permissions `module`, activity `action`, and sign-in log `event`/`method`. For example,
+`/api/projects?status=active&status=archived` selects either status. Values within a group use OR; groups, search
+and time conditions use AND. An absent/empty scalar or empty JSON body array leaves that group unrestricted.
+Arrays allow at most **50 raw elements before exact deduplication**; empty elements, unknown enum choices, nested
+or non-string body elements and larger arrays are 400. List query validation still runs before the session guard.
+Unknown well-formed role/action strings return no matches. Query values are literal: commas and JSON-looking role
+names are never split/coerced. Other query keys retain the first-value rule. Canonical URLs dedupe and sort choices
+by codepoint; CSV/count and users bulk `filter` use the same full-dataset predicates as the list. Bulk command
+`assignRole.role` stays scalar; permissions, actor rank and bulk/export caps are unchanged.
+
+Named saved views keep the complete query up to **4096 characters**. Navigation preferences keep their existing
+300-character per-page cap: longer current queries clear the prior remembered view and explain the fallback;
+the URL continues to work and may be saved as a named view. Overlong named views are refused without truncation.
 
 ## Time filters
 
@@ -158,6 +175,14 @@ matches `password|secret|token|recovery` (any letter case, at any depth) keeps o
 (`HIDDEN` and `SECRET_KEY` in `apps/api/src/modules/audit/rules.ts` and `packages/shared/src/audit.ts`). The table below is
 generated from the action vocabulary (`ACTION_LABEL` in `packages/shared/src/audit.ts`) by `bun run api:schemas`;
 `api-contract.test.ts` fails when it drifts.
+
+The activity detail and CSV `Changes` cell share the action-aware presentation in
+`packages/shared/src/audit-changes.ts`. Known creates show initial values; deletes show values before deletion.
+Only complete recorded role/permission sets produce added/removed differences (reordering alone is ignored).
+Explicit role permission deltas and permission registration lists are shown as recorded; malformed or unknown shapes
+fall back to masked values/JSON. Missing fields, null, empty text and empty arrays remain distinct. Unknown arrays
+retain item boundaries/order, and identical masked credentials never imply a changed secret. This changes presentation
+only: the stored snapshots, JSON DTO, CSV column order, filters and formula-safe encoding are unchanged.
 
 <!-- actions:start -->
 | Action | Label | Target | `before` | `after` |

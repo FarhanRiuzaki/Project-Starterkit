@@ -54,3 +54,14 @@ export function firstValues(url: string): Record<string, string> {
   for (const [k, v] of new URL(url).searchParams) if (!out.has(k)) out.set(k, v);
   return Object.fromEntries(out); // own keys even for "__proto__"
 }
+
+/** Explicit category keys preserve every raw repeated value; scalar keys keep their first-value contract. */
+export function queryValues(url: string, allowedMultiKeys: readonly string[]): Record<string, string | string[]> {
+  const out: Record<string, string | string[]> = firstValues(url);
+  const params = new URL(url).searchParams;
+  for (const key of allowedMultiKeys) {
+    const values = params.getAll(key);
+    if (values.length > 1) Object.defineProperty(out, key, { value: values, enumerable: true, configurable: true, writable: true });
+  }
+  return out;
+}

@@ -16,7 +16,7 @@ import { FilterSheet, InFilterSheet } from "./filter-sheet";
 /**
  * Toolbar row (spec §5.6): search (grows) · filter menus · status segmented with counts · view toggle · Export
  * (secondary) right-most. Put the right-aligned group in `end`. Wraps under 1280 px; never scrolls sideways.
- * Module lists put the FilterLayout trigger here; search/fields live in its detached card. ToolbarFilters is the compact immediate variant.
+ * Module lists put saved views and columns here; FilterLayout owns its separate launcher. ToolbarFilters is the compact immediate variant.
  */
 export function Toolbar({ children, end, className }: { children: ReactNode; end?: ReactNode; className?: string }) {
   return (

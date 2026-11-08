@@ -1,13 +1,14 @@
 "use client";
 
-import { Avatar, type Column, CopyValue, FilterMenu, Truncate } from "@starterkit/ui/ds";
+import { Avatar, type Column, CopyValue, FilterChecks, Truncate } from "@starterkit/ui/ds";
 import { formatDateTimeLong } from "@starterkit/ui/lib/format";
 import { LogIcon } from "@starterkit/ui/ui/icons";
 import { actionLabel } from "@starterkit/shared/audit";
 import type { ActivityDto } from "@starterkit/shared/contracts/audit";
 import { ACTIONS, ACTIVITY, type ActivityFilters } from "@/lib/shared/queries";
 import { AuditTable, timeCell } from "./audit-table";
-import { DiffView } from "./diff-view";
+import { activitySummary } from "./activity-summary";
+
 
 /** Phone card: the action is the title, then user, target and time. */
 const COLUMNS: Column<ActivityDto>[] = [
@@ -25,13 +26,14 @@ const COLUMNS: Column<ActivityDto>[] = [
 export function ActivityPage() {
   return (
     <AuditTable<ActivityDto, ActivityFilters> title="Activity log" noun="activity entries" icon={LogIcon} table={ACTIVITY}
-      description="Changes to users, roles, permissions and profiles: who made them, to which record, and when."
+      description="Changes to users, roles, permissions, profiles and projects: who made them, to which record, and when."
       columns={COLUMNS} rowLabel={(r) => `${actionLabel(r.action)}, ${r.target.label}`}
-      emptyHint="Entries appear here when someone changes a user, role, permission or their own profile."
-      filterFields={[{ key: "action", label: "Action", format: actionLabel }]}
-      filters={(f, set) => <FilterMenu label="Action" value={f.action} options={ACTIONS} onChange={(action) => set({ action })} />}
+      emptyHint="Entries appear here when someone changes a user, role, permission, profile or project."
+      filterFields={[{ key: "action", label: "Action", multiple: true, format: actionLabel }]}
+      filters={(f, set) => <FilterChecks label="Action" value={f.action} options={ACTIONS} onChange={(action) => set({ action })} />}
       detail={(r) => ({
         title: actionLabel(r.action),
+        summary: activitySummary(r),
         rows: [
           ["Time", formatDateTimeLong(Date.parse(r.at))],
           ["User", <span key="u">{r.actor.name} <span className="font-mono text-caption text-fg-3">{r.actor.id}</span></span>],
@@ -39,7 +41,7 @@ export function ActivityPage() {
           ["Target", <span key="t">{r.target.label} <span className="font-mono text-caption text-fg-3">{r.target.type} {r.target.id}</span></span>],
           ["Entry ID", <CopyValue key="id" value={r.id} label="entry ID" />],
         ],
-        extra: <DiffView before={r.before} after={r.after} />,
+        changes: { action: r.action, before: r.before, after: r.after },
       })} />
   );
 }

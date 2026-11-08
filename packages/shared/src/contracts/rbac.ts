@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { filterSelection } from "./filter-selection";
 import { PERMISSION_SORTS, ROLE_OPTION_SORTS, ROLE_SORTS } from "../paging";
 import { MODULES, PERMISSION_KEY } from "../permissions";
 import { ListQuery, sortParam } from "./common";
@@ -48,7 +49,7 @@ export type RoleOption = z.infer<typeof RoleOption>;
 
 const MODULE_KEYS = MODULES.map((m) => m.key) as [string, ...string[]];
 /** GET /api/permissions: `q` matches the name; `module` is exact. */
-export const PermissionListQuery = ListQuery.extend({ sort: sortParam(PERMISSION_SORTS), module: z.enum(MODULE_KEYS).optional() });
+export const PermissionListQuery = ListQuery.extend({ sort: sortParam(PERMISSION_SORTS), module: filterSelection(z.enum(MODULE_KEYS)).optional() });
 export type PermissionListQuery = z.infer<typeof PermissionListQuery>;
 
 

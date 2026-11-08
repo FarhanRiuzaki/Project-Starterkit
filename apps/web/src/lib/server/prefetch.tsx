@@ -1,3 +1,4 @@
+import { filterQueryValues } from "@starterkit/shared/filter-selection";
 import "server-only";
 import { type DehydratedState, dehydrate, QueryClient, type QueryKey } from "@tanstack/react-query";
 import { headers } from "next/headers";
@@ -37,7 +38,7 @@ export function toSearch(sp: SearchParams): URLSearchParams {
  */
 export function table<F extends Record<string, string>, Q>(def: TableDef<F>, sp: URLSearchParams, schema: z.ZodType<Q>): Read {
   const { url } = tableRequest(def.path, readTable(sp, def.spec), def.spec, def.params);
-  const ok = schema.safeParse(Object.fromEntries(new URL(url, "http://local").searchParams)).success;
+  const ok = schema.safeParse(filterQueryValues(new URL(url, "http://local").searchParams)).success;
   return { key: [def.key, url], path: ok ? url : null };
 }
 

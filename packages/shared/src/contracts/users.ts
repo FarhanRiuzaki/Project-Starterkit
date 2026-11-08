@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { filterSelection } from "./filter-selection";
 import { USER_SORTS } from "../paging";
 import { ListQuery, sortParam } from "./common";
 import { Password } from "./password";
@@ -23,8 +24,8 @@ export { USER_SORTS };
 
 export const UserListQuery = ListQuery.extend({
   sort: sortParam(USER_SORTS),
-  role: z.string().max(64).optional(),
-  status: z.enum(["active", "inactive"]).optional(),
+  role: filterSelection(z.string().min(1).max(64)).optional(),
+  status: filterSelection(z.enum(["active", "inactive"])).optional(),
 });
 export type UserListQuery = z.infer<typeof UserListQuery>;
 
@@ -62,8 +63,8 @@ export const BULK_ALL_MAX = 1000;
 /** The users list's search and filters (UserListQuery without paging or sort): which users a bulk action with `filter` takes. */
 export const BulkUserFilter = z.object({
   q: z.string().max(200).optional(),
-  role: z.string().max(64).optional(),
-  status: z.enum(["active", "inactive"]).optional(),
+  role: filterSelection(z.string().min(1).max(64)).optional(),
+  status: filterSelection(z.enum(["active", "inactive"])).optional(),
 }).strict();
 export type BulkUserFilter = z.infer<typeof BulkUserFilter>;
 

@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { MASK, actionLabel, changeText, diffFields, presetRange, rangeProblem } from "./audit";
 
+it("unknown action names never resolve inherited object properties", () => {
+  for (const action of ["constructor", "__proto__", "toString"]) expect(actionLabel(action)).toBe(action);
+});
+
 describe("diffFields", () => {
   it("lists only the fields whose value changed, before-keys first", () => {
     expect(diffFields({ name: "A", email: "a@x", roles: ["Admin"] }, { name: "B", email: "a@x", roles: ["Admin", "Viewer"] })).toEqual([

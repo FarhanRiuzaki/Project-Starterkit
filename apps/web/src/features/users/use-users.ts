@@ -35,11 +35,11 @@ export function useUserDetail(id: string, enabled = true) {
  * Role names for pickers (filter, bulk assign, user form): the first 100 by name, or those matching `q`.
  * `more` = roles exist beyond this page, so the picker offers type-to-search instead of a fixed list.
  */
-export function useRoleNames(q = "") {
-  const { key, url } = roleOptions(q);
+export function useRoleNames(q = "", page = 1) {
+  const { key, url } = roleOptions(q, page);
   const query = useQuery({ queryKey: key, staleTime: 60_000, placeholderData: keepPreviousData, queryFn: () => api<Page<RoleOption>>(url) });
   const data = query.data;
-  return { query, names: data?.items.map((r) => r.name) ?? [], more: !!data && data.total > data.items.length };
+  return { query, names: data?.items.map((r) => r.name) ?? [], more: !!data && data.total > data.page * data.pageSize };
 }
 
 /** Id of the only active Superadmin, or null when there are several (that user can't be deactivated or deleted). */

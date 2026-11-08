@@ -1,11 +1,12 @@
 "use client";
 
+import { selectionValues } from "@starterkit/shared/filter-selection";
 import { useQueryClient } from "@tanstack/react-query";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { ActionMenu, type Column, ColumnsMenu, DataTable, FilterLayout, FilterMenu, FilterSearch, Notice, Panel, RelativeTime, StatusChip, Toolbar, Truncate } from "@starterkit/ui/ds";
+import { ActionMenu, type Column, ColumnsMenu, DataTable, FilterLayout, FilterSurface, FilterChecks, FilterSearch, Notice, Panel, RelativeTime, StatusChip, Toolbar, Truncate } from "@starterkit/ui/ds";
 import { Button } from "@starterkit/ui/ui/button";
 import { FolderIcon } from "@starterkit/ui/ui/icons";
 import { toast } from "@starterkit/ui/ui/toast";
@@ -33,7 +34,7 @@ const STATUSES = PROJECT_STATUSES.map((value) => ({ value, label: STATUS_LABEL[v
 const VIEW_TITLE: Record<(typeof PROJECT_STATUSES)[number], string> = { "": "All projects", active: "Active projects", archived: "Archived projects" };
 
 const FILTER_DEFAULTS: ProjectFilters = { q: "", status: "" };
-const FILTER_FIELDS = [{ key: "q", label: "Search" }, { key: "status", label: "Status", format: (v: string) => STATUS_LABEL[v as keyof typeof STATUS_LABEL] ?? v }] as const;
+const FILTER_FIELDS = [{ key: "q", label: "Search" }, { key: "status", label: "Status", multiple: true, format: (v: string) => STATUS_LABEL[v as keyof typeof STATUS_LABEL] ?? v }] as const;
 
 const COLUMNS: Column<ProjectDto>[] = [
   { key: "name", header: "Project", sortable: true, mobile: "title", className: "min-w-48", cell: (p) => (
@@ -67,14 +68,16 @@ export function ProjectsPage() {
     <div className="grid gap-section" onPointerDown={preloadDialog} onFocus={preloadDialog}>
       <PageHeader title="Projects" description="Every project, with its status and when it last changed."
         actions={can("project.create") ? <Button asChild><Link href="/projects/new">Create project</Link></Button> : undefined} />
+      <FilterSurface>
       {t.staleError && <Notice tone="warn" live>Couldn&apos;t refresh the projects; showing the ones loaded before. {errorText(t.staleError)}</Notice>}
-      <FilterLayout<ProjectFilters> values={{ q: f.q, status: f.status }} defaults={FILTER_DEFAULTS} fields={FILTER_FIELDS}
-        onApply={values => set(values, { history: "push" })} filters={(draft, patch) => <>
+      {t.viewNotRemembered && <Notice>This filter selection works at this URL, but is too long to remember in navigation. Save a named view to reopen it.</Notice>}
+      <FilterLayout<ProjectFilters> busy={t.paging.busy} values={{ q: f.q, status: f.status }} defaults={FILTER_DEFAULTS} fields={FILTER_FIELDS}
+        onApply={(values, options) => set(values, options)} filters={(draft, patch) => <>
           <FilterSearch label="Search projects" value={draft.q} onChange={q => patch({ q })} placeholder="Project name" />
-          <FilterMenu label="Status" value={draft.status} options={STATUSES} onChange={status => patch({ status })} />
+          <FilterChecks label="Status" value={draft.status} options={STATUSES} onChange={status => patch({ status })} />
         </>}>
-      {({ trigger, summary }) => <Panel toolbar={<Toolbar end={<><SavedViewsMenu /><ColumnsMenu columns={COLUMNS} hidden={t.hidden} onChange={t.setHidden} /></>}>{trigger}</Toolbar>}
-        flush icon={FolderIcon} title={VIEW_TITLE[f.status]} count={t.count} legend={PROJECT_LEGEND}>
+      {({ summary }) => <Panel toolbar={<Toolbar end={<><SavedViewsMenu /><ColumnsMenu columns={COLUMNS} hidden={t.hidden} onChange={t.setHidden} /></>}>{null}</Toolbar>}
+        flush icon={FolderIcon} title={VIEW_TITLE[(selectionValues(f.status).length === 1 ? selectionValues(f.status)[0] : "") as keyof typeof VIEW_TITLE]} count={t.count} legend={PROJECT_LEGEND}>
         {summary}
         <DataTable label="Projects" rowHeight="identity" columns={COLUMNS} hidden={t.hidden} rows={t.rows} rowKey={(p) => p.id} loading={t.loading}
           sort={t.sort} onSortChange={t.onSortChange} paging={t.paging}
@@ -91,6 +94,7 @@ export function ProjectsPage() {
           )} />
       </Panel>}
       </FilterLayout>
+      </FilterSurface>
       {deleting && (
         <ConfirmActionDialog open onOpenChange={(o) => { if (!o) setDeleting(null); }} auditFields={false} reasons={[]} destructive title={`Delete ${deleting.name}`}
           description={deleting.description ?? "This project has no description."} impact={["The project is removed.", "This can't be undone."]} actionLabel="Delete project"

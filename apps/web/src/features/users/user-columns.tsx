@@ -30,9 +30,9 @@ export function userColumns(select?: { has: (id: string) => boolean; toggle: (id
     ) },
     { key: "roles", header: "Roles", cell: (u) => <RoleChips roles={u.roles} /> },
     { key: "status", header: "Status", cell: (u) => <UserStatusChip user={u} /> },
-    { key: "type", header: "Sign-in", mobile: "hidden", className: "max-xl:hidden group-data-[filters-open]/filter-layout:hidden", cell: (u): ReactNode => (u.isLdap ? "Directory" : "Password") },
+    { key: "type", header: "Sign-in", mobile: "hidden", className: "max-xl:hidden", cell: (u): ReactNode => (u.isLdap ? "Directory" : "Password") },
     { key: "lastLoginAt", header: "Last sign-in", sortable: true, cell: (u) => <RelativeTime at={u.lastLoginAt ? Date.parse(u.lastLoginAt) : null} /> },
-    { key: "createdAt", header: "Created", sortable: true, mobile: "hidden", className: "max-xl:hidden group-data-[filters-open]/filter-layout:hidden", cell: (u) => <RelativeTime at={Date.parse(u.createdAt)} /> },
+    { key: "createdAt", header: "Created", sortable: true, mobile: "hidden", className: "max-xl:hidden", cell: (u) => <RelativeTime at={Date.parse(u.createdAt)} /> },
   ];
   if (!select) return cols;
   // The header's checkbox selects the page (tablet and desktop); on a phone the bulk bar holds it (the header is hidden).

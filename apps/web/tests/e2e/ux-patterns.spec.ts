@@ -70,7 +70,7 @@ test("a list reopens with its last filters and sort from the sidebar and the bre
   await expect(page).toHaveURL("/roles");
   await usersLink.click();
   await expect.poll(() => norm(page.url())).toBe(VIEW);
-  await expect(page.getByRole("button", { name: "Filters, 1 active" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Expand filters, 1 active selections" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Remove filter Status: Inactive", exact: true })).toBeVisible();
   // From a user's page the breadcrumb goes back to the same view.
   await page.getByRole("table").getByRole("link").first().click();

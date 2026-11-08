@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { filterSelection } from "./filter-selection";
 import { ACTIVITY_SORTS, AUTH_EVENTS, AUTH_LOG_SORTS, AUTH_METHODS, MAX_RANGE_DAYS, rangeProblem } from "../audit";
 import { isTimeExpression, timeRangeProblem } from "@starterkit/ui/lib/time-range";
 import { ListQuery, sortParam } from "./common";
@@ -49,13 +50,13 @@ const validRange = [
 ] as const;
 
 /** GET /api/audit/activity. `user` matches the actor's name, id or current email; `action` is exact. */
-export const ActivityQuery = AuditQuery.extend({ sort: sortParam(ACTIVITY_SORTS), action: z.string().max(64).optional() }).refine(...validRange);
+export const ActivityQuery = AuditQuery.extend({ sort: sortParam(ACTIVITY_SORTS), action: filterSelection(z.string().min(1).max(64)).optional() }).refine(...validRange);
 export type ActivityQuery = z.infer<typeof ActivityQuery>;
 
 /** GET /api/audit/auth. `user` matches the login or the user id. */
 export const AuthLogQuery = AuditQuery.extend({
   sort: sortParam(AUTH_LOG_SORTS),
-  event: z.enum(AUTH_EVENTS).optional(),
-  method: z.enum(AUTH_METHODS).optional(),
+  event: filterSelection(z.enum(AUTH_EVENTS)).optional(),
+  method: filterSelection(z.enum(AUTH_METHODS)).optional(),
 }).refine(...validRange);
 export type AuthLogQuery = z.infer<typeof AuthLogQuery>;

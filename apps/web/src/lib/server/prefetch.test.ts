@@ -41,6 +41,17 @@ beforeEach(() => jar.clear());
 afterEach(() => vi.unstubAllGlobals());
 
 describe("server prefetch = the API's answer to the browser hook's own URL, under the hook's key", () => {
+  it("preserves repeated and JSON-looking literal roles from Next searchParams through the browser key", async () => {
+    echoApi();
+    const params = toSearch({ role: ["Design, Team", "日本", '["Admin"]', "Design, Team"], status: ["active", "inactive"] });
+    const read = reads.users(params);
+    expect(read.path).not.toBeNull();
+    const wire = new URL(read.path!, "http://local").searchParams;
+    expect(wire.getAll("role")).toEqual(["Design, Team", '["Admin"]', "日本"]);
+    expect(wire.getAll("status")).toEqual(["active", "inactive"]);
+    expect(read.key).toEqual(tableKey(USERS, params.toString()).key);
+    expect(await dataAt([read], read.key)).toEqual(v1(read.path!));
+  });
   it("dashboard and profile", async () => {
     const seen = echoApi();
     expect(await dataAt([reads.dashboard()], DASHBOARD_KEY)).toEqual(v1("/api/dashboard"));

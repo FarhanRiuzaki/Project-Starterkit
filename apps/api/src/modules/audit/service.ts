@@ -1,7 +1,8 @@
 // The read side of the activity and sign-in logs: the logic of /v1/audit/* (page or CSV) and the newest entries the
 // dashboard shows (read-only, so nothing is recorded), and the retention purge the janitor runs.
 import { and, type Column, desc, eq, exists, ilike, inArray, lt, or, type SQL, sql } from "drizzle-orm";
-import { changeText, CSV_MAX_ROWS } from "@starterkit/shared/audit";
+import { CSV_MAX_ROWS } from "@starterkit/shared/audit";
+import { activityChangeText } from "@starterkit/shared/audit-changes";
 import type { ActivityDto, ActivityQuery, AuthLogDto, AuthLogQuery } from "@starterkit/shared/contracts/audit";
 import type { Page } from "@starterkit/shared/contracts/common";
 import { CSV_BOM, toCsv } from "@starterkit/ui/lib/csv";
@@ -49,11 +50,11 @@ function matchesUser(user: string | undefined, name: Column, id: Column): SQL | 
 
 /** The activity filter. `user` matches the actor's name or id as recorded, or the actor's current email. */
 const activityWhere = (q: ActivityQuery) =>
-  and(inRange(activity.at, q), q.action ? eq(activity.action, q.action) : undefined, matchesUser(q.user, activity.actorName, activity.actorId));
+  and(inRange(activity.at, q), q.action?.length ? inArray(activity.action, q.action) : undefined, matchesUser(q.user, activity.actorName, activity.actorId));
 
 /** The sign-in log filter. `user` matches the login as typed or recorded, the user id, or the user's current email. */
 const authLogWhere = (q: AuthLogQuery) =>
-  and(inRange(authLog.at, q), q.event ? eq(authLog.event, q.event) : undefined, q.method ? eq(authLog.method, q.method) : undefined,
+  and(inRange(authLog.at, q), q.event?.length ? inArray(authLog.event, q.event) : undefined, q.method?.length ? inArray(authLog.method, q.method) : undefined,
     matchesUser(q.user, authLog.login, authLog.userId));
 
 // ponytail: a `user` filter is a substring scan of the rows the other filters leave (no trigram index on the audit
@@ -87,7 +88,7 @@ export async function activityCsv(q: ActivityQuery): Promise<string> {
   const rows = await db.select().from(activity).where(activityWhere(q)).orderBy(desc(activity.at), desc(activity.id)).limit(CSV_MAX_ROWS);
   return CSV_BOM + toCsv([
     ["Time (UTC)", "Actor", "Actor ID", "Action", "Target type", "Target ID", "Target", "Changes"],
-    ...rows.map(toActivity).map((e) => [e.at, e.actor.name, e.actor.id, e.action, e.target.type, e.target.id, e.target.label, changeText(e.before, e.after)]),
+    ...rows.map(toActivity).map((e) => [e.at, e.actor.name, e.actor.id, e.action, e.target.type, e.target.id, e.target.label, activityChangeText(e.action, e.before, e.after)]),
   ]);
 }
 

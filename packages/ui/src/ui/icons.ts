@@ -21,6 +21,7 @@ export {
   UserCheck01Icon as ActiveUserIcon, // Nav child: active users
   UserBlock01Icon as InactiveUserIcon, // Nav child: inactive users
   LayoutThreeColumnIcon as ColumnsIcon, // A table's column chooser (ColumnsMenu)
+  FilterHorizontalIcon as FilterIcon, // Shared module filter launcher
   KeyboardIcon as ShortcutsIcon, // Keyboard shortcuts (account menu, palette)
   Bookmark02Icon as ViewsIcon, // Saved list views (SavedViewsMenu)
 

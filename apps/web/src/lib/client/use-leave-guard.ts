@@ -1,16 +1,17 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 /**
  * Unsaved changes: while `dirty`, the browser asks before a reload or closing the tab (beforeunload), and a click on
  * an in-app link is held: `leaving` is where it pointed, for the screen's ConfirmActionDialog; `leave()` goes there,
  * `stay()` closes the question. Limits: Back/Forward and programmatic navigation (the command palette) aren't held.
  */
-export function useLeaveGuard(dirty: boolean): { leaving: string | null; stay: () => void; leave: () => void } {
+export function useLeaveGuard(dirty: boolean): { leaving: string | null; stay: () => void; leave: () => void; restoreFocus: () => void } {
   const router = useRouter();
   const [leaving, setLeaving] = useState<string | null>(null);
+  const opener = useRef<HTMLAnchorElement | null>(null);
   useEffect(() => {
     if (!dirty) return;
     const unload = (e: BeforeUnloadEvent) => e.preventDefault();
@@ -23,6 +24,7 @@ export function useLeaveGuard(dirty: boolean): { leaving: string | null; stay: (
       if (url.origin !== window.location.origin || (url.pathname === window.location.pathname && url.search === window.location.search)) return;
       e.preventDefault();
       e.stopPropagation();
+      opener.current = a;
       setLeaving(url.pathname + url.search + url.hash);
     };
     window.addEventListener("beforeunload", unload);
@@ -35,6 +37,7 @@ export function useLeaveGuard(dirty: boolean): { leaving: string | null; stay: (
   return {
     leaving,
     stay: () => setLeaving(null),
+    restoreFocus: () => { if (opener.current?.isConnected) opener.current.focus({ preventScroll: true }); },
     leave: () => { const to = leaving; setLeaving(null); if (to) router.push(to); },
   };
 }

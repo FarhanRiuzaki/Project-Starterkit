@@ -1,111 +1,111 @@
 "use client";
 
-import { type ReactNode, useEffect, useId, useRef, useState } from "react";
-import { cn } from "../lib/cn";
+import { type ReactNode, createContext, useContext, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { FILTER_SEARCH_DEBOUNCE, selectionState, selectionValues } from "../lib/filter-selection";
 import { Button } from "../ui/button";
-import { Icon } from "../ui/icon";
-import { CloseIcon } from "../ui/icons";
-import { CountBadge, FilterChip } from "./badges";
-import { FilterSheet, InFilterSheet } from "./filter-sheet";
-import { Panel } from "./panel";
-import { Field } from "./field";
-import { QueryInput } from "./query-input";
+import { FilterChip } from "./badges";
+import { FilterPanel } from "./filter-panel";
+import { FilterFocusId, FilterGroups, FilterGroupRenderer } from "./filter-group";
 
-/** The shared search control with a visible label and synchronous draft updates for an Apply form. */
+const FilterSearchActions = createContext({ flush: () => {} });
+export const FILTER_EXTERNAL_CHANGE = "filters:external-change";
+
+/** One SSR anchor for the first surface, including a Notice before the result. */
+export function FilterSurface({ children }: { children: ReactNode }) {
+  return <div data-slot="filter-surface" className="relative grid min-w-0 gap-section md:pr-16 [&_[data-slot=filter-layout]]:md:static [&_[data-slot=filter-layout]]:md:pr-0">{children}</div>;
+}
+
+/** Typed text is local immediately; the owning list commits it after the shared debounce or an explicit flush. */
 export function FilterSearch({ label, value, onChange, placeholder, maxLength }: {
   label: string; value: string; onChange: (value: string) => void; placeholder: string; maxLength?: number;
 }) {
-  const id = useId();
-  return <Field id={id} label={label}><QueryInput id={id} immediate value={value} onChange={onChange} keys={[]} label={label} placeholder={placeholder} maxLength={maxLength} /></Field>;
+  const renderer = useContext(FilterGroupRenderer);
+  const { flush } = useContext(FilterSearchActions);
+  return renderer ? <renderer.Search label={label} value={value} onChange={onChange} placeholder={placeholder} maxLength={maxLength} onCommit={flush} /> : null;
 }
 
-export type FilterField<K extends string = string> = { key: K; label: string; format?: (value: string) => string };
+export type FilterField<K extends string = string> = { key: K; label: string; format?: (value: string) => string; multiple?: boolean };
 
-/**
- * Module filters: 320 px floating tray in a reserved desktop gutter; deferred dialog/sheet below xl.
- * URL-owned values are the applied truth. Draft edits survive Close, but external changes (Back, a chip or a view)
- * replace the draft. Apply is atomic, including a search's last keystroke. Header time/refresh are never copied here.
- */
-export function FilterLayout<F extends Record<string, string>>({ values, defaults, fields, onApply, filters, children, description = "Narrow this list to the results you need." }: {
-  values: F; defaults: F; fields: readonly FilterField<keyof F & string>[]; onApply: (values: F) => void;
-  filters: (draft: F, patch: (values: Partial<F>) => void) => ReactNode;
-  children: (parts: { trigger: ReactNode; summary: ReactNode; isOpen: boolean }) => ReactNode; description?: string;
+function FilterFields<F extends Record<string, string>>({ render, values, onPatch }: {
+  render: (values: F, patch: (values: Partial<F>) => void) => ReactNode; values: F; onPatch: (values: Partial<F>) => void;
+}) { return render(values, onPatch); }
+
+/** URL-owned live filtering. JSON is internal string state only; public requests and views retain repeated values. */
+export function FilterLayout<F extends Record<string, string>>({ values, defaults, fields, onApply, filters, children, busy = false, description = "Narrow this list to the results you need." }: {
+  values: F; defaults: F; fields: readonly FilterField<keyof F & string>[];
+  onApply: (values: F, options: { history: "push" | "replace" }) => void;
+  filters: (values: F, patch: (values: Partial<F>) => void) => ReactNode;
+  children: (parts: { summary: ReactNode; isOpen: boolean }) => ReactNode; busy?: boolean; description?: string;
 }) {
+  const prefix = useId();
+  const [results, setResults] = useState<HTMLDivElement | null>(null);
   const signature = JSON.stringify(values);
-  const [synced, setSynced] = useState(signature);
-  const [draft, setDraft] = useState(values);
-  const [pendingSignature, setPendingSignature] = useState<string | null>(null);
-  if (synced !== signature) {
-    setSynced(signature);
-    // Acknowledging our own Apply must not erase text typed while the URL update was pending.
-    if (pendingSignature !== signature) setDraft(values);
-    setPendingSignature(null);
-  }
+  const [current, setCurrent] = useState(values);
+  const latest = useRef(values);
+  const applied = useRef(values);
+  const own = useRef<string | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [open, setOpen] = useState(false);
-  const [sheetOpen, setSheetOpen] = useState(false);
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const headingRef = useRef<HTMLHeadingElement>(null);
-  const id = useId();
-  useEffect(() => { if (open) headingRef.current?.focus({ preventScroll: true }); }, [open]);
-  const active = fields.filter(({ key }) => values[key] !== defaults[key]);
-  const dirty = fields.some(({ key }) => (draft[key] ?? "").trim() !== values[key]);
-  const patch = (next: Partial<F>) => setDraft(d => ({ ...d, ...next }));
-  const close = () => { setOpen(false); triggerRef.current?.focus(); };
-  const commit = () => {
-    const next = Object.fromEntries(Object.entries(draft).map(([k, v]) => [k, v.trim()])) as F;
-    setDraft(next);
-    setPendingSignature(JSON.stringify(next));
-    onApply(next);
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const multiple = (key: string) => fields.some(field => field.key === key && field.multiple);
+  const cancel = () => { if (timer.current !== null) clearTimeout(timer.current); timer.current = null; };
+  useLayoutEffect(() => {
+    applied.current = values;
+    if (own.current === signature) { own.current = null; return; }
+    own.current = null; cancel(); latest.current = values; setCurrent(values);
+  }, [signature]); // eslint-disable-line react-hooks/exhaustive-deps -- the canonical signature covers all applied values
+  useEffect(() => {
+    const external = () => { cancel(); latest.current = applied.current; setCurrent(applied.current); };
+    const back = () => {
+      cancel(); own.current = null;
+      const params = new URLSearchParams(window.location.search);
+      const next = { ...defaults };
+      for (const { key } of fields) next[key] = (multiple(key) ? selectionState(params.getAll(key).filter(value => value !== "")) : params.get(key) ?? defaults[key]) as F[typeof key];
+      applied.current = next; latest.current = next; setCurrent(next);
+    };
+    window.addEventListener("popstate", back);
+    window.addEventListener(FILTER_EXTERNAL_CHANGE, external);
+    return () => { cancel(); window.removeEventListener("popstate", back); window.removeEventListener(FILTER_EXTERNAL_CHANGE, external); };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps -- field/default definitions are immutable for a mounted list
+
+  const commit = (next: F, history: "push" | "replace") => {
+    cancel();
+    const clean = Object.fromEntries(Object.entries(next).map(([key, value]) => [key, multiple(key) ? selectionState(selectionValues(value)) : value.trim()])) as F;
+    latest.current = clean; setCurrent(clean);
+    if (JSON.stringify(clean) === JSON.stringify(applied.current)) return;
+    own.current = JSON.stringify(clean); applied.current = clean;
+    onApply(clean, { history });
   };
-  const actions = <>
-    <Button type="button" variant="secondary" onClick={() => setDraft(defaults)}>Reset all</Button>
-    <Button type="submit" className="flex-1" disabled={!dirty} title={!dirty ? "No unapplied changes" : undefined}>{dirty ? "Apply filters" : "Applied"}</Button>
-  </>;
-  const trigger = <>
-    <Button ref={triggerRef} variant="secondary" className={cn("hidden xl:inline-flex", active.length > 0 && "border-primary/30 bg-primary-soft text-primary-ink")}
-      aria-label={active.length ? `Filters, ${active.length} active` : undefined} aria-expanded={open} aria-controls={open ? id : undefined} onClick={() => setOpen(v => !v)}>
-      Filters{active.length > 0 && <CountBadge>{active.length}</CountBadge>}
-    </Button>
-    <FilterSheet active={active.length} triggerClassName={cn("xl:hidden", active.length > 0 && "border-primary/30 bg-primary-soft text-primary-ink")}
-      open={sheetOpen} onOpenChange={setSheetOpen} description={description} actions={actions}
-      onSubmit={e => { e.preventDefault(); commit(); setSheetOpen(false); }}>
-      {filters(draft, patch)}
-      <p className="text-caption text-fg-3">{dirty ? "Changes are ready to apply." : "No unapplied changes."}</p>
-    </FilterSheet>
-  </>;
+  const flush = () => commit(latest.current, "replace");
+  const patch = (next: Partial<F>) => {
+    cancel();
+    const merged = { ...latest.current, ...next };
+    latest.current = merged; setCurrent(merged);
+    if (Object.keys(next).some(multiple)) commit(merged, "push");
+    else timer.current = setTimeout(() => commit(latest.current, "replace"), FILTER_SEARCH_DEBOUNCE);
+  };
+  const clear = () => { cancel(); latest.current = defaults; setCurrent(defaults); commit(defaults, "push"); };
+  const active = fields.flatMap(({ key, label, format }) => {
+    const selections = multiple(key) ? selectionValues(values[key] ?? "") : values[key] !== defaults[key] && values[key]?.trim() ? [values[key]] : [];
+    return selections.map(value => ({ key, value, text: `${label}: ${format ? format(value) : value}` }));
+  });
+  const canClear = fields.some(({ key }) => current[key] !== defaults[key]) || active.length > 0;
   const summary = active.length > 0 && <div data-slot="filter-active-summary" className="flex flex-wrap items-center gap-2 border-b border-line bg-card px-3 py-2">
     <span className="text-label text-fg-2">Active filters</span>
-    {active.map(({ key, label, format }) => {
-      const value = values[key] ?? "";
-      const text = `${label}: ${format ? format(value) : value}`;
-      return <FilterChip key={key} monospace={false} removeLabel={`Remove filter ${text}`} onRemove={() => onApply({ ...values, [key]: defaults[key] })}>{text}</FilterChip>;
-    })}
-    <Button variant="ghost" size="sm" onClick={() => onApply(defaults)}>Clear filters</Button>
+    {active.map(({ key, value, text }) => <FilterChip key={`${key}:${value}`} monospace={false} removeLabel={`Remove filter ${text}`} onRemove={() => {
+      const next = { ...applied.current, [key]: multiple(key) ? selectionState(selectionValues(applied.current[key] ?? "").filter(item => item !== value)) : defaults[key] };
+      commit(next, "push");
+    }}>{text}</FilterChip>)}
+    <Button variant="ghost" size="sm" data-filter-clear onClick={clear}>Clear all</Button>
   </div>;
-  return <div data-slot="filter-layout" data-filters-open={open || undefined} className="group/filter-layout flex min-w-0 items-start gap-6">
-    <div className="min-w-0 flex-1">{children({ trigger, summary, isOpen: open })}</div>
-    <span role="status" className="sr-only">{active.length ? `${active.length} active ${active.length === 1 ? "filter" : "filters"}.` : "No active filters."}</span>
-    {open && <aside id={id} aria-label="Filters" data-slot="floating-filters" className="sticky top-4 hidden w-80 shrink-0 xl:block animate-pop"
-      onKeyDown={e => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); close(); } }}>
-      <Panel className="shadow-overlay" bodyClassName="p-0">
-        <form onSubmit={e => { e.preventDefault(); commit(); }} className="flex max-h-[calc(100dvh-8rem)] flex-col">
-          <div className="shrink-0 p-4 pb-0">
-            <div className="flex items-center gap-2">
-              <h2 ref={headingRef} tabIndex={-1} className="flex-1 text-title-2 outline-none">Filters</h2>
-              {active.length > 0 && <CountBadge>{active.length}</CountBadge>}
-              <Button type="button" size="icon" variant="secondary" aria-label="Close filters" onClick={close}><Icon icon={CloseIcon} /></Button>
-            </div>
-            <p className="mt-3 border-b border-line pb-4 text-body-sm text-fg-2">{description}</p>
-          </div>
-          <InFilterSheet.Provider value>
-            <div className="scroll-quiet grid min-h-0 gap-4 overflow-y-auto overscroll-contain p-4">{filters(draft, patch)}</div>
-          </InFilterSheet.Provider>
-          <div className="shrink-0 px-4 pb-4">
-            <p className="mb-3 text-caption text-fg-3">{dirty ? "Changes are ready to apply." : "No unapplied changes."}</p>
-            <div className="flex gap-2">{actions}</div>
-          </div>
-        </form>
-      </Panel>
-    </aside>}
-  </div>;
+  return <FilterFocusId.Provider value={prefix}><FilterSearchActions.Provider value={{ flush }}><FilterGroups.Provider value={{ collapsed, toggle: label => setCollapsed(cur => ({ ...cur, [label]: !cur[label] })) }}>
+    <div data-slot="filter-layout" className="relative grid min-w-0 gap-4 md:pr-16">
+      <FilterPanel anchor={results} active={active.length} open={open} onOpenChange={next => { if (!next) flush(); setOpen(next); }} description={description}
+        clear={clear} canClear={canClear} onSubmit={e => { e.preventDefault(); flush(); }}>
+        <FilterFields render={filters} values={current} onPatch={patch} />
+      </FilterPanel>
+      <div ref={setResults} data-slot="filter-results" className="min-w-0">{children({ summary, isOpen: open })}</div>
+      <span role="status" className="sr-only">{busy ? "Updating results…" : active.length ? `${active.length} active selections.` : "No active selections."}</span>
+    </div>
+  </FilterGroups.Provider></FilterSearchActions.Provider></FilterFocusId.Provider>;
 }

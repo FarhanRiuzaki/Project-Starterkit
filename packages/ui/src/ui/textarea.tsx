@@ -13,9 +13,9 @@ const ANNOUNCE_FROM = 20;
  * marked invalid (red border) so the user can trim it; a screen reader hears the count only from 20 characters left,
  * not on every keystroke.
  */
-export function Textarea({ className, limit, value, ...props }: Omit<ComponentProps<"textarea">, "maxLength"> & { limit?: number }) {
+export function Textarea({ className, limit, value, countValue, ...props }: Omit<ComponentProps<"textarea">, "maxLength"> & { limit?: number; /** Canonical text for forms that normalize before validation. The typed value stays intact. */ countValue?: string }) {
   const countId = useId();
-  const used = typeof value === "string" ? value.length : 0;
+  const used = countValue?.length ?? (typeof value === "string" ? value.length : 0);
   const left = limit != null ? limit - used : null;
   const over = left != null && left < 0;
   const field = (

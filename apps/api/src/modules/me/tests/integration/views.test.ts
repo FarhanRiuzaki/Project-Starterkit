@@ -13,6 +13,14 @@ const list = async (token: string, path = "/users") => (await (await call("GET",
 beforeEach(resetData);
 
 describe("/v1/me/views", () => {
+  it("keeps complete selection views through 4096 characters and refuses 4097 without truncation", async () => {
+    const token = await signIn("admin");
+    const query = `role=${"a".repeat(4091)}`;
+    const response = await save(token, { path: "/users", name: "Long view", query });
+    expect(response.status).toBe(200);
+    expect(((await response.json()) as SavedViewDto).query).toBe(query);
+    expect((await save(token, { path: "/users", name: "Over limit", query: `${query}a` })).status).toBe(400);
+  });
   it("saves a view, lists it by name for its page only, and records no activity entry", async () => {
     const t = await signIn("admin");
     const before = await db.$count(activity);

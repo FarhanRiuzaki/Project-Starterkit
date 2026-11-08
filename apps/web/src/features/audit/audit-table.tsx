@@ -1,8 +1,8 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { type ReactNode, useState } from "react";
-import { BlockedButton, type Column, ColumnsMenu, DataTable, FilterLayout, FilterSearch, type FilterField, type LegendItem, Notice, Panel, RelativeTime, Toolbar } from "@starterkit/ui/ds";
+import { type ReactNode, useRef, useState } from "react";
+import { BlockedButton, type Column, ColumnsMenu, DataTable, FilterLayout, FilterSurface, FilterSearch, type FilterField, type LegendItem, Notice, Panel, RelativeTime, Toolbar } from "@starterkit/ui/ds";
 import { APP_TIME_ZONE_LABEL, appDayStart, formatDateTimeLong, formatDate, formatNumber } from "@starterkit/ui/lib/format";
 import { Button } from "@starterkit/ui/ui/button";
 import { Icon, type IconData } from "@starterkit/ui/ui/icon";
@@ -30,7 +30,7 @@ export const timeCell = (at: string) => (
 const day = (d: string) => formatDate(appDayStart(d));
 const rangeText = (r: { from: string; to: string }) => (r.from === r.to ? day(r.from) : `${day(r.from)} – ${day(r.to)}`);
 
-export type AuditDetail = { title: string; rows: [string, ReactNode][]; extra?: ReactNode };
+export type AuditDetail = { title: string; summary?: string; changes?: { action: string; before: unknown; after: unknown }; rows: [string, ReactNode][]; extra?: ReactNode };
 
 /**
  * The page both audit logs share: header with the range picker, user search + the log's own filters, a server-driven
@@ -61,6 +61,7 @@ export function AuditTable<T extends { id: string; at: string }, F extends Audit
   const t = useTableQuery<T, F>(table);
   const f = t.state;
   const [open, setOpen] = useState<T | null>(null);
+  const entryTrigger = useRef<HTMLButtonElement | null>(null);
   const [exporting, setExporting] = useState(false);
   const set = t.set;
 
@@ -87,19 +88,21 @@ export function AuditTable<T extends { id: string; at: string }, F extends Audit
   return (
     <div className="grid gap-section">
       <PageHeader title={title} description={description} />
+      <FilterSurface>
       {t.staleError && <Notice tone="warn" live>Couldn&apos;t refresh the {noun}; showing the ones loaded before. {errorText(t.staleError)}</Notice>}
-      <FilterLayout<Record<string, string>> values={values} defaults={defaults} fields={[{ key: "user", label: "User" }, ...filterFields]}
-        onApply={values => set(values as unknown as Partial<TableState<F>>, { history: "push" })}
+      {t.viewNotRemembered && <Notice>This filter selection works at this URL, but is too long to remember in navigation. Save a named view to reopen it.</Notice>}
+      <FilterLayout<Record<string, string>> busy={t.paging.busy} values={values} defaults={defaults} fields={[{ key: "user", label: "User" }, ...filterFields]}
+        onApply={(values, options) => set(values as unknown as Partial<TableState<F>>, options)}
         filters={(draft, patch) => <>
           <FilterSearch label="Search by user" value={draft.user!} onChange={user => patch({ user })} maxLength={64} placeholder="User name or email" />
           {filters({ ...f, ...draft }, next => patch(Object.fromEntries(Object.entries(next).map(([k, v]) => [k, String(v ?? "")]))))}
         </>}>
-      {({ trigger, summary }) => <Panel toolbar={<Toolbar end={<><SavedViewsMenu /><ColumnsMenu columns={columns} hidden={t.hidden} onChange={t.setHidden} />
+      {({ summary }) => <Panel toolbar={<Toolbar end={<><SavedViewsMenu /><ColumnsMenu columns={columns} hidden={t.hidden} onChange={t.setHidden} />
           <BlockedButton variant="secondary" reason={t.total === 0 ? `No ${noun} match, so there is nothing to export.` : null}
             aria-disabled={exporting || undefined} onClick={() => { if (!exporting) void exportCsv(); }}>
             <Icon icon={ExportIcon} />{exporting ? "Exporting…" : "Export CSV"}
           </BlockedButton>
-        </>}>{trigger}</Toolbar>}
+        </>}>{null}</Toolbar>}
         flush icon={icon} title="All entries" legend={legend} count={t.count}
         description={`${timeLabel ?? (custom ? rangeText(custom) : RANGE_LABEL[f.range])} · times in ${APP_TIME_ZONE_LABEL}`}
         footnote={`Export CSV saves every matching entry, newest first, up to ${formatNumber(CSV_MAX_ROWS)} rows.`}>
@@ -110,10 +113,11 @@ export function AuditTable<T extends { id: string; at: string }, F extends Audit
           empty={narrowed.length > 0
             ? { icon, title: `No ${noun} match`, description: "Change the search or filters, or clear them. A longer time range may also help." }
             : { icon, title: `No ${noun} in this time range`, description: `${emptyHint} Pick a longer time range to see older ones.` }}
-          rowActions={(r) => <Button size="sm" variant="ghost" aria-label={`View entry: ${rowLabel(r)}`} onClick={() => setOpen(r)}>View entry</Button>} />
+          rowActions={(r) => <Button size="sm" variant="ghost" aria-label={`View entry: ${rowLabel(r)}`} onClick={event => { entryTrigger.current = event.currentTarget; setOpen(r); }}>View entry</Button>} />
       </Panel>}
       </FilterLayout>
-      {shown && <EntryDialog title={shown.title} rows={shown.rows} onClose={() => setOpen(null)}>{shown.extra}</EntryDialog>}
+      </FilterSurface>
+      {shown && <EntryDialog title={shown.title} summary={shown.summary} changes={shown.changes} rows={shown.rows} returnFocus={() => { if (entryTrigger.current?.isConnected) entryTrigger.current.focus(); }} onClose={() => setOpen(null)}>{shown.extra}</EntryDialog>}
     </div>
   );
 }
