@@ -1,5 +1,6 @@
 // Saved list views (/v1/me/views): the signed-in user's own named views of a list page (search, filters, sort, rows per
 // page as the URL query). A viewer preference, like the prefs cookie: no activity entry (conformance NO_ACTIVITY).
+import { withoutActivityEntry } from "@starterkit/shared/views";
 import type { Page } from "@starterkit/shared/contracts/common";
 import { type CreateSavedViewBody, MAX_SAVED_VIEWS, type SavedViewDto, type SavedViewListQuery } from "@starterkit/shared/contracts/me";
 import { and, eq, sql } from "drizzle-orm";
@@ -12,7 +13,7 @@ import { lockUser } from "../users";
 import { savedViews } from "./schema";
 
 const SORTS = { name: sql`lower(${savedViews.name})`, createdAt: savedViews.createdAt };
-const toDto = (v: typeof savedViews.$inferSelect): SavedViewDto => ({ id: v.id, path: v.path, name: v.name, query: v.query, createdAt: v.createdAt.toISOString() });
+const toDto = (v: typeof savedViews.$inferSelect): SavedViewDto => ({ id: v.id, path: v.path, name: v.name, query: withoutActivityEntry(v.path, v.query), createdAt: v.createdAt.toISOString() });
 
 /** One page of the caller's saved views on list page `q.path`, by name unless `sort` says otherwise. */
 export async function viewPage(userId: string, q: SavedViewListQuery): Promise<Page<SavedViewDto>> {
@@ -37,7 +38,7 @@ export async function saveView(ctx: Ctx, b: CreateSavedViewBody): Promise<SavedV
     const taken = await tx.select({ name: savedViews.name }).from(savedViews).where(mine);
     if (taken.some((v) => v.name.toLowerCase() === b.name.toLowerCase())) throw new ApiError("duplicate", "You already have a view with this name on this page. Pick another name.");
     if (taken.length >= MAX_SAVED_VIEWS) throw new ApiError("bad_request", `You have ${MAX_SAVED_VIEWS} saved views on this page. Delete one to save another.`);
-    const [v] = await tx.insert(savedViews).values({ id: Bun.randomUUIDv7(), userId: ctx.user.id, path: b.path, name: b.name, query: b.query }).returning();
+    const [v] = await tx.insert(savedViews).values({ id: Bun.randomUUIDv7(), userId: ctx.user.id, path: b.path, name: b.name, query: withoutActivityEntry(b.path, b.query) }).returning();
     return toDto(v!);
   });
 }

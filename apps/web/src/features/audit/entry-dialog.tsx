@@ -5,8 +5,8 @@ import { DiffView } from "./diff-view";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@starterkit/ui/ui/dialog";
 
 /** One log entry in full (row → detail), read-only. `rows` = label/value pairs; `children` = extra sections (the diff). */
-export function EntryDialog({ title, summary, rows, changes, children, returnFocus, onClose }: {
-  title: string; summary?: string; changes?: { action: string; before: unknown; after: unknown }; rows: [string, ReactNode][]; children?: ReactNode; returnFocus: () => void; onClose: () => void;
+export function EntryDialog({ title, summary, rows, changes, beforeRows, afterRows, children, returnFocus, onClose }: {
+  title: string; summary?: string; changes?: { action: string; before: unknown; after: unknown }; rows: [string, ReactNode][]; beforeRows?: ReactNode; afterRows?: ReactNode; children?: ReactNode; returnFocus: () => void; onClose: () => void;
 }) {
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
@@ -17,14 +17,16 @@ export function EntryDialog({ title, summary, rows, changes, children, returnFoc
           <DialogDescription className="break-words">{summary ?? "Log entries are add-only: they can’t be edited or deleted."}</DialogDescription>
         </DialogHeader>
         <div className="scroll-quiet grid max-h-[calc(100vh-12rem)] gap-5 overflow-y-auto px-6 py-5">
-          <dl className="grid">
+          {beforeRows}
+          {rows.length > 0 && <dl className="grid">
             {rows.map(([k, v]) => (
               <div key={k} className="grid min-w-0 gap-1 border-b border-line py-2 last:border-b-0 md:grid-cols-[9rem_minmax(0,1fr)] md:gap-4">
                 <dt className="text-label font-normal text-fg-2">{k}</dt>
                 <dd className="min-w-0 break-words text-body-sm text-fg">{v}</dd>
               </div>
             ))}
-          </dl>
+          </dl>}
+          {afterRows}
           {changes && <DiffView {...changes} />}
           {children}
         </div>

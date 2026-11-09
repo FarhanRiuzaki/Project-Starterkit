@@ -167,6 +167,19 @@ Dashboard and both audit GET endpoints accept either an inclusive calendar pair 
 
 ### Activity log entries
 
+`GET /api/audit/activity/{id}` reads one retained immutable entry using `audit.view`, independently of list filters,
+range or page. The guard runs before UUID parsing/read; an invalid UUID, missing entry or retained-history purge is
+404. Actor/target records need not still exist. The response is the existing ActivityDto, with recorded identities
+and masked snapshots; no extra target lookup or auth-log endpoint is implied.
+
+Activity list/count/CSV accept exact `actorId` (case-insensitive UUID shape) and paired `targetType` (1–64 characters)
+plus `targetId` (1–512 characters). Target strings are opaque: no trimming, case folding or substring matching.
+U+0000 is rejected because PostgreSQL text cannot store it; other controls/whitespace remain exact recorded values.
+They combine with existing action/user/time filters using AND. Both target keys are required together; invalid/empty/
+overlength values are400 before authentication. Repeated scalar keys use the first value. Longer historical target
+IDs remain available in entry detail; an exact URL filter is not offered for them. No migration/index change is needed
+for this contract: existing actor and target indexes are retained.
+
 Each entry: `{ id, at, actor: { id, name }, action, target: { type, id, label }, before, after }`
 ([ActivityDto](schemas/ActivityDto.json)). `before` / `after` are plain-data snapshots taken when the entry is written
 (later edits don't change history) and are `null` when the action has none. Masking: a record's own credential fields
@@ -291,6 +304,7 @@ endpoint adds to the guard's 401/403 and the 400 for an invalid body or query.
 | DELETE | `/api/users/{id}/sessions/{sid}` | `user.edit` | none | [OkDto](schemas/OkDto.json) | `not_found` (also when the session isn't that user's), `forbidden` (actor rank), `self_action` |
 | POST | `/api/users/{id}/status` | `user.edit` | [SetUserStatusBody](schemas/SetUserStatusBody.json) (deactivating ends the user's sessions and spends their links) | [UserDto](schemas/UserDto.json) | `not_found`, `forbidden` (actor rank), `self_action`, `last_superadmin` |
 | GET | `/api/audit/activity` | `audit.view` | [ActivityQuery](schemas/ActivityQuery.json) | [ActivityPage](schemas/ActivityPage.json), or CSV with `format=csv` | none |
+| GET | `/api/audit/activity/{id}` | `audit.view` | none | [ActivityDto](schemas/ActivityDto.json), retained entry independent of list range/filter/page | `not_found` (invalid UUID, missing or purged) |
 | GET | `/api/audit/auth` | `audit.view` | [AuthLogQuery](schemas/AuthLogQuery.json) | [AuthLogPage](schemas/AuthLogPage.json), or CSV with `format=csv` | none |
 
 ## Seed data

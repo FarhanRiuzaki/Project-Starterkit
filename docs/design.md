@@ -1,6 +1,9 @@
 # Desain SunnyGo
 
-Diperbarui 8 November 2026, **Sesi 2 — Designer**. **NEXT-DES-002 / DEC-022 — Batch A**:
+Diperbarui 9 November 2026, **Sesi 2 — Designer**. Tugas aktif **NEXT-DES-003 / DEC-025 — audit investigasi**:
+handoff dan scoped visual review R2 selesai, implementasi diterima untuk scope visual ini. Verdict final QA dan
+QA NEXT-QA-004 Done, AUD2-DES-001 Closed / verified pada R2; rekomendasi GO lokal dikirim ke Product Lead.
+Keputusan GO lokal Product Lead terpisah. **NEXT-DES-002 / DEC-022 — Batch A**:
 handoff dan scoped visual review kandidat final selesai; acceptance visual diterima dan retest independen QA selesai.
 **DEC-023: Product Lead menetapkan GO penggunaan lokal Batch A.** Rilis template keseluruhan tetap terpisah.
 Rail/refresh FIL-DES-004 / DEC-019, anchor
@@ -935,3 +938,332 @@ Klarifikasi atribusi bukti Developer: CPU4 cold30 memakai build terpisah`DLFj3jp
 bukan run build visual final`6itnZmu8wVgOUoML63Na2`; QA memiliki stress independen pada kandidat final sendiri.
 Preview diterima`http://127.0.0.1:3454`, baseline3453 tetap. Batas/risiko QA dan histori failures tetap berlaku;
 REL-001/QA-REL-001 keseluruhan terpisah. Tidak ada perubahan Figma, commit, merge atau deployment dari keputusan ini.
+
+## NEXT-DES-003 — Audit investigasi: entry link, exact filters dan history
+
+**Handoff tertulis siap implementasi; review kandidat pending.** Pemilik memilih opsi audit investigasi melalui
+[DEC-025](decisions.md#dec-025--pemilik-memilih-audit-investigasi-sebagai-batch-berikutnya), scope NEXT-AUD-002.
+Developer memiliki API/shared/code; Designer menetapkan UX/copy; QA memiliki oracle/verdict. Bagian entry, copy,
+states, history, exact-filter actions dan target availability sudah dikirim bertahap langsung ke Developer/QA.
+Ini bukan approval implementasi dari handoff. CI main known-red tetap isu terpisah, tidak dinyatakan hijau.
+
+Referensi memakai pola AuditTable/EntryDialog, Dialog phone, FilterLayout/chips, CopyValue/clipboard, Failure/Notice,
+PageHeader/Panel serta token existing. Semantik recorded evidence Batch A tetap. **Tidak ada edit/frame Figma baru
+untuk task ini**; [Figma existing](https://www.figma.com/design/yWRVvatRqyDZapm52tQHWA?node-id=211-10924) menjadi
+acuan shell/rail, delta authoritative pada spesifikasi ini. Bila kemudian diperlukan perubahan Figma, duplikasi area
+terdampak ke patch berikutnya sebelum edit. Tidak ada actor/target lookup service atau form UUID manual pada MVP.
+
+### Tujuan pengalaman dan batas scope
+
+Pembaca dapat membuka satu event dari link tanpa mencari page/range yang memuatnya, menelusuri activity actor atau
+target secara exact, dan melihat history dari user/project. Event tetap dapat dibaca setelah record asal hilang.
+History user berarti aksi **pada user tersebut**, bukan aksi **oleh user tersebut**. Copy link tidak membagikan
+state internal dialog atau menjanjikan record/izin masih tersedia bagi penerima.
+
+Scope hanya Activity log. Sign-in log tidak memperoleh GET-by-ID/deep link baru secara otomatis. Tidak menambah
+request context/IP/UA, inbox/lifecycle invitation, actor picker/manual target form, route target yang diperkirakan,
+dependency, atau pola Apply global baru. Frontend host **hanya3000**, API4000 existing tetap; preview345x lama adalah
+evidence historis dan tidak direstart. Verifikasi memakai tooling Docker internal tanpa published ports/fixture DB
+terpisah sesuai koordinasi Product Lead/Developer/QA; tidak mereset DB dev, meminjam sesi atau menebak akun dev.
+
+### Tiga jenis state URL
+
+| State | Aturan |
+| --- | --- |
+| `entry=<uuid>` | Identitas detail transient. GET-by-ID independen dari list page/range/filter; bukan predicate list/count/CSV, bukan filter badge, bukan remembered atau named saved view |
+| `actorId` | Exact recorded actor UUID. Satu logical filter; tetap tersimpan pada views/preferences menurut aturan existing |
+| `targetType` + `targetId` | Satu logical filter berpasangan, exact/opaque; dipasang/dihapus atomik, count1, persisten pada views/preferences |
+
+Actor UUID-shape mengikuti kontrak. Target nonempty, type≤64 dan ID≤512 sesuai kontrak, tanpa trim/casefold atau
+truncation. Scalar repeats memakai nilai pertama sesuai keputusan Product Lead. Deteksi entry memakai **presence**:
+`?entry=` atau malformed first value tetap membuka state404, tidak diam-diam dianggap tanpa dialog. Entry malformed
+tidak diselamatkan oleh nilai kedua yang valid. UUID canonicalization harus mempertahankan identitas yang sama;
+target opaque tidak ikut dinormalisasi. Entry dihapus sebagai **query key**, bukan substring di nilai filter.
+
+GET detail tidak dibatasi predicate list. Entry di luar90hari/page aktif atau saat background list kosong/error
+tetap dibaca berdasarkan ID. List/query-key/export tidak menerima `entry`; detail memakai key audit-owned sendiri.
+Loading/error list tidak mengubah identitas detail, dan kegagalan target availability tidak menggantikan detail.
+Malformed exact filters mengikuti validation/error contract, tidak dibuang/di-trim/di-slice sehingga hasil menjadi
+lebih luas tanpa penjelasan. Background list invalid menampilkan error/filter-clear path; entry valid tetap independen.
+
+### Open, Close, Back dan fokus
+
+| Peristiwa | Perilaku |
+| --- | --- |
+| Row **View entry** | Selesaikan pending search menurut commit/blur existing, lalu PUSH current committed URL+entry. Pertahankan range/filter/sort/page/pageSize/refresh. Jangan ada late search update yang membuang entry |
+| Browser Back / Forward | URL menjadi sumber kebenaran: Back dapat menutup detail, Forward membuka lagi. Jangan membuat second local selected-row state yang menentang URL |
+| Close/X/Escape/scrim, setelah list-open PUSH yang terbukti milik sesi ini | Back hanya bila provenance origin+current entry URL masih cocok dan mengembalikan list yang diketahui; bukan menebak dari history.length |
+| Direct entry, reload, atau navigasi dari user/project | Close memakai REPLACE untuk membuang hanya entry, tetap pada Activity list dengan query lain. Jangan arbitrary Back ke situs/halaman sebelumnya. Browser Back biasa masih boleh kembali ke source user/project |
+| Entry A→B | Tampilkan loading B, tidak mem-flash payload/title/actor A; response lambat A tidak menggantikan B |
+| Range/filter/page berubah sementara entry tetap di URL | Entry tetap terbuka dengan ID sama; jangan menutup karena row keluar list. Dialog modal membuat background inert; perubahan via history/URL tetap deterministik |
+| Navigasi ke route lain | Dialog Activity dilepas mengikuti route; tidak mengikutkan entry ke link record atau halaman lain |
+
+Fokus sekali ke panel dialog pada mount, termasuk loading/direct/error, bukan otomatis ke Copy link. Ready/refetch
+tidak merebut fokus lagi. Close kembali ke actual row trigger bila masih terhubung, visible dan enabled; jika tidak
+ada/tersembunyi/row hilang atau direct link, fokus **Activity log h1** secara programatik (`tabIndex=-1`, bukan extra
+Tab stop), bukan BODY. Retry mempertahankan fokus logis; bila tombol Retry hilang sesudah sukses, panel menjadi
+fallback. Fokus bukan alasan menggulir ke page row yang sudah tidak ada. Close/scrim tidak meminta konfirmasi karena
+detail read-only. Query response/history terbaru selalu menang; tidak ada delayed close/open setelah route berganti.
+
+Klarifikasi pre-chunk nonmodal: ketika URL **sudah memiliki entry**, memilih row B mengganti entry A dengan
+**REPLACE**, bukan PUSH di atas A. Provenance Back-to-known-list hanya boleh ditransfer dari A ke B bila exact
+current URL/marker A masih membuktikan owned list-open; trigger fokus diperbarui ke B. Jika tidak, provenance dibuang
+dan Close B hanya REPLACE-remove entry. Alur owned list C→A→replace B: Close/Back kembali C, Forward membuka B,
+bukan A. Direct A→replace B: Close tetap Activity list, bukan back ke origin tak dikenal. Same-ID open no-op.
+Ini menutup kasus row lain masih clickable selama opening Notice; module/data/copy callback A yang lambat tidak
+menghidupkan A atau mengambil fokus sesudah B/Cancel/route leave.
+
+### Komposisi dan responsive
+
+Header title/summary/Close tetap keluarga EntryDialog. Dalam body: utility **Copy link**, metadata event, kelompok
+**Investigate**, kemudian Changes sesuai Batch A. Group investigation menampung actor/target actions dan Open record
+yang memenuhi syarat; helper **Other filters and the time range stay in place.** menjelaskan aksi filter. Tidak
+menjejalkan seluruh action ke satu header phone. Buttons membungkus, target sentuh≥44, labels eksplisit, body scroll
+mempertahankan header/Close terjangkau. Metadata/change values phone tetap stacked; desktop/tablet boleh sejajar.
+360/390 tidak horizontal page scroll; ID/opaque values panjang membungkus aman. Loading memakai skeleton/placeholder
+existing dengan width dialog stabil, bukan entry lama atau height viewport hardcoded baru. Tidak ada overlay bertumpuk
+baru, font kecil untuk memaksakan kolom, ikon baru, warna status tambahan atau animasi entry terpisah.
+
+### State dan copy final
+
+| State | Copy/perilaku |
+| --- | --- |
+| Loading entry | **Loading activity entry…**; Close selalu tersedia, status loading diumumkan secukupnya; tanpa field event lama |
+| Ready200 | Action title/recorded summary dan semantic changes Batch A; Copy link/investigation sesuai syarat |
+| Invalid/missing/purged404 | **Activity entry not found**. **This entry isn't available. Check the link or return to the activity log.** Close; tidak membedakan purged/missing atau menampilkan cached fields |
+| Forbidden403 | **Access denied**. **You don't have permission to view activity entries.** Hapus field/action detail yang tertahan; Close. Jangan menyatakan record dihapus |
+| Network/500 tanpa prior success | **Couldn't load this activity entry**; error text aman existing, **Retry** dan Close. Retry ID yang masih aktif saja |
+| Same ID prior200, network/500 refetch | Data sebelumnya boleh tetap dengan Notice **Couldn't refresh this activity entry; showing the last loaded details.** Retry. Ini tidak berlaku untuk403/404 atau pergantian ID |
+| Session401 | Perilaku session/reauth existing; tidak membuat flow sign-in kedua di dialog |
+
+Copy link hanya tersedia setelah ready200. Nilai yang disalin adalah canonical same-origin
+`/audit/activity?entry=<uuid>` sebagai absolute URL; tidak menyertakan page/range/filters/refresh dari pengirim.
+Address bar tetap mempertahankan list context pengirim. Label **Copy link**; sukses **Link copied.**, polite feedback
+tanpa memindahkan fokus. Gunakan clipboard helper/fallback existing; kegagalan seluruh metode memberi
+**Couldn't copy the link. Select and copy it below.** dan URL read-only/selectable yang membungkus/scroll internal.
+Fokus tetap pada Copy, field tersedia berikutnya melalui Tab; tidak memaksa keyboard phone atau menampilkan false
+Copied. Tidak membuat tooltip-only action atau toast+live-region ganda. Tidak mengekspos URL token/auth/session.
+
+### Exact actions, chips dan Clear
+
+**Final keputusan Product Lead menggantikan saran awal clear-user:** semua filter lain termasuk free-user text tetap
+dipertahankan (AND), tidak ada silent clear agar hasil terlihat lebih banyak. Filter actor/target baru mengubah
+hanya field yang dimaksud, page→1, serta membuang entry dalam **satu PUSH**; sort/pageSize/range/action dan filter
+lain tetap. Pending debounce dibatalkan ke committed URL terbaru sebelum explicit action supaya tidak hidup kembali.
+
+| Action | Syarat dan efek |
+| --- | --- |
+| **View actor activity** | actorId recorded valid UUID; set actorId saja, keep remaining filters/range AND, close entry/page1 |
+| Actor ID tidak tersedia/invalid | Blocked reason **An exact actor ID wasn't recorded for this entry.** Tidak mengganti ID dengan nama atau unknown actor gabungan |
+| **View target activity** | Exact type+ID nonempty/bounded64/512; set pasangan atomik, keep remaining filters/range AND, close entry/page1 |
+| Target ID terlalu panjang | **This recorded target ID is too long to use as an exact filter.** Record tetap terbaca; tidak memotong string supaya API menerima |
+| Target type/pair invalid | **An exact target isn't available for this entry.** Tidak membuat partial pair/query invalid |
+
+Actor chip berlabel **Actor ID: {uuid}**; target satu grouped chip **Target: {type} · {id}**. Nama snapshot boleh
+menambah konteks, tidak menggantikan ID/menjadi predicate atau diambil dari user terkini. Unknown type tetap raw
+safe text. Collection membungkus di phone; full identity tetap dapat dibaca tanpa bergantung hover. X Actor hanya
+menghapus actorId; X Target menghapus kedua field sekaligus. Setiap logical filter berkontribusi satu pada badge,
+di samping hitungan search/action existing; entry tidak dihitung. Clear all mengikuti filter defaults existing dan
+**mempertahankan time range**; tidak menyisakan separuh target. Exact filters tersimpan pada named/remembered views,
+entry tidak. Zero results karena AND dengan filters lain adalah hasil sah; tampilkan empty state/filter chips jujur.
+Tidak ada manual actor UUID/type/targetID input, lookup API, local pair draft atau Apply baru dalam MVP.
+
+Developer feasibility diterima: internal JSON-encoded virtual field boleh memakai FilterLayout existing untuk satu
+target chip/count tanpa shared variant baru. URL/API/saved preferences tetap hanya real actorId/targetType/targetId;
+virtual field tidak menjadi kontrak persisten. Label recovery malformed URL membedakan presence: actorId kosong
+**Actor ID: Empty value**, actorId absent tidak membuat chip; target field absent **Missing type/Missing ID**,
+field hadir tetapi kosong **Empty type/Empty ID**. Literal opaque dengan whitespace/control yang ambigu memakai
+JSON-quoted representation aman, bukan trim atau penggabungan visual. Existing400+chip-clear tetap recoverable,
+target clear atomik dan entry valid tetap independen. Ini penerimaan pendekatan source, bukan runtime approval.
+
+### History dari user/project
+
+Semua entrance history dan user recent-entry links **audit.view gated**. Tanpa izin, jangan tampilkan link atau
+meminta data audit. User yang boleh membaca record tetapi tidak audit tidak memperoleh recent activity baru dari UI.
+
+| Entrance | URL/perilaku |
+| --- | --- |
+| User Recent activity | Tetap latest20, count/empty existing. Tambah explicit row Link **View entry**, action/time/actor tetap; URL Activity `range=90d&targetType=user&targetId=<userId>&entry=<eventId>` |
+| User **View history** | Header/trailing action panel Recent activity; visible support **Activity · Last 90 days**. URL sama tanpa entry. Masih tersedia saat recent20 kosong |
+| Project **View history** | Secondary action di detail di samping existing Edit, membungkus pada phone; visible support **Activity · Last 90 days**; `range=90d&targetType=project&targetId=<projectId>` |
+
+History navigation adalah scope90d yang eksplisit: tidak merge remembered audit actor/free-user/action filters atau
+range dari halaman lain. Ini berbeda dari entry context actions yang mempertahankan filters. Jangan menyebut all
+history/all retention atau meluaskan rentang diam-diam. Recent20 dapat memiliki entry di luar90d; detail entry tetap
+terbaca walau background90d list kosong. User history wajib type=user **dan** ID agar collision target lintas tipe
+tidak bercampur. Same ID project bukan history user. URL asli record tidak membawa `entry`; browser Back dari audit
+dapat kembali ke detail source. Komposisi tidak mengubah permission/rank/guard CRUD atau mengimpor sibling feature.
+
+### Open record — availability terpisah dari evidence
+
+Hanya target type **user/project**, UUID sah, permission **user.view/project.view**, dan existing record read200
+boleh menyediakan **Open user/Open project** ke internal `/users/<id>` atau `/projects/<id>`. Tidak ada mapping role,
+profile, permission, unknown type atau compound IDs. Tidak melakukan availability read jika izin/shape tidak memenuhi
+syarat. Data current record hanya membuktikan availability, bukan mengganti nama/field snapshot atau membuktikan
+record tidak pernah berubah. Link same-window; Back dapat kembali ke URL entry.
+
+| Availability | Tampilan di group Investigate |
+| --- | --- |
+| Checking | Stable action space/indikasi checking ringan existing, tidak menahan rendering event |
+|200 | Open user / Open project |
+|404 | Record unavailable. |
+|403 | Record access unavailable. |
+| Network/500 | Couldn't check record availability. + **Retry check** |
+
+Tidak pernah menghapus detail audit yang sah karena lookup target gagal/deleted/forbidden/offline. Retry check
+tidak me-refetch entry yang berbeda; response target A tidak membuka link pada entry B. Permission revocation atau
+availability403/404 menonaktifkan link sebelumnya, bukan menyajikan cached200 sebagai hasil terkini. Server target
+tetap mengotorisasi tiap request; link bukan jaminan akses permanen. Unsupported/unauthorized target tetap teks
+recorded tanpa invented route; exact target investigation tetap boleh bila bounded dan audit.view tersedia.
+
+### Acceptance dan handoff
+
+| Area | Acceptance kandidat |
+| --- | --- |
+| Detail URL | Direct/reload/Back/Forward/Close/scrim/entry switch, malformed/empty/duplicates; independen list/range/paging/error; entry tidak masuk filters/export/views/prefs |
+| Focus/race | Mount focus panel; no A flash/late overwrite; Retry/Close fallback h1/actual trigger;403/404 clear data; async lookup/copy tidak mencuri fokus atau hidup sesudah route berubah |
+| Investigation | Actor exact+target pair exact AND text/action/range; chip IDs/counter1/1/clearatomic/Clearallrange; opaque values literal/no truncation; CSV/list/count predicate sama |
+| History | Recent20 links dan View history90d user/project; audit.view gate; type+ID collision; older-than-range entry; source Back dan Close policy berbeda jelas |
+| Target availability | user/project UUID+permission+read200 saja;404/403/network tidak mengubah evidence; unknown/compound/over512 readable tanpa invalid action |
+| Responsive/state |360/390/834/1440 light/dark, pointer/keyboard, reduced motion, long IDs/JSON, loading/empty/error/stale/success/copy-fail; no overflow, Close terjangkau, existing rail/firstpaint tetap |
+
+Kontrak validation/saved-view sanitation detail milik Product Lead/Developer, oracle QA tetap membedakan presence/
+empty/null/legacy dari Batch A. Developer diminta mengangkat feasibility gap sebelum mengunci UI; tidak menambah
+API/lookup/form atau mengendurkan budget secara diam-diam. **Desain siap handoff; implementasi belum disetujui.**
+Review final akan mengikat source/build/artifact kandidat baru; evidence Batch A atau known-red CI tidak dijadikan
+pass fitur ini. Tidak ada browser run/DB mutation/source product edit atau klaim frame Figma baru oleh Designer.
+
+### Klarifikasi pre-chunk loading — feedback sebelum modul detail tersedia
+
+Review source menemukan dynamic ActivityEntryDialog belum menyediakan fallback sebelum chunk termuat; skeleton
+Loading entry baru ada sesudah modul tersedia. **Null fallback tidak memenuhi feedback tindakan.** Designer
+menetapkan dua tahap, diterima Product Lead, agar tidak memindahkan DiffView/semantic formatter atau dependensi
+dialog berat ke first load:
+
+| Tahap | UX minimal |
+| --- | --- |
+| Chunk belum tersedia | Lightweight in-page Notice **Opening activity entry…** + visible **Cancel**, dalam Activity content sesudah PageHeader. Ini status nonmodal, bukan fake dialog; no trap/inert/autofocus. Direct link juga mendapat feedback |
+| Row-origin pending | Trigger terpilih yang masih rendered menampilkan **Opening…** dan aria-busy; feedback tetap terlihat saat notice di atas fold. Tidak membuat push/open kedua |
+| Chunk siap, API loading/ready/error | Notice dilepas, existing dialog/sheet mengambil alih dan fokus panel sekali. State/copy API loading/error di atas tetap berlaku |
+| Chunk gagal | **Couldn't open this activity entry.** + **Reload page** pada URL yang sama + Cancel; **Retry opening** boleh bila loader memiliki retry aman. Tidak ada pending tanpa recovery |
+
+Anchor DEC-018 tetap: opening/failure Notice menjadi **first visible child di dalam owning FilterSurface** sesudah
+PageHeader, bukan sibling di luar surface. Rail sejajar outer top Notice tanpa gap tambahan; saat Notice hilang,
+first remaining visible Notice/card menjadi anchor. Constant clearance64 tetap, tanpa double padding atau offset
+global TopBar. Ini penerapan pola existing, bukan geometry baru; QA membandingkan actual bbox pending/ready/cancel/resize.
+
+Cancel dan Escape pending memakai close/provenance policy yang sama. Escape tidak mengambil alih overlay lain
+yang telah menangani event/defaultPrevented. Pending nonmodal tidak menambahkan focus trap atau role modal palsu.
+Actual cancel mengembalikan fokus trigger/h1 setelah URL entry dibuang. **Handoff sukses notice→dialog tidak
+menjalankan close/returnFocus**, agar tidak melompat ke h1 lalu dialog. Module resolve yang terlambat sesudah Cancel,
+entry switch atau route leave tidak membuka entry lama atau mengambil fokus. Source callback/boundary tetap milik
+Developer; chunk cache boleh terisi tanpa menampilkan entry yang sudah dibatalkan.
+
+Loading feedback muncul sebagai state nyata, tanpa timeout/delay/hide untuk menutupi cold load. Hover/focus preload
+boleh membantu tetapi tidak menggantikan fallback. Tidak mengimpor EntryDialog yang masih membawa DiffView hanya
+untuk fallback; exact-byte budget tetap. QA memverifikasi held chunk, row/direct URL, cancel/Escape/late resolve,
+failure recovery dan focus saat actual modal hadir. Ini klarifikasi handoff/source, bukan defect runtime terverifikasi
+atau approval kandidat. Tidak ada Figma atau source produk diubah Designer.
+
+### Review kandidat awal NEXT-DES-003 — koreksi identity display pending
+
+Paket `developer-audit-2/{candidate.json,handoff.txt}` dibaca. Kandidat runtime
+`754e741a7b57976e805e5d05aba885ee45e73e87078a7fde1cdd5124105a0080`, product
+`775acb7adcaa576bec0807b86c307972a5aa30bb21fa093e245599f319db0bed`, build
+`iyOjDEw-xlEJIvzpGFBpX`. SHA candidate metadata
+`632a4e0c1dfca8d317ffafe3e54106ed020b2c85387a48ba53661bb0f68f2f7e`.
+Designer mencocokkan710 source leaf hashes dengan host serta15 screenshot hashes tanpa mismatch, lalu melihat
+**seluruh15 PNG yang tercantum**:8ready detail360/390/834/1440 light/dark,4wrapped-filter views dan3chunk
+pending-row/pending-direct/failure. Ini verifikasi source/image artifacts, bukan pengujian browser atau compiled
+image ulang oleh Designer. QA/Product Lead memverifikasi binding compiled build secara terpisah.
+
+Pending/failure Notice sejajar rail di first surface, row Opening/Cancel dan failure Reload page jelas. Grouped chip
+membungkus pada phone/tablet, count1 dan empty state tetap terbaca. Ready Copy link/metadata/summary/Close terbaca
+dan body long ID scrolls. Sebagian controls berada di bawah scroll phone; screenshot awal tidak otomatis membuktikan
+scrolled Investigate/Open record, history entrances atau clipboard fallback. Capture tambahan diminta ke QA saat
+retest internal pada kandidat yang sama, tanpa host preview atau rerun baseline.
+
+| Lokasi | Observed / expected / impact |
+| --- | --- |
+| Target metadata pada ActivityEntryDialog; contoh ready360/1440 light/dark, konsisten pada viewport lain | ID opaque masih raw inline dengan normal HTML whitespace, sehingga edge spaces/newline tampak collapse; chip exact sudah JSON-quoted dengan benar. Expected: quote/escape ambiguous recorded target type/ID dalam presentation detail, ordinary UUID tetap sederhana, tanpa mengubah recorded bytes/DTO. Dampak: identitas yang berbeda dapat terlihat sama, bukan permintaan taste/redesign |
+
+Developer mengonfirmasi temuan source/PNG; Product Lead menerima **AUD2-DES-001 / P1**, koreksi sebelum visual
+acceptance. Scope terbatas presentation lazy detail: ambiguous opaque type/ID JSON-quoted seperti chip, ordinary
+UUID unchanged, tanpa perubahan DTO/predicate/CSV semantics. QA menyelesaikan run/capture kandidat frozen sebelum
+slot dikembalikan; Developer tidak me-rebuild workbench aktif. Sesudah patch diperlukan source/build freeze baru,
+budget ulang (lazy chunk hash tetap dapat memengaruhi margin3byte), affected retest dan PNG bound baru.
+**Belum ada scoped visual approval final.** Bukti kandidat lama/finding dipertahankan, bukan ditimpa.
+Ledger bukti/finding15PNG: `.superpowers/scratch/designer/audit-2/initial-candidate-review.json`.
+Developer melaporkan18browser dan fullcheck1617 pass; hasil itu bukan eksekusi Designer atau verdict QA final.
+Headroom Activity3byte/Users35byte dicatat pada paket, bukan alasan merelaksasi gate atau memperluas refactor.
+
+Rereview source patch AUD2-DES-001: formatter local `recordedIdentity` berada di lazy ActivityEntryDialog dan
+dipakai terpisah untuk target type/ID, mengikuti quoting chip untuk edge whitespace/control/separator. React tetap
+melakukan HTML escaping; ordinary type/UUID mempertahankan display semula. Dua assertions metadata dibaca untuk
+quoting, full513 ID, escaping/immutability dan unquoted ordinary UUID; Developer melaporkan red→green/typecheck/lint,
+bukan run Designer. **Arah source patch diterima; temuan belum ditutup secara runtime.** Menunggu slot QA selesai,
+freeze/build/budget baru dan screenshot bound koreksi; PNG kandidat lama tidak digunakan mengklaim patch verified.
+
+### Rereview visual R2 — AUD2-DES-001 correction terlihat
+
+R2 `developer-audit-2/{candidate-r2.json,handoff-r2.txt}` memakai runtime
+`4f29f9d4455c36eff8b7f6fda499cbbc53362f10d3ccacde9cf8ad031afc966e`, product
+`71796c39790608b06ed2d8e9f49d2a8cc89e220e6e73172e39ac61dd31d96ec8`, build
+`vw_fJi0Zpw9N0jU-Y-2sr`; compiled digest dilaporkan
+`6a4360af5a6a278960f9de89b37c5c2b8a54fe242d726bd398fcd12c4e149742`.
+SHA metadata`d11256b2490292b8664fd0d50fba9f22abfeacc3e29e449b495d80a26f5d589a`.
+Designer memvalidasi711 host source leaf hashes dan15 PNG hashes, tanpa mismatch. Sebelas PNG baru benar-benar
+dilihat (8ready width/theme dan3pending/failure); empat filter PNG identik SHA dengan yang sudah dilihat pada R1,
+sehingga bukti visual unchanged tersebut direuse dengan identitas file terverifikasi.
+
+**AUD2-DES-001 koreksi terverifikasi secara visual pada R2:** batas quote dan escape whitespace/control terlihat
+di Target metadata pada360/390/834/1440 light/dark, tanpa merusak hierarchy/wrapping. Enam supplemental PNG QA dari
+`qa-audit-2/candidate-r2-probes-artifacts/` juga dilihat: opaque identity, project history phone, Investigate+Open
+project, clipboard fallback, changes dan audit-only viewer. Ordinary UUID tetap unquoted, helper90d dan fallback
+URL/copy-failure terbaca; audit-only viewer tidak mendapat Open record. Tidak ada koreksi desain tambahan dari
+area yang jelas terlihat.
+
+Penerimaan visual keseluruhan masih menunggu satu capture User Recent activity/history serta klarifikasi QA
+apakah phone Changes screenshot berada pada settled scroll atau transisi (header/Close tidak jelas pada capture
+itu). Ini permintaan verifikasi evidence, **belum temuan produk baru**. QA memverifikasi perilaku/posthash dan
+menentukan closure temuan; correction tidak diluluskan dari source-only. Developer18/fullcheck1619/budget22 adalah
+hasil Developer, bukan eksekusi Designer. Binding compiled image dibaca Product Lead secara terpisah.
+Ledger: `.superpowers/scratch/designer/audit-2/r2-visual-review.json`; tidak ada browser host/Figma/source edit.
+
+### Hasil final visual R2 — NEXT-DES-003 / NEXT-AUD-002 diterima
+
+**Scoped visual acceptance diberikan pada kandidat R2 di atas. AUD2-DES-001 resolved untuk review Designer.**
+Ini menggantikan status visual pending pada catatan sebelumnya, tanpa meluluskan scope lain atau remote CI.
+Handoff dapat diimplementasikan tanpa keputusan UX besar yang masih terbuka; implementasi kandidat ini sudah
+terlihat pada artifact aktual. Formal closure temuan/test tetap milik QA, keputusan GO lokal tetap Product Lead.
+
+Empat capture final di `qa-audit-2/candidate-r2-settled-artifacts/` dilihat penuh: User Recent activity/history,
+settled known-user entry, dan phone dialog sebelum/sesudah body scroll. History entrance menampilkan konteks
+**Activity · Last 90 days**, **View history**, last20 dan **View entry** termasuk entry2020. Detail settled tetap
+menampilkan entry tersebut di luar range background90d, recorded identity terbaca dan **Open user** tersedia.
+Project history/Open project, audit-only viewer, copy-failure recovery, wrapped exact chips, pending/failure rail
+serta opaque Target correction sudah ditinjau pada bukti R2 sebelumnya; tidak ada koreksi visual tambahan.
+
+Facts final viewport390×844 menunjukkan inner body scrollTop **0→331**, sementara header tetap y116–192 dan
+Close32×32 tetap x338/y136, seluruhnya di viewport. Before/after PNG memperlihatkan Initial values dapat dicapai
+sementara Close tetap terlihat. QA melaporkan focused check2pass, termasuk focus/click Close→Activity h1.
+Capture lama dengan scrollTop0 tidak dipakai sebagai bukti scrolling; capture known-user saat route transition
+juga tidak dipakai untuk acceptance layout settled. Tidak ada defect baru dari ambiguitas capture tersebut.
+
+Ledger `.superpowers/scratch/designer/audit-2/r2-visual-review.json` mengikat SHA empat capture final dan facts,
+711 source leaves serta15 candidate PNG yang sudah diverifikasi. Sebelas candidate PNG baru dilihat; empat filter
+PNG reuse sah karena SHA identik dengan R1 yang sudah dilihat. Enam supplemental QA PNG ditinjau, dengan final
+settled captures menggantikan ambiguitas transisi/scroll. Product Lead/QA memverifikasi compiled image dan QA
+melaporkan source/build/API posthash unchanged; Designer tidak mengklaim menjalankan browser/test atau memverifikasi
+compiled image sendiri. Hasil Developer: fullcheck1619, browser18, budget22; hasil QA independen dicatat oleh QA.
+
+Batas: evidence runtime Linux Docker Chromium/emulasi, bukan real device/WebKit/screen-reader manual atau remote
+CI penuh. Known-red CI sebelumnya tetap tercatat. Headroom Activity3byte/Users35byte tetap risiko perubahan berikutnya;
+gate256000byte tidak dilonggarkan. Tidak ada product-source edit, host runtime/DB mutation, port baru atau Figma edit
+oleh Designer. **Figma v1.0.4 tetap In review**; review ini tidak mengklaim frame baru, publish atau native checkpoint.
+
+QA final telah dicatat di [docs/qa.md](qa.md): **NEXT-QA-004 Done**, **AUD2-DES-001 Closed / QA verified R2**,
+rekomendasi GO lokal scope NEXT-AUD-002 dikirim ke Product Lead. QA mengikat completion/evidence pada
+`.superpowers/scratch/qa-audit-2/r2/completion.json`; source/build tetap frozen. Tidak ada koreksi visual atau
+product failure terbuka yang dilaporkan dalam scope R2 ini. Keputusan penggunaan lokal belum disimpulkan dari
+rekomendasi QA; keputusan Product Lead dan status remote CI tetap terpisah.

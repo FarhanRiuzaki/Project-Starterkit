@@ -149,3 +149,21 @@ describe("server prefetch keeps only 200 answers", () => {
     expect(seen).toEqual([]);
   });
 });
+
+it("raw exact Activity filters retain invalid presence so SSR never prefetches an unfiltered list", () => {
+  for (const query of ["actorId=", "targetType=&targetId=", "targetType=user", "targetId=opaque", "actorId=invalid", `targetType=user&targetId=${"x".repeat(513)}`]) {
+    const read = reads.activity(new URLSearchParams(`${query}&entry=incident`));
+    expect(read.path).toBeNull();
+    expect(String(read.key[1])).not.toContain("entry=");
+    const expected = new URLSearchParams(query);
+    const actual = new URL(String(read.key[1]), "http://local").searchParams;
+    for (const key of ["actorId", "targetType", "targetId"]) {
+      expect(actual.has(key)).toBe(expected.has(key));
+      if (expected.has(key)) expect(actual.get(key)).toBe(expected.get(key));
+    }
+  }
+  const raw = new URLSearchParams({ actorId: "00000000-0000-4000-8000-000000000000", targetType: " Legacy ", targetId: " \nopaque\t " });
+  const read = reads.activity(raw);
+  expect(read.path).not.toBeNull();
+  expect(new URL(read.path!, "http://local").searchParams.get("targetId")).toBe(" \nopaque\t ");
+});

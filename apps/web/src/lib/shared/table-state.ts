@@ -49,7 +49,7 @@ export function readTable<F extends Record<string, string>>(sp: URLSearchParams,
   };
 }
 
-function serialize<F extends Record<string, string>>(t: TableState<F>, spec: TableSpec<F>): URLSearchParams {
+export function tableSearch<F extends Record<string, string>>(t: TableState<F>, spec: TableSpec<F>): URLSearchParams {
   const out = new URLSearchParams();
   if (t.page !== 1) out.set("page", String(t.page));
   if (t.pageSize !== DEFAULT_PAGE_SIZE) out.set("pageSize", String(t.pageSize));
@@ -74,10 +74,10 @@ export function writeTable<F extends Record<string, string>>(state: TableState<F
     if (k in clean) clean[k] = (parse as FilterParser<string>)(clean[k] as string);
   }
   const merged = { ...state, ...clean } as TableState<F>;
-  const before = serialize(state, spec).toString();
-  if (serialize(merged, spec).toString() === before) return null;
-  const onlyPage = Object.keys(clean).every((k) => k === "page") || serialize({ ...merged, page: state.page }, spec).toString() === before;
-  return serialize(onlyPage ? merged : { ...merged, page: 1 }, spec);
+  const before = tableSearch(state, spec).toString();
+  if (tableSearch(merged, spec).toString() === before) return null;
+  const onlyPage = Object.keys(clean).every((k) => k === "page") || tableSearch({ ...merged, page: state.page }, spec).toString() === before;
+  return tableSearch(onlyPage ? merged : { ...merged, page: 1 }, spec);
 }
 
 /** History entry for a URL change: search keystrokes (`spec.search` keys only) replace it; anything else pushes one, so Back undoes it. */
@@ -91,16 +91,29 @@ export function historyMode(patch: object, spec: { search?: readonly string[] })
  * API's, e.g. a range preset → from/to), empty values dropped; `url` = `path?filters&page&pageSize&sort`. The browser
  * hook keys its query on `url` and the server prefetch builds the same key from the same URL, so they always match.
  */
-export function tableRequest<F extends Record<string, string>>(path: string, state: TableState<F>, spec: TableSpec<F>, params?: (filters: F) => Record<string, string>) {
+export function tableRequest<F extends Record<string, string>>(path: string, state: TableState<F>, spec: TableSpec<F>, params?: (filters: F) => Record<string, string>, raw?: { search: Pick<URLSearchParams, "has" | "get">; keys: readonly string[] }) {
   const filters = Object.fromEntries(Object.keys(spec.filters).map((k) => [k, state[k]])) as F;
   const query = new URLSearchParams();
   for (const [key, value] of Object.entries(params ? params(filters) : filters)) {
     if ((spec.filters[key] as FilterParser<string> | undefined)?.multiple) selectionValues(value).forEach(item => query.append(key, item));
     else if (value !== "") query.set(key, value);
   }
+  if (raw) for (const key of raw.keys) {
+    const value = raw.search.get(key);
+    if (value === null) query.delete(key); else query.set(key, value);
+  }
   const filterQuery = query.toString();
   const paging = new URLSearchParams({ page: String(state.page), pageSize: String(state.pageSize), sort: state.sort });
   return { filterQuery, url: `${path}?${filterQuery}${filterQuery ? "&" : ""}${paging}` };
+}
+
+/** Keep declared transient state and refresh from the current URL, never a captured render's URL. */
+export function preserveTableParams(next: URLSearchParams, current: URLSearchParams, transient: readonly string[]): URLSearchParams {
+  for (const key of ["refresh", ...transient]) {
+    const value = current.get(key);
+    if (value !== null) next.set(key, value);
+  }
+  return next;
 }
 
 export const sortState = (sort: string): SortState => (sort.startsWith("-") ? { key: sort.slice(1), dir: "desc" } : { key: sort, dir: "asc" });

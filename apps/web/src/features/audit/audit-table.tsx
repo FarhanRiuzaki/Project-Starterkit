@@ -10,7 +10,7 @@ import { ExportIcon } from "@starterkit/ui/ui/icons";
 import { toast } from "@starterkit/ui/ui/toast";
 import { SavedViewsMenu } from "@/components/saved-views-menu";
 import { PageHeader } from "@/components/shell/page-header";
-import { download, errorText } from "@/lib/client/api";
+import { errorText } from "@/lib/client/api";
 import { useTableQuery } from "@/lib/client/use-table-query";
 import { CSV_MAX_ROWS, RANGE_LABEL } from "@starterkit/shared/audit";
 import { timeRange } from "@/lib/shared/time-controls";
@@ -38,7 +38,7 @@ export type AuditDetail = { title: string; summary?: string; changes?: { action:
  * `table` is a lib/shared/queries constant (ACTIVITY, AUTH_LOG): its filters include the shared audit filters.
  */
 export function AuditTable<T extends { id: string; at: string }, F extends AuditFilters>({
-  title, description, noun, icon, table, columns, rowLabel, filters, filterFields, legend, emptyHint, detail,
+  title, description, noun, icon, table, columns, rowLabel, filters, filterFields, legend, emptyHint, detail, onEntry, entryNotice, pendingEntry, exactFilters,
 }: {
   title: string; description: string;
   /** Plural, lower case: "activity entries". */
@@ -55,7 +55,11 @@ export function AuditTable<T extends { id: string; at: string }, F extends Audit
   legend?: readonly LegendItem[];
   /** Empty state with no filters: when entries appear. */
   emptyHint: string;
-  detail: (r: T) => AuditDetail;
+  detail?: (r: T) => AuditDetail;
+  onEntry?: (row: T, trigger: HTMLButtonElement) => void;
+  entryNotice?: ReactNode;
+  pendingEntry?: string;
+  exactFilters?: { values: Record<string, string>; fields: readonly FilterField[]; valid: boolean; clearPatch: (next: Record<string, string>, previous: Record<string, string>) => Partial<F> };
 }) {
   const { path, spec } = table;
   const t = useTableQuery<T, F>(table);
@@ -66,14 +70,16 @@ export function AuditTable<T extends { id: string; at: string }, F extends Audit
   const set = t.set;
 
   const narrowed = Object.entries(spec.filters).filter(([k, parse]) => !RANGE_KEYS.has(k) && (f as Record<string, unknown>)[k] !== (parse as FilterParser<string>)(null));
-  const matchKeys = Object.entries(spec.filters).filter(([k]) => !RANGE_KEYS.has(k));
-  const values = Object.fromEntries(matchKeys.map(([k]) => [k, String(f[k as keyof F])]));
-  const defaults = Object.fromEntries(matchKeys.map(([k, parse]) => [k, (parse as FilterParser<string>)(null)]));
+  const matchKeys = Object.entries(spec.filters).filter(([k]) => !RANGE_KEYS.has(k) && !table.rawFilters?.includes(k));
+  const values = { ...Object.fromEntries(matchKeys.map(([k]) => [k, String(f[k as keyof F])])), ...exactFilters?.values };
+  const defaults = { ...Object.fromEntries(matchKeys.map(([k, parse]) => [k, (parse as FilterParser<string>)(null)])), ...Object.fromEntries(Object.keys(exactFilters?.values ?? {}).map(key => [key, ""])) };
+  const exportBlocked = exactFilters && !exactFilters.valid ? "Clear the invalid exact filters before exporting." : t.total === 0 ? `No ${noun} match, so there is nothing to export.` : null;
 
   async function exportCsv() {
+    if (exportBlocked) return;
     setExporting(true);
     try {
-      const name = await download(`${path}?${t.filterQuery}&format=csv`, "audit.csv");
+      const name = await (await import("@/lib/client/download")).download(`${path}?${t.filterQuery}&format=csv`, "audit.csv");
       toast(`Saved ${name}`, { description: `Every matching entry, newest first, up to ${formatNumber(CSV_MAX_ROWS)} rows.` });
     } catch (e) {
       toast.error(`Couldn't export the ${noun}`, { description: errorText(e) });
@@ -82,23 +88,28 @@ export function AuditTable<T extends { id: string; at: string }, F extends Audit
     }
   }
 
-  const shown = open && detail(open);
+  const shown = open && detail?.(open);
   const custom = customRange(f);
   const timeLabel = f.start && f.end ? timeRange(new URLSearchParams(f), 7).label : null;
   return (
     <div className="grid gap-section">
       <PageHeader title={title} description={description} />
       <FilterSurface>
+      {entryNotice}
       {t.staleError && <Notice tone="warn" live>Couldn&apos;t refresh the {noun}; showing the ones loaded before. {errorText(t.staleError)}</Notice>}
       {t.viewNotRemembered && <Notice>This filter selection works at this URL, but is too long to remember in navigation. Save a named view to reopen it.</Notice>}
-      <FilterLayout<Record<string, string>> busy={t.paging.busy} values={values} defaults={defaults} fields={[{ key: "user", label: "User" }, ...filterFields]}
-        onApply={(values, options) => set(values as unknown as Partial<TableState<F>>, options)}
+      <FilterLayout<Record<string, string>> busy={t.paging.busy} values={values} defaults={defaults} fields={[{ key: "user", label: "User" }, ...filterFields, ...exactFilters?.fields ?? []]}
+        onApply={(next, options) => {
+          const patch = Object.fromEntries(matchKeys.filter(([key]) => next[key] !== values[key]).map(([key]) => [key, next[key]]));
+          if (exactFilters) Object.assign(patch, exactFilters.clearPatch(next, values));
+          set(patch as Partial<TableState<F>>, options);
+        }}
         filters={(draft, patch) => <>
           <FilterSearch label="Search by user" value={draft.user!} onChange={user => patch({ user })} maxLength={64} placeholder="User name or email" />
           {filters({ ...f, ...draft }, next => patch(Object.fromEntries(Object.entries(next).map(([k, v]) => [k, String(v ?? "")]))))}
         </>}>
-      {({ summary }) => <Panel toolbar={<Toolbar end={<><SavedViewsMenu /><ColumnsMenu columns={columns} hidden={t.hidden} onChange={t.setHidden} />
-          <BlockedButton variant="secondary" reason={t.total === 0 ? `No ${noun} match, so there is nothing to export.` : null}
+      {({ summary, flush }) => <Panel toolbar={<Toolbar end={<><SavedViewsMenu /><ColumnsMenu columns={columns} hidden={t.hidden} onChange={t.setHidden} />
+          <BlockedButton variant="secondary" reason={exportBlocked}
             aria-disabled={exporting || undefined} onClick={() => { if (!exporting) void exportCsv(); }}>
             <Icon icon={ExportIcon} />{exporting ? "Exporting…" : "Export CSV"}
           </BlockedButton>
@@ -106,14 +117,14 @@ export function AuditTable<T extends { id: string; at: string }, F extends Audit
         flush icon={icon} title="All entries" legend={legend} count={t.count}
         description={`${timeLabel ?? (custom ? rangeText(custom) : RANGE_LABEL[f.range])} · times in ${APP_TIME_ZONE_LABEL}`}
         footnote={`Export CSV saves every matching entry, newest first, up to ${formatNumber(CSV_MAX_ROWS)} rows.`}>
-        {summary}
+        {exactFilters ? <div className="[&_[data-slot=filter-chip]]:h-auto [&_[data-slot=filter-chip]]:min-h-6 [&_[data-slot=filter-chip]>span]:overflow-visible [&_[data-slot=filter-chip]>span]:whitespace-pre-wrap [&_[data-slot=filter-chip]>span]:wrap-anywhere">{summary}</div> : summary}
         <DataTable label={title} rowHeight="identity" columns={columns} hidden={t.hidden} rows={t.rows} rowKey={(r) => r.id} loading={t.loading}
           sort={t.sort} onSortChange={t.onSortChange} paging={t.paging}
           error={t.loadError ? { title: `Couldn't load ${noun}`, cause: errorText(t.loadError), onRetry: () => void t.query.refetch() } : null}
           empty={narrowed.length > 0
             ? { icon, title: `No ${noun} match`, description: "Change the search or filters, or clear them. A longer time range may also help." }
             : { icon, title: `No ${noun} in this time range`, description: `${emptyHint} Pick a longer time range to see older ones.` }}
-          rowActions={(r) => <Button size="sm" variant="ghost" aria-label={`View entry: ${rowLabel(r)}`} onClick={event => { entryTrigger.current = event.currentTarget; setOpen(r); }}>View entry</Button>} />
+          rowActions={(r) => <Button size="sm" variant="ghost" aria-label={`View entry: ${rowLabel(r)}`} aria-busy={pendingEntry?.toLowerCase() === r.id.toLowerCase() || undefined} onClick={event => { if (pendingEntry?.toLowerCase() === r.id.toLowerCase()) return; flush(); if (onEntry) onEntry(r, event.currentTarget); else { entryTrigger.current = event.currentTarget; setOpen(r); } }}>{pendingEntry?.toLowerCase() === r.id.toLowerCase() ? "Opening…" : "View entry"}</Button>} />
       </Panel>}
       </FilterLayout>
       </FilterSurface>

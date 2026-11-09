@@ -31,7 +31,7 @@ const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
 /** The browser talks only to same-origin `/api/*` (never the backend): anything else throws before a request is made. */
 export function assertApiPath(path: string): void {
-  if (!path.startsWith("/api/") || path.startsWith("//")) throw new Error(`api(): "${path.slice(0, 40)}" must start with /api/`);
+  if (!path.startsWith("/api/")) throw new Error("Path must start with /api/");
 }
 
 /** Call the app's API. 401 outside /api/auth → the sign-in page, returning here afterwards. Errors throw ApiError. */
@@ -43,34 +43,15 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   if (!headers.has("content-type")) headers.set("content-type", "application/json");
   if (csrfToken && !SAFE_METHODS.has(method) && !headers.has("x-csrf-token")) headers.set("x-csrf-token", csrfToken);
   const res = await fetch(path, { ...init, credentials: "same-origin", headers });
-  if (!res.ok) throw await failure(res, path);
+  if (!res.ok) throw await apiFailure(res, path);
   return (await res.json().catch(() => ({}))) as T;
 }
 
 /** The ApiError for a failed answer; a 401 outside /api/auth first sends the browser to sign-in (returning here). */
-async function failure(res: Response, path: string): Promise<ApiError> {
+export async function apiFailure(res: Response, path: string): Promise<ApiError> {
   const body = (await res.json().catch(() => ({}))) as Partial<ApiErrorBody>;
   if (res.status === 401 && !OWN_401.test(path) && typeof window !== "undefined") {
     window.location.assign(signInHref(window.location.pathname + window.location.search));
   }
   return new ApiError(res.status, body.error?.code ?? "error", body.error?.message ?? `HTTP ${res.status}`);
-}
-
-/**
- * Save a file answer of the app's API (CSV export) under the server's `Content-Disposition` filename, else
- * `fallbackName`; resolves to the saved name. Same rules as `api()`: same-origin `/api/*` only, 401 → sign-in, errors
- * throw ApiError.
- */
-export async function download(path: string, fallbackName: string): Promise<string> {
-  assertApiPath(path);
-  const res = await fetch(path, { credentials: "same-origin" });
-  if (!res.ok) throw await failure(res, path);
-  const name = /filename="([^"]+)"/.exec(res.headers.get("content-disposition") ?? "")?.[1] ?? fallbackName;
-  const url = URL.createObjectURL(await res.blob());
-  const a = Object.assign(document.createElement("a"), { href: url, download: name });
-  document.body.append(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url)); // after the click's download has taken the blob
-  return name;
 }

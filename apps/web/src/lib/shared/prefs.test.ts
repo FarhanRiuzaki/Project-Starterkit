@@ -45,3 +45,13 @@ describe("remembered table views", () => {
     expect(parsePrefs(`cols:/roles=${Array.from({ length: 30 }, (_, i) => `c${i}`).join(",")}`).hidden["/roles"]).toHaveLength(20);
   });
 });
+
+it("activity entry never becomes remembered navigation, including legacy cookies and direct view replay", () => {
+  const query = "actorId=actor&targetType=Legacy&targetId=A%20b&entry=incident&entry=other";
+  expect(savedView(new URLSearchParams(query), [], "/audit/activity")).toBe("actorId=actor&targetId=A+b&targetType=Legacy");
+  const prefs = { ...DEFAULT_PREFS, views: { "/audit/activity": query } };
+  expect(viewHref("/audit/activity", prefs)).toBe("/audit/activity?actorId=actor&targetType=Legacy&targetId=A+b");
+  const parsed = parsePrefs(`view%3A%2Faudit%2Factivity=${encodeURIComponent(query)}`);
+  expect(parsed.views["/audit/activity"]).not.toContain("entry");
+  expect(value(prefsCookie(prefs, false))).not.toContain("entry");
+});

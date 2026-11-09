@@ -1,7 +1,8 @@
+import { download } from "./download";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { api, ApiError, assertApiPath, download, isNotFound, setCsrf } from "./api";
+import { api, ApiError, assertApiPath, isNotFound, setCsrf } from "./api";
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 describe("api path guard", () => {
   it.each(["https://backend.example/api/x", "http://x", "//evil.example/api/x", "/users", "api/x", ""])("rejects %s", (p) => {
@@ -59,7 +60,7 @@ describe("download", () => {
   it("an error answer throws ApiError with the server's message, and saves nothing", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => Response.json({ error: { code: "forbidden", message: "Your role doesn't allow this." } }, { status: 403 })));
     const created = vi.fn();
-    vi.stubGlobal("URL", Object.assign(Object.create(URL), { createObjectURL: created }));
+    vi.spyOn(URL, "createObjectURL").mockImplementation(created);
     await expect(download("/api/audit/activity?format=csv", "activity.csv")).rejects.toMatchObject({ status: 403, code: "forbidden", message: "Your role doesn't allow this." });
     expect(created).not.toHaveBeenCalled();
   });

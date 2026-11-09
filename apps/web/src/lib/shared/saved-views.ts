@@ -1,13 +1,14 @@
 import { canonicalFilterQuery } from "@starterkit/shared/filter-selection";
 /** A list's URL query as a saved view keeps it: without the page number, keys sorted, so two spellings of one view match. */
-export function viewQuery(sp: URLSearchParams): string {
+export function viewQuery(sp: URLSearchParams, path?: string): string {
   const q = new URLSearchParams(sp);
   q.delete("page");
+  if (path === "/audit/activity") q.delete("entry");
   return canonicalFilterQuery(q).toString();
 }
 
 /** Where a saved view opens: its list page with its query re-encoded, so a stored query can't change the path. */
 export function viewLink(path: string, query: string): string {
-  const q = viewQuery(new URLSearchParams(query)).toString();
+  const q = viewQuery(new URLSearchParams(query), path).toString();
   return q ? `${path}?${q}` : path;
 }

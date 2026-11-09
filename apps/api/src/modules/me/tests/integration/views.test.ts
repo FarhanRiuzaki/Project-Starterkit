@@ -3,6 +3,9 @@ import { beforeEach, describe, expect, it } from "bun:test";
 import type { Page } from "@starterkit/shared/contracts/common";
 import { MAX_SAVED_VIEWS, type SavedViewDto } from "@starterkit/shared/contracts/me";
 import { call, resetData, signIn } from "../../../../../test/helpers/app";
+import { eq } from "drizzle-orm";
+import { savedViews } from "../../schema";
+import { users } from "../../../users";
 import { db } from "../../../../kernel/db";
 import { activity } from "../../../audit";
 
@@ -74,4 +77,26 @@ describe("/v1/me/views", () => {
   it("without a session it is 401", async () => {
     expect((await call("GET", "/v1/me/views?path=/users")).status).toBe(401);
   });
+});
+
+
+it("activity named views strip transient entry on save and legacy read, keeping exact filters and other pages unchanged", async () => {
+  const token = await signIn("admin"), entry = Bun.randomUUIDv7(), actor = Bun.randomUUIDv7();
+  const query = `actorId=${actor}&targetType=user&targetId=Exact%20Id&entry=${entry}&%65ntry=${entry}&sort=-at`;
+  const expected = `actorId=${actor}&targetType=user&targetId=Exact%20Id&sort=-at`;
+  const response = await save(token, { path: "/audit/activity", name: "Investigation", query });
+  expect(response.status).toBe(200);
+  const created = await response.json() as SavedViewDto;
+  expect(created.query).toBe(expected);
+  expect((await db.select().from(savedViews).where(eq(savedViews.id, created.id)))[0]!.query).toBe(expected);
+  const owner = (await db.select({ id: users.id }).from(users).where(eq(users.username, "admin")))[0]!.id;
+  const legacyId = Bun.randomUUIDv7();
+  await db.insert(savedViews).values({ id: legacyId, userId: owner, path: "/audit/activity", name: "Legacy incident", query });
+  expect((await list(token, "/audit/activity")).items.find(view => view.id === legacyId)?.query).toBe(expected);
+  expect((await db.select().from(savedViews).where(eq(savedViews.id, legacyId)))[0]!.query).toBe(query); // read does not migrate stored data
+  const other = await save(token, { path: "/users", name: "Unrelated opaque query", query });
+  expect((await other.json() as SavedViewDto).query).toBe(query);
+  const oversized = `entry=${"x".repeat(4091)}`;
+  expect(oversized.length).toBe(4097);
+  expect((await save(token, { path: "/audit/activity", name: "Oversize", query: oversized })).status).toBe(400);
 });

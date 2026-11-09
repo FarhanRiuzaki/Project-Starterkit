@@ -4,15 +4,17 @@
 // Key scheme: the first element is the module that owns the data (users, rbac, me, audit, dashboard, projects), then what
 // identifies the read (a table's URL, "detail" + id, …), so invalidating a module's key refreshes all of it.
 import { isTimeExpression, resolveTimeRange } from "@starterkit/ui/lib/time-range";
+import { ACTIVITY_ID_PATTERN } from "@starterkit/shared/audit-investigation";
 import { ACTION_OPTIONS, ACTIVITY_SORTS, AUDIT_RANGES, AUTH_LOG_SORTS, presetRange, rangeProblem } from "@starterkit/shared/audit";
 import { PERMISSION_SORTS, PROJECT_SORTS, ROLE_SORTS, SESSION_SORTS, USER_SORTS } from "@starterkit/shared/paging";
 import { MODULES } from "@starterkit/shared/permissions";
 import { timeRange } from "./time-controls";
-import { type FilterParser, isoDate, multiChoice, oneOf, type TableSpec, text } from "./table-state";
+import { type FilterParser, isoDate, multiChoice, oneOf, type TableSpec, type TableState, text } from "./table-state";
 
 /** A server-driven table: query-key prefix, API path, URL state spec, and (optionally) URL filters → API params. */
 export type TableDef<F extends Record<string, string>> = {
-  key: string; path: `/api/${string}`; spec: TableSpec<F>; params?: (filters: F) => Record<string, string>;
+  key: string; path: `/api/${string}`; spec: TableSpec<F>; transient?: readonly string[]; rawFilters?: readonly string[]; params?: (filters: F) => Record<string, string>;
+  edit?: (source: URLSearchParams, patch: Partial<TableState<F>>) => URLSearchParams | null;
 };
 export type NoFilters = Record<never, string>;
 
@@ -69,6 +71,12 @@ export const PROJECTS: TableDef<ProjectFilters> = {
 export const projectDetail = (id: string) => ({ key: [...PROJECTS_KEY, "detail", id] as const, url: `/api/projects/${encodeURIComponent(id)}` });
 
 export const AUDIT_KEY = ["audit"] as const;
+/** Entry identity is independent of list state; only validated, normalized UUIDs become BFF paths. */
+export const activityEntry = (id: string) => ({
+  key: [...AUDIT_KEY, "entry", id.toLowerCase()] as const,
+  url: ACTIVITY_ID_PATTERN.test(id) ? `/api/audit/activity/${id.toLowerCase()}` as const : null,
+});
+
 
 /** Filters both audit logs share: who (free text, debounced) and the range: a preset, or a custom from–to pair that wins when valid. */
 export type AuditFilters = { user: string; range: (typeof AUDIT_RANGES)[number]; from: string; to: string; start: string; end: string };
@@ -79,11 +87,12 @@ export const customRange = (f: { from: string; to: string }) => (f.from && f.to 
 const auditParams = ({ range, from, to, start, end, ...rest }: AuditFilters & Record<string, string>) =>
   ({ ...rest, ...(resolveTimeRange({ start, end }, Date.now()) ? { start, end } : customRange({ from, to }) ?? presetRange(range, Date.now())) });
 
-export type ActivityFilters = AuditFilters & { action: string };
+export type ActivityFilters = AuditFilters & { action: string; actorId: string; targetType: string; targetId: string };
+const exact: FilterParser<string> = raw => raw ?? "";
 export const ACTIONS = [{ value: "", label: "Any" }, ...ACTION_OPTIONS];
 export const ACTIVITY: TableDef<ActivityFilters> = {
-  key: AUDIT_KEY[0], path: "/api/audit/activity", params: auditParams,
-  spec: { sorts: ACTIVITY_SORTS, defaultSort: "-at", search: ["user"], filters: { ...AUDIT_FILTERS, action: multiChoice() } },
+  key: AUDIT_KEY[0], path: "/api/audit/activity", params: auditParams, transient: ["entry"], rawFilters: ["actorId", "targetType", "targetId"],
+  spec: { sorts: ACTIVITY_SORTS, defaultSort: "-at", search: ["user"], filters: { ...AUDIT_FILTERS, action: multiChoice(), actorId: exact, targetType: exact, targetId: exact } },
 };
 export type AuthLogFilters = AuditFilters & { event: string; method: string };
 export const AUTH_LOG: TableDef<AuthLogFilters> = {

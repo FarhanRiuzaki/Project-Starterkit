@@ -4,13 +4,14 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo } from "react";
 import type { DataTablePaging } from "@starterkit/ui/ds";
+import type { TableDef } from "@/lib/shared/queries";
 import { api } from "@/lib/client/api";
 import { usePrefs } from "@/lib/client/prefs-context";
 import type { Page } from "@starterkit/shared/contracts/common";
 import { REMEMBERED_VIEW_QUERY_MAX } from "@starterkit/shared/views";
 import { MAX_PAGE, PAGE_SIZES, type PageSize } from "@starterkit/shared/paging";
 import { savedView, VIEW_PAGES, type ViewPage } from "@/lib/shared/prefs";
-import { historyMode, readTable, type SortState, sortState, tableRequest, tableView, type TableSpec, type TableState, toSortParam, writeTable } from "@/lib/shared/table-state";
+import { historyMode, preserveTableParams, readTable, type SortState, sortState, tableRequest, tableView, type TableState, toSortParam, writeTable } from "@/lib/shared/table-state";
 
 /**
  * A server-driven table: page, page size, sort and filters live in the URL (shareable; a change other than the page
@@ -34,14 +35,12 @@ import { historyMode, readTable, type SortState, sortState, tableRequest, tableV
  */
 const NONE: readonly string[] = [];
 
-export function useTableQuery<T, F extends Record<string, string>>({ key, path, spec, params }: {
-  key: string; path: `/api/${string}`; spec: TableSpec<F>; params?: (filters: F) => Record<string, string>;
-}, enabled = true) {
+export function useTableQuery<T, F extends Record<string, string>>({ key, path, spec, params, transient = NONE, rawFilters = NONE, edit }: TableDef<F>, enabled = true) {
   const sp = useSearchParams();
   const pathname = usePathname();
   const state: TableState<F> = useMemo(() => readTable(sp, spec), [sp, spec]);
   const { prefs, update } = usePrefs();
-  const view = (VIEW_PAGES as readonly string[]).includes(pathname) ? savedView(new URLSearchParams(sp.toString()), spec.search) : null;
+  const view = (VIEW_PAGES as readonly string[]).includes(pathname) ? savedView(new URLSearchParams(sp.toString()), spec.search, pathname) : null;
   useEffect(() => {
     if (view === null) return;
     // An oversized view explicitly clears the cookie even if SSR saw no entry:
@@ -52,29 +51,35 @@ export function useTableQuery<T, F extends Record<string, string>>({ key, path, 
   }, [view, pathname, prefs.views, update]);
 
   const set = useCallback((patch: Partial<TableState<F>>, options?: { history: "push" | "replace" }) => {
-    const next = writeTable(readTable(new URLSearchParams(window.location.search), spec), patch, spec);
+    if (window.location.pathname !== pathname) return;
+    const current = new URLSearchParams(window.location.search);
+    const next = edit ? edit(current, patch) : writeTable(readTable(current, spec), patch, spec);
     if (!next) return;
-    if (sp.get("refresh")) next.set("refresh", sp.get("refresh")!);
+    preserveTableParams(next, current, transient);
     const href = next.size ? `${pathname}?${next}` : pathname;
     // Native history (Next keeps useSearchParams in sync): the URL changes in place, without a server round trip for
     // the page, so the next page loads from /api with the previous rows kept and the busy dim. The server prefetch
     // covers document loads and route changes only.
     if ((options?.history ?? historyMode(patch, spec)) === "replace") window.history.replaceState(null, "", href);
     else window.history.pushState(null, "", href);
-  }, [spec, pathname, sp]);
+  }, [spec, pathname, transient, edit]);
 
-  const { filterQuery, url } = tableRequest(path, state, spec, params);
+  const { filterQuery, url } = tableRequest(path, state, spec, params, { search: sp, keys: rawFilters });
   const q = useQuery({ queryKey: [key, url], queryFn: () => api<Page<T>>(url), enabled, placeholderData: keepPreviousData });
 
   const tv = tableView(q, state.page);
   const lastPage = tv.pastEnd && tv.total ? Math.min(Math.ceil(tv.total / state.pageSize), MAX_PAGE) : 0;
   useEffect(() => {
     // replace, not push: Back should not return to the empty page.
-    if (!lastPage) return;
-    const next = writeTable(state, { page: lastPage } as Partial<TableState<F>>, spec);
-    if (next && sp.get("refresh")) next.set("refresh", sp.get("refresh")!);
+    if (!lastPage || window.location.pathname !== pathname) return;
+    const current = new URLSearchParams(window.location.search);
+    const currentState = readTable(current, spec);
+    if (tableRequest(path, currentState, spec, params, { search: current, keys: rawFilters }).url !== url) return;
+    const patch = { page: lastPage } as Partial<TableState<F>>;
+    const next = edit ? edit(current, patch) : writeTable(currentState, patch, spec);
+    if (next) preserveTableParams(next, current, transient);
     if (next) window.history.replaceState(null, "", next.size ? `${pathname}?${next}` : pathname);
-  }, [lastPage, state, spec, pathname, sp]);
+  }, [lastPage, state, spec, pathname, path, params, rawFilters, transient, url, edit]);
 
   const paging = {
     mode: "server", page: state.page, pageSize: state.pageSize, total: tv.total ?? 0, totalCapped: tv.totalCapped,

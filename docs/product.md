@@ -2,7 +2,7 @@
 
 Diperbarui 8 November 2026 oleh **Product Lead (Product Owner + Software Architect)** sesuai mandat Sesi 1. Pemilik mengonfirmasi target pertama: **template siap dipakai lokal; kapasitas tim belum ditentukan**. Riwayat integrasi Core tetap sebagai riwayat, bukan peran sesi ini. Tugas ini tidak mencakup deployment.
 
-**Status terkini:** Batch A diterima untuk penggunaan lokal (DEC-023): satu menu Users, activity lebih jelas, copy undangan sesuai fakta dan auto-permission Superadmin terverifikasi. Preview terbaru http://127.0.0.1:3454. Rilis template keseluruhan tetap mengikuti REL-001.
+**Status terkini:** Batch A diterima untuk penggunaan lokal (DEC-023): satu menu Users, activity lebih jelas, copy undangan sesuai fakta dan auto-permission Superadmin terverifikasi. URL operasional lokal hanya http://localhost:3000 sesuai instruksi9November2026; backend internal4000. Main sudah terintegrasi pada c459bb0; CI penuh masih perlu stabilisasi (DEC-024). Rilis template keseluruhan tetap mengikuti REL-001.
 
 ## Tujuan dan pengguna
 
@@ -155,3 +155,42 @@ Kandidat Batch A tersedia untuk review di http://127.0.0.1:3454 (baseline3453 te
 Empat perubahan selesai dan diterima untuk penggunaan lokal pada hash/build kandidat di atas: satu Users yang mempertahankan remembered views/status/URL, activity detail/CSV dengan label serta delta yang konsisten dan phone layout terbaca, feedback undangan yang tidak mengklaim delivery, serta regresi auto-grant Superadmin untuk API/seed/sesi aktif tanpa memberikan hak otomatis ke non-SA. Stabilitas shared menu/popover juga diperbaiki setelah race cold-open dibuktikan; fokus keyboard dan controlled-owner rejection dipertahankan.
 
 QA menyatakan lima temuan batch A Closed / verified dan merekomendasikan penerimaan scoped lokal. Independen63browser+30CPU4cold,135API dan shared23/UI28/web11 lulus; Designer menerima13PNG final dan source/build binding. Developer fullcheck1576 lulus pada Bun1.4.3; budget22route diukur ulang QA tepat-byte, Users255600/headroom400. Batas bukti: macOS/Chromium emulation, bukan fullfinalLinux/WebKit/realdevice atau provider nyata. Risks/historical failures tetap tercatat di QA; source tetap beku, tidak ada commit/merge/deploy. Kandidat batch B/C dan keputusan distribusi/versi tetap terpisah dari selesainya batch A.
+
+
+## Prioritas setelah integrasi — DEC-024, 9 November2026
+
+Pemilik meminta langkah berikutnya. Pengecekan aktual menemukan CI untuk commit main `c459bb0d662cb756810f3030709d6fe0323aac0a` sudah selesai dengan failure: job check dan gitleaks success, E2E shard1/2/4 gagal dengan total5kasus, shard3 success. [Run42502573858](https://github.com/FarhanRiuzaki/Project-Starterkit/actions/runs/42502573858). Hasil lokal/QA sebelumnya tetap sah pada scope/platform yang dicatat; itu bukan bukti fullLinuxCI hijau.
+
+Dua stale oracle terbukti dari source/log: ds-components masih mencari `.nav-tree-branch` pada Users setelah child Users dihapus; permissions.spec masih memakai label/helper invitation lama. Dua screenshot galeri mobile light/dark berosilasi tinggi37119/38012px, dan first-paint Users mobile dark/reduced mencatat blank region; tiga kasus ini belum ditetapkan sebagai produk vs harness/lingkungan. Jangan menyebut flake/fixed tanpa reproduksi atau menyetujui snapshot baru/timeout untuk meluluskan.
+
+Rekomendasi: stabilisasi CI dahulu, lalu NEXT-AUD-002 (shareable detail dan exact actor/target investigation,1,5–3hari Developer), kemudian NEXT-INV-001 (lifecycle invitation3–5hari setelah model dan delivery-test strategy jelas). Account cleanup/access explanation/DX tetap berikutnya. Estimasi stabilisasi belum dikunci; diagnosis0,5hari fokus untuk tiga kasus non-oracle lalu reforecast berdasarkan akar masalah. Ini prioritas dan spesifikasi berikutnya; belum menjalankan implementasi tambahan atas pertanyaan “what next”.
+
+Runtime preference pemilik: frontend hanya3000, API internal4000; preview3453/3454 dan API4453/4454 sudah dihentikan. Preview links345x pada riwayat menunjuk evidence masa verifikasi, bukan server aktif. Node24/Next dev pada3000 direstart dan cache dev lama diarsipkan; DB/akun tidak diubah. Rencana pengujian berikutnya harus menjaga dev3000/data; jangan menghidupkan preview host lain diam-diam.
+
+
+## Batch dipilih — audit investigasi, DEC-025
+
+Pemilik memilih nomor1 melalui “gas 1”: bangun copy link kejadian, filter actor/target persis, dan akses riwayat dari detail user/project. Detail entry tetap dapat dibuka di luar page/range/filter list; log snapshot bertahan saat record actor/target dihapus. History link memakai Last90days yang jelas, bukan klaim seluruh retention. Kejadian dipilih melalui entry query; pilihan entry tidak menjadi named/rememberedview.
+
+Urutan fitur ini mendahului rekomendasi stabilisasi CI DEC-024 atas pilihan pemilik. Lima kegagalan CI tetap diketahui dan tidak disebut fixed; penerimaan baru memerlukan bukti scoped dan risiko CI tetap disampaikan. Invitation lifecycle dan metadata request audit belum masuk. Forecast Developer1,5–3hari fokus, Designer0,25–0,5 dan QA0,5–1 sebagian overlap, belum komitmen tanggal karena kapasitas belum tersedia. Tiga role menerima penugasan melalui thread koordinasi, Developer mulai API/tests sembari Designer/QA menyelesaikan handoff/oracle.
+
+Pengujian tidak mengubah dev3000/API4000 atau akun/data pengguna: Docker internal tanpa published host ports memakai DB/cache/akun fixture sendiri. Tidak ada preview host baru, reset devDB, commit/merge/push dari pilihan ini.
+
+Progress komponen: QA independen API/shared lulus188API +3probeQA +27shared pada230input hash59fc263d…135de, terverifikasi PL bersama evidence/envelope tanpa mismatch. Run memakai app.handle host dengan DB QA sendiri dan tanpa listen/port; bukan browser produksi. UI/URL final, production Docker browser, visual review, bytebudget dan final source binding masih dikerjakan, sehingga fitur belum dinyatakan diterima.
+
+Candidate bytegate: build iyOjDEw-xlEJIvzpGFBpX meluluskan22route; Activity255997byte/headroom3, Users255965/35, Auth255742/258. Threshold256000 tidak diubah atau dibulatkan. Source dibekukan untuk verifikasi final, tanpa optimasi tambahan setelah gate lulus. Margin sangat sempit menjadi risiko eksplisit; QA/Designer final dan final source binding belum selesai pada catatan ini.
+
+Review kandidat membuka AUD2-DES-001: detail opaque target dengan edgewhitespace/control perlu quoted presentation agar identitas tidak tampak menyatu. Koreksi wajib sebelum penerimaan visual; API/DTO/filter/CSV tidak berubah. Build kandidat lama tetap evidence baseline; source/build baru akan dibekukan setelah QA slot selesai, bytegate dan affected verification diulang. Status fitur masih dalam verifikasi, belum accepted.
+
+R2 sesudah explicit QA slot return: build vw_fJi0Zpw9N0jU-Y-2sr berhasil,711product/486runtime, runtime4f29f9d4455c36eff8b7f6fda499cbbc53362f10d3ccacde9cf8ad031afc966e/product71796c39790608b06ed2d8e9f49d2a8cc89e220e6e73172e39ac61dd31d96ec8. Bytegate22 tetap identik; patch lazy formatter tidak menambah firstload pada build ini. Developer own18/fullcheck dan QA/Designer R2 review belum selesai pada catatan ini; R1 dipertahankan sebagai evidence finding.
+
+
+## Hasil akhir audit investigasi — DEC-026
+
+**GO penggunaan lokal NEXT-AUD-002**, kandidat R2 build`vw_fJi0Zpw9N0jU-Y-2sr`, runtime`4f29f9d4455c36eff8b7f6fda499cbbc53362f10d3ccacde9cf8ad031afc966e`, product`71796c39790608b06ed2d8e9f49d2a8cc89e220e6e73172e39ac61dd31d96ec8`. Activity log sekarang menyediakan Copy link/direct entry independen range/page/filter, exact actor dan target investigation dengan grouped chips, riwayat user/project90d dan known record links sesuai izin/availability. Cached403/404, deleted target, stale500, URL/Back/Close/focus, loading module/data dan failure recovery ditangani. User recent20 memakai type=user+id; entry transient tidak tersimpan sebagai named/rememberedview.
+
+Developer fullcheck1619 dan browser18 lulus; QA independen API/shared dan R2 UI lulus serta AUD2-DES-001 Closed/verified, Designer final scoped visual accepted setelah actual mobile scroll dan settled userhistory dibuktikan. PL memverifikasi source/build/artifact/budget yang sama. Scope evidence adalah pinned runtime, PostgreSQL fixtures dan Chromium emulation; fullLinuxCI, WebKit/realdevice dan provider produksi bukan klaim keputusan ini. Catatan R1 failed/harness correction dan scroll0coverage retraction tetap ada.
+
+Semua22route≤256000byte, Activity255997/Users255965/Auth255742: margin3/35/258byte diterima sebagai risiko lokal dan wajib diukur ulang pada perubahan berikutnya. Lima failure CI main lama tetap terbuka; localGO tidak mengubahnya menjadi pass. Tidak ada dependency/migration/index/env produksi baru, Figma edit atau commit/merge/push. Frontend tetap localhost3000, API internal4000; data/akun dev dipertahankan.
+
+Setelah seluruh slot dikembalikan, verification Docker workbench+Postgres dihentikan tanpa menghapus volume, compiled images atau evidence. Pemeriksaan akhir login3000/ready4000 tetap200; hanya frontend host3000 dan APIinternal4000 milik dev yang dipertahankan. GitHEAD tetapc459bb0; tidak ada commit/merge/push.

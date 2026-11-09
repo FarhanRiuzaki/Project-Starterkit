@@ -11,7 +11,7 @@ import { ProjectListQuery } from "@starterkit/shared/contracts/projects";
 import { PermissionListQuery, RoleListQuery } from "@starterkit/shared/contracts/rbac";
 import { UserListQuery } from "@starterkit/shared/contracts/users";
 import {
-  ACTIVITY, AUTH_LOG, dashboardRead, ME_KEY, MY_SESSIONS, PERMISSIONS_TABLE, projectDetail, PROJECTS, roleKey, roleOptions, roleUrl, ROLES, SUPERADMINS,
+  ACTIVITY, AUTH_LOG, activityEntry, dashboardRead, ME_KEY, MY_SESSIONS, PERMISSIONS_TABLE, projectDetail, PROJECTS, roleKey, roleOptions, roleUrl, ROLES, SUPERADMINS,
   type TableDef, userDetail as userDetailQuery, USERS, userSessions as userSessionsTable,
 } from "@/lib/shared/queries";
 import { readTable, tableRequest } from "@/lib/shared/table-state";
@@ -37,7 +37,7 @@ export function toSearch(sp: SearchParams): URLSearchParams {
  * A request the route's schema would reject (400) reads nothing.
  */
 export function table<F extends Record<string, string>, Q>(def: TableDef<F>, sp: URLSearchParams, schema: z.ZodType<Q>): Read {
-  const { url } = tableRequest(def.path, readTable(sp, def.spec), def.spec, def.params);
+  const { url } = tableRequest(def.path, readTable(sp, def.spec), def.spec, def.params, { search: sp, keys: def.rawFilters ?? [] });
   const ok = schema.safeParse(filterQueryValues(new URL(url, "http://local").searchParams)).success;
   return { key: [def.key, url], path: ok ? url : null };
 }
@@ -55,6 +55,7 @@ export const reads = {
   roles: (sp: URLSearchParams) => table(ROLES, sp, RoleListQuery),
   role: (id: string): Read => ({ key: roleKey(id), path: roleUrl(id) }),
   permissions: (sp: URLSearchParams) => table(PERMISSIONS_TABLE, sp, PermissionListQuery),
+  activityEntry: (id: string): Read => ({ key: activityEntry(id).key, path: activityEntry(id).url }),
   activity: (sp: URLSearchParams) => table(ACTIVITY, sp, ActivityQuery),
   authLog: (sp: URLSearchParams) => table(AUTH_LOG, sp, AuthLogQuery),
   projects: (sp: URLSearchParams) => table(PROJECTS, sp, ProjectListQuery),

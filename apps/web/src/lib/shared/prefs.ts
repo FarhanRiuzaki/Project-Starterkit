@@ -22,9 +22,11 @@ const VIEW_MAX = REMEMBERED_VIEW_QUERY_MAX; // characters per view: the whole co
 const hiddenKeys = (v: string | null): string[] => [...new Set((v ?? "").split(",").filter((k) => /^[a-zA-Z][a-zA-Z0-9]{0,39}$/.test(k)))].slice(0, 20);
 const isViewPage = (p: string): p is ViewPage => (VIEW_PAGES as readonly string[]).includes(p);
 
+const viewParams = (path: string, raw: string | URLSearchParams) => { const q = new URLSearchParams(raw); if (path === "/audit/activity") q.delete("entry"); return q; };
+
 /** A table's URL query as it is remembered: without the page and the search keys; "" = the defaults. */
-export function savedView(sp: URLSearchParams, search: readonly string[] = []): string {
-  const q = new URLSearchParams(sp);
+export function savedView(sp: URLSearchParams, search: readonly string[] = [], path?: string): string {
+  const q = viewParams(path ?? "", sp);
   for (const k of ["page", ...search]) q.delete(k);
   return canonicalFilterQuery(q).toString();
 }
@@ -35,7 +37,7 @@ export function parsePrefs(raw: string | undefined): Prefs {
   const views: Prefs["views"] = {};
   const hidden: Prefs["hidden"] = {};
   for (const p of VIEW_PAGES) {
-    const v = savedView(new URLSearchParams(q.get(`view:${p}`) ?? ""));
+    const v = savedView(new URLSearchParams(q.get(`view:${p}`) ?? ""), [], p);
     if (v && v.length <= VIEW_MAX) views[p] = v;
     const h = hiddenKeys(q.get(`cols:${p}`));
     if (h.length) hidden[p] = h;
@@ -51,7 +53,7 @@ export function parsePrefs(raw: string | undefined): Prefs {
 
 export function prefsCookie(p: Prefs, secure: boolean): string {
   const q = new URLSearchParams({ sidebar: p.sidebar, density: p.density, keys: p.keys });
-  for (const [page, v] of Object.entries(p.views)) if (v && isViewPage(page) && v.length <= VIEW_MAX) q.set(`view:${page}`, v);
+  for (const [page, raw] of Object.entries(p.views)) { const v = page === "/audit/activity" ? viewParams(page, raw ?? "").toString() : raw ?? ""; if (v && isViewPage(page) && v.length <= VIEW_MAX) q.set(`view:${page}`, v); }
   for (const [page, h] of Object.entries(p.hidden)) { const keys = hiddenKeys(h?.join(",") ?? null); if (keys.length && isViewPage(page)) q.set(`cols:${page}`, keys.join(",")); }
   return `${PREFS_COOKIE}=${encodeURIComponent(q.toString())}; Path=/; Max-Age=31536000; SameSite=Strict${secure ? "; Secure" : ""}`;
 }
@@ -59,6 +61,6 @@ export function prefsCookie(p: Prefs, secure: boolean): string {
 /** A navigation link to `href`, reopening its remembered view (the query is re-encoded, so it can't change the path). */
 export function viewHref(href: string, prefs: Prefs): string {
   const v = isViewPage(href) ? prefs.views[href] : undefined;
-  const q = v ? new URLSearchParams(v).toString() : "";
+  const q = v ? viewParams(href, v).toString() : "";
   return q ? `${href}?${q}` : href;
 }

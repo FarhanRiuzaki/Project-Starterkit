@@ -13,3 +13,10 @@ describe("saved views", () => {
     expect(viewLink("/users", "a=%2F%2Fevil.com#x")).toBe("/users?a=%2F%2Fevil.com%23x");
   });
 });
+
+it("activity named view excludes transient entry on save/match and legacy replay without losing exact identities", () => {
+  const query = "entry=incident&actorId=actor&targetType=Legacy&targetId=A%20b";
+  expect(viewQuery(new URLSearchParams(query), "/audit/activity")).toBe("actorId=actor&targetId=A+b&targetType=Legacy");
+  expect(viewLink("/audit/activity", query)).toBe("/audit/activity?actorId=actor&targetId=A+b&targetType=Legacy");
+  expect(viewLink("/users", "entry=unrelated&role=Admin")).toBe("/users?entry=unrelated&role=Admin");
+});

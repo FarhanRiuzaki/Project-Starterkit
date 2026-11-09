@@ -7,5 +7,6 @@ export const generateMetadata = (): Promise<Metadata> => guardedTitle("Activity 
 
 export default async function Page({ searchParams }: { searchParams: Promise<SearchParams> }) {
   await requirePagePermission("audit.view");
-  return <Prefetch reads={[reads.activity(toSearch(await searchParams))]}><ActivityPage /></Prefetch>;
+  const search = toSearch(await searchParams);
+  return <Prefetch reads={[reads.activity(search), ...(search.has("entry") ? [reads.activityEntry(search.get("entry") ?? "")] : [])]}><ActivityPage /></Prefetch>;
 }

@@ -30,12 +30,16 @@ function FilterFields<F extends Record<string, string>>({ render, values, onPatc
   render: (values: F, patch: (values: Partial<F>) => void) => ReactNode; values: F; onPatch: (values: Partial<F>) => void;
 }) { return render(values, onPatch); }
 
+function FilterResults({ render, summary, isOpen, flush }: { render: (parts: { summary: ReactNode; isOpen: boolean; flush: () => void }) => ReactNode; summary: ReactNode; isOpen: boolean; flush: () => void }) {
+  return render({ summary, isOpen, flush });
+}
+
 /** URL-owned live filtering. JSON is internal string state only; public requests and views retain repeated values. */
 export function FilterLayout<F extends Record<string, string>>({ values, defaults, fields, onApply, filters, children, busy = false, description = "Narrow this list to the results you need." }: {
   values: F; defaults: F; fields: readonly FilterField<keyof F & string>[];
   onApply: (values: F, options: { history: "push" | "replace" }) => void;
   filters: (values: F, patch: (values: Partial<F>) => void) => ReactNode;
-  children: (parts: { summary: ReactNode; isOpen: boolean }) => ReactNode; busy?: boolean; description?: string;
+  children: (parts: { summary: ReactNode; isOpen: boolean; flush: () => void }) => ReactNode; busy?: boolean; description?: string;
 }) {
   const prefix = useId();
   const [results, setResults] = useState<HTMLDivElement | null>(null);
@@ -104,7 +108,7 @@ export function FilterLayout<F extends Record<string, string>>({ values, default
         clear={clear} canClear={canClear} onSubmit={e => { e.preventDefault(); flush(); }}>
         <FilterFields render={filters} values={current} onPatch={patch} />
       </FilterPanel>
-      <div ref={setResults} data-slot="filter-results" className="min-w-0">{children({ summary, isOpen: open })}</div>
+      <div ref={setResults} data-slot="filter-results" className="min-w-0"><FilterResults render={children} summary={summary} isOpen={open} flush={flush} /></div>
       <span role="status" className="sr-only">{busy ? "Updating results…" : active.length ? `${active.length} active selections.` : "No active selections."}</span>
     </div>
   </FilterGroups.Provider></FilterSearchActions.Provider></FilterFocusId.Provider>;

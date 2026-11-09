@@ -16,6 +16,7 @@ import { PageHeader } from "@/components/shell/page-header";
 import { api, isNotFound } from "@/lib/client/api";
 import { useAuth } from "@/lib/client/auth-context";
 import { BRAND } from "@starterkit/shared/brand";
+import { activityHistoryHref } from "@/lib/shared/activity-links";
 import { projectDetail } from "@/lib/shared/queries";
 import { PROJECT_DETAIL_SHAPE } from "./shapes";
 import { PROJECT_LEGEND, projectPage, PROJECTS_KEY, projectStatus, projectUrl, useProjectDetail } from "./use-projects";
@@ -69,7 +70,10 @@ export function ProjectDetail({ id }: { id: string }) {
   return (
     <div className="grid gap-section">
       <PageHeader title={p.name} status={<StatusChip health={s.health} label={s.label} />} description="A project and its status."
-        actions={can("project.edit") && <Button asChild variant="secondary"><Link href={`${projectPage(id)}/edit`}>Edit project</Link></Button>}
+        actions={<>
+          {can("project.edit") && <Button asChild variant="secondary"><Link href={`${projectPage(id)}/edit`}>Edit project</Link></Button>}
+          {can("audit.view") && <div className="grid gap-1"><Button asChild variant="secondary"><Link href={activityHistoryHref("project", p.id)}>View history</Link></Button><span className="text-caption text-fg-3">Activity · Last 90 days</span></div>}
+        </>}
         more={can("project.delete") ? [{ label: "Delete project", destructive: true, onSelect: () => setDeleting(true) }] : []} />
       {q.error && <Notice tone="warn" live>Couldn&apos;t refresh this project; showing the last loaded details.</Notice>}
       <Panel icon={FolderIcon} title="Details" description="Project facts" legend={PROJECT_LEGEND}>

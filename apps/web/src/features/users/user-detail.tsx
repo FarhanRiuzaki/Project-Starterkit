@@ -21,6 +21,7 @@ import type { SessionDto } from "@starterkit/shared/contracts/me";
 import { actionLabel } from "@starterkit/shared/audit";
 import type { ActivityBrief } from "@starterkit/shared/contracts/users";
 import { MODULES, permissionLabel } from "@starterkit/shared/permissions";
+import { activityHistoryHref } from "@/lib/shared/activity-links";
 import { userDetail, userSessions } from "@/lib/shared/queries";
 import { BRAND } from "@starterkit/shared/brand";
 import { UserStatusChip } from "./user-columns";
@@ -150,9 +151,11 @@ export function UserDetail({ id }: { id: string }) {
       <SessionsTable table={userSessions(id)} enabled={!userGone(q.error, deleted)} title="Active sessions" description="Where this user is signed in"
         current="Your session" emptyHint="Sessions appear here when this user signs in."
         action={can("user.edit") ? (s) => (s.current ? <span className="text-caption text-fg-3">Your session</span> : <BlockedButton size="sm" variant="ghost" reason={rank} caption={false} onClick={() => setDialog({ end: s })}>End session</BlockedButton>) : undefined} />
-      {u.recentActivity && (
-      <Panel flush icon={LogIcon} title="Recent activity" description="The last 20 actions on this user" count={u.recentActivity.length}>
+      {can("audit.view") && u.recentActivity && (
+      <Panel flush icon={LogIcon} title="Recent activity" description="The last 20 actions on this user" count={u.recentActivity.length}
+        actions={<div className="flex flex-wrap items-center gap-2"><span className="text-caption text-fg-3">Activity · Last 90 days</span><Button asChild variant="secondary" size="sm"><Link href={activityHistoryHref("user", u.id)}>View history</Link></Button></div>}>
         <DataTable label="Recent activity" columns={ACTIVITY_COLUMNS} rows={u.recentActivity} rowKey={(a) => a.id}
+          rowActions={entry => <Button asChild variant="ghost" size="sm"><Link href={activityHistoryHref("user", u.id, entry.id)}>View entry</Link></Button>}
           empty={{ icon: ActivityIcon, title: "No activity yet", description: "Changes to this user appear here." }} />
       </Panel>
       )}

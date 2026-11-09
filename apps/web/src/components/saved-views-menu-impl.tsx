@@ -39,8 +39,8 @@ export function SavedViewsMenuImpl() {
   const [name, setName] = useState("");
   const { key, url } = savedViews(path);
   const q = useQuery({ queryKey: key, queryFn: () => api<Page<SavedViewDto>>(url), enabled: opened });
-  const here = viewQuery(new URLSearchParams(sp.toString()));
-  const current = q.data?.items.find((v) => viewQuery(new URLSearchParams(v.query)) === here) ?? null;
+  const here = viewQuery(new URLSearchParams(sp.toString()), path);
+  const current = q.data?.items.find((v) => viewQuery(new URLSearchParams(v.query), path) === here) ?? null;
   const refresh = () => qc.invalidateQueries({ queryKey: key });
 
   async function save() {

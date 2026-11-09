@@ -4,7 +4,8 @@ import { Elysia } from "elysia";
 import { ActivityQuery, AuthLogQuery } from "@starterkit/shared/contracts/audit";
 import { csvFileName } from "@starterkit/ui/lib/csv";
 import { guard } from "../auth";
-import { activityCsv, activityPage, authLogCsv, authLogPage } from "./service";
+import { idParam } from "../../kernel/parse";
+import { activityCsv, activityDetail, activityPage, authLogCsv, authLogPage } from "./service";
 
 /** A CSV attachment `<prefix>-<date in the app time zone>.csv`, never cached. */
 const csvResponse = (prefix: string, text: string): Response =>
@@ -22,5 +23,6 @@ export const auditController = () =>
     .use(guard)
     .get("/v1/audit/activity", async ({ query }) => (query.format === "csv" ? csvResponse("activity", await activityCsv(query)) : activityPage(query)),
       { query: ActivityQuery, guard: "audit.view" })
+    .get("/v1/audit/activity/:id", ({ params }) => activityDetail(idParam(params.id, "activity entry")), { guard: "audit.view" })
     .get("/v1/audit/auth", async ({ query }) => (query.format === "csv" ? csvResponse("sign-in", await authLogCsv(query)) : authLogPage(query)),
       { query: AuthLogQuery, guard: "audit.view" });

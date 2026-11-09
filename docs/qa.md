@@ -1,5 +1,292 @@
 # QA SunnyGo
 
+## Sesi 4 — 9 November 2026 / NEXT-QA-004
+
+**NEXT-QA-004 Done — rekomendasi GO lokal scope NEXT-AUD-002 pada kandidat R2.** Retest independen selesai;
+seluruh assertions produk yang dijalankan lulus dan Designer memberi final scoped visual acceptance.
+AUD2-DES-001 **Closed / QA verified pada R2**, bukan ditutup dari klaim Developer. Lima probe yang sebelumnya
+tertahan harness/oracle telah dikoreksi dan lulus pada build baru. Riwayat R1 gagal tetap dipertahankan.
+Hasil hanya untuk scope NEXT-AUD-002 dan kandidat R2 di bawah; known-red CI/template release tetap terpisah.
+
+Acuan: [DEC-025](decisions.md#dec-025--pemilik-memilih-audit-investigasi-sebagai-batch-berikutnya),
+[backlog batch audit](backlog.md#batch-investigasi-audit--dec-025-dipilih-pemilik),
+[kontrak arsitektur](architecture.md#kontrak-implementasi-audit-investigasi--dec-025-aktif), dan
+[handoff Designer NEXT-DES-003](design.md#next-des-003--audit-investigasi-entry-link-exact-filters-dan-history).
+Handoff tertulis menjadi acuan delta; tidak ada perubahan Figma untuk batch ini. Review visual R2 dicatat di bawah.
+Keputusan final mempertahankan free-user search pada actor action menggantikan saran awal Designer untuk
+menghapusnya. Temuan/hasil batch sebelumnya di bawah tetap historis, tidak dipindahkan menjadi hasil batch ini.
+
+### Scope, revisi dan lingkungan
+
+Scope: GET detail Activity, exact actor/target filters, URL/history/focus/cache detail, copy link, user/project
+history entrypoints, record availability, serta dependency recent-user type predicate dan transient saved views.
+Sign-in detail endpoint, manual UUID/type/ID form, lookup service, invitation lifecycle dan request metadata bukan
+scope. Perbaikan lima kegagalan CI DEC-024 merupakan pekerjaan terpisah. QA tidak mengubah kode produk.
+
+Baseline HEAD `c459bb0d662cb756810f3030709d6fe0323aac0a`; kandidat R1 dibekukan dan diuji dengan identitas di bawah.
+Developer menyiapkan patch R2 di host atas izin PL selama slot R1; frozen container/build R1 tidak diubah.
+R2 kemudian dibekukan dan diverifikasi QA terpisah. Pembacaan source/test sendiri bukan bukti eksekusi.
+
+Frontend host yang diizinkan hanya **localhost:3000**, API4000 existing. Preview3453/3454 dan API4453/4454
+historis telah dihentikan, tidak direstart. Runtime/data/akun dev tidak direset, login tidak ditebak, live cookie,
+session dan secret tidak disalin ke harness. Pemeriksaan read-only Docker menunjukkan engine tersedia, tidak ada
+container berjalan, image `starterkit-dev:local` dan `postgres:18` tersedia; QA belum menjalankan container.
+
+Lingkungan retest yang disepakati: Docker internal milik Developer, **tanpa published host ports**, private network,
+PostgreSQL18 dengan DB/seed fixture khusus, browser internal, Bun1.4.3 dan Node24. Gunakan snapshot source beku
+tanpa live `.env`, volume dependencies/cache/build terpisah. Harness lama yang membaca live DATABASE_URL atau
+mount checkout beserta env/cache dev tidak dipakai apa adanya. API tests memakai DB khusus berakhiran `_test`;
+replay QA mendapat fixture/DB sendiri dan slot serial, bukan menjalankan reset bersamaan dengan Developer.
+
+### Pemetaan acceptance criteria ke skenario
+
+Prioritas di bawah adalah **urutan pengujian berdasarkan risiko**, bukan perubahan prioritas produk. P0 mencakup
+authorization, kehilangan identitas/predicate dan kebocoran cached evidence; P1 mencakup alur investigasi,
+aksesibilitas dan regresi terkait. Ini peta skenario, bukan tanda semua cakupan sudah lulus; eksekusi per lapisan
+dicatat pada hasil subset dan R1 di bawah. Area pending tidak dianggap lulus.
+
+| ID / risiko | Acuan acceptance dan skenario / oracle | Metode yang direncanakan |
+| --- | --- | --- |
+| AQ4-01 / P0 | GET `/v1/audit/activity/:id`: internal-token gate existing; no session401, no `audit.view`403 sebelum audit lookup. Untuk matched route, guard mendahului invalid-ID404. Authorized invalid UUID404 tanpa audit query; valid unknown/purged404. Session/role reads bukan audit lookup. | API integration dengan spy/fixture dan BFF authenticated replay |
+| AQ4-02 / P0 | Existing ActivityDto memakai stored actor/target snapshot, bukan live joins. Actor/target dihapus atau diganti nama: detail200 dengan evidence lama. Entry sendiri dipurge:404. Pemegang global `audit.view` boleh membaca event orang lain; tidak menciptakan ownership rule baru. User tanpa izin tidak boleh membaca event miliknya sendiri. | API integration real stored fixtures dan browser |
+| AQ4-03 / P0 | Invalid actor UUID, pair missing/empty, type65/ID513 atau NUL menghasilkan400 sebelum guard/session. Boundary1/64/512 diterima; nil/uppercase UUID-shape actor sesuai kernel, bukan stricter UUID-version validator. Scalar repeats first termasuk empty-first; action tetap OR multivalue. | Shared contracts + API integration, authorized/anonymous cases |
+| AQ4-04 / P0 | Target opaque exact: permission/session/composite/non-UUID, whitespace tepi, newline, Unicode, comma, SQL/HTML-like text dan prototype-like strings tidak trim/casefold/truncate. U+0000 ditolak; control lain tetap literal. UUID-looking target beda case adalah identitas berbeda; actor UUID beda case identitas sama. Query parameterized, rendering escaped. | Boundary fixtures, API list/CSV, shared tests dan UI probes |
+| AQ4-05 / P0 | Rows/count/CSV memakai predicate sama: actor AND paired target AND existing free-user/range AND action OR. Fixture lebih dari satu halaman (misalnya21 match/page15), near misses actor lain bernama sama, targetID sama/type berbeda, prefix/case ID, action dan range berbeda. Bandingkan set IDs/count/CSV, pagination/sort stabil dan valid-no-match kosong. | API integration parity + browser pagination/export |
+| AQ4-06 / P0 | Raw URL `actorId=`, pair kosong/separuh/oversize tetap error400, tidak berubah menjadi unfiltered pada SSR/client/export. Invalid prefetch tidak membaca list; client key membedakan invalid URL. Unrelated sort/action/page update mempertahankan raw presence/value. Explicit chip clear menghapus key walau normalized empty sama default, target atomik/page1; Back memulihkan invalid URL/error. | Shared request/table-state/prefetch tests + browser invalid→interact→clear→Back |
+| AQ4-07 / P0 | Detail key/path audit-owned, independen page/range/filter/empty/error list; offpage/offrange entry tetap terbaca. Past-end list correction mempertahankan entry. Entry absent dari list query/count/CSV. Malformed/empty first `entry` membuka generic404, tidak diam-diam hilang atau fetch collection; uppercase entry memakai lowercase BFF detail path. | Shared key/prefetch tests + network assertions dan direct browser loads |
+| AQ4-08 / P0 | A→B: old A fields/title/error tidak tampil sebagai B; delayed A200/404/500 tidak mengganti B. Same-ID refetch403/404 menyembunyikan cached fields/actions dan menampilkan terminal state. Same-ID500 boleh stale data dengan Notice+Retry; initial500/new ID tidak boleh data ID lain. | Deterministic delayed/fault browser responses + API permission-revocation case |
+| AQ4-09 / P0 | Permission dicabut mid-session diterapkan next request; detail cached200→403 tetap aman. API401 mengikuti login redirect existing dengan return URL termasuk entry. Retry selalu latestID dan tidak mengubah list context. | API sessions/guard regressions + browser cache/failure replay |
+| AQ4-10 / P1 | Row View entry menyelesaikan pending search menurut commit/blur existing lalu satu PUSH URL committed+entry; range/filter/sort/page/size/refresh tetap. Back menutup, Forward membuka. Bila current URL sudah memiliki entry, row A→B REPLACE pada slot itu, bukan PUSH; same-ID open no-op. Transfer owned list-origin hanya bila exact currentA URL/marker membuktikannya, memakai actualBtrigger; jika tidak, clear origin. Owned C→A→replaceB: Close/Back ke C, Forward ke B, A tidak resurrect. Owned Close/Escape/scrim Back hanya jika provenance dan current URL cocok; bukan history.length. | Browser history length/URL assertions, normal dan pending-search input |
+| AQ4-11 / P1 | Direct URL/reload/user-project source: Close REPLACE menghapus hanya entry dan tetap Activity list; browser Back biasa dapat kembali sumber. DirectA→replaceB tidak memperoleh owned origin; CloseB tetap Activity list dan tidak Back keluar aplikasi. Navigasi route melepas dialog. Background URL changes mempertahankan ID jika entry ada, tidak ada delayed reopen/close. | Browser direct/reload/source/history sequences |
+| AQ4-12 / P1 | Fokus sekali ke loading/error panel; ready/retry tidak merebut fokus berulang. Close ke actual row trigger hanya bila connected+visible+enabled, selain itu Activity h1 `tabIndex=-1`, bukan BODY. Retry yang hilang kembali ke panel. Tab trap/Escape/scrim mengikuti Dialog phone existing. | Keyboard/focus probes desktop/phone, row removed/hidden dan direct load |
+| AQ4-13 / P1 | Copy link hanya ready200: absolute same-origin `/audit/activity?entry=<uuid>` tanpa list params/credentials, address bar context tetap. Success `Link copied.` polite tanpa focus move. API clipboard gagal→fallback; semua gagal menampilkan exact failure copy+read-only selectable URL, tidak false success; focus Copy lalu nextTab field. | Clipboard controlled capabilities/failures + actual helper path, browser assertions |
+| AQ4-14 / P0 | View actor activity set actorId saja; View target activity set paired target atomik. Keduanya preserve free-user dan semua filter/range/sort/size lain (AND), page1/remove entry dalam satu PUSH. Cancel pending debounce, pakai latest committed URL, tanpa draft resurrect; zero result sah. | Browser network/URL/history/timer sequences + shared state tests |
+| AQ4-15 / P1 | Actor logical count1, pair count1, entry0. Chip target satu identity dan X hapus kedua key; Clear all preserve range/refresh existing. Empty/missing raw labels dapat dibedakan dan direcover. Tidak ada manual rail UUID/type/ID fields, virtual internal pair key tidak bocor ke URL/API/views. | Browser chip/badge/clear + serialization unit |
+| AQ4-16 / P1 | Invalid/missing actor tidak diinfer dari nama; unknown target types tetap literal. Target ID>512 tetap detail-readable tetapi filter blocked dengan reason, tidak dipotong; invalid pair/type memakai blocked reason Designer. Values whitespace/control terlihat tanpa collapse identity atau unsafe markup. | Legacy fixture browser + shared helper tests |
+| AQ4-17 / P0 | Exact fields persist pada named/remembered views, entry tidak. Activity `/me/views` raw save strips key entry; legacy DTO read dan client viewLink juga strip tanpa update/migration row. Strip key-specific, bukan substring dalam target value; path lain tetap existing. Legacy remembered entry tidak membuka dialog. | API views integration + shared prefs/viewLink + browser save/reopen |
+| AQ4-18 / P1 | Existing remembered300/named4096 length limits tetap. Unicode/long exact URL yang melebihi storage cap memberi hasil limit/recovery jujur, tidak truncate identity/relax cap; URL tidak dibuang. View ownership/CSRF/IDOR tetap existing. | Boundary unit/API regression + browser storage limit path |
+| AQ4-19 / P0 | User recent activity `targetType=user AND targetId=userId`: same UUID project/other-type tidak masuk, aksi actor=user tetapi target lain tidak masuk. Recent20 tetap20 terbaru. Tanpa audit.view DTO recentActivity null dan tidak ada history affordance. | API users integration collision+permission fixtures |
+| AQ4-20 / P1 | User recent View entry menuju clean exact user target+range90d+entry; entry lebih tua90d tetap readable. Header View history/support `Activity · Last 90 days`, tetap ada saat recent empty. Project secondary View history exact project+90d tanpa entry/actor/q/action bawaan. Kedua entrypoints audit.view-gated; tidak ada recent-project API baru. | Browser user/project source links + network/API assertions |
+| AQ4-21 / P0 | Open user/project hanya exact type+valid UUID+permission read+actual GET200. Tanpa read permission tidak ada target GET. Unknown/role/session/bulk tidak ditebak route; cached lookup200 lalu403/404 atau permissionfalse tidak mempertahankan CTA. | Browser permission/network assertions + API read outcomes |
+| AQ4-22 / P1 | Availability404 `Record unavailable.`,403 `Record access unavailable.`, network `Couldn't check record availability.`+Retry check. Error target tidak mengganti snapshot/entry state; rename tidak rewrite recorded label. Stable action space; same-window internal route. Delete/revoke sesudah check ditangani destination guard existing. | Fault/deletion browser sequences dan source snapshot comparison |
+| AQ4-23 / P1 | Loading/ready/empty-notfound/restricted/failure-stale copy sesuai Designer. 360/390phone,834tablet,1440desktop, light/dark, keyboard/reduced motion; long IDs/chips/changes/actions membungkus, no page overflow, Close terjangkau, touch44 dan basic axe. Designer menilai visual yang membutuhkan keputusan desain. | Production browser assertions/screenshots + Designer candidate review |
+| AQ4-24 / P0 | Satu GET baru terdokumentasi dengan audit.view; no extra Next route/sign-in endpoint. Shared query/Prefetch URL/key sama; BFF allowlist tetap ketat, client same-origin, no sibling feature imports. GET read-only, masked Batch A semantics dan CSV formula safety tetap. | Architecture/conformance/shared regressions + targeted BFF/CSV/browser checks |
+| AQ4-25 / P1 | Existing actor/target indexes menjadi baseline; ukur plan exact filter atas representative fixture sebelum usulan index/migration, tanpa menciptakan SLA baru. Budget semua route ≤256000byte gzip, exact sum/headroom; pin runtimes dan full check kandidat. | Developer qualified gates/plan artifacts, QA review dan independent risk subset |
+| AQ4-26 / P1 | Handoff tambahan Designer: sebelum lazy detail module siap, Notice `Opening activity entry…`+Cancel sebagai first visible child di dalam owning FilterSurface setelah PageHeader (DEC-018), termasuk direct URL; selected row trigger yang masih rendered wajib `Opening…`+aria-busy, tanpa second open/history PUSH. Bukan modal/focus trap/inert/autofocus; polite status sekali. Cancel/Escape (bila tidak ada overlay lain/defaultPrevented) memakai close/focus policy yang sama; Cancel sync-invalidates import generation sebelum async Back, sehingga controlled module resolve ketika Back masih held tidak me-mount dialog. Jalur REPLACE menghapus entry sebelum late resolve. Setelah module siap Dialog loading/data/error fokus panel sekali; successful notice unmount tidak menjalankan close/returnFocus atau flash h1. Cancel/entry switch/route leave menggagalkan callback/module/data/copy/focus lama; A tidak membuka atau memfokus setelah B/cancel/leave dan late chunk tidak membuka ulang. Chunk failure `Couldn't open this activity entry.`+`Reload page` (sameURL)+Cancel; bounded `Retry opening` bila loader mendukung, bukan infinite pending. Opening/failure Notice menjadi rail anchor outeredge tanpa extra topgap; setelah hilang, first remaining visible Notice/card menjadi anchor. Constant clearance64 tetap, tanpa nested padding/global-topbar offset tambahan; Header actions clear. Tidak eager-import heavy dialog/diff/Radix demi fallback; byte gate tetap. | Browser held/rejected chunk dan late resolve setelah cancel untuk row+direct; history/focus/handoff, actual bounding boxes pending/ready/cancel/resize (bukan hardcodedY), Designer review, budget |
+
+Fixture minimum: dua actor berbeda dengan nama sama; user/project target UUID sama; target opaque dengan case,
+whitespace/newline/Unicode dan boundary lengths; entry di luar90d, deleted actor/target, missing/purged entry;
+user audit.view tanpa target-read, target-read tanpa audit.view dan session revoked. Seed dan test events hanya
+di DB fixture, termasuk legacy snapshot eksplisit. Event writer nyata dan direct legacy insert diberi label berbeda.
+Canary masking memakai writer/policy existing, tidak mengklaim arbitrary secret yang sudah tersimpan aman saat read.
+
+### Urutan eksekusi dan bukti yang diperlukan
+
+1. Developer menyelesaikan source/tests/docs dan gates, menyiapkan replay internal Docker. Bekukan runtime dan
+   product/test fingerprint, leaf hashes, build ID, runtime/image versions, commands, fixture identity serta artifacts.
+   Verifikasi snapshot tidak membawa live env/cache. QA tidak merebuild kandidat diam-diam.
+2. QA memeriksa packet dan source/build binding, mendapat slot serial+DB replay tersendiri, lalu menjalankan
+   independent targeted API/shared/browser tests di atas berdasarkan delta dan risiko. Pemeriksaan hash/build
+   sebelum/sesudah wajib; source berubah berarti hasil harus diikat revisi yang benar atau retest.
+3. Catat command, environment, pass/fail/skip, log/network/screenshots dan reproducibility. Developer runs diberi
+   atribusi terpisah dari QA runs. Controlled responses menguji UI race/failure; API integration menguji real guard,
+   predicates/persistence. Mock failure bukan bukti fullstack berhasil.
+4. Bug baru memakai `AUD2-QA-xxx`, Task NEXT-AUD-002/NEXT-QA-004, revision/build, environment/prerequisite/data,
+   steps, actual, expected+acuan, severity+dampak, evidence, konsistensi dan workaround. Specification gap,
+   environment blocker dan improvement dipisahkan. Tutup hanya setelah verified pada revisi perbaikan dan regresi.
+5. Designer review artifacts/runtime kandidat yang sama. QA melaporkan verdict beserta scope belum diuji;
+   Product Lead memutuskan penerimaan risiko/rilis. Tidak memperluas kombinasi tes tanpa alasan baru setelah gates
+   relevan lulus. Bila Docker terhalang, laporkan kebutuhan replay; tidak otomatis membuka port atau mengambil dev runtime.
+
+### Hasil saat ini dan rekomendasi
+
+| Kegiatan / area | Status faktual |
+| --- | --- |
+| Baca backlog, desain final, arsitektur, keputusan dan implementation/test source terkait | Selesai sebagai review statis; oracle AQ4-01–26 siap, termasuk handoff tambahan pre-chunk Designer |
+| Pemeriksaan ketersediaan Docker | Read-only selesai; bukan provisioning atau pengujian produk |
+| API/shared component NEXT-AUD-002 | **Lulus scoped**, hasil independen dan binding pada bagian berikut; bukan final-candidate approval |
+| Browser/budget kandidat NEXT-AUD-002 | R2:18replay+10QA probes+2final settled probes lulus,0fail;22route exact budget pass. Point runs tambahan dicatat terpisah di bawah |
+| Full check kandidat | Developer R2:1619pass/typecheck/lint; atribusi Developer, source-binding diverifikasi QA |
+| Bug fitur baru yang direproduksi QA | AUD2-DES-001 Medium **Closed / QA verified R2**; tidak ada open product failure dalam scope hasil ini |
+| Kegagalan CI main `42502573858` pada baseline c459bb0 | **Known-red terpisah**:2 stale nav/invitation oracles,2 mobile DS screenshot-height failures,1 Users dark/reduced first-paint failure; belum diverifikasi perbaikannya oleh QA |
+| Release NEXT-AUD-002 | Retest R2 selesai; rekomendasi scoped lokal dan final Designer disposition di bawah. Bukan klaim seluruh CI/deployment produksi lulus |
+
+Tidak ada ambiguitas kontrak yang masih menahan oracle. R1 dan R2 sudah diuji dengan binding terpisah.
+Lima CI failures tetap dicatat;
+targeted Linux pass nanti tidak berarti seluruh CI hijau. Preview/port dan status environment pada bagian lama
+di bawah adalah kondisi historis pada tanggal masing-masing, bukan izin menghidupkannya kembali.
+
+### Verifikasi independen subset API/shared — 9 November, 01:12–01:14 WIB
+
+Developer menyerahkan component freeze `api-subset.json` sementara UI masih dikerjakan, dan menahan build/browser
+selama slot QA. QA memverifikasi **230 leaf files** API/shared/UI-lib, aggregate SHA256
+`59fc263dec48f367311397446481b8dc1dce2d170825074a5280675fe2a135de` **cocok sebelum/sesudah**;
+tidak ada tracked/new file pada tiga area itu yang tidak tercakup. Root package/lock dan UI package hash juga
+direkam pada `envelope.json`. Binding ini harus dicocokkan lagi dengan kandidat final agar hasil tetap berlaku.
+
+Environment eksekusi component: macOS host, **Node24.21.0/Bun1.4.3**, existing PostgreSQL service dengan **DB QA
+khusus `*_qa_aud2_test`**, bukan DB Developer `*_s3_aud2_test` atau dev. Runner QA mengubah suffix tujuan dan
+preload menimpa DATABASE_URL/MIGRATION_DATABASE_URL serta auth/crypto/mail config menjadi fixture test sebelum
+import app; suffix diperiksa sebelum truncate. Koneksi lokal hanya dipakai untuk DB QA, tidak dipindah ke container.
+API memakai **app.handle in-process tanpa listen/port**, tidak ada server browser/build/container yang dimulai QA.
+Ini handoff component yang diizinkan Developer/PL, bukan klaim Docker production browser sudah diuji.
+
+Bukti QA = `.superpowers/scratch/qa-audit-2/` (ignored), terpisah dari artifacts Developer:
+
+| Eksekusi independen / bukti | Hasil dan cakupan |
+| --- | --- |
+| `node .superpowers/scratch/qa-audit-2/verify-subset.mjs pre` dan `post`; `pre-subset.json`, `post-subset.json`, `envelope.json` |230files cocok,0mismatch, aggregate sama; SHA root dependencies disimpan |
+| `node .superpowers/scratch/qa-audit-2/run-api.mjs api-subset src/modules/audit/tests/integration/investigation.test.ts src/modules/audit/tests/integration/audit.test.ts src/modules/me/tests/integration/views.test.ts src/modules/users/tests/integration/users.test.ts src/modules/auth/tests/integration/guard.test.ts src/kernel/tests/integration/parse.test.ts test/architecture/conformance.test.ts test/app.test.ts`; `api-subset.log` | **188pass/0fail/869assertions**,8files,15,41detik. API detail/guard/invalid-before-read, exact boundary/parity32match+near-misses/list/count/CSV, saved-view ownership+limits+new/legacy entry stripping, users/rank/concurrency/recent targettype, kernel/security/conformance regressions |
+| `node .superpowers/scratch/qa-audit-2/run-api.mjs independent '<absolute repository>/.superpowers/scratch/qa-audit-2/independent.test.ts'`; `independent.log`, `independent.test.ts` | **3pass/0fail/50assertions**,378ms. QA-authored scratch probes: nil actor, type64/UnicodeID512, opaque SQL/control/prototype strings dan case-sensitive UUID-looking targets melalui real DB/detail/list/CSV; bothblank/empty-first repeats list+CSV400; valid-first ignores later invalid. Recent20 hanya ON user, tidak actor-only/typecollision, audit permission revoked→null |
+| `/Users/riuzaki/.npm/_npx/aef7621c2333c54c/node_modules/.bin/bun run --filter @starterkit/shared test`; `shared.log` | **27pass/0fail**,7files,130ms. Contracts/NUL/bounds dan key-specific transient stripping, beserta shared baseline regressions |
+| Query-plan case dalam `api-subset.log` |200k fixture rows, exact actor+target page1000 **3ms pada run ini**, existing actor/target index dipilih; bukan jaminan latency deployment/SLA baru |
+
+AQ4-01–05,17,19 dan bagian API/shared AQ4-24 memperoleh bukti di atas; bagian browser/SSR/view reopening/cache
+dan visual pada baris yang sama **tetap belum diuji**. AQ4-06–16/18/20–23/26 serta budget/full gates AQ4-25 menunggu
+kandidat final sesuai metode masing-masing. Controlled browser races, real BFF HTTP, production bundle dan
+permission-driven UI tidak dianggap lulus oleh app.handle. Tidak ada bug baru yang direproduksi atau tes gagal
+pada slot ini. **Rekomendasi component: siap digabung ke kandidat UI untuk retest**, bukan GO fitur/rilis.
+Slot dikembalikan ke Developer setelah post-hash selesai; QA tidak mengubah API/shared/product source.
+Pesan silang PL sempat meminta replay API Docker; sesudah klarifikasi PL menerima component host di atas dan
+menghentikan duplikasi sebelum build/provision/test Docker dimulai. Snapshot draft di scratch diberi label
+`docker/NOT-EXECUTED.md`, bukan bukti eksekusi. Tidak ada image/network/volume/container Docker QA yang dibuat.
+
+### Kandidat final R2 — retest independen 9 November, 01:58–02:05 WIB
+
+**QA Done — GO lokal yang direkomendasikan untuk scope R2; AUD2-DES-001 Closed / verified.**
+Designer final scoped visual acceptance NEXT-DES-003 diterima pada source/build yang sama. PL memiliki keputusan
+penerimaan/rilis; hasil ini tidak mengklaim seluruh template atau remote CI hijau.
+Product711files SHA256 `71796c39790608b06ed2d8e9f49d2a8cc89e220e6e73172e39ac61dd31d96ec8`;
+runtime486files SHA256 `4f29f9d4455c36eff8b7f6fda499cbbc53362f10d3ccacde9cf8ad031afc966e`;
+build **`vw_fJi0Zpw9N0jU-Y-2sr`**; compiled5761files SHA256
+`6a4360af5a6a278960f9de89b37c5c2b8a54fe242d726bd398fcd12c4e149742`.
+Image `starterkit-aud2-s3:candidate-4f29f9d4455c`, ID
+`sha256:6e57faec5a714ea1e82d6045881c821b3a50cdbc861174b889637fe765950ce4`.
+
+QA memakai runner, platform dan DB aud2_qa_e2e terisolasi yang sama seperti R1; setiap replay seed/login melalui
+fixture sendiri, tidak reuse cookie live, rebuild, publish host ports atau menyentuh dev data. Slot berurutan,
+dikembalikan ke Developer setelah selesai. **Pre/post host711 + container711 + compiled5761 cocok0mismatch**,
+API230 tetap SHA `59fc263dec48f367311397446481b8dc1dce2d170825074a5280675fe2a135de` yang sudah diuji
+188API+3probe+27shared. Bukti: `candidate-r2-pre.json`, `candidate-r2-post.json`,
+`candidate-r2-final-post.json`, `candidate-r2-settled-post.json`; packet asli disimpan `r2/`.
+
+| Eksekusi independen R2 / bukti di `.superpowers/scratch/qa-audit-2/` | Hasil |
+| --- | --- |
+| Same runner `activity-entry.spec.ts audit-investigation.spec.ts --project=desktop`; `candidate-r2-replay.log`, `candidate-r2-replay-artifacts/` | **18pass/0fail**,24,4detik. Regresi affected URL/history/chunk/copy/filter/CSV/cache/states/widths dan escaped identity pada all4widths |
+| Corrected QA `--config /app/.superpowers/scratch/qa-audit-2/qa.config.ts`; `candidate-r2-probes.log`, `candidate-r2-probes-artifacts/` | **10pass/0fail**,9,7detik. Audit-only real Viewer tanpa target GET; live audit permission revoke→403 menghapus cached detail; target cache200→403/404 hide CTA; legacy named+remembered entry stripping/preserve opaque value; held Back/import cancel; invalid-list/offpage detail; long513blocked; phone known project/copy/a11y; AUD2-DES-001 repro kini green |
+| Point User recent history; `candidate-r2-user-capture.log`/artifacts | **1pass**,1,5detik. Actual source link exact user+90d; event2020 tetap readable di luar90d, Open user read200, Close→filtered Activity/h1, browser Back→source user. Capture awal mengandung transisi dan diganti settled evidence berikut |
+| Initial settled Close point; `candidate-r2-scroll.log`/artifacts | **1pass**,2,7detik, hanya membuktikan Close pada settled initial state. Facts inner scrollTop **0→0**; heading sudah visible, sehingga **bukan bukti body telah discroll**. Klaim scroll pada pesan awal ditarik/dikoreksi; raw facts disimpan |
+| Final narrow `--grep 'QA phone user recent\|QA focused settled phone scroll'`; `candidate-r2-settled.log`, `candidate-r2-settled-artifacts/` | **2pass/0fail**,5,1detik. Known-user viewport setelah finite animations selesai+animations disabled, tanpa old Users bleed; actual body scroll **0→331**, outer scroll0/pageY0, header/Close tetap visible; Close focus+click→h1 |
+| QA-authored exact-byte recalculation `exact-budget.mjs`; `exact-budget-r2.json` | **22route pass**,0mismatch terhadap Developer budget. Activity**255997B/headroom3B**, Users**255965B/35B**, Sign-in log**255742B/258B**. Same compiled build, gzip level9 unique chunk union; tidak dibulatkan |
+
+Browser counts di atas adalah **executions per run**, bukan unique scenario count yang dijumlah dengan R1.
+Log `start exited143` sesudah Playwright exit0 berasal dari SIGTERM cleanup owned Next server, bukan failed test;
+tidak dipakai untuk menutupi assertion failure. QA memverifikasi internal3000/4000 berhenti sesudah handoff awal.
+Server yang dipakai pada probe tambahan juga dihentikan runner. Host frontend3000/API4000 tidak disentuh.
+
+**Verifikasi fix:** QA memakai fixture equivalent dengan type `" permission "` dan ID `" \nOpaque\t "`;
+R2 rendered text kini memuat JSON quotes/escape literal sama dengan raw identity representation, bukan collapse.
+`candidate-r2-probes-artifacts/qa-opaque-target-facts.json` dan `qa-opaque-target-metadata.png` mengikat bukti.
+Plain UUID user/project dan legacy513 tetap terlihat/untruncated. Ini menutup **AUD2-DES-001 pada R2**;
+R1 failure tetap valid. Lima red harness/oracle R1 lulus pada corrected10 R2 tanpa perubahan requirement produk.
+
+**Bukti visual final:** QA melihat opaque metadata, phone project/actions/copy fallback dan viewport user/scroll
+settled. `candidate-r2-settled-artifacts/qa-phone-known-user-entry.png`, `qa-phone-user-recent-history.png`,
+`qa-phone-scroll-settled-before.png`, `qa-phone-scroll-settled-after.png` serta JSON facts menggantikan capture
+transisi sebagai evidence settled. Close rect sesudah scroll x338/y136/32×32, header y116–192 pada390×844;
+inner331, outer0/pageY0. Ini actual measured bounding boxes, bukan hardcoded screenshotY oracle.
+Designer memberikan **FINAL scoped visual acceptance NEXT-DES-003/NEXT-AUD-002 R2**, memverifikasi identity di8ready
+views,15PNG packet dan supplemental/final settled captures, termasuk actual scroll0→331 dan known-user history.
+Ledger: `designer/audit-2/r2-visual-review.json`, [docs/design.md](design.md). Mid-transition/scroll0 evidence tidak
+dipakai untuk klaim settled/actual scroll. Tidak ada perubahan Figma/klaim frame baru.
+
+**Atribusi gates Developer:** full check R2 **1619pass/0fail** (UI742/shared27/web288/API562,179files),
+typecheck dan lint max-warnings0; Developer browser18pass25,7detik dan build/budget. Packet/log-source binding
+diverifikasi, tetapi ini bukan eksekusi full check oleh QA. API/shared independent result tetap berlaku karena
+230inputs unchanged; tidak mengulang DB suite tanpa delta. QA tidak mengubah product source.
+
+| Pemetaan akhir / batas | Evidence dan status |
+| --- | --- |
+| AQ4-01–05/17/19 serta API/shared AQ4-24 | Independent API188+probe3+shared27; frozen230 unchanged pada R2. Named view client/remembered dan real permission UI ditambah corrected probes |
+| AQ4-06–16/20–23/26 | QA R2 replay18+own probes dan point cases di atas: exact/invalid URL recovery, list/detail independent, history/focus, stale terminal handling, copy, record read gating, source history, cold chunk cancellation dan responsive basic a11y. Real API events vs controlled browser failures/legacy DB fixtures diberi label |
+| AQ4-18/24/25 existing shared/generic regression | Source-matching Developer full check, scoped API regressions dan independent exact22byte;200k plan3ms pada component run. Ini qualified evidence dengan atribusi, bukan klaim semua kombinasi browser diuji QA |
+| Belum diuji independen secara penuh | Full existing multi-project E2E/remote CI, Firefox/WebKit/real physical devices, production/network load beyond fixture200k, real provider SMTP/LDAP/OAuth; deployment tidak dilakukan |
+| Kombinasi khusus yang tidak dijalankan sebagai browser probe baru | Expired-session401→login return-entry flow, target lookup network500→Retry check, dan valid512-Unicode Activity filter melewati named4096/storage cap. Existing shared/BFF/API/full-check gates tetap terpisah; tidak mengklaim kombinasi UI tersebut lulus dari source read |
+
+**Rekomendasi QA: GO penggunaan lokal untuk scope NEXT-AUD-002 pada R2.** Retest dan visual scoped selesai;
+tidak ada hambatan lingkungan tersisa untuk cakupan eksekusi yang disepakati. `r2/completion.json` menyimpan
+hasil/binding/SHA evidence, dengan daftar area belum diuji di atas tetap berlaku.
+Tidak ada product failure terbuka pada cakupan yang dijalankan. Risiko terbuka: headroom3/35byte sangat tipis,
+harus dihitung ulang setelah source berubah; lima existing CI failures DEC-024 tetap red dan belum diverifikasi
+perbaikannya. Template-wide REL-001/QA-REL-001 dan produksi tetap terpisah. PL menentukan penerimaan risiko;
+rekomendasi ini tidak berarti seluruh CI hijau, deployment aman secara menyeluruh, atau izin commit/push.
+
+### Kandidat UI R1 — verifikasi independen 9 November, 01:49–01:55 WIB
+
+**Riwayat R1 berikut dipertahankan; status final terbaru adalah R2 di atas.**
+
+**Belum GO; AUD2-DES-001 Open / reproduced; R2 menunggu verifikasi.** Source:710product files SHA256
+`775acb7adcaa576bec0807b86c307972a5aa30bb21fa093e245599f319db0bed`;486runtime SHA256
+`754e741a7b57976e805e5d05aba885ee45e73e87078a7fde1cdd5124105a0080`. Build **`iyOjDEw-xlEJIvzpGFBpX`**,
+5761compiled files SHA256 `819901ca1dd60df3d8c03e3ae5d46e16a4b55c9f6fbde5ca2a65d8886d507c83`.
+Image `starterkit-aud2-s3:candidate-754e741a7b57`, ID
+`sha256:3dfb605ad9f64362181b8f9208e57f5c2ddca0901a86f0754a8f189d188849cf`.
+
+QA memakai slot serial workbench `starterkit-aud2-s3-workbench-1`, Linux ARM64/Node24.22.0/Bun1.4.3,
+Chromium internal/PostgreSQL18.6; fixture DB **aud2_qa_e2e** tersendiri. Setup login normal lewat form dengan
+akun seed, random secrets per runner; tanpa live session/env, host ports, dev DB atau rebuild. Runner menghentikan
+server miliknya sesudah setiap run. QA tooling/probes hanya pada ignored scratch.
+
+Bukti = `.superpowers/scratch/qa-audit-2/`. `candidate-pre.json`: host710 dan container710+compiled5761 cocok,
+API230 unchanged, imageID/buildID cocok. `candidate-r1-post.json`: **container710+compiled5761 tetap cocok**,
+API230 unchanged. Top-level `pass:false` berasal dari **host WIP R2 yang diizinkan**: activity-entry-dialog.tsx,
+audit-investigation.spec.ts dan new activity-entry-dialog.test.ts; bukan perubahan runtime R1. Packet R1 disimpan
+di `r1/` agar tidak tertimpa R2. Hasil R1 tidak menutup temuan pada host patch atau kandidat R2.
+
+| Eksekusi independen | Hasil / batas |
+| --- | --- |
+| Runner `/app/aud2-run-internal.mjs activity-entry.spec.ts audit-investigation.spec.ts --project=desktop`, E2E_DATABASE_URL menunjuk internal aud2_qa_e2e, E2E_SCRATCH qa-audit-2/candidate-replay | **18pass/0fail**,24,6detik, same build ID. `candidate-replay.log`, `candidate-replay-artifacts/`. Real CRUD/history/CSV dan controlled chunk/copy/cache/navigation failures dibedakan oleh spec. Desktop project dengan resize360/390/834/1440 light/dark/reduced-motion; bukan full multi-project E2E |
+| QA-authored `qa.config.ts` + `qa-probes.spec.ts`, runner sama, E2E_SCRATCH qa-audit-2/candidate-probes-2 | **10 executions:4pass/6failed**,1,4menit. Pass: held chunk resolve ketika Cancel/Back masih held tidak mount; invalid-background/past-end mempertahankan entry; legacy ID513 readable/blocked; phone known project/history/actions/Changes/copy fallback reachable+axe serious/critical0. Satu fail mereproduksi AUD2-DES-001; lima lain membutuhkan koreksi harness/oracle, tidak diubah menjadi pass |
+| Existing budget script + QA-authored `exact-budget.mjs`, gzip level9 setiap unique chunk dari segment manifests | **22route pass,0byte mismatch**, same build. `candidate-budget.json`, `exact-budget.json` berisi per-chunk bytes+SHA. Activity255997B/headroom3; Users255965B/35; Sign-in log255742B/258. Margin tidak dibulatkan/dikecualikan |
+| Source/compiled/image checks | `verify-candidate.mjs`, pre/post JSON di atas. No rebuild. R2 harus diverifikasi dan diukur ulang |
+
+**Harness/oracle red tetap disimpan:** `candidate-probes.log` gagal setup sebelum tes karena scratch belum punya
+ESM package boundary; diperbaiki dengan scratch package.json/type module. Pada run kedua, dua Viewer login timeout
+di `#login`: trace menunjukkan context baru mewarisi fixture storage sehingga /login redirect. Dua availability
+reopens dijalankan sebelum Close unmount, sehingga same-ID URL update terbatched tanpa refetch. Satu assertion
+saved-view mengharapkan201 padahal existing route mengembalikan200. Scratch telah dikoreksi ke empty auth storage,
+tunggu Close unmount, dan status200 sesuai kontrak. **Belum diulang pada R1** agar tidak menduplikasi run saat R2
+siap. Kelima skenario menunggu corrected replay R2; bukan product pass atau temuan produk terverifikasi.
+Logs/screenshots/traces tersimpan pada `candidate-probes-2-artifacts/`. Fixture auth-state runtime yang selesai
+dihapus sebelum handoff; bukan evidence guard dan tidak dipinjam sebagai sesi live.
+
+Supplemental captures: `qa-phone-project-history.png`, `qa-phone-investigate-known-project.png`,
+`qa-phone-changes.png`, `qa-phone-copy-fallback.png` di `candidate-probes-2-artifacts/`. Ini melengkapi15 PNG
+Developer untuk Designer, bukan acceptance final R2. Slot R1 dikembalikan sesudah post-hash/artifact copy.
+
+#### AUD2-DES-001 — Metadata detail menyamarkan identitas opaque dengan whitespace/control
+
+- **Task:** NEXT-AUD-002 / NEXT-DES-003 / NEXT-QA-004. Origin Designer, dikonfirmasi QA tanpa ID duplikat.
+  **Open / independently reproduced**; patch host belum diverifikasi pada build baru.
+- **Severity Medium:** dua nilai exact berbeda dapat terlihat sama dalam evidence investigasi. Tidak ada bukti
+  perubahan DTO/predicate/data atau kebocoran izin. **Prioritas P1** ditetapkan Product Lead.
+- **Revisi/lingkungan:** R1 source/build/image di atas; desktop1440; Superadmin seed; DB aud2_qa_e2e.
+  Legacy fixture direct DB insert terlabel, bukan event writer biasa.
+- **Data/prasyarat:** entry `765e90c2-7a5c-4679-8263-f97257a2033a`, action legacy.qa,
+  targetType `" permission "`, targetId `" \nOpaque\t "`, targetLabel QA recorded evidence.
+- **Langkah:** seed fixture di DB QA; buka `/audit/activity?entry=<id>`; bandingkan metadata Target dengan raw
+  snapshot. Repro script: QA opaque-identity test pada qa-probes.spec.ts.
+- **Aktual:** textContent berisi whitespace asli, tetapi innerText menjadi `QA recorded evidence permission Opaque`,
+  CSS `white-space: normal`; tanpa quotes/escape pembeda dari targetType permission / targetId Opaque.
+- **Harapan/acuan:** exact opaque DEC-025 dan handoff identity display Designer: ungkap edge whitespace/control
+  dengan representasi aman seperti quote policy chip; string biasa/UUID mudah dibaca dan snapshot tetap immutable.
+- **Bukti:** `candidate-probes-2.log` test terakhir; `candidate-probes-2-artifacts/qa-opaque-target-facts.json`,
+  `qa-opaque-target-metadata.png`, failed assertion+trace pada test-results. Settled screenshot dilihat langsung QA.
+  **Konsistensi QA1/1**; Designer juga menemukan terpisah. **Workaround:** raw JSON atau exact target chip sesudah
+  investigation mengungkap quoted identity; bukan alasan menutup temuan.
+- **Perbaikan/verifikasi:** Developer menyiapkan lazy-detail formatter/unit regression di host atas izin PL.
+  Frozen R1 tidak diubah; menunggu R2 source/build, corrected probes, visual confirmation dan exact byte gate.
+
 ## Sesi 4 — QA independen, 8 November 2026
 
 ### NEXT-QA-003 — hasil akhir kandidat Batch A

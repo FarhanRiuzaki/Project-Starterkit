@@ -8,7 +8,7 @@ import type { Page } from "@starterkit/shared/contracts/common";
 import { CSV_BOM, toCsv } from "@starterkit/ui/lib/csv";
 import { resolveTimeRange } from "@starterkit/ui/lib/time-range";
 import { APP_TIME_ZONE } from "@starterkit/ui/lib/format";
-import { ApiError } from "../../kernel/errors";
+import { ApiError, notFound } from "../../kernel/errors";
 import { config } from "../../kernel/config";
 import { db, type Tx } from "../../kernel/db";
 import { likeEscape, one, pageQuery, sortSql } from "../../kernel/pagination";
@@ -50,7 +50,10 @@ function matchesUser(user: string | undefined, name: Column, id: Column): SQL | 
 
 /** The activity filter. `user` matches the actor's name or id as recorded, or the actor's current email. */
 const activityWhere = (q: ActivityQuery) =>
-  and(inRange(activity.at, q), q.action?.length ? inArray(activity.action, q.action) : undefined, matchesUser(q.user, activity.actorName, activity.actorId));
+  and(inRange(activity.at, q), q.action?.length ? inArray(activity.action, q.action) : undefined, matchesUser(q.user, activity.actorName, activity.actorId),
+    q.actorId !== undefined ? eq(activity.actorId, q.actorId) : undefined,
+    q.targetType !== undefined ? eq(activity.targetType, q.targetType) : undefined,
+    q.targetId !== undefined ? eq(activity.targetId, q.targetId) : undefined);
 
 /** The sign-in log filter. `user` matches the login as typed or recorded, the user id, or the user's current email. */
 const authLogWhere = (q: AuthLogQuery) =>
@@ -59,6 +62,13 @@ const authLogWhere = (q: AuthLogQuery) =>
 
 // ponytail: a `user` filter is a substring scan of the rows the other filters leave (no trigram index on the audit
 // tables); the date range (max 92 days) and the page cap bound it. Add pg_trgm indexes if it gets slow.
+
+/** One retained entry by immutable ID, independently of list range, filters or paging. Guard and UUID parsing precede this read. */
+export async function activityDetail(id: string): Promise<ActivityDto> {
+  const [row] = await db.select().from(activity).where(eq(activity.id, id)).limit(1);
+  if (!row) throw notFound("activity entry");
+  return toActivity(row);
+}
 
 /** One page of the activity log (GET /v1/audit/activity), newest first by default. */
 export function activityPage(q: ActivityQuery): Promise<Page<ActivityDto>> {

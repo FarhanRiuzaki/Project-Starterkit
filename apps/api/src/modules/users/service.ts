@@ -180,7 +180,7 @@ export async function userPage(q: UserListQuery): Promise<Page<UserRowDto>> {
 /** The last 20 activity entries targeting `userId`, newest first, without target or snapshots. */
 async function recentActivity(userId: string): Promise<ActivityBrief[]> {
   const rows = await db.select({ id: activity.id, at: activity.at, actorName: activity.actorName, action: activity.action }).from(activity)
-    .where(eq(activity.targetId, userId)).orderBy(desc(activity.at), desc(activity.id)).limit(20);
+    .where(and(eq(activity.targetType, "user"), eq(activity.targetId, userId))).orderBy(desc(activity.at), desc(activity.id)).limit(20);
   return rows.map((a) => ({ id: a.id, at: a.at.toISOString(), actor: { name: a.actorName }, action: a.action }));
 }
 

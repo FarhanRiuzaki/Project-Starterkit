@@ -1,3 +1,4 @@
+import { writeTableFromSearch } from "./raw-table-state";
 import { describe, expect, it } from "vitest";
 import { historyMode, isoDate, multiChoice, oneOf, readTable, sortState, tableRequest, tableView, text, toSortParam, writeTable } from "./table-state";
 
@@ -125,5 +126,35 @@ describe("tableView (what a server table shows; no flicker)", () => {
   it("count: formatted total, \"+\" when the server capped it", () => {
     expect(tableView({ ...base, data: page(["a"], 12345) }, 1).count).toBe("12,345");
     expect(tableView({ ...base, data: page(["a"], 100000, true) }, 1).count).toBe("100,000+");
+  });
+});
+
+
+describe("raw exact filter edits", () => {
+  const exact = (raw: string | null) => raw ?? "";
+  const spec = { sorts: ["at", "actor"], defaultSort: "-at", filters: { actorId: exact, targetType: exact, targetId: exact, action: multiChoice() } };
+  const keys = ["actorId", "targetType", "targetId"];
+  it("unrelated edits retain explicitly empty and incomplete exact filters instead of broadening", () => {
+    const source = new URLSearchParams("actorId=&targetType=user&page=4");
+    const next = writeTableFromSearch(source, { sort: "at" }, spec, keys)!;
+    expect(next.has("actorId")).toBe(true);
+    expect(next.get("actorId")).toBe("");
+    expect(next.get("targetType")).toBe("user");
+    expect(next.has("targetId")).toBe(false);
+    expect(next.has("page")).toBe(false);
+  });
+  it("explicitly clearing a normalized empty raw key still removes its presence and resets the page", () => {
+    const next = writeTableFromSearch(new URLSearchParams("actorId=&page=4"), { actorId: "" }, spec, keys)!;
+    expect(next).not.toBeNull();
+    expect(next.has("actorId")).toBe(false);
+    expect(next.has("page")).toBe(false);
+  });
+  it("a target pair clears atomically, preserving untouched raw actor values and unrelated context", () => {
+    const next = writeTableFromSearch(new URLSearchParams("actorId=&targetType=user&targetId=&sort=actor&page=4"), { targetType: "", targetId: "" }, spec, keys)!;
+    expect(next.get("actorId")).toBe("");
+    expect(next.has("targetType")).toBe(false);
+    expect(next.has("targetId")).toBe(false);
+    expect(next.get("sort")).toBe("actor");
+    expect(writeTableFromSearch(new URLSearchParams("actorId="), {}, spec, keys)).toBeNull();
   });
 });

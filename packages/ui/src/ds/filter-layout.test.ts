@@ -13,7 +13,7 @@ afterEach(async () => { await act(async () => root?.unmount()); root = null; doc
 const defaults = { q: "", status: "" };
 const fields = [{ key: "q", label: "Search" }, { key: "status", label: "Status", multiple: true }] as const;
 const button = (name: string) => [...document.querySelectorAll("button")].find(b => b.textContent === name)!;
-async function render(initial = defaults, deferred = false) {
+async function render(initial = defaults, deferred = false, exposeFlush = false) {
   const apply = vi.fn();
   let publish = (_values: typeof defaults) => {};
   function Demo() {
@@ -24,7 +24,7 @@ async function render(initial = defaults, deferred = false) {
       filters: (draft, patch) => h(Fragment, null,
         h(QueryInput, { value: draft.q, immediate: true, onChange: q => patch({ q }), keys: [], label: "Search", placeholder: "Search" }),
         h("button", { type: "button", onClick: () => patch({ status: selectionState(["active"]) }) }, "Select active")),
-      children: ({ summary }) => h("div", null, summary, h("p", null, "Results")),
+      children: ({ summary, flush }) => h("div", null, summary, h("p", null, "Results"), exposeFlush && h("button", { type: "button", onClick: flush }, "Open entry")),
     });
   }
   const host = document.createElement("div"); document.body.append(host); root = createRoot(host);
@@ -99,4 +99,16 @@ describe("live FilterLayout", () => {
     expect(apply).not.toHaveBeenCalled();
     expect(document.querySelector<HTMLInputElement>("input")!.value).toBe("");
   });
+});
+
+it("an explicit result action can flush the pending search once before reading its committed URL", async () => {
+  const { apply } = await render(defaults, false, true);
+  await openFilters();
+  vi.useFakeTimers();
+  await type("latest search");
+  expect(apply).not.toHaveBeenCalled();
+  await act(async () => button("Open entry").click());
+  expect(apply).toHaveBeenCalledExactlyOnceWith({ q: "latest search", status: "" }, { history: "replace" });
+  await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+  expect(apply).toHaveBeenCalledTimes(1);
 });

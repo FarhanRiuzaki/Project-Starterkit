@@ -3,6 +3,7 @@ import { filterSelection } from "./filter-selection";
 import { ACTIVITY_SORTS, AUTH_EVENTS, AUTH_LOG_SORTS, AUTH_METHODS, MAX_RANGE_DAYS, rangeProblem } from "../audit";
 import { isTimeExpression, timeRangeProblem } from "@starterkit/ui/lib/time-range";
 import { ListQuery, sortParam } from "./common";
+import { ACTIVITY_ID_PATTERN, ACTIVITY_TARGET_ID_MAX, ACTIVITY_TARGET_TYPE_MAX } from "../audit-investigation";
 
 export const ActivityDto = z.object({
   id: z.string(),
@@ -49,8 +50,13 @@ const validRange = [
   { message: `Choose a valid calendar range (up to ${MAX_RANGE_DAYS} days) or a time range (up to 366 days).` },
 ] as const;
 
-/** GET /api/audit/activity. `user` matches the actor's name, id or current email; `action` is exact. */
-export const ActivityQuery = AuditQuery.extend({ sort: sortParam(ACTIVITY_SORTS), action: filterSelection(z.string().min(1).max(64)).optional() }).refine(...validRange);
+/** GET /api/audit/activity. `user` matches the actor's name, id or current email; `action` is exact. Exact actorId and paired opaque targetType/targetId are ANDed with every existing filter. */
+export const ActivityQuery = AuditQuery.extend({
+  sort: sortParam(ACTIVITY_SORTS), action: filterSelection(z.string().min(1).max(64)).optional(),
+  actorId: z.string().regex(ACTIVITY_ID_PATTERN).optional(),
+  targetType: z.string().min(1).max(ACTIVITY_TARGET_TYPE_MAX).regex(/^[^\u0000]*$/).optional(),
+  targetId: z.string().min(1).max(ACTIVITY_TARGET_ID_MAX).regex(/^[^\u0000]*$/).optional(),
+}).refine(q => (q.targetType === undefined) === (q.targetId === undefined), { message: "Provide both targetType and targetId, or neither." }).refine(...validRange);
 export type ActivityQuery = z.infer<typeof ActivityQuery>;
 
 /** GET /api/audit/auth. `user` matches the login or the user id. */
