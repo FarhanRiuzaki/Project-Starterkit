@@ -74,9 +74,9 @@ for (const width of [360, 390, 834, 1440, 1920]) for (const theme of ["light", "
 }
 
 test("desktop outside focus and clicks remain usable; all consumers have live categories", async ({ page }) => {
-  for (const route of ["/users", "/projects", "/roles", "/permissions", "/audit/activity", "/audit/auth", "/ds"]) {
+  for (const route of ["/users", "/projects", "/roles", "/permissions", "/audit/activity", "/audit/auth", "/ds/data"]) {
     await page.goto(route);
-    if (route === "/ds") await page.locator('[data-slot="filter-results"]').first().scrollIntoViewIfNeeded();
+    if (route === "/ds/data") await page.locator('[data-slot="filter-results"]').first().scrollIntoViewIfNeeded();
     const trigger = page.locator('[data-slot="filter-panel-trigger"]').first();
     await trigger.click();
     const panel = page.getByRole("dialog", { name: "Filters", exact: true });

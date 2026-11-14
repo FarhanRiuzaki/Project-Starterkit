@@ -64,8 +64,9 @@ Start with [product context](docs/product.md), [backlog](docs/backlog.md), [desi
 - Phone, tablet and desktop layouts. On a phone, tables become cards with a "Sort by" select and a Filters sheet, and
   the navigation moves into a drawer.
 - Light and dark themes, following the system setting by default; page search in the top bar (⌘K or Ctrl+K).
-- A design-system gallery at `/ds`: tokens, components, charts and states with sample data. It is also the screenshot
-  baseline of the E2E tests.
+- A design system section at `/ds`, eight pages in a sidebar submenu (Overview, Foundations, Components, Forms,
+  Feedback, Data display, Illustrations, Motion): tokens, components, charts and states with sample data. The E2E
+  tests keep screenshot baselines of seven of them, all but `/ds/visuals` (`apps/web/tests/e2e/ds.spec.ts`).
 
 **Backend**
 
@@ -106,11 +107,11 @@ Taken from the E2E stack with the demo seed (`@example.com` accounts only).
   </tr>
   <tr>
     <td><img src="docs/assets/screenshots/activity-log.png" alt="Activity log with time, user, action and target"></td>
-    <td><img src="docs/assets/screenshots/design-system.png" alt="Design-system gallery: KPI cards and charts with sample data"></td>
+    <td><img src="docs/assets/screenshots/design-system.png" alt="Design system, data display: KPI cards and charts with sample data"></td>
   </tr>
   <tr>
     <td>Activity log: filters, date range, CSV export</td>
-    <td>Design system at <code>/ds</code>, with sample data</td>
+    <td>Design system, data display at <code>/ds/data</code>, with sample data</td>
   </tr>
 </table>
 
@@ -239,7 +240,7 @@ password must be 12 to 128 characters; elsewhere a shorter one is accepted with 
 | `bun run budget` | First-load JS per route after a build: at most 250 kB gzip each (`NEXT_DIST_DIR=.next-e2e` reads the E2E build). |
 | `bun run api:schemas` | Regenerates `docs/api/schemas/` and the activity action table from the zod contracts. |
 
-Playwright uses the Chromium it already has. `/ds` screenshot baselines are per project and platform:
+Playwright uses the Chromium it already has. The design system screenshot baselines (`ds.spec.ts`) are per project and platform:
 `…-darwin.png` for macOS and `…-linux.png` for the CI runner (taken from CI's own output, `ubuntu-24.04`). After a
 visual change, update the macOS ones with `bunx playwright test ds --update-snapshots` inside `apps/web`, and the
 Linux ones from the `playwright-<shard>` artifact of the failing CI run (`test-results/ds-*/ds-*-actual.png`); review both by

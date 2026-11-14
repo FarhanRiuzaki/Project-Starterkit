@@ -66,7 +66,8 @@ function CoverFlowDemo() {
     subtitle: `Volume ${i + 1}`,
     cover: <div className="grid h-full w-full place-items-center bg-bg-tray text-heading-lg text-fg-2">{title}</div>,
   }));
-  return <CoverFlow items={items} itemWidth={180} itemHeight={180} />;
+  // Its caption row has a minimum width: on a 360 px phone it scrolls inside the card, not the page.
+  return <div className="scroll-quiet overflow-x-auto px-1"><CoverFlow items={items} itemWidth={180} itemHeight={180} /></div>;
 }
 
 function WheelDemo() {

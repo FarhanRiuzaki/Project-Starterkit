@@ -39,7 +39,7 @@ QA Sesi 4 pada baseline yang sama menemukan gate ukuran false pass: `/users` **2
 | Akses dan keamanan yang sudah ada | Password, TOTP/recovery, session, profil/security, users dan RBAC; pertahankan BFF/CSRF/internal token, guard, redaksi, concurrency dan aturan eskalasi. |
 | Audit/dashboard | Activity dan sign-in log, CSV aman, dashboard sesuai source; tidak menjanjikan metrik domain produk turunan. |
 | Contoh perluasan projects | List/detail/create/edit/delete, active/archived, search/paging/sort, permission dan audit; bukan produk project management. |
-| UI bersama yang sudah ada | Light/dark, palette/density, responsive shell, tabel server-side, filter URL/saved views, form/state dan `/ds`; lima state, keyboard dan touch mengikuti standar. Tidak menambah katalog komponen. |
+| UI bersama yang sudah ada | Light/dark, palette/density, responsive shell, tabel server-side, filter URL/saved views, form/state dan bagian design system `/ds` (delapan halaman, DEC-030); lima state, keyboard dan touch mengikuti standar. Tidak menambah katalog komponen. |
 | Adapter dan tooling | LDAP/Google/Apple tetap opsional; mock/log untuk lokal dijelaskan. SMTP delivery, TLS ingress dan provider nyata tidak diklaim terverifikasi. CI/check, E2E, budget dan panduan modul ikut template. |
 
 Di luar MVP: multitenancy, billing backend, signup baru, transport upload/storage server, notifikasi/queue/broker, Redis, layanan baru, redesign, modul domain tambahan, deployment eksternal dan sertifikasi produksi. Komponen upload/galeri bukan layanan server. Key rotation TOTP dan admin reset 2FA belum menjadi scope fitur; keterbatasannya wajib terlihat di panduan operasi.

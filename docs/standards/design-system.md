@@ -71,7 +71,7 @@ starterkit.
        indicator is positioned in the list's own coordinates and scrolls with it.
      - Detail grids: one column on a phone, two from 768 (`md:grid-cols-2`, `md:col-span-6`).
    - New layout uses `md` and `xl` only. Older uses of other breakpoints: `lg` (1024) in the KPI tray (`stat-tile.tsx`:
-     2 per row up to 1023, one row from 1024); `sm` (640) for the filter input width and two `/ds` grids; `max-lg`
+     2 per row up to 1023, one row from 1024); `sm` (640) for the filter input width and two `/ds/components` grids; `max-lg`
      narrows the top bar's search field.
 2. **Tray and sheet.** Every region has exactly one job, and its surface says it. App background → content
    sheet → tray (grouping, header, label) → card (the data itself). Each step is a visible but quiet value change
@@ -353,6 +353,22 @@ icon: the table's card header names it with its icon ("All users"), the columns 
 └──────────────────────┘ └───────────────────────────────────────────────────────────────────┘
 ```
 
+On a design system page (`/ds` or below) the item is open and lists its eight pages; the open one carries the
+highlight:
+
+```
+│  ◫ Design system     │
+│  ├─ Overview         │
+│  ├─ Foundations      │
+│  ├[ Components     ] │
+│  ├─ Forms            │
+│  ├─ Feedback         │
+│  ├─ Data display     │
+│  ├─ Illustrations    │
+│  ╰─ Motion           │
+│ (RW) Profile       ▾ │
+```
+
 The top navbar holds the breadcrumb, applicable custom date range/refresh controls and search (⌘K anywhere). Account, profile, theme, palette and density live in the sidebar footer (inside the navigation drawer on phones). Date controls appear only on Dashboard and audit logs; refresh appears only on live-data modules. Forms and other modules without live data hide both controls. Shared Calendar/DatePicker and RefreshControl use custom popovers/menus. The range picker has a calendar quick-select segment, a Show dates summary and separate Absolute / Relative / Now endpoint editors. Quick select includes amount/unit, common and recent ranges, and Refresh every; precise ranges apply as one draft. Header range arrows, date trigger, refresh group and search share a 32 px drawn height and vertical alignment; touch targets remain at least 44 px. Submenu trunks connect with curved elbows and stop at the last child. Route tabs use grey active fill. Login artwork covers the entire page without a frame.
 
 Phone (below 768 px): the sidebar is not shown. The top bar holds the menu button ("Open navigation", 32 px), the logo
@@ -363,19 +379,27 @@ button (`packages/ui/src/ui/drawer.test.ts`, `responsive.spec.ts` "phone"). The 
 CSS, so it never shifts on first paint.
 
 Rules: the nav is exactly Dashboard, Projects, Users, Roles, Permissions, Activity log, Sign-in log, Design system and Profile
-(own sessions live at /me/sessions and on a user's detail page; there is no global Sessions page). Nav items carry no
+(own sessions live at /me/sessions and on a user's detail page; there is no global Sessions page). Design system
+alone has a submenu, its eight pages in this order: Overview (`/ds`), Foundations (`/ds/foundations`), Components
+(`/ds/components`), Forms (`/ds/forms`), Feedback (`/ds/feedback`), Data display (`/ds/data`), Illustrations
+(`/ds/visuals`) and Motion (`/ds/motion`) (`apps/web/src/lib/shared/nav.test.ts` "Design system lists its eight pages
+in order, without icons", `apps/web/src/features/ds/pages.test.ts`). Nav items carry no
 badges; count badges elsewhere are counts, never words ("New" pills are not used). A hairline separates the logo from
 the nav. The nav scrolls inside the sidebar when the menu is longer than the window, in a `ScrollArea`
 (`packages/ui/src/ui/scroll-area.tsx`): no native scrollbar, a 4 px thumb drawn in the sidebar's padding, shown on
 hover, focus or while scrolling, so menu rows share one width on every system. In the
 rail (below 1280 px, or collapsed) each navigation control is a centred 36 px square, and a hairline
 separates the groups in place of their hidden labels. An item may optionally have `children`
-(`NavItem.children` in `apps/web/src/lib/shared/nav.ts`): views of its own page,
-shown under it with a connected vertical trunk and curved branch lines while the page is open, in the
-expanded sidebar (≥ 1280 px) and the phone menu; the open child carries the highlight (`activeChild`). In the icon
+(`NavItem.children` in `apps/web/src/lib/shared/nav.ts`): views of its own page (the same path, a filter in the
+query) or pages below it (a sub-route; they share the item's permission and breadcrumb),
+shown under it with a connected vertical trunk and curved branch lines while the page or a page below it is open, in the
+expanded sidebar (≥ 1280 px) and the phone menu; the open child carries the highlight and `aria-current`, the item
+itself then has none (`activeChild`: a sub-route child on its path or below it, a child on the item's own path only on
+that exact path; `nav.test.ts` "a sub-route child is active on its path and below it; the child on the parent's path
+only on that exact path"). In the icon
 rail, leaf links use the standard inverse tooltip on hover/focus. A parent shows the same label tooltip and a small
-chevron; click, tap, Enter or ArrowDown opens the shared non-modal menu to its right with its child views and current-view
-highlight. Tooltips contain labels only. The flyout supports arrow keys, Escape, outside dismissal and focus return;
+chevron; click, tap, Enter or ArrowDown opens the shared non-modal menu to its right with its children and the current one
+highlighted (Design system is the one parent today). Tooltips contain labels only. The flyout supports arrow keys, Escape, outside dismissal and focus return;
 its tooltip stays quiet while the menu is open and when focus returns. Expanding the sidebar or resizing out of the
 rail closes the flyout when CSS hides its trigger. The expanded tree and phone drawer retain their existing links.
 
@@ -456,7 +480,7 @@ direction and accessible name. No generic chevrons. Phone Close remains X.
 
 Rail/panel start **at the first visible content surface after the nearest local PageHeader, with no added gap**.
 A preceding Notice/KPI counts; hidden siblings do not. Use the outer card/table region, not thead or global header.
-Nested gallery demos without a local PageHeader use their own results. Maintain constant64 px end clearance so rail
+Nested design system demos without a local PageHeader (`/ds/data`) use their own results. Maintain constant64 px end clearance so rail
 cannot cover row actions. Expansion320 adds no further gutter/reflow; desktop is nonmodal without scrim/inert/trap.
 Expanded header stays fixed, body scrolls, bottom clearance16. Saved views, Columns and Export remain in Panel toolbar.
 
@@ -503,7 +527,7 @@ recoverable error. API encoding/canonical rules remain DEC-017's contract, not a
 
 Keep deferred overlays recoverable: before primitive arrives, launcher busy/status+Retry without claiming modal;
 after shell is available, local fields can load/retry with Close reachable. Use existing colors/radii/motion/shadow,
-Inter/Geist Mono and reduced motion. `/ds` demonstrates the shared pattern; do not ship per-feature variants.
+Inter/Geist Mono and reduced motion. `/ds/data` (`#ds-tables`) demonstrates the shared pattern; do not ship per-feature variants.
 [Complete active UX and QA acceptance](../design.md#fil-des-004--rail-hug-content-ikon-sidebar-dan-refresh-stabil) and
 [Figma v1.0.4 review](https://www.figma.com/design/yWRVvatRqyDZapm52tQHWA?node-id=211-10924) are In review;
 implementation approval waits for review of the delivered revision.
@@ -578,7 +602,7 @@ Menu: `--raised`, radius 12, padding 4, items 32 px radius 8, `--shadow-overlay`
 padding 24, title `title-1`, footer buttons right; confirm copy per copy guide. Below 768 px the dialog is a bottom
 sheet (§0): full width, top corners 16, at most 90 dvh, content scrolls, footer sticky at the bottom.
 
-### 5.15 Forms and flows (`packages/ui/src/ds`, gallery: /ds "Forms and flows")
+### 5.15 Forms and flows (`packages/ui/src/ds`, shown on /ds/forms "Forms and flows")
 Sources: WAI-ARIA APG (combobox, disclosure), GOV.UK Design System (error summary, error message, character count,
 file upload, question pages, check answers), NN/g (wizards, form errors, progress indicators, toggle switches,
 checkboxes vs radios), Apple HIG (toggles, progress indicators, text fields, combo boxes, disclosure controls).
@@ -614,7 +638,7 @@ checkboxes vs radios), Apple HIG (toggles, progress indicators, text fields, com
 - **Disclosure**: native `<details>` (no script, find-in-page reaches it), 44 px summary with a turning chevron,
   the shared block-size transition. Stack them for an accordion.
 
-### 5.16 Form layout and required fields (`ds/form-layout.tsx`, `ds/field.tsx`; gallery: /ds "Form layout")
+### 5.16 Form layout and required fields (`ds/form-layout.tsx`, `ds/field.tsx`; shown on /ds/forms "Form layout")
 Sources: Baymard (multi-column forms, required/optional marking, field width, inline validation), NN/g (required
 fields, web form design, form white space, placeholders, wizards, OK/Cancel order), GOV.UK (question pages, text
 input, button, validation, error summary), IBM Carbon (forms pattern, progress indicator), Atlassian (form usage),
@@ -797,7 +821,7 @@ kept but shortened to 100 ms. `MotionConfig reducedMotion="user"` is set at the 
 - Bundle: `motion` stays out of every route's first-load JS (R1 in §7.8); `bun run budget` (≤ 250 kB gz per route) is the gate.
 
 ### 7.8 Micro-interactions (2026-10-19)
-The `/ds` gallery's Motion section is the source of truth for these patterns; this is its inventory.
+The `/ds/motion` page is the source of truth for these patterns; this is its inventory.
 Layer: **CSS** = utility classes in `globals.css` (zero JS); **Motion** = the deferred motion layer. Durations are
 tokens from `packages/ui/src/motion/tokens.ts` (`DUR.*`, `STAGGER`, `EASE`), never literals.
 
@@ -834,7 +858,7 @@ Rulings recorded here:
   with a static import.
 - **R3, sidebar width is the only width animation.** One `<aside>` animates `width` (`DUR.slow`, `motion-safe`
   only; labels fade in after an expand, hide at once on collapse). It is the exception to "never animate width" in
-  §7.7, and `/ds` names it. Everything else animates transform, opacity, or (new row, chip) `background-color`.
+  §7.7, and `/ds/motion` names it. Everything else animates transform, opacity, or (new row, chip) `background-color`.
 - **R9, native disclosures.** Only native `<details>` animate, via `interpolate-size: allow-keywords` and
   `::details-content` (block-size + opacity, `DUR.enter`); browsers without support stay instant. Disclosures built
   from buttons stay instant. This is the one height animation.
@@ -859,8 +883,8 @@ Rulings recorded here:
 
 ### 7.9 Component micro-interactions
 
-The behavior lives in `packages/ui/src/styles/base.css` and the shared components, so app screens and `/ds` use
-one implementation. `/ds` → Motion → **Explore micro-interactions** opens an interactive preview using those same
+The behavior lives in `packages/ui/src/styles/base.css` and the shared components, so app screens and the design system pages use
+one implementation. `/ds/motion` → **Explore micro-interactions** opens an interactive preview using those same
 components. The existing motion tokens set every duration/easing; `--press-scale` and `--choice-press-scale` set
 press geometry. Static information stays still; feedback indicates an action or an actual state change.
 
@@ -876,7 +900,7 @@ press geometry. Static information stays still; feedback indicates an action or 
 | OTP and password checks | Current OTP cell gets the focus mark; changed digits and newly met checks settle once. The actual OTP input stays mounted. | Paste, autofill, caret and selection stay native. Reduced motion fades; no validation shake. |
 | Stepper, wizard, onboarding | Marker colors transition; completing a step confirms its check. Revisiting a completed step has button feedback. | Completion animation is keyed to a state change, not refetch/re-render. Current-step content can use `animate-reveal-in` without remounting form inputs. |
 | Progress and meters | Fill interpolates `scaleX`, `DUR.enter`, anchored left. No width animation or layout shift. | Accessible value is the final value. Reduced motion switches immediately. Sliders follow the pointer directly. |
-| Cards, tables and charts | Whole-card links/actions use shared `InteractiveCard` (grey `CardSurface` + `card-lift`, native button or `asChild` link). Disabled/busy cards suppress hover/press and activation. Table rows use color only. All loading blocks use shared `Skeleton`, with its token-driven CSS shimmer. `/ds` → Motion → Explore micro-interactions previews both foundations. | Reading surfaces do not imply clickability. Card hover lift requires a fine pointer; keyboard gets its border/elevation without moving. Secondary interactive controls stay outside a whole-card action. Reduced motion stops card movement and the shimmer sweep. |
+| Cards, tables and charts | Whole-card links/actions use shared `InteractiveCard` (grey `CardSurface` + `card-lift`, native button or `asChild` link). Disabled/busy cards suppress hover/press and activation. Table rows use color only. All loading blocks use shared `Skeleton`, with its token-driven CSS shimmer. `/ds/motion` → Explore micro-interactions previews both foundations. | Reading surfaces do not imply clickability. Card hover lift requires a fine pointer; keyboard gets its border/elevation without moving. Secondary interactive controls stay outside a whole-card action. Reduced motion stops card movement and the shimmer sweep. |
 | Feedback, badges, loading and overlays | Existing swap/pop/reveal and delayed loading patterns; state swaps only at meaningful changes. | Live regions announce outcomes, not every animation frame. Reduced preview and system preference follow the same rules. |
 
 Carried over from affectUI's twins (DEC-029), on existing tokens, `transform` and `opacity` only:
@@ -907,27 +931,34 @@ Motion preferences follow [WCAG 2.2, Animation from Interactions](https://www.w3
 `packages/ui/src/affect/` holds 73 free affectUI items (MIT, https://github.com/flohoeller/affectui; components,
 illustrations, motion effects and blocks) as upstream wrote them, at the owner's request for a 1:1 copy of their
 motion and micro-interactions. `packages/ui/src/affect/README.md` lists the source, the three changed comments and
-how to update a file. The gallery is `/ds/affect` (`apps/web/src/features/ds/affect/`), linked from `/ds`.
+how to update a file. They are shown in five groups, each after the starterkit sections of one design system page
+under an "affectUI" heading: actions on `/ds/components`, inputs on `/ds/forms`, feedback on `/ds/feedback`, content
+on `/ds/data`, visuals on `/ds/visuals`, which holds nothing else (`AFFECT_PAGE` in `apps/web/src/features/ds/pages.ts`,
+`pages.test.ts`; demo files in `apps/web/src/features/ds/affect/`). There is no `/ds/affect` page (DEC-030).
 
 This folder is a second visual language beside §3-§7, not part of it:
 - **Outside the token rules.** Each file carries its own colours, durations and easings in a CSS string that React
   hoists into `<head>`. `architecture.test.ts` skips this folder, and only this folder, in "no literal colour" and
   "motion timings come from tokens" (`VENDORED`, with a fixture); ESLint ignores it; each file starts with
-  `// @ts-nocheck`. Code that uses an item (features, the gallery's demo files) stays under every rule.
+  `// @ts-nocheck`. Code that uses an item (features, the demo files in `features/ds/affect/`) stays under every rule.
 - **Themed through aliases only.** `tokens.css` maps 31 of upstream's `--aui-*` variables onto the app tokens (ink,
   surfaces, lines, focus, status colours, radius, font, shadows; `--aui-blue`/`--aui-info` = primary), checked by
   `tokens.test.ts` "affectUI names map onto app tokens". Decorative hues and hard-coded colours stay upstream's. The
   items do not use `DUR`/`EASE`, the stagger cap or the 12-element budget of §7.7.
 - **Reduced motion and accessibility are upstream's.** Each item has its own `prefers-reduced-motion` branch; the
-  `/ds` "Preview reduced motion" scope does not reach them. After the mapping axe still reports `color-contrast` on
+  `/ds/motion` "Preview reduced motion" scope does not reach them. After the mapping axe still reports `color-contrast` on
   31 nodes in light and 14 in dark, all on colours an item hard-codes (the per-item list is in the folder's README),
-  so `/ds/affect` is not in `a11y.spec.ts` and a listed item needs its contrast fixed before it goes on a screen.
+  so axe on the design system pages skips `[data-affect-group]` (`axeSerious` in `apps/web/tests/e2e/helpers.ts`),
+  `/ds/visuals` is in neither `a11y.spec.ts` nor the baselines of `ds.spec.ts`, and a listed item needs its contrast
+  fixed before it goes on a screen. The 44 px touch check does cover the groups, with one exemption: Cover Flow's
+  14 px position ticks (`.ui-cf__tick`; its Previous and Next buttons reach the same covers), left out by
+  `smallTouchTargets` in the same helpers file and listed under "Touch targets" in the folder's README.
 - **One pattern per need still holds.** Where `ui/` or `ds/` already has the component (button, dialog, menus,
   inputs, tooltip, pagination, skeleton and others), screens keep using it; a vendored twin is a reference for its
   motion, to be carried over one component at a time on the tokens (the two carried over so far are in §7.9). Items without a twin (illustrations, Tool
   Call Card, Code Block, Tree View and others) may be used as they are.
 - **Content.** Logo Cluster, Lead Sourcing, Agent Team and Model Wheel draw real product marks by default; pass
-  fictional ones (as the gallery does where the item allows it) before showing them to users.
+  fictional ones (as the demo files do where the item allows it) before showing them to users.
 - Text Reveal is the one item ported onto the tokens instead (R10 in §7.8).
 
 

@@ -16,13 +16,15 @@ test("account belongs to sidebar, route tabs use grey, and time controls are mod
   await page.getByRole("button", { name: "Auto-refresh interval", exact: true }).click();
   await page.getByRole("menuitemradio", { name: "Every 30 seconds" }).click();
   await expect(page).toHaveURL(/refresh=30/);
-  expect(await page.locator(".nav-tree-branch").first().evaluate(el => getComputedStyle(el).borderBottomLeftRadius)).not.toBe("0px");
+  // The submenu tree is drawn under "Design system" (the only item with children) while one of its pages is open.
+  await page.goto("/ds");
+  expect(await page.getByRole("navigation", { name: "Menu" }).locator(".nav-tree-branch").first().evaluate(el => getComputedStyle(el).borderBottomLeftRadius)).not.toBe("0px");
   await page.goto("/users/new");
   await expect(page.getByLabel("Page time controls")).toHaveCount(0);
 });
 
 test("custom date picker supports typed dates, keyboard navigation, month clamping and focus return", async ({ page }) => {
-  await page.goto("/ds");
+  await page.goto("/ds/forms");
   await page.locator("#library-date").fill("2024-01-31");
   await page.getByRole("button", { name: "Choose appointment date", exact: true }).click();
   const calendar = page.getByRole("dialog", { name: "Choose appointment date", exact: true });
@@ -40,7 +42,7 @@ test("custom date picker supports typed dates, keyboard navigation, month clampi
 });
 
 test("clicking the date field opens its calendar; month and year are directly selectable", async ({ page }) => {
-  await page.goto("/ds");
+  await page.goto("/ds/forms");
   const input = page.locator("#library-date");
   await input.fill("2024-01-31");
   await input.click({ position: { x: 12, y: 16 } });
@@ -71,7 +73,7 @@ test("date fields and month/year menus work on touch phones in both themes", asy
   for (const colorScheme of ["light", "dark"] as const) {
     const context = await browser.newContext({ baseURL, storageState: AUTH_STATE, viewport: { width: 360, height: 800 }, isMobile: true, hasTouch: true, colorScheme, reducedMotion: "reduce" });
     const page = await context.newPage();
-    await page.goto("/ds");
+    await page.goto("/ds/forms");
     const input = page.locator("#library-date");
     await input.fill("2024-01-31");
     await input.tap({ position: { x: 12, y: 20 } });
@@ -99,7 +101,13 @@ test("catalog finds Figma components and all new examples fit phone and desktop"
   const mappings = page.getByLabel("Component mappings");
   await expect(mappings.getByRole("heading", { name: "Calendar", exact: true })).toBeVisible();
   await mappings.getByRole("article").filter({ has: page.getByRole("heading", { name: "Calendar", exact: true }) }).getByRole("link", { name: "Example", exact: true }).click();
+  // The example is on the Forms page: the link lands on its anchor there.
+  await expect(page).toHaveURL(/\/ds\/forms#ds-time$/);
   await expect(page.getByRole("heading", { name: "Calendar and date picker", exact: true })).toBeInViewport();
+  for (const width of [1440, 390, 360]) { await page.setViewportSize({ width, height: 900 }); await expectNoHorizontalScroll(page); }
+  expect(await axeSerious(page)).toEqual([]);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/ds");
   await page.getByLabel("Find a component").fill("");
   for (const width of [1440, 390, 360]) { await page.setViewportSize({ width, height: 900 }); await expectNoHorizontalScroll(page); }
   expect(await axeSerious(page)).toEqual([]);
@@ -119,4 +127,21 @@ test("header time controls share one height and baseline with search", async ({ 
   ].map(locator => locator.boundingBox()));
   expect(boxes.map(box => box?.height)).toEqual([32, 32, 32, 32, 32]);
   expect(new Set(boxes.map(box => box?.y)).size).toBe(1);
+});
+
+test("a page body that is slow to arrive shows its loading shape under the header, then the body", async ({ page }) => {
+  // Hold the chunk that carries the Forms body (the one with its anchors).
+  await page.route("**/_next/static/chunks/**", async (route) => {
+    const response = await route.fetch();
+    const body = await response.text();
+    if (body.includes("ds-compositions")) await new Promise((r) => setTimeout(r, 2000));
+    await route.fulfill({ response, body });
+  });
+  await page.goto("/ds/forms");
+  await expect(page.getByRole("heading", { level: 1, name: "Forms", exact: true })).toBeVisible();
+  const loading = page.locator('[data-slot="body-loading"]');
+  await expect(loading.getByRole("status", { name: "Loading page" })).toBeVisible();
+  await expect(loading.locator('[data-slot="skeleton"]').first()).toBeVisible();
+  await expect(loading).toHaveCount(0);
+  await expect(page.locator("#ds-forms")).toBeVisible();
 });

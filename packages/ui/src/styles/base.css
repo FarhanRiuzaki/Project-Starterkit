@@ -115,8 +115,8 @@
   :focus-visible { @apply outline-2 outline-offset-2 outline-primary; }
   ::selection { @apply bg-primary-soft text-fg; }
   /* Touch (design-system §0): under a coarse pointer every control gets a hit area of at least --touch-min (44 px)
-     without changing its drawn size: a transparent ::before centred on it (::after is taken by the tab underline and
-     chip buttons). A native checkbox or radio can't carry one, so its label does. Text fields and selects can't
+     without changing its drawn size: a transparent ::before centred on it (::after is taken by the tab underline,
+     chip buttons and the submenu's trunk line). A native checkbox or radio can't carry one, so its label does. Text fields and selects can't
      either; they grow to 44 px instead. Position utilities win over the `relative` here (base layer). Checked by
      tests/e2e/responsive.spec.ts "touch targets". */
   @media (pointer: coarse) {
@@ -140,7 +140,7 @@
        sonner positions every toast, stacked or expanded, with transform: var(--y), so "transform: none" piles them on one spot. */
   }
 
-  /* /ds Motion section, "Preview reduced motion": the same overrides as the block above, scoped to the section
+  /* /ds/motion, "Preview reduced motion": the same overrides as the block above, scoped to the section
      (the media query itself cannot be toggled from a page). The first three rule bodies must stay identical to the block above; the mirrored utility and disclosure rules are asserted too (globals-css.test.ts). */
   [data-motion-preview="reduced"] *, [data-motion-preview="reduced"] *::before, [data-motion-preview="reduced"] *::after { animation-duration: var(--dur-instant) !important; animation-delay: 0ms !important; transition-property: opacity, visibility !important; transition-duration: var(--dur-instant), 0s !important; }
   [data-motion-preview="reduced"] * { --tw-enter-scale: 1 !important; --tw-exit-scale: 1 !important; --tw-enter-translate-x: 0 !important; --tw-enter-translate-y: 0 !important; --tw-exit-translate-x: 0 !important; --tw-exit-translate-y: 0 !important; }
@@ -176,7 +176,7 @@ details::details-content {
 }
 details[open]::details-content { block-size: auto; opacity: 1; }
 @media (prefers-reduced-motion: reduce) { details::details-content { transition: opacity var(--dur-instant) linear; } }
-/* Same rule for the /ds reduced preview; unlayered like the disclosure rules above, so it wins over them. */
+/* Same rule for the /ds/motion reduced preview; unlayered like the disclosure rules above, so it wins over them. */
 [data-motion-preview="reduced"] details::details-content { transition: opacity var(--dur-instant) linear; }
 
 /* Page enter (spec §7.2) — components/motion/page-transition.tsx. Reduced motion: fade only, 100 ms. */
@@ -356,8 +356,9 @@ details[open]::details-content { block-size: auto; opacity: 1; }
   .print-keep { break-inside: avoid; }
 }
 
-/* Connected tree branches: each row continues the trunk; the last row ends at its curved elbow. */
-.nav-tree > a::before {
+/* Connected tree branches: each row continues the trunk; the last row ends at its curved elbow. On ::after: a nav
+   link's ::before is its touch hit area (pointer: coarse, above), which these offsets would move over the next row. */
+.nav-tree > a::after {
   content: "";
   position: absolute;
   left: calc(-0.75rem - 1px);
@@ -365,7 +366,7 @@ details[open]::details-content { block-size: auto; opacity: 1; }
   bottom: -0.25rem;
   border-left: 1px solid var(--line-strong);
 }
-.nav-tree > a:last-child::before { bottom: calc(50% + 0.5rem); }
+.nav-tree > a:last-child::after { bottom: calc(50% + 0.5rem); }
 .nav-tree-branch {
   position: absolute;
   left: calc(-0.75rem - 1px);
@@ -454,7 +455,7 @@ details[open]::details-content { block-size: auto; opacity: 1; }
 @media (prefers-reduced-motion: reduce) { [data-slot="radio-mark"] > span { transform: none; } }
 
 /* Carried over from affectUI's twins (MIT; design-system.md §7.9, R11). Each is keyed to a state change by the
-   component, uses the tokens, and has no motion under reduced motion or in the /ds reduced preview. */
+   component, uses the tokens, and has no motion under reduced motion or in the /ds/motion reduced preview. */
 /* A check draws its stroke (Checkbox, so filters too, and menu checkbox items). 24 = longer than the Tick02 path. */
 @keyframes tick-draw { from { stroke-dashoffset: 24; } }
 /* A typed OTP digit rises into its cell. */
@@ -494,7 +495,7 @@ details[open]::details-content { block-size: auto; opacity: 1; }
 
 /* A menu or popover enters from the side it opened on (after affectUI's Dropdown Menu and Popover, MIT): tw-animate's
    enter translate is --shift-enter towards the panel's place, per Radix data-side; duration and scale stay
-   OVERLAY_MOTION.menu. Reduced motion and the /ds preview zero the translate in the rules above. Tooltips stay
+   OVERLAY_MOTION.menu. Reduced motion and the /ds/motion preview zero the translate in the rules above. Tooltips stay
    opacity only (spec §5.14). */
 :is([data-slot="dropdown-menu-content"], [data-slot="dropdown-menu-sub-content"], [data-slot="popover-content"]) {
   &[data-side="bottom"] { --tw-enter-translate-y: calc(var(--shift-enter) * -1); }

@@ -124,7 +124,7 @@ test.describe("shared segmented indicator", () => {
   for (const reducedMotion of ["no-preference", "reduce"] as const) {
     test(`segmented indicator (${reducedMotion === "reduce" ? "reduced motion: jumps" : "slides"}) and sits on the active option`, async ({ page }) => {
       await page.emulateMedia({ reducedMotion });
-      await page.goto("/ds#ds-compositions");
+      await page.goto("/ds/forms#ds-compositions");
       await page.getByRole("radiogroup", { name: "Sign-in preview state" }).scrollIntoViewIfNeeded();
       const fits = async () => { const f = await indicatorFit(page); return f.visible && f.dx <= 1 && f.dw <= 1; };
       await expect.poll(fits, { message: "the indicator covers Password" }).toBe(true);
@@ -156,7 +156,7 @@ test.describe("console", () => {
   test("no console error or page error on any screen, loaded or navigated to", async ({ page, baseURL }) => {
     const errors = collectErrors(page);
     for (const p of ["/", "/users", "/users/{admin}", "/users/{admin}/edit", "/users/new", "/roles", "/roles/{adminRole}", "/permissions",
-      "/audit/activity", "/audit/auth", "/me", "/me/security", "/me/sessions", "/ds"]) {
+      "/audit/activity", "/audit/auth", "/me", "/me/security", "/me/sessions", "/ds", "/ds/foundations", "/ds/components", "/ds/forms", "/ds/feedback", "/ds/data", "/ds/visuals", "/ds/motion"]) {
       await page.goto(await withIds(p, baseURL));
       await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
       await page.waitForLoadState("networkidle");

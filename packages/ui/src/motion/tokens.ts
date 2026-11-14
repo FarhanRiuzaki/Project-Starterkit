@@ -7,7 +7,7 @@ export const DUR = { instant: 0.1, fast: 0.15, pop: 0.18, enter: 0.22, page: 0.2
 
 /**
  * The duration token each overlay opens and closes with: the classes in ui/* are `duration-(--dur-<key>)` with these
- * keys (ui/overlay-motion.test.ts checks them), and the /ds Motion inventory prints them.
+ * keys (ui/overlay-motion.test.ts checks them), and the /ds/motion inventory prints them.
  */
 export const OVERLAY_MOTION = {
   /** Dropdown menus and popovers. */

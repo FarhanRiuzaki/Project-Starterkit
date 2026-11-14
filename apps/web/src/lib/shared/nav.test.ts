@@ -84,4 +84,42 @@ describe("nav children", () => {
     expect(activeChild(item, "/users", new URLSearchParams("role=Admin"))?.label).toBe("All");
     expect(activeChild(item, "/users/u-1", new URLSearchParams(""))).toBeNull();
   });
+
+  const ds = NAV.find((n) => n.href === "/ds")!;
+  const none = new URLSearchParams("");
+  it("Design system lists its eight pages in order, without icons", () => {
+    expect(ds.children?.map((c) => [c.label, c.href])).toEqual([
+      ["Overview", "/ds"], ["Foundations", "/ds/foundations"], ["Components", "/ds/components"], ["Forms", "/ds/forms"],
+      ["Feedback", "/ds/feedback"], ["Data display", "/ds/data"], ["Illustrations", "/ds/visuals"], ["Motion", "/ds/motion"],
+    ]);
+    expect(ds.children?.some((c) => c.icon)).toBe(false);
+    expect(NAV.filter((n) => n.children).map((n) => n.href)).toEqual(["/ds"]);
+  });
+  it("a sub-route child is active on its path and below it; the child on the parent's path only on that exact path", () => {
+    expect(activeChild(ds, "/ds", none)?.label).toBe("Overview");
+    expect(activeChild(ds, "/ds/", new URLSearchParams("q=button"))?.label).toBe("Overview");
+    expect(activeChild(ds, "/ds/forms", none)?.label).toBe("Forms");
+    expect(activeChild(ds, "/ds/forms/x", none)?.label).toBe("Forms");
+    expect(activeChild(ds, "/ds/forms/?tab=a#ds-time", none)?.label).toBe("Forms");
+    expect(activeChild(ds, "/ds/data", none)?.label).toBe("Data display");
+    expect(activeChild(ds, "/ds/formsx", none)).toBeNull();
+    expect(activeChild(ds, "/ds/affect", none)).toBeNull();
+    expect(activeChild(ds, "/users", none)).toBeNull();
+  });
+  it("sub-route and query children mix: a sub-route child never matches on the parent's own path", () => {
+    const item: NavItem = { ...users, children: [
+      { href: "/users/archive", label: "Archive" },
+      { href: "/users", label: "All" },
+      { href: "/users?status=inactive", label: "Inactive" },
+    ] };
+    expect(activeChild(item, "/users", none)?.label).toBe("All");
+    expect(activeChild(item, "/users", new URLSearchParams("status=inactive"))?.label).toBe("Inactive");
+    expect(activeChild(item, "/users/archive/2024", new URLSearchParams("status=inactive"))?.label).toBe("Archive");
+    expect(activeChild(item, "/users/u-1", none)).toBeNull();
+  });
+  it("the breadcrumb and the page permission of a child page are its nav page's", () => {
+    expect(crumbs("/ds/forms", new Set()).map((c) => [c.label, c.href])).toEqual([["Design system", "/ds"]]);
+    expect([isSubPage("/ds"), isSubPage("/ds/forms")]).toEqual([false, true]);
+    expect(pagePerm("/ds/motion")).toBeNull();
+  });
 });

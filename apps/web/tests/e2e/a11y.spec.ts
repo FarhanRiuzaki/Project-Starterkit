@@ -8,7 +8,9 @@ import { axeSerious, pending2faState, withIds } from "./helpers";
  * global-setup; /login/2fa needs a sign-in waiting for its second factor (helpers.ts pending2faState).
  */
 /** `{name}` = a demo id (helpers.ts demoIds). */
-const SIGNED_IN = ["/", "/users", "/users/{admin}", "/roles", "/roles/{superadminRole}", "/roles/{adminRole}", "/permissions", "/projects", "/projects/{project}", "/audit/activity", "/audit/auth", "/me", "/me/security", "/me/sessions"];
+const SIGNED_IN = ["/", "/users", "/users/{admin}", "/roles", "/roles/{superadminRole}", "/roles/{adminRole}", "/permissions", "/projects", "/projects/{project}", "/audit/activity", "/audit/auth", "/me", "/me/security", "/me/sessions",
+  // The design system pages (each body mounts after hydration). /ds/visuals is left out: all of its content is vendored affectUI, which axeSerious skips.
+  "/ds", "/ds/foundations", "/ds/components", "/ds/forms", "/ds/feedback", "/ds/data", "/ds/motion"];
 
 
 /** The theme follows the emulated color scheme (next-themes "system"), then axe runs on the settled page. */
@@ -47,6 +49,7 @@ for (const colorScheme of ["light", "dark"] as const) {
           await page.goto(await withIds(p, baseURL));
           await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
           await page.waitForLoadState("networkidle");
+          await expect(page.locator('[data-slot="body-loading"]')).toHaveCount(0);
           await check(page, dark);
         });
       }

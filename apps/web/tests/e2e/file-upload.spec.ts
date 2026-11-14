@@ -5,7 +5,7 @@ import { axeSerious, expectNoHorizontalScroll, settleAnimations } from "./helper
 test.use({ storageState: AUTH_STATE, reducedMotion: "reduce" });
 
 test("upload supports native keyboard browse, nested drag, validation and individual removal", async ({ page }, info) => {
-  await page.goto("/ds");
+  await page.goto("/ds/forms");
   const group = page.getByRole("group", { name: "Import users", exact: true });
   const browse = group.getByRole("button", { name: "Choose files for Import users", exact: true });
   const dropzone = group.locator('[data-slot="file-dropzone"]');
@@ -57,7 +57,7 @@ test("upload supports native keyboard browse, nested drag, validation and indivi
 for (const colorScheme of ["light", "dark"] as const) {
   test(`upload layout fits desktop and phone in ${colorScheme}`, async ({ page }, info) => {
     await page.emulateMedia({ colorScheme });
-    await page.goto("/ds");
+    await page.goto("/ds/forms");
     const panel = page.getByRole("heading", { name: "File upload", exact: true }).locator("../..").filter({ has: page.getByRole("group", { name: "Import users", exact: true }) });
     for (const width of [1440, 390, 360]) {
       await page.setViewportSize({ width, height: 900 });

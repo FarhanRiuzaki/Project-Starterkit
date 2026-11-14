@@ -23,8 +23,9 @@ import { SidebarRailMenu } from "./sidebar-rail-menu";
  * Sidebar. 248 px from 1280 px (`xl`), collapsible to the 64 px icon rail (preference per viewer, kept in a cookie);
  * 768–1279 px it is always the rail, so the page never scrolls sideways; below 768 px it is not shown and the same
  * sections open from the top bar's menu button (MobileNav, a drawer). Sections come from
- * `navFor(perms)`: a link the viewer cannot open is not shown. An item's `children` (views of its page) open under it,
- * on a guide line, while its page is open in the expanded sidebar (≥ 1280 px). Account controls live in the sidebar footer. The logo nodes come
+ * `navFor(perms)`: a link the viewer cannot open is not shown. An item's `children` (views of its page, or pages
+ * below it such as /ds/forms) open under it, on a guide line, while its page or one below it is open in the expanded
+ * sidebar (≥ 1280 px); in the rail the item is a menu button listing them (SidebarRailMenu). Account controls live in the sidebar footer. The logo nodes come
  * from the server (AppShell), so the wordmark's path data stays out of the client bundle.
  */
 export function Sidebar({ mark, wordmark }: { mark: ReactNode; wordmark: ReactNode }) {

@@ -18,7 +18,9 @@ this folder is outside the token rules (`apps/web/src/test/architecture.test.ts`
 Rules and reasons: `docs/standards/design-system.md` §7.10.
 
 Import one item at a time: `import { ToolCallCard } from "@starterkit/ui/affect/tool-call-card"`. Every item is shown
-with sample data on `/ds/affect` (`apps/web/src/features/ds/affect/`).
+with sample data in its group on a design system page: actions on `/ds/components`, inputs on `/ds/forms`, feedback on
+`/ds/feedback`, content on `/ds/data`, visuals on `/ds/visuals` (demo files in `apps/web/src/features/ds/affect/`, the
+group-to-page map is `AFFECT_PAGE` in `apps/web/src/features/ds/pages.ts`).
 
 ## Changes from upstream
 
@@ -28,10 +30,20 @@ with sample data on `/ds/affect` (`apps/web/src/features/ds/affect/`).
 
 Nothing else differs. Keep it that way: change behaviour in the caller or in a wrapper, not here.
 
+## Touch targets
+
+Under a coarse pointer every control needs a 44 × 44 px hit area (design-system §0); `base.css` gives a button one on
+its `::before`. One vendored control stays under it: Cover Flow's position ticks (`.ui-cf__tick`, 14 × 14 px), whose
+`::before` is the drawn dot, so the hit area can't sit there. The same covers are reached by its Previous and Next
+buttons, which pass. `smallTouchTargets` (`apps/web/tests/e2e/helpers.ts`) leaves out that class only; every other
+visible vendored control on the five group pages is checked and passed at 390 px on 2026-11-14 (`responsive.spec.ts` "touch
+targets … on every page"). Before Cover Flow goes on a screen, pass `ticks={false}` or give the ticks a hit area in a
+wrapper.
+
 ## Updating an item
 
 Download `https://www.affectui.com/r/<slug>.json`, write `files[0].content` over `<slug>.tsx`, put the first line back,
-then run `bun run check` and look at the item on `/ds/affect`.
+then run `bun run check` and look at the item on its design system page (above).
 
 ## Theming
 
@@ -42,8 +54,8 @@ reads), so surfaces, ink, lines, radius and font follow the app in light and dar
 `--aui-blue` and `--aui-info` are the app's primary: upstream's light blue is 2:1 as text on a light surface.
 
 Not reached by the aliases: the decorative hues (`--aui-purple`, `--aui-teal`, `--aui-pink`, `--aui-amber`), every
-duration and easing but `--aui-ease`, and colours an item hard-codes. axe (`color-contrast`, WCAG AA) on `/ds/affect`
-on 2026-11-14, after the mapping:
+duration and easing but `--aui-ease`, and colours an item hard-codes. axe (`color-contrast`, WCAG AA) on the 73 items
+on 2026-11-14 (then on one page, `/ds/affect`), after the mapping:
 
 | Theme | Nodes | Items |
 |---|---|---|

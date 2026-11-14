@@ -1,14 +1,15 @@
 import type { PermissionName } from "@starterkit/shared/permissions";
 import { canonicalSelection } from "@starterkit/shared/filter-selection";
 
-export type NavIcon = "dashboard" | "users" | "roles" | "permissions" | "activity" | "signin" | "ds" | "profile" | "users-all" | "users-active" | "users-inactive" | "projects";
+export type NavIcon = "dashboard" | "users" | "roles" | "permissions" | "activity" | "signin" | "ds" | "profile" | "projects";
 export type NavGroup = "main" | "access" | "audit" | "personal";
 /**
- * `shortcut` is "" for an item without one; `perm` null = every signed-in user. `children`: views of the item's own
- * page (same path, a filter in the query), listed under it in the sidebar while the page is open.
+ * `shortcut` is "" for an item without one; `perm` null = every signed-in user. `children`, listed under the item in
+ * the sidebar while its section is open: views of its own page (same path, a filter in the query) or pages below it
+ * (a sub-route: another path), which share the item's permission (`pagePerm`) and breadcrumb.
  */
 export type NavItem = { href: string; label: string; icon: NavIcon; shortcut: string; group: NavGroup; perm: PermissionName | null; children?: readonly NavChild[] };
-export type NavChild = { href: string; label: string; icon: NavIcon };
+export type NavChild = { href: string; label: string; icon?: NavIcon };
 export type NavSection = { id: NavGroup; label: string; items: NavItem[] };
 
 export const NAV: readonly NavItem[] = [
@@ -19,7 +20,11 @@ export const NAV: readonly NavItem[] = [
   { href: "/permissions", label: "Permissions", icon: "permissions", shortcut: "G P", group: "access", perm: "permission.view" },
   { href: "/audit/activity", label: "Activity log", icon: "activity", shortcut: "G A", group: "audit", perm: "audit.view" },
   { href: "/audit/auth", label: "Sign-in log", icon: "signin", shortcut: "G S", group: "audit", perm: "audit.view" },
-  { href: "/ds", label: "Design system", icon: "ds", shortcut: "", group: "personal", perm: null },
+  { href: "/ds", label: "Design system", icon: "ds", shortcut: "", group: "personal", perm: null, children: [
+    { href: "/ds", label: "Overview" }, { href: "/ds/foundations", label: "Foundations" }, { href: "/ds/components", label: "Components" },
+    { href: "/ds/forms", label: "Forms" }, { href: "/ds/feedback", label: "Feedback" }, { href: "/ds/data", label: "Data display" },
+    { href: "/ds/visuals", label: "Illustrations" }, { href: "/ds/motion", label: "Motion" },
+  ] },
   { href: "/me", label: "Profile", icon: "profile", shortcut: "G M", group: "personal", perm: null },
 ];
 
@@ -43,14 +48,19 @@ export function isActive(pathname: string, href: string, exact = false): boolean
 export type Crumb = { label: string; href?: string; icon?: NavIcon };
 
 /**
- * The child of `item` the URL shows, or null off its page: the one whose query matches on every key its siblings
- * filter by (other parameters such as the sort aside; a child without the key matches its absence).
+ * The child of `item` the URL shows, or null. A sub-route child (its path differs from the item's): on its path or
+ * below it; sibling sub-routes are not nested in each other. A child on the item's own path, only on that exact path:
+ * the one whose query matches on every key its siblings filter by (other parameters such as the sort aside; a child
+ * without the key matches its absence).
  */
 export function activeChild(item: NavItem, pathname: string, sp: URLSearchParams): NavChild | null {
-  if (!item.children || clean(pathname) !== item.href) return null;
+  const p = clean(pathname);
+  const own = (c: NavChild) => c.href.split("?")[0] === item.href;
+  if (p !== item.href) return item.children?.find((c) => !own(c) && isActive(p, c.href.split("?")[0]!)) ?? null;
+  const views = item.children?.filter(own) ?? [];
   const q = (c: NavChild) => new URLSearchParams(c.href.split("?")[1] ?? "");
-  const keys = [...new Set(item.children.flatMap((c) => [...q(c).keys()]))];
-  return item.children.find((c) => keys.every((k) => JSON.stringify(canonicalSelection(q(c).getAll(k))) === JSON.stringify(canonicalSelection(sp.getAll(k))))) ?? null;
+  const keys = [...new Set(views.flatMap((c) => [...q(c).keys()]))];
+  return views.find((c) => keys.every((k) => JSON.stringify(canonicalSelection(q(c).getAll(k))) === JSON.stringify(canonicalSelection(sp.getAll(k))))) ?? null;
 }
 
 const clean = (pathname: string) => (pathname.split(/[?#]/)[0] ?? "/").replace(/\/+$/, "") || "/";

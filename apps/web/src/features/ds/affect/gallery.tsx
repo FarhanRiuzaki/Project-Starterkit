@@ -3,6 +3,9 @@
 import { ChunkBoundary, LazyMount, Panel } from "@starterkit/ui/ds";
 import { useDelayedFlag } from "@starterkit/ui/motion";
 import dynamic from "next/dynamic";
+import type { ComponentType } from "react";
+import type { AffectGroupId } from "../pages";
+import { SectionTitle } from "../section-title";
 import type { AffectDemo } from "./types";
 
 /** Space a group holds before its chunk has loaded, px: about two rows of cards. */
@@ -29,31 +32,31 @@ function DemoGrid({ demos }: { demos: readonly AffectDemo[] }) {
   );
 }
 
-/** Each group is its own chunk, loaded when it scrolls near: the route's first load carries none of the items. */
+/** Each group is its own chunk, loaded when it scrolls near: its page's body chunk carries none of the items. */
 const group = (load: () => Promise<{ DEMOS: readonly AffectDemo[] }>) => dynamic(async () => {
   const { DEMOS } = await load();
   return function Group() { return <DemoGrid demos={DEMOS} />; };
 }, { ssr: false, loading: GroupLoading });
 
-const GROUPS = [
-  { id: "actions", title: "Buttons and navigation", Group: group(() => import("./demos-actions")) },
-  { id: "inputs", title: "Inputs", Group: group(() => import("./demos-inputs")) },
-  { id: "feedback", title: "Feedback, text and agents", Group: group(() => import("./demos-feedback")) },
-  { id: "content", title: "Data display, cards and chat", Group: group(() => import("./demos-content")) },
-  { id: "visuals", title: "Illustrations, motion and blocks", Group: group(() => import("./demos-visuals")) },
-] as const;
+const GROUPS = {
+  actions: { title: "Buttons and navigation", Group: group(() => import("./demos-actions")) },
+  inputs: { title: "Inputs", Group: group(() => import("./demos-inputs")) },
+  feedback: { title: "Feedback, text and agents", Group: group(() => import("./demos-feedback")) },
+  content: { title: "Data display, cards and chat", Group: group(() => import("./demos-content")) },
+  visuals: { title: "Illustrations, motion and blocks", Group: group(() => import("./demos-visuals")) },
+} satisfies Record<AffectGroupId, { title: string; Group: ComponentType }>;
 
-/** The groups of /ds/affect; loaded after hydration by `AffectGallery` (affect-page.tsx). */
-export function AffectGroups() {
+/** One group of vendored affectUI items (packages/ui/src/affect), after the starterkit sections of its page (`AFFECT_PAGE`). */
+export function AffectGroup({ id }: { id: AffectGroupId }) {
+  const { title, Group } = GROUPS[id];
   return (
-      <div className="grid gap-4">
-        {GROUPS.map(({ id, title, Group }) => (
-          <Panel key={id} title={title}>
-            <section aria-label={title} data-affect-group={id}>
-              <LazyMount minHeight={GROUP_MIN_HEIGHT}><ChunkBoundary><Group /></ChunkBoundary></LazyMount>
-            </section>
-          </Panel>
-        ))}
-      </div>
+    <>
+      <SectionTitle>affectUI</SectionTitle>
+      <Panel title={title}>
+        <section aria-label={title} data-affect-group={id}>
+          <LazyMount minHeight={GROUP_MIN_HEIGHT}><ChunkBoundary><Group /></ChunkBoundary></LazyMount>
+        </section>
+      </Panel>
+    </>
   );
 }

@@ -1,6 +1,6 @@
 import type { ComponentType } from "react";
 
-/** One vendored affectUI item in the /ds/affect gallery: `slug` is its file in packages/ui/src/affect. */
+/** One vendored affectUI item in the gallery: `slug` is its file in packages/ui/src/affect. */
 export type AffectDemo = {
   slug: string;
   /** Upstream's name, as its docs print it ("Tool Call Card"). */

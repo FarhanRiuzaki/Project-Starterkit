@@ -34,7 +34,9 @@ export function PaletteDialog({ open, onOpenChange }: { open: boolean; onOpenCha
           <CommandList className="max-md:max-h-[50dvh]">
             <CommandEmpty>No pages match.</CommandEmpty>
             <CommandGroup heading="Pages">
-              {navFor(perms).flatMap((s) => s.items).map((n) => (
+              {/* A submenu's pages follow their item ("Design system / Forms"); a child on the item's own path is the item. */}
+              {navFor(perms).flatMap((s) => s.items).flatMap((n) => [n, ...(n.children ?? []).filter((c) => c.href !== n.href)
+                .map((c) => ({ href: c.href, label: `${n.label} / ${c.label}`, icon: n.icon, shortcut: "" }))]).map((n) => (
                 <CommandItem key={n.href} value={`${n.label} ${n.href}`} onSelect={() => go(n.href)}>
                   <NavGlyph icon={n.icon} />{n.label}{n.shortcut && <span className="ml-auto"><Kbd keys={goKeys(n.shortcut)} /></span>}
                 </CommandItem>

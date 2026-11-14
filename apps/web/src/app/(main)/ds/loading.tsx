@@ -1,12 +1,7 @@
-import { RouteSkeleton, type Section } from "@/components/route-skeleton";
+import { RouteSkeleton } from "@/components/route-skeleton";
+import { DS_SHAPE } from "@/features/ds/shapes";
 
-/** Loading shape of /ds with the loaded page's section heights at the 1440 px reference width (see route-skeleton). */
-const SECTIONS: readonly Section[] = [
-  { kind: "header", h: 68 },
-  { kind: "bar", h: 40 },
-  { kind: "panels", panels: [[12, 794]] },
-];
-
+/** Loading shape of /ds: the header and the shape the page shows while its body loads (DS_SHAPE). */
 export default function Loading() {
-  return <RouteSkeleton sections={SECTIONS} />;
+  return <RouteSkeleton sections={DS_SHAPE.overview} />;
 }

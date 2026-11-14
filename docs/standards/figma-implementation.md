@@ -14,7 +14,7 @@ Implementation sequence:
 2. Reuse Panel, Field, Input, Button, table and chart components; every content card gets an outer tray.
 3. Implement the approved login artwork, sidebar tree, top-navbar range and refresh controls.
 4. Connect time controls to URL state and actual server data; retain authorization, paging, exports, and stale/error states.
-5. Add reusable form controls and wizard composition to the live design-system gallery.
+5. Add reusable form controls and wizard composition to the live design system pages (`/ds/forms`).
 6. Verify typecheck, lint, unit/integration checks, responsive interaction, accessibility and bundle budget.
 
 Project behavior takes precedence over illustrative fixture data. Keep the starterkit's neutral vocabulary, permission-aware navigation, and existing authentication flows.
@@ -29,7 +29,7 @@ Project behavior takes precedence over illustrative fixture data. Keep the start
 | Input, affixes, number, textarea, date/time, OTP | Existing `Input` plus `InputAffix`, `NumberInput`, `Textarea`, `DatePicker`, `TimeInput`, `OtpInput` |
 | Radio, choice cards, checkbox group, switch, slider | `form-options.tsx`, `CheckboxGroup`; native keyboard semantics |
 | Searchable single/multiple select | `Combobox`, composing the existing deferred Popover and Command |
-| Upload and processing progress | `FileUpload` (dashed dropzone + selected rows), `FileItem` (selected / uploading / confirmed success / error), `ProgressBar`; caller owns transport, cancellation and progress. `/ds#ds-forms` shows selection, disabled, cancel, remove and validation. |
+| Upload and processing progress | `FileUpload` (dashed dropzone + selected rows), `FileItem` (selected / uploading / confirmed success / error), `ProgressBar`; caller owns transport, cancellation and progress. `/ds/forms` shows selection, disabled, cancel, remove and validation. |
 | Fieldset, sections, layouts, actions, error summary | `Fieldset`, `FormSection`, `FormLayout`, `FormActions`, `FormErrorSummary` |
 | Repeatable fields and filter rules | `RepeatableField`, `FilterRule`; controlled values, stable IDs and focus restoration |
 | Stepper, floating wizard, review, completion | Existing `StepIndicator`, `StepMarker`; `Wizard`, `WizardReview`, `WizardCompletion` |
@@ -37,7 +37,7 @@ Project behavior takes precedence over illustrative fixture data. Keep the start
 | Notification, activity, onboarding | `NotificationItem`, `ActivityItem`, `OnboardingChecklist` |
 | Plan, integration, key, billing patterns | `PlanCard`, `IntegrationCard`, `ApiKeyRow`, `BillingSummary`; data and action slots |
 
-The live `/ds` gallery demonstrates these components. Billing, integrations, uploads and invitations are examples, not new backend modules. DatePicker uses the shared custom Calendar with ISO typing, bounds, roving day focus and month/year keyboard navigation. DateRangeControl reuses Calendar and opens independent Absolute / Relative / Now endpoint editors; RefreshControl uses the shared custom radio menu on live modules without a time range. TimeInput retains the platform time keyboard. The original login vector is served locally in light/dark versions and covers the entire login page, without an outer frame.
+The live design system pages under `/ds` demonstrate these components. Billing, integrations, uploads and invitations are examples, not new backend modules. DatePicker uses the shared custom Calendar with ISO typing, bounds, roving day focus and month/year keyboard navigation. DateRangeControl reuses Calendar and opens independent Absolute / Relative / Now endpoint editors; RefreshControl uses the shared custom radio menu on live modules without a time range. TimeInput retains the platform time keyboard. The original login vector is served locally in light/dark versions and covers the entire login page, without an outer frame.
 
 ## Behavior and motion contract
 
@@ -61,11 +61,11 @@ The live `/ds` gallery demonstrates these components. Billing, integrations, upl
 
 ## Component coverage update
 
-The `/ds` catalog maps 155 live Figma component families and compositions to reusable APIs, source paths, example sections and source nodes. See [the full mapping](figma-component-coverage.md). Screen/table masters share composition APIs; the older CurrentScope placeholder follows the newer hide-when-unused rule. The catalog supports name/API search. Components and examples use the shared tokens and outer tray.
+The catalog on `/ds` (Overview) maps 156 live Figma component families and compositions to reusable APIs, source paths, example sections and source nodes; an Example link opens the page that holds the section (`sectionHref` in `apps/web/src/features/ds/pages.ts`). See [the full mapping](figma-component-coverage.md). Screen/table masters share composition APIs; the older CurrentScope placeholder follows the newer hide-when-unused rule. The catalog supports name/API search. Components and examples use the shared tokens and outer tray.
 
 New examples cover CalendarDay, Calendar, custom DatePicker and date range/refresh, route tabs and curved navigation, breadcrumbs with reachable collapsed ancestors, stepper layouts/error/disabled/optional states, BulkActionBar, UserCard, five-state DataRegion, form layouts, sign-in states, dialogs, drawer, popover, command palette, toast recovery and the icon library.
 
-Calendar keyboard behavior follows the [WAI APG date picker pattern](https://www.w3.org/WAI/ARIA/apg/patterns/dialog-modal/examples/datepicker-dialog/), adapted to shared popover focus handling. Calendar is loaded on demand by DatePicker. Product mutations remain owned by features; gallery samples never call billing, invitation or credential APIs.
+Calendar keyboard behavior follows the [WAI APG date picker pattern](https://www.w3.org/WAI/ARIA/apg/patterns/dialog-modal/examples/datepicker-dialog/), adapted to shared popover focus handling. Calendar is loaded on demand by DatePicker. Product mutations remain owned by features; design system samples never call billing, invitation or credential APIs.
 
 The time picker follows the supplied reference and the [Kibana time filter model](https://www.elastic.co/docs/explore-analyze/query-filter/filtering): the calendar segment opens Quick select (Last/Next + amount + unit), two-column Commonly used presets, actual recently applied ranges and Refresh every. Show dates reveals independent start/end segments. Each endpoint opens Absolute (shared calendar + half-hour time list + precise editable timestamp), Relative (amount/unit and rounding), or Now. Endpoint edits remain drafts until the header Apply button is used. Refresh intervals accept whole seconds from 5 seconds to 1 hour; invalid drafts pause scheduling. All controls retain a 32 px drawn height and 44 px touch targets. Editors load on demand and scroll within the phone viewport.
 

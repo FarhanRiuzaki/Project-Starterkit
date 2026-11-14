@@ -12,10 +12,11 @@ import { expectNoHorizontalScroll, pending2faState, settleAnimations, smallTouch
  * shift on first paint.
  */
 
-/** Every page: the nav pages, the sub-pages, the sign-in pages (`{name}` = a demo id, helpers.ts demoIds). */
-const SIGNED_IN = [...NAV.map((n) => n.href), "/users/new", "/users/{admin}", "/users/{admin}/edit", "/roles/{superadminRole}", "/projects/new", "/projects/{project}", "/projects/{project}/edit", "/me/security", "/me/sessions"];
+/** Every page: the nav pages with the pages of their submenu (/ds/…), the sub-pages, the sign-in pages (`{name}` = a demo id, helpers.ts demoIds). */
+const DS = NAV.find((n) => n.href === "/ds")!;
+const SIGNED_IN = [...new Set(NAV.flatMap((n) => [n.href, ...(n.children ?? []).map((c) => c.href)])), "/users/new", "/users/{admin}", "/users/{admin}/edit", "/roles/{superadminRole}", "/projects/new", "/projects/{project}", "/projects/{project}/edit", "/me/security", "/me/sessions"];
 const SIGNED_OUT = ["/login", "/forgot-password", "/reset-password"];
-/** The /ds gallery's blocked "Deactivate user" button (features/ds/sections.tsx). */
+/** The blocked "Deactivate user" button of /ds/components (features/ds/pages/components-body.tsx). */
 const BLOCKED_REASON = "This is the last active Superadmin. Make another user Superadmin first.";
 
 async function open(page: Page, path: string) {
@@ -67,7 +68,7 @@ test.describe("shell from 768 px", () => {
   test("hover-only details stay hover-only with a fine pointer: no touch date line, no blocked-button caption", async ({ page }) => {
     await open(page, "/users");
     await expect(page.getByRole("table", { name: "Users" }).locator("time").first().locator("xpath=following-sibling::span[1]")).toBeHidden();
-    await open(page, "/ds");
+    await open(page, "/ds/components");
     await expect(page.getByText(BLOCKED_REASON)).toHaveClass(/sr-only/);
     expect(await page.getByText(BLOCKED_REASON).evaluate((el) => getComputedStyle(el).position)).toBe("absolute");
   });
@@ -80,6 +81,84 @@ test.describe("shell from 768 px", () => {
     if (info.project.name === "tablet") expect(w).toBe(64);
     else expect([64, 248]).toContain(w);
     await expect(page.getByRole("button", { name: "Open navigation" })).toBeHidden();
+  });
+});
+
+test.describe("design system submenu", () => {
+  test.use({ storageState: AUTH_STATE });
+  const LABELS = ["Overview", "Foundations", "Components", "Forms", "Feedback", "Data display", "Illustrations", "Motion"];
+
+  test("the eight pages are listed under Design system in order, the open one is current, and Forms opens /ds/forms", async ({ page, isMobile }, info) => {
+    expect(DS.children!.map((c) => c.label)).toEqual(LABELS);
+    await open(page, "/ds/data");
+    const menu = page.getByRole("navigation", { name: "Menu" });
+    if (isMobile) {
+      // Phone: the drawer lists them under the item while one of its pages is open.
+      await page.getByRole("button", { name: "Open navigation" }).tap();
+      const drawer = page.getByRole("dialog", { name: "Navigation" });
+      await expect(drawer.locator(".nav-tree a")).toHaveText(LABELS);
+      await expect(drawer.locator('[aria-current="page"]')).toHaveText("Data display");
+      await drawer.getByRole("link", { name: "Forms", exact: true }).tap();
+      await expect(drawer).toBeHidden();
+    } else if (info.project.name === "tablet") {
+      // Rail: the item is a menu button; its menu lists the pages.
+      await expect(menu.getByRole("link", { name: "Forms", exact: true })).toBeHidden();
+      await menu.getByRole("button", { name: "Design system", exact: true }).click();
+      await expect(page.getByRole("menuitem")).toHaveText(LABELS);
+      await expect(page.getByRole("menuitem", { name: "Data display", exact: true })).toHaveAttribute("aria-current", "page");
+      await page.getByRole("menuitem", { name: "Forms", exact: true }).click();
+    } else {
+      await expect(menu.getByRole("link", { name: "Design system", exact: true })).toHaveAttribute("href", "/ds");
+      await expect(menu.locator(".nav-tree a")).toHaveText(LABELS);
+      expect(await menu.locator(".nav-tree a").evaluateAll((links) => links.map((a) => a.getAttribute("href")))).toEqual(DS.children!.map((c) => c.href));
+      await expect(menu.locator('[aria-current="page"]')).toHaveText("Data display");
+      await menu.getByRole("link", { name: "Forms", exact: true }).click();
+    }
+    await expect(page).toHaveURL(/\/ds\/forms$/);
+    await expect(page.getByRole("heading", { level: 1, name: "Forms", exact: true })).toBeVisible();
+    if (!isMobile && info.project.name === "desktop") await expect(menu.locator('[aria-current="page"]')).toHaveText("Forms");
+  });
+
+  test("a tap anywhere on a submenu row opens that row's page: the next row's hit area doesn't lie over it", async ({ page, isMobile }) => {
+    test.skip(!isMobile, "the drawer under a coarse pointer");
+    await open(page, "/ds/data");
+    await page.getByRole("button", { name: "Open navigation" }).tap();
+    const drawer = page.getByRole("dialog", { name: "Navigation" });
+    await expect(drawer).toBeVisible();
+    await settleAnimations(page);
+    // Each row, at its label and near its lower corners, is the element a tap there hits.
+    const other = await drawer.locator(".nav-tree a").evaluateAll((links) => links.flatMap((a) => {
+      a.scrollIntoView({ block: "center" });
+      const r = a.getBoundingClientRect();
+      return [[24, 8], [24, r.height - 8], [r.width - 24, r.height - 8]]
+        .map(([x, y]) => document.elementFromPoint(r.left + x!, r.top + y!)?.closest("a"))
+        .filter((hit) => hit !== a).map((hit) => `${a.textContent} → ${hit?.textContent ?? "nothing"}`);
+    }));
+    expect(other).toEqual([]);
+    const forms = drawer.getByRole("link", { name: "Forms", exact: true });
+    await forms.tap({ position: { x: 24, y: (await forms.boundingBox())!.height - 8 } });
+    await expect(page).toHaveURL(/\/ds\/forms$/);
+  });
+
+  test("the page search finds a design system page by its name and opens it", async ({ page, isMobile }) => {
+    await open(page, "/me");
+    const search = page.getByRole("button", { name: "Search pages" });
+    await (isMobile ? search.tap() : search.click());
+    const palette = page.getByRole("dialog", { name: "Search pages" });
+    await palette.getByRole("combobox").fill("Forms");
+    await palette.getByRole("option", { name: "Design system / Forms", exact: true }).click();
+    await expect(page).toHaveURL(/\/ds\/forms$/);
+    await expect(page.getByRole("heading", { level: 1, name: "Forms", exact: true })).toBeVisible();
+    // Overview is the item itself: listed once, as "Design system".
+    await (isMobile ? search.tap() : search.click());
+    await palette.getByRole("combobox").fill("Design system");
+    await expect(palette.getByRole("option", { name: /^Design system/ })).toHaveText(["Design system", ...LABELS.slice(1).map((l) => `Design system / ${l}`)]);
+  });
+
+  test("the submenu is closed off the design system pages", async ({ page, isMobile }) => {
+    test.skip(isMobile, "the drawer is covered above");
+    await open(page, "/me");
+    await expect(page.getByRole("navigation", { name: "Menu" }).locator(".nav-tree")).toHaveCount(0);
   });
 });
 
@@ -265,7 +344,7 @@ test.describe("phone", () => {
     await open(page, "/users");
     const cell = page.getByRole("table", { name: "Users" }).locator("time").first().locator("xpath=..");
     await expect(cell.locator("span").filter({ hasText: /^\d{1,2} [A-Z][a-z]{2}, \d{2}:\d{2}$/ }).first()).toBeVisible();
-    await open(page, "/ds");
+    await open(page, "/ds/components");
     const reason = page.getByText(BLOCKED_REASON);
     await expect(reason).toBeVisible();
     const button = page.locator(`button[aria-describedby="${await reason.getAttribute("id")}"]`);

@@ -221,7 +221,7 @@ test.describe("phone: stacked rows", () => {
   });
 
   test("the matrix: a tap on a read-only cell shows why", async ({ page }) => {
-    await open(page, "/ds");
+    await open(page, "/ds/data");
     const grid = page.getByRole("grid", { name: "Permissions of Sample role" });
     await grid.scrollIntoViewIfNeeded();
     await grid.getByRole("checkbox", { name: "Delete role" }).tap();
@@ -244,7 +244,7 @@ test.describe("phone: stacked rows", () => {
   });
 
   test("tabs scroll inside the tablist; the indicator follows the tapped tab", async ({ page }) => {
-    await open(page, "/ds");
+    await open(page, "/ds/components");
     const list = page.getByRole("tablist", { name: "Sample sections" });
     await list.scrollIntoViewIfNeeded();
     expect(await list.evaluate((el) => getComputedStyle(el).overflowX)).toBe("auto");

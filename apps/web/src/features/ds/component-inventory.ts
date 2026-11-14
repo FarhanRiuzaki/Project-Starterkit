@@ -86,7 +86,7 @@ export const COMPONENT_INVENTORY = [
     "name": "PasswordChecks",
     "api": "PasswordChecks",
     "source": "ds/password-checks",
-    "section": "forms",
+    "section": "primitives",
     "kind": "Component"
   },
   {
@@ -102,7 +102,7 @@ export const COMPONENT_INVENTORY = [
     "name": "Checkbox",
     "api": "Checkbox",
     "source": "ds/checkbox",
-    "section": "forms",
+    "section": "primitives",
     "kind": "Component"
   },
   {
@@ -446,7 +446,7 @@ export const COMPONENT_INVENTORY = [
     "name": "DataTable",
     "api": "DataTable",
     "source": "ds/data-table",
-    "section": "primitives",
+    "section": "tables",
     "kind": "Component"
   },
   {
@@ -462,7 +462,7 @@ export const COMPONENT_INVENTORY = [
     "name": "UserCard",
     "api": "UserCard",
     "source": "ds/user-card",
-    "section": "primitives",
+    "section": "data",
     "kind": "Component"
   },
   {
@@ -534,7 +534,7 @@ export const COMPONENT_INVENTORY = [
     "name": "StatTile",
     "api": "StatTile",
     "source": "ds/stat-tile",
-    "section": "primitives",
+    "section": "data",
     "kind": "Component"
   },
   {
@@ -582,7 +582,7 @@ export const COMPONENT_INVENTORY = [
     "name": "CopyValue",
     "api": "CopyValue",
     "source": "ds/copy-value",
-    "section": "primitives",
+    "section": "data",
     "kind": "Component"
   },
   {
@@ -590,7 +590,7 @@ export const COMPONENT_INVENTORY = [
     "name": "RelativeTime",
     "api": "RelativeTime",
     "source": "ds/relative-time",
-    "section": "primitives",
+    "section": "data",
     "kind": "Component"
   },
   {
@@ -606,7 +606,7 @@ export const COMPONENT_INVENTORY = [
     "name": "Notice",
     "api": "Notice",
     "source": "ds/notice",
-    "section": "primitives",
+    "section": "data",
     "kind": "Component"
   },
   {
@@ -806,7 +806,7 @@ export const COMPONENT_INVENTORY = [
     "name": "Segmented",
     "api": "Segmented",
     "source": "ds/segmented",
-    "section": "primitives",
+    "section": "data",
     "kind": "Component"
   },
   {
@@ -830,7 +830,7 @@ export const COMPONENT_INVENTORY = [
     "name": "TimeRangePicker",
     "api": "TimeRangePicker",
     "source": "ds/time-range",
-    "section": "time",
+    "section": "data",
     "kind": "Component"
   },
   {

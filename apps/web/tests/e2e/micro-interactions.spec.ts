@@ -4,7 +4,7 @@ import { axeSerious, expectNoHorizontalScroll, smallTouchTargets } from "./helpe
 
 test.use({ storageState: AUTH_STATE });
 async function preview(page: Page, parentReduced = false) {
-  await page.goto("/ds");
+  await page.goto("/ds/motion");
   if (parentReduced) await page.getByRole("radiogroup", { name: "Preview reduced motion", exact: true }).getByRole("radio", { name: "Reduced", exact: true }).click();
   await page.getByRole("button", { name: "Explore micro-interactions" }).click();
   const dialog = page.getByRole("dialog", { name: "Micro-interactions", exact: true });
@@ -177,7 +177,7 @@ test("touch controls and the preview fit 360px without sticky hover or undersize
 
 test("OTP focus follows the native caret through typing, editing and sanitization", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "no-preference" });
-  await page.goto("/ds");
+  await page.goto("/ds/forms");
   const input = page.getByLabel("Verification code", { exact: true });
   const root = input.locator("..");
   const activeCell = () => root.locator('[data-slot="otp-cell"]').evaluateAll(cells => cells.findIndex(cell => cell.getAttribute("data-current") === "true"));
@@ -199,7 +199,7 @@ test("OTP focus follows the native caret through typing, editing and sanitizatio
 
 test("text reveal: each piece runs on the reveal tokens, 40 ms apart, and ends visible; reduced motion fades only", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "no-preference" });
-  await page.goto("/ds");
+  await page.goto("/ds/motion");
   const card = page.locator('[data-demo="text-reveal"]');
   await card.scrollIntoViewIfNeeded();
   const pieces = card.locator(".reveal-text[data-shown] [data-piece]");
@@ -230,13 +230,15 @@ test("a menu and a popover enter from the side they open on, by the enter shift;
   });
   const FROM_SIDE = ["bottom 0px -6px", "top 0px 6px", "right -6px 0px", "left 6px 0px"];
   await page.emulateMedia({ reducedMotion: "no-preference" });
-  await page.goto("/ds");
+  // The menu sample is on the Data display page, the popover sample on the Feedback page.
+  await page.goto("/ds/data");
   const menu = page.locator('[data-slot="dropdown-menu-content"]');
   await page.getByRole("button", { name: "Gallery actions", exact: true }).click();
   await expect(menu).toBeVisible();
   expect(FROM_SIDE).toContain(await shift(menu));
   await page.keyboard.press("Escape");
   await expect(menu).toHaveCount(0);
+  await page.goto("/ds/feedback");
   const popover = page.locator('[data-slot="popover-content"]');
   await page.getByRole("button", { name: "Open popover", exact: true }).click();
   await expect(popover).toBeVisible();
@@ -244,6 +246,7 @@ test("a menu and a popover enter from the side they open on, by the enter shift;
   await page.keyboard.press("Escape");
   await expect(popover).toHaveCount(0);
   await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/ds/data");
   await page.getByRole("button", { name: "Gallery actions", exact: true }).click();
   await expect(menu).toBeVisible();
   expect(await shift(menu)).toMatch(/ 0px 0px$/);

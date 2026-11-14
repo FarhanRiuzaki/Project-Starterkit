@@ -11,7 +11,7 @@ Browser → Next.js BFF `/api/*` → API privat `/v1/*` → PostgreSQL.
 | `apps/web` | Next 16 App Router pada Node 24. Browser hanya same-origin `/api/*`; catch-all meneruskan data, route auth mengatur cookie sendiri. Page tipis memakai permission guard, title dan prefetch; screen/hook milik feature. Client tidak mengimpor server/database. |
 | `apps/api` | Bun/Elysia, controller → service → Drizzle. API memutuskan otorisasi dan aturan bisnis; registry memasang health/auth/oauth/me/rbac/users/audit/dashboard/projects. Akses antar modul hanya melalui index, kecuali FK schema sesuai aturan repo. Kernel tidak mengimpor modul. |
 | `packages/shared` | DTO/query/body zod, permission catalog, paging, activity vocabulary, redaksi dan brand. Kontrak adalah source of truth, JSON Schema/docs adalah hasil yang diperiksa terhadapnya. Client mengimpor contract sebagai type dan konstanta ringan dari file bebas zod. |
-| `packages/ui` | Tokens → primitives/motion → DS → charts; tidak mengimpor domain aplikasi. API hanya memakai helper murni `lib/*`. Perubahan UI bersama diperlihatkan di `/ds`. |
+| `packages/ui` | Tokens → primitives/motion → DS → charts; tidak mengimpor domain aplikasi. API hanya memakai helper murni `lib/*`. Perubahan UI bersama diperlihatkan di halaman design system (`/ds` dan tujuh halaman di bawahnya, DEC-030). |
 | PostgreSQL 18 | Seluruh persistent/shared state: data, session, limiter/backoff dan OAuth state. Transaksi + row/advisory lock untuk invariant konkuren; tidak ada event bus. |
 
 State shareable list/range/tab/page berada di URL; query keys hanya dibangun di `apps/web/src/lib/shared/queries.ts`, prefix sesuai pemilik data. Prefetch dan browser memakai key/URL yang sama. Feature web tidak mengimpor feature lain.
@@ -80,7 +80,7 @@ Instruksi pemilik terbaru mengganti rancangan modal + Apply + scalar menjadi **s
 | `/api/permissions` | module | OR prefix module valid, AND q; query-bound/whitelisted tanpa SQL identifier dari pengguna. |
 | `/api/audit/activity` dan CSV | action | OR exact action, AND user dan range existing; list/count/export memakai predicate sama. |
 | `/api/audit/auth` dan CSV | event, method | OR masing-masing enum, AND antar-group/user/range. |
-| `/roles`, `/ds` | Search-only / contoh shared | Jangan menciptakan facet domain; gallery merepresentasikan shared sidebar/live controls. |
+| `/roles`, `/ds/data` | Search-only / contoh shared | Jangan menciptakan facet domain; contoh di halaman design system merepresentasikan shared sidebar/live controls. |
 
 Boundary final: evolusi hook raw-URL context existing memakai queryValues dengan allow-list enam key kategori; getAll raw mempertahankan comma/Unicode, scalar lain tetap first value. Tidak ada plugin baru, plural JSON wire atau implicit JSON decoding. Search300ms history replace; checkbox+flush dan Clear satu push.
 

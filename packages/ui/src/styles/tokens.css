@@ -101,7 +101,7 @@
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
   --ease-linear: cubic-bezier(0, 0, 1, 1);
   /* Text reveal (spec §7.8 R10): per piece, between two pieces, curve. CSS only: this file has no JS mirror, since
-     motion/tokens.ts ships in every route's first load (the /ds row is checked against these, motion-section.test.ts). */
+     motion/tokens.ts ships in every route's first load (the /ds/motion row is checked against these, motion-section.test.ts). */
   --reveal-dur: 700ms;
   --reveal-step: 40ms;
   --reveal-ease: cubic-bezier(0.2, 0.7, 0.2, 1);

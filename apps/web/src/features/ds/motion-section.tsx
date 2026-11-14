@@ -16,6 +16,7 @@ import { Skeleton } from "@starterkit/ui/ui/skeleton";
 import { useScrollsX } from "@starterkit/ui/ui/table";
 import { toast } from "@starterkit/ui/ui/toast";
 import { MicroInteractionPreview } from "./micro-interaction-preview";
+import { useHashScroll } from "./use-hash-scroll";
 
 type Spring = { stiffness: number; damping: number; mass: number };
 export const fmtMs = (s: number) => `${Math.round(s * 1000)} ms`;
@@ -278,15 +279,17 @@ function TokenRows({ rows }: { rows: readonly (readonly [string, string])[] }) {
   );
 }
 
-/** The /ds Motion section: tokens rendered from code, replayable patterns, the rules, and a reduced-motion preview. */
+/** The /ds/motion page body: tokens rendered from code, replayable patterns, the rules, and a reduced-motion preview. */
 export function MotionSection() {
+  useHashScroll();
   const [rulesBox, rulesScroll] = useScrollsX<HTMLDivElement>();
   const [preview, setPreview] = useState<"off" | "reduced">("off");
   return (
     <ReducedMotionScope active={preview === "reduced"}><section data-motion-section="" data-motion-preview={preview === "reduced" ? "reduced" : undefined} aria-labelledby="motion-title" className="grid gap-section">
       <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
-        <h2 id="motion-title" className="text-title-3 text-fg-2">Motion</h2>
-        <div className="grid justify-items-end gap-1.5">
+        {/* The page's h1 already says "Motion": the section keeps its heading as its name, not on screen. */}
+        <h2 id="motion-title" className="sr-only">Motion</h2>
+        <div className="ml-auto grid justify-items-end gap-1.5">
           <div className="flex items-center gap-2 text-body-sm text-fg-3">
             Preview reduced motion
             <Segmented label="Preview reduced motion" value={preview} onChange={setPreview} options={[{ value: "off", label: "Off" }, { value: "reduced", label: "Reduced" }]} />

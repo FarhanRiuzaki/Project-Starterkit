@@ -1,0 +1,51 @@
+"use client";
+
+import { loginIdentifierBadge } from "@starterkit/shared/login-identifier";
+import { AuthCard, BlockedButton, Calendar, CalendarDay, CategoryChip, DatePicker, DateRangeControl, Field, Fieldset, FormLayout, InputAffix, Panel, RefreshControl, Segmented, type RefreshInterval } from "@starterkit/ui/ds";
+import { formatNumber } from "@starterkit/ui/lib/format";
+import { Button } from "@starterkit/ui/ui/button";
+import { Input } from "@starterkit/ui/ui/input";
+import { PasswordInput } from "@starterkit/ui/ui/password-input";
+import { useState } from "react";
+import { AffectGroup } from "../affect/gallery";
+import { FormSectionGallery } from "../form-section";
+import { FormsSection } from "../forms-section";
+import { PackSection } from "../pack-section";
+import { sample } from "../sample-toast";
+import { SectionTitle } from "../section-title";
+import { useHashScroll } from "../use-hash-scroll";
+
+const date = "2026-11-15";
+
+/** /ds/forms below the header: form controls, calendars and time, form compositions, forms and flows, affectUI's inputs. */
+export function FormsSections() {
+  useHashScroll();
+  const [selected, setSelected] = useState(date), [range, setRange] = useState({ from: "2026-11-10", to: "2026-11-16" }), [start, setStart] = useState(true);
+  const [timeSelection, setTimeSelection] = useState({ start: "now-15m", end: "now" });
+  const [interval, setIntervalValue] = useState<RefreshInterval>(0), [refreshCount, setRefreshCount] = useState(0);
+  const [previewLogin, setPreviewLogin] = useState("");
+  const previewBadge = loginIdentifierBadge(previewLogin);
+  const [authState, setAuthState] = useState("Password"), [previewDate, setPreviewDate] = useState("");
+  return (
+    <>
+      <div id="ds-forms" className="scroll-mt-20"><FormSectionGallery /></div>
+      <PackSection />
+      <section id="ds-time" className="grid scroll-mt-20 gap-6" aria-label="Calendars and time controls">
+        <Panel title="Calendar and date picker" description="Shared custom calendar. Arrow keys move by day/week; Page Up/Down changes month; Shift adds a year. Monday starts the week.">
+          <div className="grid min-w-0 grid-cols-1 gap-6 xl:grid-cols-2"><div className="grid min-w-0 grid-cols-1 content-start gap-4"><Calendar value={selected} today="2026-11-07" onValueChange={setSelected} /><Field id="library-date" label="Appointment date" note="YYYY-MM-DD · type or open the custom calendar"><DatePicker id="library-date" value={previewDate} onValueChange={setPreviewDate} calendarLabel="Choose appointment date" /></Field><Field id="library-date-error" label="Date with minimum" note="Choose a date on or after 7 November 2026."><DatePicker id="library-date-error" defaultValue="2026-11-01" min="2026-11-07" calendarLabel="Choose constrained date" /></Field></div>
+          <div className="grid min-w-0 grid-cols-1 content-start gap-4"><Calendar label="Choose date range" value={range.from} range={range} initialMonth={date} today="2026-11-07" onValueChange={d => { if (start || d < range.from) { setRange({ from: d, to: d }); setStart(false); } else { setRange({ ...range, to: d }); setStart(true); } }} /><p className="text-caption text-fg-3" role="status">{start ? "Choose a start date for a new range." : "Choose the end date."}</p><div className="flex flex-wrap gap-3">{["Default", "Today", "Selected", "In range", "Outside", "Disabled"].map(state => <div key={state} className="grid w-16 gap-2 text-center"><CalendarDay selected={state === "Selected"} today={state === "Today"} inRange={state === "In range"} outside={state === "Outside"} disabled={state === "Disabled"} aria-label={`${state} example, 15 November 2026`}>15</CalendarDay><span className="text-caption text-fg-3">{state}</span></div>)}</div></div></div>
+        </Panel>
+        <Panel title="Date range and refresh" description="The exact controls used in the app header. This preview changes local sample state only."><div className="flex flex-wrap items-center gap-3"><div className="min-w-0 flex-1 basis-96"><DateRangeControl value={timeSelection} onChange={setTimeSelection} refresh={{ interval, onInterval: setIntervalValue, onRefresh: () => setRefreshCount(n => n + 1) }} /></div><RefreshControl interval={interval} onInterval={setIntervalValue} onRefresh={() => setRefreshCount(n => n + 1)} busy={false} /><span role="status" className="text-caption text-fg-3">{formatNumber(refreshCount)} sample refreshes</span></div></Panel>
+      </section>
+      <section id="ds-compositions" className="grid scroll-mt-20 gap-6" aria-label="Form compositions">
+        <FormLayout title="Two-column form layout" columns={2} actions={<Button type="submit">Save example</Button>} onSubmit={e => { e.preventDefault(); sample(); }}><Fieldset legend="Identity" description="Fields are composed from the same global inputs."><Field id="library-name" label="Name"><Input id="library-name" defaultValue="Alex Morgan" /></Field></Fieldset><Fieldset legend="Contact"><Field id="library-email" label="Email"><Input id="library-email" type="email" defaultValue="alex@example.com" /></Field></Fieldset></FormLayout>
+        <Panel title="Sign-in card states" description="The shared authentication surface with local preview data. Credentials are never sent from this example." toolbar={<div className="scroll-quiet max-w-full overflow-x-auto py-1"><Segmented label="Sign-in preview state" value={authState} onChange={value => { setAuthState(value); setPreviewLogin(value === "LDAP" ? "22020283" : ""); }} options={["Password", "LDAP", "Pending", "Error", "Unavailable"].map(value => ({ value, label: value }))} /></div>}><AuthCard headingLevel={2} title="Sign in" description="Use your email, username or NIP and password."><Field id="library-login" label="Email, username or NIP"><InputAffix id="library-login" autoComplete="off" autoCapitalize="none" spellCheck={false} value={previewLogin} onChange={e => setPreviewLogin(e.target.value)} suffix={previewBadge ? <CategoryChip key={previewBadge} label={previewBadge} slot="neutral" className="animate-swap" /> : undefined} /></Field><Field id="library-password" label="Password"><PasswordInput id="library-password" autoComplete="off" /></Field>{authState === "Error" && <p role="alert" className="rounded-md bg-down-soft p-3 text-body-sm text-down-ink">Email, username or password is incorrect. Try again.</p>}<Button disabled={authState === "Pending"} onClick={sample}>{authState === "Pending" ? "Signing in…" : "Sign in"}</Button><BlockedButton reason={authState === "Unavailable" ? "Provider unavailable. Sign in another way." : null} variant="secondary" onClick={sample}>Continue with Google</BlockedButton><p className="text-caption text-fg-3">Every sign-in is logged.</p></AuthCard></Panel>
+      </section>
+
+      <SectionTitle>Forms and flows</SectionTitle>
+      <FormsSection />
+
+      <AffectGroup id="inputs" />
+    </>
+  );
+}

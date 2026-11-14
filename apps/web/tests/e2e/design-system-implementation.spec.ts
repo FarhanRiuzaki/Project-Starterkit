@@ -62,7 +62,7 @@ test("palettes persist independently of theme and retain responsive layouts", as
 });
 
 test("form pack supports keyboard search, paste, boundary controls and wizard validation", async ({ page }) => {
-  await page.goto("/ds");
+  await page.goto("/ds/forms");
   const wizard = page.locator("#ds-forms");
   await page.locator("#affix-prefix").scrollIntoViewIfNeeded();
   const inputTops = await page.locator("#affix-prefix, #affix-suffix, #affix-both").evaluateAll((inputs) => inputs.map((input) => input.getBoundingClientRect().top));
