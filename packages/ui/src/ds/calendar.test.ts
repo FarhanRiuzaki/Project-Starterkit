@@ -35,3 +35,19 @@ it("limits month/year choices to bounds and clamps the focused date at each boun
   expect(el.querySelector('[data-date="2026-09-10"]')?.getAttribute("tabindex")).toBe("0");
   expect(el.querySelector<HTMLButtonElement>('[aria-label="Next month"]')!.disabled).toBe(true);
 });
+it("a month change replays the weeks' enter from the side it came from without remounting a row; a chosen day is marked once", async () => {
+  const el = await mount({ value: "2026-03-10", today: "2026-11-08", onValueChange: vi.fn() });
+  const weeks = () => [...el.querySelectorAll<HTMLElement>('[role="grid"] > [role="row"]')].slice(1);
+  const before = weeks();
+  // Opening the calendar plays nothing.
+  expect(before.map(row => row.dataset.nudge)).toEqual(Array(6).fill(undefined));
+  await act(async () => el.querySelector<HTMLButtonElement>('[aria-label="Next month"]')!.click());
+  expect(weeks().map(row => `${row.dataset.nudge} ${row.dataset.nudgeFrom}`)).toEqual(Array(6).fill("a right"));
+  await act(async () => el.querySelector<HTMLButtonElement>('[aria-label="Previous month"]')!.click());
+  expect(weeks().map(row => `${row.dataset.nudge} ${row.dataset.nudgeFrom}`)).toEqual(Array(6).fill("b left"));
+  expect(weeks()).toEqual(before);
+  expect(el.querySelector("[data-picked]")).toBeNull();
+  await act(async () => el.querySelector<HTMLButtonElement>('[data-date="2026-03-12"]')!.click());
+  expect([...el.querySelectorAll("[data-picked]")].map(day => day.getAttribute("data-date"))).toEqual(["2026-03-12"]);
+});
+

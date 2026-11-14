@@ -149,6 +149,7 @@
   [data-motion-preview="reduced"] :is(.animate-page-enter, .animate-enter, .animate-reveal-in, .animate-pop, .animate-swap, .animate-shell-sheet) { animation: fade-in var(--dur-instant) linear both !important; }
   [data-motion-preview="reduced"] .stagger-children > * { animation: fade-in var(--dur-instant) linear both !important; }
   [data-motion-preview="reduced"] :is(.animate-row-new, .motion-safe\:animate-row-new) { animation: none !important; }
+  [data-motion-preview="reduced"] .reveal-text[data-shown] [data-piece] { animation: fade-in var(--dur-instant) linear both !important; }
   [data-motion-preview="reduced"] .transition-sidebar { transition: none !important; }
   [data-motion-preview="reduced"] .animate-progress { animation: none !important; }
   [data-motion-preview="reduced"] .indicator-move { transition: opacity var(--dur-instant) linear !important; }
@@ -218,6 +219,19 @@ details[open]::details-content { block-size: auto; opacity: 1; }
 }
 @utility animate-reveal-out {
   animation: fade-out var(--dur-fast) var(--ease-in) forwards;
+}
+
+/* Text reveal (R10; motion/text-reveal.tsx, after affectUI's Text Reveal, MIT): each word or letter fades out of a
+   soft blur while it rises 0.35em, --reveal-step apart. The one filter animation; headings and empty states only.
+   Reduced motion: fade only, no delay (the global rule zeroes it). */
+@keyframes text-reveal { from { opacity: 0; filter: blur(var(--reveal-blur)); transform: translateY(0.35em); } }
+@utility reveal-text {
+  --reveal-blur: 8px;
+  .dark & { --reveal-blur: 6px; }
+  & [data-word], & [data-piece] { display: inline-block; max-width: 100%; overflow-wrap: anywhere; }
+  & [data-piece] { opacity: 0; }
+  &[data-shown] [data-piece] { opacity: 1; animation: text-reveal var(--reveal-dur) var(--reveal-ease) both; animation-delay: calc(var(--i) * var(--reveal-step)); }
+  @media (prefers-reduced-motion: reduce) { &[data-shown] [data-piece] { animation: fade-in var(--dur-instant) linear both; } }
 }
 
 /* Skeleton shimmer (spec §7.2): --inset block with a 1.2 s sweep on a transformed pseudo-element (GPU only);
@@ -394,6 +408,10 @@ details[open]::details-content { block-size: auto; opacity: 1; }
   [data-slot="otp-input"]:has(input[aria-invalid="true"]) > [data-slot="otp-cell"] { border-color: var(--down-mark); }
   [data-slot="otp-input"]:has(input[aria-invalid="true"]:focus-visible) > [data-current="true"] { box-shadow: 0 0 0 2px var(--down-soft); }
   [data-slot="otp-cell"][data-filled="true"] { background-color: var(--tray); }
+  /* An invalid field shows the error in its fill as well as its border (after affectUI's Text Field, MIT): an
+     --invalid-wash share of Down over the card. tokens.test.ts checks text and placeholder contrast on it. */
+  :is([data-slot="input"], [data-slot="select"], [data-slot="textarea"])[aria-invalid="true"],
+  :is([data-slot="input-affix"], [data-slot="number-input"])[data-invalid] { background-color: color-mix(in srgb, var(--down-mark) var(--invalid-wash), var(--card)); }
   [data-slot="slider"] { transition: opacity var(--dur-fast) var(--ease-standard); }
   [data-slot="slider"]:disabled { cursor: not-allowed; }
   [data-slot="disclosure-icon"] { transition: transform var(--dur-fast) var(--ease-out); }
@@ -427,13 +445,63 @@ details[open]::details-content { block-size: auto; opacity: 1; }
 }
 @media (prefers-reduced-motion: no-preference) {
   [data-slot="switch"]:has(input:active:not(:disabled, [readonly])) > span:last-of-type { scale: var(--choice-press-scale); }
-  [data-slot="switch"] > span:last-of-type { transition: translate var(--dur-instant) var(--ease-out), transform var(--dur-instant) var(--ease-out), scale var(--dur-instant) var(--ease-out); }
+  [data-slot="switch"] > span:last-of-type { transition: translate var(--dur-enter) var(--ease-out), transform var(--dur-enter) var(--ease-out), scale var(--dur-instant) var(--ease-out); }
 }
 [data-motion-preview="reduced"] .press-feedback:active { transform: none !important; }
 [data-motion-preview="reduced"] [data-slot="switch"] > span:last-of-type { scale: 1 !important; }
 
 [data-motion-preview="reduced"] [data-slot="radio-mark"] > span { transform: none !important; }
 @media (prefers-reduced-motion: reduce) { [data-slot="radio-mark"] > span { transform: none; } }
+
+/* Carried over from affectUI's twins (MIT; design-system.md §7.9, R11). Each is keyed to a state change by the
+   component, uses the tokens, and has no motion under reduced motion or in the /ds reduced preview. */
+/* A check draws its stroke (Checkbox, so filters too, and menu checkbox items). 24 = longer than the Tick02 path. */
+@keyframes tick-draw { from { stroke-dashoffset: 24; } }
+/* A typed OTP digit rises into its cell. */
+@keyframes digit-in { from { opacity: 0; transform: translateY(0.3em) scale(0.8); } }
+/* Replayable directional enter (calendar weeks on a month change, a number field's value on a step): data-nudge
+   alternates a / b, two identical keyframes, so the animation restarts without remounting anything (focus stays);
+   data-nudge-from is the side the new content comes from. */
+@keyframes nudge-a { from { opacity: 0; transform: translate(var(--nudge-x, 0), var(--nudge-y, 0)); } }
+@keyframes nudge-b { from { opacity: 0; transform: translate(var(--nudge-x, 0), var(--nudge-y, 0)); } }
+[data-nudge] { animation: nudge-a var(--dur-enter) var(--ease-out) both; }
+[data-nudge="b"] { animation-name: nudge-b; }
+[data-nudge-from="right"] { --nudge-x: var(--shift-enter); }
+[data-nudge-from="left"] { --nudge-x: calc(var(--shift-enter) * -1); }
+[data-nudge-from="down"] { --nudge-y: var(--shift-enter); }
+[data-nudge-from="up"] { --nudge-y: calc(var(--shift-enter) * -1); }
+/* The day just chosen settles once (pop, no overshoot). */
+[data-slot="calendar-day"][data-picked] { animation: pop var(--dur-pop) var(--ease-out) both; }
+[data-slot="checkbox-mark"] { transition-property: border-color, background-color, color, transform; }
+@media (prefers-reduced-motion: no-preference) {
+  :is([data-slot="checkbox-mark"] > .animate-swap, [data-slot="dropdown-menu-checkbox-item"] [data-state="checked"] > svg) path { stroke-dasharray: 24; animation: tick-draw var(--dur-enter) var(--ease-out) both; }
+  [data-slot="otp-cell"] > .animate-swap { animation: digit-in var(--dur-enter) var(--ease-out) both; }
+  [data-slot="checkbox"]:active:not([aria-readonly="true"]) > [data-slot="checkbox-mark"] { transform: scale(var(--choice-press-scale)); }
+  /* ui/switch: the knob slides like the form Switch above and gives under the press. */
+  button[role="switch"] > span > span { transition: transform var(--dur-enter) var(--ease-out), scale var(--dur-instant) var(--ease-out); }
+  button[role="switch"]:active:not(:disabled) > span > span { scale: var(--choice-press-scale); }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-nudge] { --nudge-x: 0px; --nudge-y: 0px; }
+  [data-slot="calendar-day"][data-picked] { animation: fade-in var(--dur-instant) linear both; }
+}
+[data-motion-preview="reduced"] :is([data-slot="checkbox-mark"] > .animate-swap, [data-slot="dropdown-menu-checkbox-item"] [data-state="checked"] > svg) path { stroke-dasharray: none !important; animation: none !important; }
+[data-motion-preview="reduced"] [data-slot="otp-cell"] > .animate-swap { animation-name: fade-in !important; }
+[data-motion-preview="reduced"] [data-slot="checkbox-mark"] { transform: none !important; }
+[data-motion-preview="reduced"] button[role="switch"] > span > span { scale: 1 !important; }
+[data-motion-preview="reduced"] [data-nudge] { --nudge-x: 0px !important; --nudge-y: 0px !important; }
+[data-motion-preview="reduced"] [data-slot="calendar-day"][data-picked] { animation-name: fade-in !important; }
+
+/* A menu or popover enters from the side it opened on (after affectUI's Dropdown Menu and Popover, MIT): tw-animate's
+   enter translate is --shift-enter towards the panel's place, per Radix data-side; duration and scale stay
+   OVERLAY_MOTION.menu. Reduced motion and the /ds preview zero the translate in the rules above. Tooltips stay
+   opacity only (spec §5.14). */
+:is([data-slot="dropdown-menu-content"], [data-slot="dropdown-menu-sub-content"], [data-slot="popover-content"]) {
+  &[data-side="bottom"] { --tw-enter-translate-y: calc(var(--shift-enter) * -1); }
+  &[data-side="top"] { --tw-enter-translate-y: var(--shift-enter); }
+  &[data-side="right"] { --tw-enter-translate-x: calc(var(--shift-enter) * -1); }
+  &[data-side="left"] { --tw-enter-translate-x: var(--shift-enter); }
+}
 
 /* A short viewport gets the same compact filter launcher in SSR and hydration.
    Expanded panel scrolling still uses its actual owning surface on explicit open. */

@@ -27,7 +27,7 @@ export function Field({ id, label, note, error, required, optional, children }: 
     <div data-slot="field" className="grid min-w-0 content-start gap-2">
       <label htmlFor={id} className="text-label text-fg">{label}{required && <span aria-hidden="true" className="ml-0.5 text-destructive">*</span>}{optional && <span className="font-normal text-fg-3"> (optional)</span>}</label>
       {control}
-      {error && <p id={errorId} className="flex items-start gap-1.5 text-body-sm text-down-ink"><Icon icon={FailedIcon} className="mt-0.5 size-3.5 shrink-0" />{error}</p>}
+      {error && <p id={errorId} className="flex animate-enter items-start gap-1.5 text-body-sm text-down-ink"><Icon icon={FailedIcon} className="mt-0.5 size-3.5 shrink-0" />{error}</p>}
       {note && <span id={noteId} className="text-caption text-fg-3">{note}</span>}
     </div>
   );

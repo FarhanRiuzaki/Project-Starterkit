@@ -25,6 +25,8 @@ describe("Field error", () => {
     expect(out).toContain('aria-invalid="true"');
     expect(out).toContain('aria-describedby="f-error f-note"');
     expect(out).toMatch(/<p id="f-error" class="[^"]*text-down-ink[^"]*"><svg[^>]*aria-hidden="true"[^>]*>.*?<\/svg>Enter an email address like name@example.com.<\/p>/);
+    // The message rises in when it appears (animate-enter: --dur-enter, fade only under reduced motion).
+    expect(out).toMatch(/<p id="f-error" class="[^"]*\banimate-enter\b/);
   });
   it("without an error nothing is marked", () => {
     expect(withError(undefined)).not.toContain("aria-invalid");

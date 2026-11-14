@@ -321,3 +321,32 @@ Setelah seluruh slot dikembalikan, verification Docker workbench+Postgres dihent
 Sebelum commit, jalankan bun run check pada pin Bun1.4.3/Node24 dengan DB test terpisah, periksa staged diff/whitespace dan scan secret dari snapshot index tanpa live env. Bukti browser/QA/visual/bytegate R2 tetap berlaku hanya bila product source hash tidak berubah. Push memakai fast-forward normal, tanpa force; jika remote berubah, integrasi dan pemeriksaan yang relevan dilakukan sebelum melanjutkan. Runtime frontend tetap3000 dan APIinternal4000; data/akun dev dan verification images/evidence dipertahankan. Hasil akhir commit/push dicatat pada artifact product-lead-audit-push dan respons kepada pemilik; CI baru mengikuti push, sedangkan lima kegagalan lama tetap tercatat sebagai risiko terpisah sampai ada hasil perbaikannya.
 
 Review staged menemukan satu blankline berlebih pada EOF raw-table-state.ts yang tidak terdeteksi ketika file masih untracked. Hanya satu byte LF dihapus, tanpa token/behavior change. Integration record menyimpan perbandingan accepted source dan transpiled output, fresh fullcheck sesudah hygiene, serta pengukuran build/budget ulang karena margin sangat tipis. Evidence R2 tidak dilabel ulang menjadi raw source hash baru; delta integration satu-byte didokumentasikan terpisah.
+
+
+## DEC-028 — Item gratis affectUI di-vendor 1:1
+
+14 November 2026 — pemilik meminta semua komponen, design system, animasi dan micro-interaction affectUI (https://www.affectui.com, https://github.com/flohoeller/affectui) diambil 1:1, lalu menjawab "go semua" atas pilihan port bertahap. Core memutuskan sendiri bentuknya; pemilik belum meninjau hasilnya.
+
+Keputusan: 73 dari 74 item gratis (MIT) disalin apa adanya ke `packages/ui/src/affect/` dan ditampilkan di `/ds/affect`; Text Reveal diport ke token motion (design-system §7.8 R10). 141 item Pro berbayar tidak diambil. Folder vendor dikecualikan dari aturan token warna/motion di `architecture.test.ts`, dari ESLint, dan dari typecheck (`// @ts-nocheck`); aturan dan batasnya di design-system §7.10 dan AGENTS §1, §6, §8.
+
+Alasan: tiap berkas membawa warna dan timing sendiri (1.595 literal hex, 769 literal durasi/easing di 74 berkas). Memetakannya ke token berarti menulis ulang gayanya, jadi tidak lagi 1:1. Typecheck mentah: 160 error `noUncheckedIndexedAccess`; ESLint mentah: 137 temuan.
+
+Belum diputuskan (wewenang Designer/Product Owner): apakah motion item yang punya padanan di `ui/`/`ds/` dicangkok ke komponen yang ada (NEXT-UI-001), dan apakah variabel `--aui-*` dipetakan ke token Tray. Risiko yang diketahui: kontras teks redup beberapa item di mode gelap (axe `color-contrast`), logo merek nyata pada empat ilustrasi, dan dua bahasa visual berdampingan.
+
+## DEC-029 — affectUI: tema lewat alias token, dua motion dicangkok
+
+14 November 2026 — setelah melihat perbandingan tiga cara menerapkan affectUI, pemilik memilih cara 1 (pakai item yang belum ada padanannya) dan cara 2 (cangkok motion ke komponen yang ada); cara 3 (mengganti komponen) tidak dipilih. Core memilih sendiri motion mana yang dicangkok; pemilik belum meninjau hasilnya.
+
+Keputusan:
+- `tokens.css` memetakan 31 variabel `--aui-*` ke token app (ink, surface, garis, fokus, warna status, radius, font, bayangan). `--aui-blue` dan `--aui-info` dipetakan ke `--primary` karena biru muda bawaan upstream hanya sekitar 2:1 sebagai teks di permukaan terang. Berkas vendor tidak diubah.
+- Field yang invalid diberi isi merah tipis, bukan hanya border (`--invalid-wash`: 4% terang, 6% gelap, nilai upstream), di CSS global untuk input, select, textarea, input-affix dan number-input. Pemilik menyebut ini sebagai contoh hal yang ia mau dari affectUI: perlakuan visual di komponen bersama, bukan penggantian komponen.
+- Dua motion dibawa ke komponen starterkit dengan token yang sudah ada: menu dan popover masuk dari sisi tempatnya terbuka (`--shift-enter`), dan pesan error `Field` naik masuk (`animate-enter`). Rinciannya di design-system §7.9.
+
+Alasan pilihan motion: keduanya CSS saja di atas token yang ada, jadi tidak menambah JS first-load (sisa budget `/audit/activity` 3 byte) dan tidak butuh pengecualian aturan §8. Tooltip tetap opacity saja (spec §5.14).
+
+Tambahan di hari yang sama, atas daftar pemilik (checkbox, kalender, centang filter, OTP, number input, select, switch, text area, time picker): centang digambar (ruling R11), kotak checkbox ikut tertekan, knob switch meluncur `DUR.enter`, minggu kalender masuk dari arah bulan dan hari terpilih settle sekali, digit OTP naik masuk, nilai number input bergulir saat di-step. Semuanya di CSS global atau komponen bersama.
+
+Tidak dibawa, tetap di NEXT-UI-001: sorot opsi yang meluncur antar-baris di select dan time picker (butuh pengukuran JS; `Select` starterkit adalah `<select>` native, panelnya tidak bisa dianimasikan), tinggi text area yang meluncur (animasi layout), caret OTP berkedip, shimmer verifikasi dan pil sukses OTP, pergantian label/ikon button dan sweep loading (butuh JS di chunk first-load), overshoot pada hari terpilih (diganti `pop` tanpa overshoot), nudge validasi (§7.9 melarang shake), blur pada pesan dan digit.
+
+Sisa risiko: axe `color-contrast` masih 31 node di mode terang dan 14 di mode gelap pada warna yang ditulis langsung di berkas vendor (daftar per item di `packages/ui/src/affect/README.md`); pemetaan warna status affectUI ke token Healthy/Degraded/Down adalah tafsiran Core atas §3.1 dan menunggu tinjauan Designer.
+

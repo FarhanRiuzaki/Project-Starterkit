@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, type ComponentProps, type ReactNode } from "react";
+import { useId, useState, type ComponentProps, type ReactNode } from "react";
 import { cn } from "../lib/cn";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -19,13 +19,16 @@ export function InputAffix({ prefix, suffix, className, ...props }: Omit<Compone
 export function NumberInput({ value, onValueChange, min, max, step = 1, label, className, disabled, ...props }: Omit<ComponentProps<typeof Input>, "value" | "defaultValue" | "onChange" | "type" | "min" | "max" | "step"> & {
   value: number | ""; onValueChange: (value: number | "") => void; min?: number; max?: number; step?: number; label: string;
 }) {
+  // A step rolls the value in from the side it moved to (base.css data-nudge); typing never does.
+  const [roll, setRoll] = useState<{ turn: "a" | "b"; from: "up" | "down" }>();
   const shift = (dir: -1 | 1) => {
+    setRoll(r => ({ turn: r?.turn === "a" ? "b" : "a", from: dir > 0 ? "down" : "up" }));
     const next = Number(((value === "" ? min ?? 0 : value) + dir * step).toFixed(10));
     onValueChange(Math.min(max ?? Infinity, Math.max(min ?? -Infinity, next)));
   };
   return <div data-slot="number-input" data-disabled={disabled || undefined} data-readonly={props.readOnly || undefined} data-invalid={props["aria-invalid"] || undefined} className={cn("flex h-10 min-w-0 items-center pointer-coarse:h-12 gap-2 rounded-md border border-control-border bg-card p-1 focus-within:border-primary focus-within:ring-3 focus-within:ring-primary-soft", props["aria-invalid"] && "border-down-mark focus-within:border-down-mark focus-within:ring-down-soft", disabled && "bg-inset opacity-60", className)}>
     <Button type="button" size="icon-sm" variant="secondary" aria-label={`Decrease ${label}`} disabled={disabled || props.readOnly || (value !== "" && min !== undefined && value <= min)} onClick={() => shift(-1)}>−</Button>
-    <Input {...props} aria-label={props["aria-label"] ?? label} type="number" min={min} max={max} step={step} value={value} disabled={disabled}
+    <Input {...props} data-nudge={roll?.turn} data-nudge-from={roll?.from} aria-label={props["aria-label"] ?? label} type="number" min={min} max={max} step={step} value={value} disabled={disabled}
       onChange={(e) => onValueChange(e.target.value === "" || !Number.isFinite(e.target.valueAsNumber) ? "" : e.target.valueAsNumber)}
       className="h-full flex-1 rounded-none border-0 bg-transparent p-0 tabular focus-visible:ring-0 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
     <Button type="button" size="icon-sm" variant="secondary" aria-label={`Increase ${label}`} disabled={disabled || props.readOnly || (value !== "" && max !== undefined && value >= max)} onClick={() => shift(1)}>+</Button>

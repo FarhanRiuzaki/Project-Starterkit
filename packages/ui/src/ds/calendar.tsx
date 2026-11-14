@@ -31,6 +31,10 @@ export function Calendar({ value, onValueChange, range, min, max, initialMonth, 
   const [month, setMonth] = useState(() => clamp(start).slice(0, 7));
   const [observed, setObserved] = useState(value);
   if (value !== observed && value && validDate(value)) { setObserved(value); setFocus(clamp(value)); setMonth(clamp(value).slice(0, 7)); }
+  // A month change replays the weeks' enter from the side the month came from (base.css data-nudge); nothing remounts.
+  const [turned, setTurned] = useState<{ month: string; turn?: "a" | "b"; from?: "left" | "right" }>({ month });
+  if (turned.month !== month) setTurned({ month, turn: turned.turn === "a" ? "b" : "a", from: month > turned.month ? "right" : "left" });
+  const [picked, setPicked] = useState<string>();
   const id = useId(), root = useRef<HTMLDivElement>(null);
   const days = calendarDays(`${month}-01`);
   const year = Number(month.slice(0, 4)), todayYear = Number(today.slice(0, 4));
@@ -53,15 +57,15 @@ export function Calendar({ value, onValueChange, range, min, max, initialMonth, 
     <h3 id={id} aria-live="polite" className="sr-only">{monthName.format(new Date(`${month}-01T12:00:00Z`))}</h3>
     <div role="grid" aria-labelledby={id} className="grid gap-2">
       <div role="row" className="grid grid-cols-7 gap-1 pointer-coarse:gap-0">{week.map(d => <span key={d} role="columnheader" aria-label={d} className="text-center text-caption text-fg-3">{d.slice(0, 1)}</span>)}</div>
-      {Array.from({ length: 6 }, (_, row) => <div key={row} role="row" className="grid grid-cols-7 gap-1 pointer-coarse:gap-0">{days.slice(row * 7, row * 7 + 7).map(date => {
+      {Array.from({ length: 6 }, (_, row) => <div key={row} role="row" data-nudge={turned.turn} data-nudge-from={turned.from} className="grid grid-cols-7 gap-1 pointer-coarse:gap-0">{days.slice(row * 7, row * 7 + 7).map(date => {
         const selected = range ? date === range.from || date === range.to : date === value;
         const inRange = !!range && date > range.from && date < range.to;
         return <div key={date} role="gridcell" aria-selected={selected || inRange}>
-          <CalendarDay data-date={date} tabIndex={date === focus ? 0 : -1} selected={selected} inRange={inRange} today={date === today} outside={!date.startsWith(month)}
+          <CalendarDay data-date={date} data-picked={date === picked || undefined} tabIndex={date === focus ? 0 : -1} selected={selected} inRange={inRange} today={date === today} outside={!date.startsWith(month)}
             disabled={(!!min && date < min) || (!!max && date > max)} aria-label={dateName.format(new Date(`${date}T12:00:00Z`))}
             ref={el => { if (el && autoFocus && date === focus && !root.current?.contains(document.activeElement)) el.focus(); }}
             onFocus={() => setFocus(date)} onKeyDown={e => { const next = calendarKey(date, e.key, e.shiftKey); if (next) { e.preventDefault(); move(next, true); } }}
-            onClick={() => { move(date, false); onValueChange(date); }}>{Number(date.slice(-2))}</CalendarDay>
+            onClick={() => { move(date, false); setPicked(date); onValueChange(date); }}>{Number(date.slice(-2))}</CalendarDay>
         </div>;
       })}</div>)}
     </div>

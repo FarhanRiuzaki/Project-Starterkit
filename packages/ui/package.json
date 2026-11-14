@@ -11,6 +11,8 @@
     "./ui/toast": "./src/ui/toast.ts",
     "./ui/*": "./src/ui/*.tsx",
     "./motion": "./src/motion/index.ts",
+    "./motion/text-reveal": "./src/motion/text-reveal.tsx",
+    "./affect/*": "./src/affect/*.tsx",
     "./ds": "./src/ds/index.ts",
     "./ds/*": "./src/ds/*.tsx",
     "./charts": "./src/charts/index.ts",

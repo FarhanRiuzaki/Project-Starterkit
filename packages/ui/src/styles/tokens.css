@@ -7,6 +7,7 @@
 :root {
   /* Micro-interaction geometry; durations and easings use the shared motion tokens. */
   --press-scale: 0.98;
+  --invalid-wash: 4%; /* share of Down in an invalid field's fill (base.css); 6% in dark */
   --choice-press-scale: 0.92;
 
   /* surfaces */
@@ -99,6 +100,11 @@
   --ease-in: cubic-bezier(0.4, 0, 1, 1);
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
   --ease-linear: cubic-bezier(0, 0, 1, 1);
+  /* Text reveal (spec §7.8 R10): per piece, between two pieces, curve. CSS only: this file has no JS mirror, since
+     motion/tokens.ts ships in every route's first load (the /ds row is checked against these, motion-section.test.ts). */
+  --reveal-dur: 700ms;
+  --reveal-step: 40ms;
+  --reveal-ease: cubic-bezier(0.2, 0.7, 0.2, 1);
   --shift-enter: 6px;
   --stagger: 35ms;
 
@@ -118,9 +124,46 @@
   --border: var(--line);
   --input: var(--line-strong);
   --ring: var(--primary);
+
+  /* affectUI mapping (design-system.md §7.10): a vendored item reads --aui-* before its own fallback, so its
+     surfaces, ink, lines, focus, status colours, radius, font and shadows follow the tokens above in both themes.
+     Upstream's light blue accent fails text contrast on a light surface, so --aui-blue and --aui-info are the app's
+     primary. The decorative hues (--aui-purple, --aui-teal, --aui-pink …) and the motion stay upstream's. */
+  --aui-ink: var(--fg);
+  --aui-muted: var(--fg-2);
+  --aui-placeholder: var(--fg-3);
+  --aui-surface: var(--card);
+  --aui-overlay: var(--raised);
+  --aui-subtle: var(--tray);
+  --aui-border: var(--line);
+  --aui-border-strong: var(--line-strong);
+  --aui-focus: var(--primary);
+  --aui-primary: var(--action);
+  --aui-on-primary: var(--action-fg);
+  --aui-blue: var(--primary);
+  --aui-info: var(--primary-ink);
+  --aui-info-soft: var(--primary-soft);
+  --aui-danger: var(--down-ink);
+  --aui-danger-soft: var(--down-soft);
+  --aui-red: var(--down-mark);
+  --aui-success: var(--healthy-ink);
+  --aui-success-soft: var(--healthy-soft);
+  --aui-green: var(--healthy-mark);
+  --aui-warning: var(--degraded-ink);
+  --aui-warning-soft: var(--degraded-soft);
+  --aui-orange: var(--degraded-mark);
+  --aui-radius-sm: var(--radius-sm);
+  --aui-radius: var(--radius-md);
+  --aui-radius-lg: var(--radius-lg);
+  --aui-font: var(--font-sans);
+  --aui-font-mono: var(--font-mono);
+  --aui-ease: var(--ease-out);
+  --aui-shadow-popover: var(--shadow-overlay);
+  --aui-shadow-card: var(--shadow-sm);
 }
 
 .dark {
+  --invalid-wash: 6%;
   --control-border: #80808c;
   --auth-art-accent: #6e9efa;
   --bg: #0e0e10;

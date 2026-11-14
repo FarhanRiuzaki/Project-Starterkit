@@ -127,6 +127,14 @@ const ROUTE_FILES = [
 const routeFiles = (fs: F[]) => fs.filter(({ r }) => new RegExp(`^${WEB}app/(.+/)?route\\.tsx?$`).test(r)).map(({ r }) => r).sort();
 
 const MOTION_TOKENS = `${UI}motion/tokens.ts`;
+/**
+ * Vendored affectUI sources (packages/ui/src/affect/README.md, design-system.md §7.10): each file carries upstream's
+ * own colours and timings, kept 1:1, so the token rules below skip this folder and nothing else.
+ */
+const VENDORED = `${UI}affect/`;
+const COLOUR_LITERAL = /#[0-9a-fA-F]{3,8}\b|\brgba?\(|\bhsla?\(|\boklch\(|-\[\d+(?:\.\d+)?px\]/;
+const colourLiteralViolations = (fs: F[]) => fs.filter(({ r, src }) => r.endsWith(".tsx") && !r.startsWith(VENDORED) && COLOUR_LITERAL.test(strip(src)))
+  .map(({ r, src }) => `${r}: ${strip(src).match(COLOUR_LITERAL)?.[0]}`);
 /** Literal timings in TS/TSX (motion values come from motion/tokens.ts or the CSS --dur-* / --ease-* tokens). */
 const TS_TIMING: RegExp[] = [
   /\b(?:duration|delay)-(?:\[|\d)/, // Tailwind duration-150, delay-[40ms]
@@ -144,7 +152,7 @@ const TS_TIMING: RegExp[] = [
 const CSS_TIMING = /(?<![\w.-])(?!0m?s\b)\d*\.?\d+m?s\b|\bcubic-bezier\(/;
 
 function motionLiteralViolations(ts: F[], css: F[]): string[] {
-  const inTs = ts.filter(({ r }) => r !== MOTION_TOKENS).flatMap(({ r, src }) => {
+  const inTs = ts.filter(({ r }) => r !== MOTION_TOKENS && !r.startsWith(VENDORED)).flatMap(({ r, src }) => {
     const hit = TS_TIMING.map((re) => strip(src).match(re)?.[0]).find(Boolean);
     return hit ? [`${r}: ${hit}`] : [];
   });
@@ -360,10 +368,7 @@ describe("architecture", () => {
   });
 
   it("no literal colour or arbitrary pixel class in .tsx", () => {
-    const LITERAL = /#[0-9a-fA-F]{3,8}\b|\brgba?\(|\bhsla?\(|\boklch\(|-\[\d+(?:\.\d+)?px\]/;
-    const bad = files.filter(({ r, src }) => r.endsWith(".tsx") && LITERAL.test(strip(src)))
-      .map(({ r, src }) => `${r}: ${strip(src).match(LITERAL)?.[0]}`);
-    expect(bad).toEqual([]);
+    expect(colourLiteralViolations(files)).toEqual([]);
   });
 });
 
@@ -518,6 +523,13 @@ describe("architecture checkers (fixtures)", () => {
     ]);
   });
 
+  it("the vendored affect folder alone keeps its own colours and timings; a sibling folder or a feature is reported", () => {
+    const own = (r: string) => f(r, `const css = "a { color: #171717; }"; el.animate(k, { duration: 480 });`);
+    expect(colourLiteralViolations([own(`${UI}affect/button.tsx`), own(`${UI}affects/x.tsx`), own(`${WEB}features/ds/affect/x.tsx`)]))
+      .toEqual([`${UI}affects/x.tsx: #171717`, `${WEB}features/ds/affect/x.tsx: #171717`]);
+    expect(motionLiteralViolations([own(`${UI}affect/button.tsx`), own(`${UI}affects/x.tsx`), own(`${WEB}features/ds/affect/x.tsx`)], []))
+      .toEqual([`${UI}affects/x.tsx: duration: 4`, `${WEB}features/ds/affect/x.tsx: duration: 4`]);
+  });
   it("a zone literal in apps/web is reported", () => {
     expect(zoneViolations([f(`${WEB}features/x/a.tsx`, "const t = `${formatTime(at)} WIB`;"), f(`${WEB}features/x/b.tsx`, `formatTime(at); // 14:00 WIB`)]))
       .toEqual([`${WEB}features/x/a.tsx`]);

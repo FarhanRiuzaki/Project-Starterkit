@@ -47,3 +47,15 @@ it("a badge affix stays outside the editable value and supplies a readable descr
   expect(input.value).toBe("00220283");
   expect(document.getElementById(input.getAttribute("aria-describedby")!)!.textContent).toBe("LDAP");
 });
+it("a step rolls the value in from the side it moved to, on the same input; typing does not", async () => {
+  function Demo() { const [value, set] = useState<number | "">(5); return h(NumberInput, { label: "seats", value, onValueChange: set }); }
+  const el = await mount(h(Demo));
+  const input = el.querySelector("input")!, [minus, plus] = [...el.querySelectorAll("button")];
+  expect(input.dataset.nudge).toBeUndefined();
+  await act(async () => plus!.click());
+  expect(`${input.dataset.nudge} ${input.dataset.nudgeFrom}`).toBe("a down");
+  await act(async () => minus!.click());
+  expect(`${input.dataset.nudge} ${input.dataset.nudgeFrom}`).toBe("b up");
+  expect(el.querySelector("input")).toBe(input);
+});
+

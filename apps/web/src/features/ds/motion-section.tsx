@@ -6,6 +6,7 @@ import { cn } from "@starterkit/ui/lib/cn";
 import { formatNumber } from "@starterkit/ui/lib/format";
 import { HEALTH } from "@starterkit/ui/lib/status";
 import { CHART_STAGGER, cssEase, DUR, EASE, LOADING, NumberTween, OVERLAY_MOTION, ReducedMotionScope, Reveal, SPRING_FLIP, SPRING_INDICATOR, SPRING_SOFT, Stagger, STAGGER, StaggerItem, tweenDuration } from "@starterkit/ui/motion";
+import { TextReveal } from "@starterkit/ui/motion/text-reveal";
 import { Button } from "@starterkit/ui/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@starterkit/ui/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, menuLoader } from "@starterkit/ui/ui/dropdown-menu";
@@ -35,6 +36,7 @@ export const PATTERNS: readonly Pattern[] = [
   { id: "page-enter", name: "page enter", layer: "CSS", duration: fmtMs(DUR.page), reduced: REDUCED_FADE, use: "Route change; the shell never animates" },
   { id: "stagger", name: "stagger", layer: "CSS", duration: `${fmtMs(DUR.enter)} · ${fmtMs(STAGGER.step)} steps`, reduced: `${REDUCED_FADE}, no delay`, use: `KPI trays and card grids of ${STAGGER.max} items or fewer` },
   { id: "reveal", name: "reveal", layer: "CSS", duration: `${fmtMs(DUR.enter)} in · ${fmtMs(DUR.fast)} out`, reduced: REDUCED_FADE, use: "Skeleton to content, in the same box" },
+  { id: "text-reveal", name: "text reveal", layer: "CSS", duration: "700 ms per piece · 40 ms steps (CSS tokens --reveal-dur, --reveal-step)", reduced: `${REDUCED_FADE}, no delay`, use: "Headings and empty states, word by word or letter by letter; never data" },
   { id: "dialog", name: "dialog", layer: "CSS", duration: `${inOut(OVERLAY_MOTION.dialog)}; scrim ${inOut(OVERLAY_MOTION.scrim)}`, reduced: `${REDUCED_FADE}, no scale`, use: "Confirmations and one-time secrets" },
   { id: "menu", name: "menu", layer: "CSS", duration: inOut(OVERLAY_MOTION.menu), reduced: `${REDUCED_FADE}, no slide`, use: "Action menus and popovers" },
   { id: "toast", name: "toast", layer: "CSS", duration: "Sonner's own (400 ms slide and fade, not a token)", reduced: "No animation (sonner's own rule)", use: "Result of an action" },
@@ -122,6 +124,11 @@ function RevealStage() {
 function RevealDemo() {
   const [run, replay] = useRun();
   return <Demo id="reveal" run={run} onReplay={replay}><RevealStage key={run} /></Demo>;
+}
+
+function TextRevealDemo() {
+  const [run, replay] = useRun();
+  return <Demo id="text-reveal" run={run} onReplay={replay}><TextReveal key={run} text="Sessions appear here after the first sign-in" className="text-title-3 text-fg" /></Demo>;
 }
 
 function DialogDemo() {
@@ -299,7 +306,7 @@ export function MotionSection() {
         </Panel>
         <Panel title="Patterns" description="Replay re-runs the pattern" actions={<MicroInteractionPreview />} className="col-span-12">
           <ul aria-label="Motion patterns" className="grid grid-cols-3 gap-3 max-md:grid-cols-1">
-            <PageEnterDemo /><StaggerDemo /><RevealDemo /><DialogDemo /><MenuDemo /><ToastDemo /><BadgePopDemo /><ChipChangeDemo />
+            <PageEnterDemo /><StaggerDemo /><RevealDemo /><TextRevealDemo /><DialogDemo /><MenuDemo /><ToastDemo /><BadgePopDemo /><ChipChangeDemo />
             <NewRowDemo /><NumberTweenDemo /><IndicatorDemo /><SidebarWidthDemo /><CopyCheckDemo /><DisclosureDemo />
           </ul>
         </Panel>

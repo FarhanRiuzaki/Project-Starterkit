@@ -730,6 +730,9 @@ Library: **`motion` 14.0.0** (Framer Motion's current package name), imported fr
 | `--ease-in` | `cubic-bezier(0.4, 0, 1, 1)` | exits |
 | `--ease-standard` | `cubic-bezier(0.2, 0, 0, 1)` | state changes |
 | `--ease-linear` | `cubic-bezier(0, 0, 1, 1)` | reduced-motion fades (Framer) |
+| `--reveal-dur` | 700 ms | text reveal, per piece (R10) |
+| `--reveal-step` | 40 ms per word or letter, not capped | text reveal (R10) |
+| `--reveal-ease` | `cubic-bezier(0.2, 0.7, 0.2, 1)` | text reveal (R10) |
 | spring `indicator` | `{ type: "spring", stiffness: 520, damping: 40, mass: 0.8 }` | segment thumb, tab underline, nav pill |
 | spring `flip` | `{ type: "spring", stiffness: 420, damping: 42, mass: 0.9 }` (`SPRING_FLIP`) | card reorder glide |
 | `--shift-enter` | 6 px | translateY distance for enters |
@@ -803,6 +806,7 @@ tokens from `packages/ui/src/motion/tokens.ts` (`DUR.*`, `STAGGER`, `EASE`), nev
 | Page enter | CSS | `DUR.page`; route change only, the shell never animates | Fade only, `DUR.instant` |
 | Stagger | CSS | `DUR.enter`, `STAGGER.step` steps, cap `STAGGER.max` items (KPI trays, card grids) | Fade only, no delay |
 | Reveal | CSS | `DUR.enter` in, `DUR.fast` out; skeleton to content in the same box | Fade only, `DUR.instant` |
+| Text reveal | CSS | `--reveal-dur` per piece, `--reveal-step` between pieces, `--reveal-ease`; opacity, blur and a 0.35em rise; see R10 | Fade only, `DUR.instant`, no delay |
 | Dialog | CSS | `OVERLAY_MOTION.dialog`: `DUR.slow` in, `DUR.exit` out; scrim `DUR.enter` in, `DUR.exit` out; below 768 px it rises from the bottom (sheet) | Fade only, no scale or slide |
 | Drawer | CSS | `OVERLAY_MOTION.drawer`: `DUR.slow` in, `DUR.exit` out, slide from the left; scrim as the dialog | Fade only, no slide |
 | Menu | CSS | `OVERLAY_MOTION.menu`: `DUR.pop` in, `DUR.instant` out (popovers too) | Fade only, no slide |
@@ -834,9 +838,24 @@ Rulings recorded here:
 - **R9, native disclosures.** Only native `<details>` animate, via `interpolate-size: allow-keywords` and
   `::details-content` (block-size + opacity, `DUR.enter`); browsers without support stay instant. Disclosures built
   from buttons stay instant. This is the one height animation.
+- **R10, text reveal.** `TextReveal` (`motion/text-reveal.tsx`, `reveal-text` in `base.css`) is ported from affectUI's
+  Text Reveal (MIT, https://github.com/flohoeller/affectui) with its values kept: 700 ms per piece, 40 ms between
+  pieces, `cubic-bezier(0.2, 0.7, 0.2, 1)`, blur 8 px (6 px in dark), rise 0.35em. It is the one `filter` animation
+  and the one stagger outside the 8-item cap and the 12-element budget of §7.7, so it is for one heading or
+  empty-state line at a time, never for data, tables or lists: the text stays invisible until JavaScript sees it on
+  screen. Left out of the port: the source's per-instance `duration`, `stagger` and `delay` props (timings are
+  tokens) and its static `will-change` (§7.7). Its three values are CSS tokens only (`--reveal-*` in
+  `tokens.css`, no key in `DUR`/`EASE`), and the component is imported by path
+  (`@starterkit/ui/motion/text-reveal`): `motion/tokens.ts` and the motion barrel ship in every route's first load,
+  and `/audit/activity` had 3 bytes of the 250 kB budget left.
 - **Per-card status legend.** The status legend is the `Panel` `legend` prop: an info button ("Status legend") at
   the end of the card header; page-level and inline legends were removed (see §5.8 status chips, which carry the tooltip text from
   `packages/ui/src/lib/status.ts`).
+- **R11, a check draws its stroke.** The Tick02 path of `Checkbox` (so filter options too) and of a menu checkbox
+  item animates `stroke-dashoffset` over `DUR.enter` (`tick-draw` in `base.css`, after affectUI's Checkbox and Filter
+  Menu, MIT). It is the second stroke animation beside the chart line draw, limited to that one 20-unit path, keyed
+  to the state change (`useChangeKey`) on a checkbox; a menu item's check also draws when its menu opens. Reduced
+  motion: no draw. Requested by the owner (DEC-029).
 
 ### 7.9 Component micro-interactions
 
@@ -848,8 +867,8 @@ press geometry. Static information stays still; feedback indicates an action or 
 | Family | Feedback | Keyboard, touch and reduced motion |
 |---|---|---|
 | Buttons, icon buttons, copy, pagination, calendar days, revisitable steps | Hover color; press at `--press-scale`, `DUR.instant`; release `DUR.fast`. Copy confirms with an icon and live text. | Native activation stays immediate. Disabled, read-only and busy controls do not press. Reduced motion keeps color and focus with no scale. |
-| Input, password, select, textarea, affix, number input | Border/fill/focus transitions use `DUR.fast`; grouped fields highlight their outer border. Invalid fields keep the error color. | Focus remains visible, values and caret stay intact. Hover enhancement requires a fine pointer. Read-only/disabled fields do not suggest editing. |
-| Checkbox, radio, choice cards, switch | Checkbox/check confirmation; radio dot opacity/scale; switch thumb settles with `DUR.instant`; choice card selection uses its fill and border. | Space/arrows keep their native semantics. State motion is immediate under reduced motion. Read-only selection cannot be toggled. |
+| Input, password, select, textarea, affix, number input | Border/fill/focus transitions use `DUR.fast`; grouped fields highlight their outer border. Invalid fields keep the error color in the border and in a faint fill (`--invalid-wash` of Down over the card: 4% light, 6% dark). | Focus remains visible, values and caret stay intact. Hover enhancement requires a fine pointer. Read-only/disabled fields do not suggest editing. |
+| Checkbox, radio, choice cards, switch | Checkbox/check confirmation; radio dot opacity/scale; switch thumb slides over `DUR.enter` and gives under the press (`--choice-press-scale`, `DUR.instant`); choice card selection uses its fill and border. | Space/arrows keep their native semantics. State motion is immediate under reduced motion. Read-only selection cannot be toggled. |
 | Search, command palette, combobox, menu | Shared highlight transitions; search focus marks its container; disclosure chevrons follow expanded state. Existing overlays keep their open/close tokens. | Roving focus, typeahead, Escape and focus return are preserved. No moving menu rows. |
 | Calendar and date/time controls | Day press/selection feedback, trigger fill and chevron state. The whole date input opens the calendar; the range summary opens quick select. Shared custom menus choose month/year directly, bounded by min/max. | Typing remains available on keyboard focus; Alt+Down opens the calendar. Selection/Escape returns focus to the opening input or icon. Changing month/year only navigates, clamps leap days and bounds, and never commits a date until a day is chosen. The grid and live region keep their identity. |
 | Tabs, segmented controls, sidebar, breadcrumb, route tabs | Shared selection indicator where already supported; navigation color transitions and stable targets. | Keyboard focus stays on the control; reduced indicators jump to the actual state. Navigation never lifts. |
@@ -860,9 +879,56 @@ press geometry. Static information stays still; feedback indicates an action or 
 | Cards, tables and charts | Whole-card links/actions use shared `InteractiveCard` (grey `CardSurface` + `card-lift`, native button or `asChild` link). Disabled/busy cards suppress hover/press and activation. Table rows use color only. All loading blocks use shared `Skeleton`, with its token-driven CSS shimmer. `/ds` → Motion → Explore micro-interactions previews both foundations. | Reading surfaces do not imply clickability. Card hover lift requires a fine pointer; keyboard gets its border/elevation without moving. Secondary interactive controls stay outside a whole-card action. Reduced motion stops card movement and the shimmer sweep. |
 | Feedback, badges, loading and overlays | Existing swap/pop/reveal and delayed loading patterns; state swaps only at meaningful changes. | Live regions announce outcomes, not every animation frame. Reduced preview and system preference follow the same rules. |
 
+Carried over from affectUI's twins (DEC-029), on existing tokens, `transform` and `opacity` only:
+- **Menus and popovers enter from the side they opened on.** `base.css` sets tw-animate's enter translate to
+  `--shift-enter` per Radix `data-side` for `dropdown-menu-content`, `dropdown-menu-sub-content` and
+  `popover-content`; duration and scale stay `OVERLAY_MOTION.menu`. Tooltips stay opacity only (§5.14). Reduced
+  motion and the preview zero the translate. (`micro-interactions.spec.ts` "a menu and a popover enter from the side")
+- **An invalid field is tinted, not only outlined.** `base.css` fills `input`, `select`, `textarea`, `input-affix`
+  and `number-input` with `--invalid-wash` of `--down-mark` over `--card` while `aria-invalid` / `data-invalid` is
+  set; text and placeholder stay at 4.5:1 on it (`tokens.test.ts` "invalid field fill"). OTP cells and the upload
+  dropzone keep their border-only error.
+- **Checks draw** (R11): `Checkbox`, filter options, menu checkbox items; the checkbox box also gives under the
+  press (`--choice-press-scale`).
+- **Switch knobs slide over `DUR.enter`** with `EASE.out`, in both switches (`ui/switch`, the form `Switch`).
+- **Calendar.** The weeks enter `--shift-enter` from the side the month came from, and the day just chosen settles
+  once (`pop`). **Number input.** A step rolls the value in from the side it moved to; typing does not. Both use
+  `data-nudge` (two identical keyframes alternated, so nothing remounts and focus stays).
+  (`calendar.test.ts`, `form-controls-gallery.test.ts`)
+- **A typed OTP digit rises into its cell** (`digit-in`, `DUR.enter`).
+- **A field's error message rises in when it appears** (`Field`: `animate-enter`, `DUR.enter`; fade only under
+  reduced motion). The control keeps its identity and never shakes. (`packages/ui/src/ds/field.test.ts`)
+
 No new animation runtime or per-control pointer listeners are needed. Data refresh never replays page/list enters.
 No permanent `will-change`, cursor follower, parallax, validation shake, or layout animation on tables is introduced.
 Motion preferences follow [WCAG 2.2, Animation from Interactions](https://www.w3.org/WAI/WCAG22/Understanding/animation-from-interactions).
+
+### 7.10 Vendored affectUI items (2026-11-14)
+`packages/ui/src/affect/` holds 73 free affectUI items (MIT, https://github.com/flohoeller/affectui; components,
+illustrations, motion effects and blocks) as upstream wrote them, at the owner's request for a 1:1 copy of their
+motion and micro-interactions. `packages/ui/src/affect/README.md` lists the source, the three changed comments and
+how to update a file. The gallery is `/ds/affect` (`apps/web/src/features/ds/affect/`), linked from `/ds`.
+
+This folder is a second visual language beside §3-§7, not part of it:
+- **Outside the token rules.** Each file carries its own colours, durations and easings in a CSS string that React
+  hoists into `<head>`. `architecture.test.ts` skips this folder, and only this folder, in "no literal colour" and
+  "motion timings come from tokens" (`VENDORED`, with a fixture); ESLint ignores it; each file starts with
+  `// @ts-nocheck`. Code that uses an item (features, the gallery's demo files) stays under every rule.
+- **Themed through aliases only.** `tokens.css` maps 31 of upstream's `--aui-*` variables onto the app tokens (ink,
+  surfaces, lines, focus, status colours, radius, font, shadows; `--aui-blue`/`--aui-info` = primary), checked by
+  `tokens.test.ts` "affectUI names map onto app tokens". Decorative hues and hard-coded colours stay upstream's. The
+  items do not use `DUR`/`EASE`, the stagger cap or the 12-element budget of §7.7.
+- **Reduced motion and accessibility are upstream's.** Each item has its own `prefers-reduced-motion` branch; the
+  `/ds` "Preview reduced motion" scope does not reach them. After the mapping axe still reports `color-contrast` on
+  31 nodes in light and 14 in dark, all on colours an item hard-codes (the per-item list is in the folder's README),
+  so `/ds/affect` is not in `a11y.spec.ts` and a listed item needs its contrast fixed before it goes on a screen.
+- **One pattern per need still holds.** Where `ui/` or `ds/` already has the component (button, dialog, menus,
+  inputs, tooltip, pagination, skeleton and others), screens keep using it; a vendored twin is a reference for its
+  motion, to be carried over one component at a time on the tokens (the two carried over so far are in §7.9). Items without a twin (illustrations, Tool
+  Call Card, Code Block, Tree View and others) may be used as they are.
+- **Content.** Logo Cluster, Lead Sourcing, Agent Team and Model Wheel draw real product marks by default; pass
+  fictional ones (as the gallery does where the item allows it) before showing them to users.
+- Text Reveal is the one item ported onto the tokens instead (R10 in §7.8).
 
 
 ---

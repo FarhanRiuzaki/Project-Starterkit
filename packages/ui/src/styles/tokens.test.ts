@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -115,12 +115,39 @@ describe.each([["light", false], ["dark", true]] as const)("tokens (%s)", (name,
   });
 });
 
+describe("invalid field fill (base.css: --invalid-wash of Down over the card)", () => {
+  /** sRGB mix, the way `color-mix(in srgb, a p%, b)` computes it. */
+  const mix = (a: string, b: string, share: number) => `#${[1, 3, 5].map((i) =>
+    Math.round(parseInt(a.slice(i, i + 2), 16) * share + parseInt(b.slice(i, i + 2), 16) * (1 - share)).toString(16).padStart(2, "0")).join("")}`;
+  for (const dark of [false, true]) {
+    it(`${dark ? "dark" : "light"}: a tint, on which text and placeholder stay at 4.5:1`, () => {
+      const t = theme(dark);
+      const share = Number(t["invalid-wash"]!.replace("%", "")) / 100;
+      expect(share).toBeGreaterThan(0);
+      const fill = mix(t["down-mark"]!, t.card!, share);
+      expect(fill).not.toBe(t.card);
+      expect(contrast(t.fg!, fill)).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(t["fg-3"]!, fill)).toBeGreaterThanOrEqual(4.5);
+    });
+  }
+});
+
 describe("token aliases", () => {
   it("shadcn names used by vendored ui/ map onto v3 tokens", () => {
     const r = decls(":root");
     expect(r).toMatchObject({
       muted: "var(--tray)", accent: "var(--tray)", popover: "var(--raised)",
     });
+  });
+  it("affectUI names map onto app tokens, and each mapped name is one a vendored item reads", () => {
+    const dir = path.resolve(import.meta.dirname, "../affect");
+    const vendored = readdirSync(dir).filter((f) => f.endsWith(".tsx")).map((f) => readFileSync(path.join(dir, f), "utf8")).join("\n");
+    const aui = Object.entries(decls(":root")).filter(([name]) => name.startsWith("aui-"));
+    expect(aui.length).toBeGreaterThan(0);
+    for (const [name, value] of aui) {
+      expect(value, name).toMatch(/^var\(--[a-z0-9-]+\)$/);
+      expect(vendored, name).toContain(`var(--${name},`);
+    }
   });
   it("dark overrides only raw values, never the aliases", () => {
     const d = decls(".dark");

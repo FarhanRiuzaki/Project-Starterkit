@@ -11,6 +11,7 @@ import { Button } from "@starterkit/ui/ui/button";
 import { Icon } from "@starterkit/ui/ui/icon";
 import { ActivityIcon, DeniedIcon, GaugeIcon, LineChartIcon, SessionsIcon, UsersIcon } from "@starterkit/ui/ui/icons";
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import { useState } from "react";
 import { PageHeader } from "@/components/shell/page-header";
 import { BYTES_PER_HOUR, REQUESTS_BY_SERVICE, SPARK } from "./fixtures";
@@ -42,6 +43,7 @@ export function DesignGallery() {
         actions={<>
           <TimeRangePicker value={range} onChange={setRange} />
           <Button variant="secondary" onClick={() => setBump((b) => b + 1)}><Icon icon={ActivityIcon} />Replay numbers</Button>
+          <Button asChild variant="secondary"><Link href="/ds/affect">Open affectUI components</Link></Button>
           <ActionMenu label="Gallery actions" actions={[{ id: "export", label: "Export sample" }, { id: "reset", label: "Reset sample", destructive: true }]} />
         </>} />
 

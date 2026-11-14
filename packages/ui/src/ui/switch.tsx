@@ -2,7 +2,7 @@ import { cn } from "../lib/cn";
 
 /**
  * Switch (Apple HIG toggle): for a setting that applies at once (no Save), on or off. A 36 × 20 pill, primary when on,
- * a 16 px card knob that slides (DUR.fast; no slide under reduced motion). role="switch" with aria-checked; Space or
+ * a 16 px card knob that slides (DUR.enter, base.css; no slide under reduced motion). role="switch" with aria-checked; Space or
  * Enter toggles; the label is the setting's name, never "On/Off". In a form that saves later, use a Checkbox instead.
  * A 28 px hit area around the pill (44 px under a coarse pointer, base.css).
  */

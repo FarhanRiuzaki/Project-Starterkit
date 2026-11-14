@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { createElement as h } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
@@ -43,12 +45,17 @@ describe("MotionSection overlay rows print the tokens the components use", () =>
 });
 
 describe("MotionSection patterns and rules", () => {
-  it("has the 14 patterns, each with a Replay button and a data-run counter starting at 0", () => {
-    expect(PATTERNS).toHaveLength(14);
+  it("has the 15 patterns, each with a Replay button and a data-run counter starting at 0", () => {
+    expect(PATTERNS).toHaveLength(15);
     for (const p of PATTERNS) {
       expect(html).toContain(`data-demo="${p.id}" data-run="0"`);
       expect(html).toMatch(new RegExp(`Replay ${p.name}<`));
     }
+  });
+  it("the text reveal row prints the values of --reveal-dur and --reveal-step in tokens.css (they have no JS mirror)", () => {
+    const css = readFileSync(path.resolve(import.meta.dirname, "../../../../../packages/ui/src/styles/tokens.css"), "utf8");
+    const ms = (name: string) => /^(\d+)ms$/.exec(new RegExp(`--${name}:\\s*([^;]+);`).exec(css)?.[1]?.trim() ?? "")?.[1];
+    expect(PATTERNS.find((p) => p.id === "text-reveal")?.duration).toBe(`${ms("reveal-dur")} ms per piece · ${ms("reveal-step")} ms steps (CSS tokens --reveal-dur, --reveal-step)`);
   });
   it("rules table has the four columns and one row per pattern plus the rules-only rows", () => {
     for (const c of ["Pattern", "Layer", "Duration", "Reduced motion"]) expect(html).toMatch(new RegExp(`<th scope="col"[^>]*>${c}</th>`));

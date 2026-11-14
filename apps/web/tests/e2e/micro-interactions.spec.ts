@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { AUTH_STATE } from "./global-setup";
 import { axeSerious, expectNoHorizontalScroll, smallTouchTargets } from "./helpers";
 
@@ -66,6 +66,15 @@ test("press, hover, validation and async results work on the actual shared compo
   await dialog.getByRole("button", { name: "Show validation" }).click();
   await expect(field).toHaveAttribute("aria-invalid", "true");
   await expect(field).toHaveValue("A draft stays here");
+  // The fill carries the error as well as the border: the Down wash over the card, not the plain card.
+  await expect.poll(() => field.evaluate(el => {
+    const probe = document.createElement("span"); el.parentElement!.append(probe);
+    probe.style.backgroundColor = "color-mix(in srgb, var(--down-mark) var(--invalid-wash), var(--card))";
+    const wash = getComputedStyle(probe).backgroundColor;
+    probe.style.backgroundColor = "var(--card)";
+    const card = getComputedStyle(probe).backgroundColor; probe.remove();
+    return wash !== card && getComputedStyle(el).backgroundColor === wash;
+  })).toBe(true);
   expect(await field.evaluate((el, original) => el === original, input)).toBe(true);
   await field.hover();
   await expect.poll(() => field.evaluate(el => {
@@ -85,6 +94,8 @@ test("selection, keyboard editing, step completion and progress keep stable cont
   await expect(checkbox).toHaveAttribute("aria-checked", "true");
   await expect(checkbox).toBeFocused();
   expect(await checkbox.locator("svg").evaluate(el => getComputedStyle(el).animationName)).toBe("swap");
+  // The check draws its stroke on the enter token while it settles.
+  expect(await checkbox.locator("svg path").evaluate(el => { const c = getComputedStyle(el); return `${c.animationName} ${c.animationDuration}`; })).toBe("tick-draw 0.22s");
   const fixed = dialog.getByRole("checkbox", { name: "Managed setting" });
   await fixed.focus(); await page.keyboard.press("Space");
   await expect(fixed).toHaveAttribute("aria-checked", "true");
@@ -95,9 +106,15 @@ test("selection, keyboard editing, step completion and progress keep stable cont
   await expect(dialog.getByRole("radio", { name: "In-app", exact: true })).toBeFocused();
   const toggle = dialog.getByRole("switch", { name: "Notifications" });
   await toggle.focus(); await page.keyboard.press("Space"); await expect(toggle).toBeChecked();
+  // The knob slides on the enter token; only its press scale is instant.
+  expect(await toggle.locator("..").locator("span").last().evaluate(el => { const c = getComputedStyle(el), at = c.transitionProperty.split(", ").indexOf("translate"); return c.transitionDuration.split(", ")[at]; })).toBe("0.22s");
   const number = dialog.getByRole("spinbutton", { name: "Seats" });
   await number.fill("24"); await dialog.getByRole("button", { name: "Increase Seats" }).click();
   await expect(number).toHaveValue("25");
+  // A step rolls the value in from below on the same input; the typed 24 did not.
+  expect(await number.evaluate(el => `${el.getAttribute("data-nudge")} ${el.getAttribute("data-nudge-from")} ${getComputedStyle(el).animationName}`)).toBe("a down nudge-a");
+  await dialog.getByRole("button", { name: "Decrease Seats" }).click();
+  expect(await number.evaluate(el => `${el.getAttribute("data-nudge")} ${el.getAttribute("data-nudge-from")} ${getComputedStyle(el).animationName}`)).toBe("b up nudge-b");
   const fill = dialog.locator('[data-slot="meter-fill"]');
   const stripeScale = await fill.evaluate(el => new DOMMatrix(getComputedStyle(el).transform).a * new DOMMatrix(getComputedStyle(el.firstElementChild!).transform).a);
   expect(stripeScale).toBeCloseTo(1);
@@ -127,6 +144,13 @@ test("reduced motion suppresses press and selection scale in the system and inli
     const radio = dialog.getByRole("radio", { name: "In-app", exact: true });
     await radio.check();
     expect(await radio.locator("..").locator('[data-slot="radio-mark"] > span').last().evaluate(el => getComputedStyle(el).transform)).toBe("none");
+    // The check appears without its stroke draw, and a stepped value without its shift.
+    const checkbox = dialog.getByRole("checkbox", { name: "Include archived items" });
+    await checkbox.click();
+    await expect(checkbox).toHaveAttribute("aria-checked", "true");
+    expect(await checkbox.locator("svg path").evaluate(el => getComputedStyle(el).animationName)).toBe("none");
+    await dialog.getByRole("button", { name: "Increase Seats" }).click();
+    expect(await dialog.getByRole("spinbutton", { name: "Seats" }).evaluate(el => { const p = document.createElement("i"); p.style.marginTop = "var(--nudge-y, 0px)"; el.parentElement!.append(p); p.style.setProperty("--nudge-y", getComputedStyle(el).getPropertyValue("--nudge-y")); const v = getComputedStyle(p).marginTop; p.remove(); return v; })).toBe("0px");
     await dialog.getByRole("button", { name: "Next step", exact: true }).click();
     expect(await dialog.locator('[data-slot="step-marker"][data-status="done"] svg').evaluate(el => getComputedStyle(el).animationName)).toBe("fade-in");
     await page.keyboard.press("Escape");
@@ -152,12 +176,15 @@ test("touch controls and the preview fit 360px without sticky hover or undersize
 
 
 test("OTP focus follows the native caret through typing, editing and sanitization", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
   await page.goto("/ds");
   const input = page.getByLabel("Verification code", { exact: true });
   const root = input.locator("..");
   const activeCell = () => root.locator('[data-slot="otp-cell"]').evaluateAll(cells => cells.findIndex(cell => cell.getAttribute("data-current") === "true"));
   await input.fill("123456");
   await expect(input).toHaveValue("123456");
+  // A typed digit rises into its cell on the enter token.
+  expect(await root.locator('[data-slot="otp-cell"] > .animate-swap').first().evaluate(el => { const c = getComputedStyle(el); return `${c.animationName} ${c.animationDuration}`; })).toBe("digit-in 0.22s");
   await page.keyboard.press("ArrowLeft"); await page.keyboard.press("ArrowLeft");
   await expect.poll(activeCell).toBe(4);
   await page.keyboard.press("Backspace");
@@ -168,4 +195,56 @@ test("OTP focus follows the native caret through typing, editing and sanitizatio
   await expect(input).toHaveValue("12345");
   await input.fill("");
   await expect.poll(activeCell).toBe(0);
+});
+
+test("text reveal: each piece runs on the reveal tokens, 40 ms apart, and ends visible; reduced motion fades only", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.goto("/ds");
+  const card = page.locator('[data-demo="text-reveal"]');
+  await card.scrollIntoViewIfNeeded();
+  const pieces = card.locator(".reveal-text[data-shown] [data-piece]");
+  const timing = () => pieces.evaluateAll(els => els.map(el => { const c = getComputedStyle(el); return `${c.animationName} ${c.animationDuration} ${c.animationDelay} ${c.animationTimingFunction}`; }));
+  await expect(pieces).toHaveCount(7);
+  expect((await timing()).slice(0, 2)).toEqual(["text-reveal 0.7s 0s cubic-bezier(0.2, 0.7, 0.2, 1)", "text-reveal 0.7s 0.04s cubic-bezier(0.2, 0.7, 0.2, 1)"]);
+  await expect(pieces.last()).toHaveCSS("opacity", "1");
+  await expect(pieces.last()).toHaveCSS("filter", "blur(0px)");
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await card.getByRole("button", { name: "Replay text reveal", exact: true }).click();
+  await expect(pieces).toHaveCount(7);
+  expect((await timing()).at(-1)).toMatch(/^fade-in 0\.1s 0s /);
+  await expect(pieces.last()).toHaveCSS("opacity", "1");
+});
+
+test("a menu and a popover enter from the side they open on, by the enter shift; reduced motion drops the shift", async ({ page }) => {
+  /** `side x y`: the panel's Radix side and the enter translate tw-animate reads there, resolved to pixels. */
+  const shift = (panel: Locator) => panel.evaluate(el => {
+    // The variables are registered without inheritance (tw-animate), so they are read on the panel and resolved on a probe.
+    const own = getComputedStyle(el), probe = document.createElement("i");
+    probe.style.position = "absolute";
+    probe.style.marginLeft = own.getPropertyValue("--tw-enter-translate-x");
+    probe.style.marginTop = own.getPropertyValue("--tw-enter-translate-y");
+    el.append(probe);
+    const c = getComputedStyle(probe), out = `${el.getAttribute("data-side")} ${c.marginLeft} ${c.marginTop}`;
+    probe.remove();
+    return out;
+  });
+  const FROM_SIDE = ["bottom 0px -6px", "top 0px 6px", "right -6px 0px", "left 6px 0px"];
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.goto("/ds");
+  const menu = page.locator('[data-slot="dropdown-menu-content"]');
+  await page.getByRole("button", { name: "Gallery actions", exact: true }).click();
+  await expect(menu).toBeVisible();
+  expect(FROM_SIDE).toContain(await shift(menu));
+  await page.keyboard.press("Escape");
+  await expect(menu).toHaveCount(0);
+  const popover = page.locator('[data-slot="popover-content"]');
+  await page.getByRole("button", { name: "Open popover", exact: true }).click();
+  await expect(popover).toBeVisible();
+  expect(FROM_SIDE).toContain(await shift(popover));
+  await page.keyboard.press("Escape");
+  await expect(popover).toHaveCount(0);
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.getByRole("button", { name: "Gallery actions", exact: true }).click();
+  await expect(menu).toBeVisible();
+  expect(await shift(menu)).toMatch(/ 0px 0px$/);
 });
