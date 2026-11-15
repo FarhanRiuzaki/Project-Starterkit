@@ -101,7 +101,7 @@ export function StatusChip(props: StatusChipProps) {
   const chip = (
     <span ref={ref} data-slot="status-chip" data-status={health} data-changed={k > 0 || undefined} tabIndex={focusable ? 0 : undefined} aria-describedby={focusable ? descId : undefined}
       className={cn("inline-flex items-center gap-1.5 border pr-2 pl-1.5 text-label motion-safe:transition-colors duration-(--dur-fast)",
-        props.wrap ? "min-h-5.5 max-w-full rounded-xl py-0.5 leading-tight" : "h-5.5 rounded-full whitespace-nowrap",
+        props.wrap ? "min-h-5.5 max-w-full rounded-lg py-0.5 leading-tight" : "h-5.5 rounded-full whitespace-nowrap",
         INK[health], props.strong ? cn("border-transparent", SOFT[health]) : "border-line bg-card",
         description && "cursor-help",
         focusable && "outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary",

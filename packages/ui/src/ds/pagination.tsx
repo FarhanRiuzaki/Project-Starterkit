@@ -8,7 +8,7 @@ import { Select } from "../ui/select";
 
 /**
  * Table footer (spec §5.7), 48 px: "Showing 16–30 of 12,345" left; page size select, then first / previous / page
- * numbers / next / last (28 px square buttons, current = tray fill + line) right. `maxPage` caps the last page
+ * numbers / next / last (28 px square buttons, current = tray fill) right. `maxPage` caps the last page
  * offered (the server refuses deeper pages); `totalCapped` = the server stopped counting ("of 100,000+").
  * The page-size select shows only with `onPageSizeChange`.
  * Below 768 px it is compact: rows per page left; previous / "Page x of y" / next right (first, last and the numbers
@@ -51,12 +51,12 @@ export function Pagination({ label, page, pageSize, total, totalCapped, maxPage,
 /** Controls of the full pager only (hidden on a phone). */
 const WIDE = "max-md:hidden";
 
-/** Pagination button (spec §5.7): 28 px square, radius 8; current = --tray fill + line, aria-current. */
+/** Pagination button (spec §5.7): 28 px square, radius 10; current = --tray fill, aria-current. */
 function PageButton({ children, onClick, disabled, current, label, className }: { children: ReactNode; onClick: () => void; disabled?: boolean; current?: boolean; label: string; className?: string }) {
   return (
     <button type="button" onClick={onClick} disabled={disabled} aria-label={label} aria-current={current ? "page" : undefined}
-      className={cn("press-feedback inline-grid h-7 min-w-7 cursor-pointer place-items-center rounded-md border px-1.5 text-body-sm tabular outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:pointer-events-none disabled:opacity-40",
-        current ? "border-line bg-tray text-fg" : "border-transparent text-fg-2 hover:bg-tray hover:text-fg", className)}>
+      className={cn("press-feedback inline-grid h-7 min-w-7 cursor-pointer place-items-center rounded-md border border-transparent px-1.5 text-body-sm tabular outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:pointer-events-none disabled:opacity-40",
+        current ? "bg-tray text-fg" : "text-fg-2 hover:bg-tray hover:text-fg", className)}>
       {children}
     </button>
   );

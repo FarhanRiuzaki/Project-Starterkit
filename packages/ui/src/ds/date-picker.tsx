@@ -28,7 +28,7 @@ export function DatePicker({ value, defaultValue = "", onValueChange, min, max, 
     <Popover modal open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild><Button ref={trigger} type="button" variant="ghost" size="icon" className="absolute inset-y-0 right-0.5 my-auto pointer-coarse:size-10 pointer-coarse:right-1" aria-label={calendarLabel} disabled={props.disabled || props.readOnly} onPointerDown={e => { returnFocus.current = e.currentTarget; }} onKeyDown={e => { returnFocus.current = e.currentTarget; }}><Icon icon={CalendarIcon} /></Button></PopoverTrigger>
       <PopoverContent id={`${hint}-calendar`} aria-label={calendarLabel} className="w-auto p-0" onOpenAutoFocus={e => e.preventDefault()} onCloseAutoFocus={e => { if (returnFocus.current?.isConnected) { e.preventDefault(); returnFocus.current.focus(); } }}>
-        <Suspense fallback={<p role="status" className="p-4 text-body-sm">Loading calendar…</p>}><Calendar key={open ? "open" : "closed"} autoFocus value={current} min={min} max={max} onValueChange={date => { update(date); setOpen(false); }} /></Suspense>
+        <Suspense fallback={<p role="status" className="p-4 text-body-sm">Loading calendar…</p>}><Calendar key={open ? "open" : "closed"} className="rounded-none border-0" autoFocus value={current} min={min} max={max} onValueChange={date => { update(date); setOpen(false); }} /></Suspense>
       </PopoverContent>
     </Popover>
   </div>;

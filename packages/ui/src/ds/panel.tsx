@@ -7,9 +7,9 @@ import { type LegendItem, StatusLegend } from "./status-legend";
 
 /**
  * Panel = tray + card, the v3 signature (spec §5.4).
- * - Tray: radius 16, --tray, 1 px line, padding 4. Header on the tray: 44 px, padding 0 12, optional 16 px fg-3
+ * - Tray: radius 20, --tray, 1 px line, padding 4. Header on the tray: 44 px, padding 0 12, optional 16 px fg-3
  *   icon, `title-2` title, optional count pill, caption (`description`) after a middot, actions right.
- * - Card: radius 12, --card, 1 px line, padding 16 (`flush` = no padding, e.g. a table: the table is
+ * - Card: radius 16, --card, 1 px line, padding 16 (`flush` = no padding, e.g. a table: the table is
  *   the card, its header row sits on the tray tint). The card grows (`flex-1`) so siblings in a row share height.
  * - `footnote`: caption under the card (StaleNote, sources), padding 8 12.
  * - `variant="flat"`: card only inside an existing floating dialog; the header then sits inside the card.

@@ -50,6 +50,8 @@ const TEXT: [string, string][] = [
   ...STATES.map((s) => [`${s}-ink`, `${s}-soft`] as [string, string]),
   ...STATES.map((s) => ["fg", `${s}-soft`] as [string, string]),
   ["primary-foreground", "primary"], ["primary-foreground", "primary-hover"], ["action-fg", "action"], ["action-fg", "action-hover"], ["on-crit", "down-ink"],
+  // Primary button label on both stops of its gradient, at rest and on hover; Danger button label on its hover fill.
+  ["action-fg", "action-top"], ["action-fg", "action-bottom"], ["action-fg", "action-hover-top"], ["action-fg", "action-hover-bottom"], ["down-ink", "down-soft-hover"],
   // Active segment / tab thumb: only fg (label) and fg-2 (count pill) sit on it — fg-3 is 4.28:1 in dark, so
   // ds/segmented.tsx never uses fg-3 inside the active segment.
   ["fg", "seg-active"], ["fg-2", "seg-active"],
@@ -169,6 +171,48 @@ describe("scroll-quiet (inner scroll areas)", () => {
   });
 });
 
+describe("affectUI look on the shared components (design-system.md §3.7)", () => {
+  const BASE = readFileSync(path.resolve(import.meta.dirname, "./base.css"), "utf8");
+  it("radius scale: md 10, lg 16, xl 20; xs, sm, tick, ctl, full unchanged; xl − tray padding = lg", () => {
+    const px = (name: string) => Number(new RegExp(`--radius-${name}: (\\d+)px;`).exec(BASE)?.[1]);
+    expect(["xs", "sm", "md", "tick", "ctl", "lg", "xl", "full"].map(px)).toEqual([4, 6, 10, 2, 10, 16, 20, 9999]);
+    expect(px("xl") - Number(/--spacing-tray: (\d+)px;/.exec(BASE)?.[1])).toBe(px("lg"));
+  });
+  it("press scale 0.97", () => { expect(decls(":root")["press-scale"]).toBe("0.97"); });
+  it("the primary button's gradient, edge and ring are tokens, keyed on the class and variant (a trigger's data-slot replaces the Button's)", () => {
+    const at = BASE.indexOf('.bg-action[data-variant="default"] {');
+    expect(at).toBeGreaterThan(0);
+    const body = BASE.slice(at, BASE.indexOf("}", at));
+    expect(body).toContain("linear-gradient(var(--button-top), var(--button-bottom)), linear-gradient(var(--action-ring), var(--action-ring))");
+    expect(body).not.toMatch(/#[0-9a-f]{3,8}\b|rgb\(/i);
+    expect(BASE).toContain('.bg-action[data-variant="default"]:hover { --button-top: var(--action-hover-top); --button-bottom: var(--action-hover-bottom); }');
+  });
+  it("the primary button draws nothing outside its box: the ring is its 1 px border, the lit edge inset shadows (a 32 px control draws 32 px, §5.2)", () => {
+    const at = BASE.indexOf('.bg-action[data-variant="default"] {');
+    const shadows = /box-shadow: ([^;]+);/.exec(BASE.slice(at, BASE.indexOf("}", at)))![1]!.split(", ");
+    expect(shadows).toEqual(["inset 0 1px 0 var(--action-edge-top)", "inset 0 -1px 0 var(--action-edge-bottom)", "inset 0 0 0 1px var(--action-edge-mid)"]);
+    expect(CSS).not.toContain("--shadow-action");
+    expect(Object.keys(decls(".dark"))).toContain("action-ring");
+  });
+  it("a palette other than Current keeps its flat --action on the primary button", () => {
+    const rule = /:root\[data-palette\]:not\(\[data-palette="current"\]\) \{([^}]+)\}/.exec(CSS)?.[1] ?? "";
+    for (const [k, v] of [["action-top", "action"], ["action-bottom", "action"], ["action-hover-top", "action-hover"], ["action-hover-bottom", "action-hover"], ["action-edge-top", "action"], ["action-edge-mid", "action"], ["action-edge-bottom", "action"], ["action-ring", "action"]])
+      expect(rule).toContain(`--${k}: var(--${v});`);
+  });
+  it("a disabled Danger button keeps a boundary: at 0.4 its soft fill alone is 1.05:1 on the card", () => {
+    expect(BASE).toContain('.bg-down-soft[data-variant="destructive"]:disabled { border-color: var(--down-mark); }');
+  });
+  it("fields rest on --shadow-xs at zero specificity; the input inside an affix or number field has none", () => {
+    expect(BASE).toContain(':where([data-slot="input"], [data-slot="select"], [data-slot="textarea"], [data-slot="input-affix"], [data-slot="number-input"]) { box-shadow: var(--shadow-xs); }');
+    expect(BASE).toContain(':where([data-slot="input-affix"], [data-slot="number-input"]) > :where([data-slot="input"]) { box-shadow: none; }');
+  });
+  it("a button nested in a field sits one radius step under it", () => {
+    expect(BASE).toContain('[data-slot="number-input"] > [data-slot="button"], [data-slot="input"] + [data-slot="button"][aria-pressed], [data-slot="date-picker"] > [data-slot="popover-trigger"] { border-radius: var(--radius-sm); }');
+  });
+  it("the segmented / default-tabs track keeps its 1 px box but draws no line", () => {
+    expect(BASE).toContain(".rounded-ctl.bg-tray { border-color: transparent; }");
+  });
+});
 
 const PALETTES_CSS = readFileSync(path.resolve(import.meta.dirname, "./palettes.css"), "utf8");
 describe("Figma palettes", () => {

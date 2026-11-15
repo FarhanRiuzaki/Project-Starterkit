@@ -33,7 +33,7 @@ function DropdownMenuTrigger({
   )
 }
 
-/** Menu (spec §5.14): --raised, radius 12, padding 4, items 32 px radius 8, shadow-overlay; opacity + scale 0.98 from the trigger, `--dur-pop` in / `--dur-instant` out (OVERLAY_MOTION.menu, popovers too). */
+/** Menu (spec §5.14): --raised, radius 16, padding 4, items 32 px radius 10, shadow-overlay; opacity + scale 0.98 from the trigger, `--dur-pop` in / `--dur-instant` out (OVERLAY_MOTION.menu, popovers too). */
 function DropdownMenuContent({
   className,
   sideOffset = 4,

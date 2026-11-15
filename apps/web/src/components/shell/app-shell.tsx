@@ -5,7 +5,7 @@ import { Sidebar } from "./sidebar";
 import { TopBar } from "./top-bar";
 
 /**
- * App frame: the sidebar sits on --bg; the content lives in one sheet (radius 16, 1 px line, 8 px from the sidebar and
+ * App frame: the sidebar sits on --bg; the content lives in one sheet (radius 20, 1 px line, 8 px from the sidebar and
  * the window edges) with the 56 px top bar; content padding 24 top / 24 sides / 40 bottom, filling the sheet's width
  * (no cap: with the sidebar collapsed or on a wide screen the content uses the room instead of leaving it empty).
  * Below 768 px (design-system §0): no sidebar (the top bar's menu opens it as a drawer), the sheet fills the window

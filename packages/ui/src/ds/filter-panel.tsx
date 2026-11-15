@@ -71,7 +71,7 @@ export function FilterPanel({ anchor, active, open, onOpenChange, description, c
   };
   return <div data-slot="filter-rail-lane" className="contents md:pointer-events-none md:absolute md:inset-y-0 md:-right-4 md:z-30 md:block md:w-12">
     {/* Keep this visual wrapper outside the deferred Root so primitive loading cannot remount the rail. */}
-    <div data-slot="filter-launcher" className={cn("filter-rail flex max-md:min-h-8 items-center justify-end gap-2 md:pointer-events-auto md:sticky md:top-4 md:h-fit md:w-12 md:flex-col md:justify-start md:rounded-xl md:border md:border-line md:bg-card md:shadow-overlay", open && "md:invisible")}>
+    <div data-slot="filter-launcher" className={cn("filter-rail flex max-md:min-h-8 items-center justify-end gap-2 md:pointer-events-auto md:sticky md:top-4 md:h-fit md:w-12 md:flex-col md:justify-start md:rounded-lg md:border md:border-line md:bg-card md:shadow-overlay", open && "md:invisible")}>
       <panel.Root open={open} onOpenChange={onOpenChange} modal={phone}>
         <panel.Trigger asChild onClick={loading} onKeyDown={e => { if (e.key === "Enter" || e.key === " ") loading(); }}>
           <Button ref={trigger} variant="ghost" aria-busy={busy || undefined}

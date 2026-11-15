@@ -4,7 +4,7 @@ import { InfoIcon, WarningIcon } from "../ui/icons";
 import { cn } from "../lib/cn";
 
 /**
- * Inline notice (spec §5.13): 40 px min, radius 12; `warn` = Degraded soft with ink text + icon (error with data,
+ * Inline notice (spec §5.13): 40 px min, radius 10 (one step under the cards: at 40 px a 16 px corner reads as a pill); `warn` = Degraded soft with ink text + icon (error with data,
  * stale), `info` = tray. The page keeps showing the data it has. Icon + text, not color alone.
  * `live` → role=status (announced) for notices that appear in response to data; static notices stay plain markup.
  * `lines` → one paragraph per line (the single aggregated page notice, UI standard §1.2); an empty list renders
@@ -16,7 +16,7 @@ export function Notice({ tone = "info", live, children, lines }: {
   if (lines && lines.length === 0 && children == null) return null;
   const icon = tone === "warn" ? WarningIcon : InfoIcon;
   return (
-    <div role={live ? "status" : undefined} className={cn("flex min-h-10 items-start gap-2.5 rounded-lg px-3 py-2.5 text-body-sm",
+    <div role={live ? "status" : undefined} className={cn("flex min-h-10 items-start gap-2.5 rounded-md px-3 py-2.5 text-body-sm",
       tone === "warn" ? "bg-degraded-soft text-degraded-ink" : "border border-line bg-tray text-fg-2")}>
       <Icon icon={icon} className="mt-px size-4 shrink-0" />
       {lines ? (

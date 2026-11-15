@@ -2,7 +2,7 @@ import * as React from "react";
 import { cn } from "../lib/cn";
 
 /**
- * Input (spec §5.12): 32 px, radius 8, 1 px strong line, card fill, padding 0 10, placeholder fg-3 (format only).
+ * Input (spec §5.12): 32 px, radius 10, 1 px control border, card fill, shadow-xs at rest (base.css), padding 0 10, placeholder fg-3 (format only).
  * Focus: 1 px primary border + 3 px primary-soft ring. Error (`aria-invalid`): Down mark border. Read-only: inset fill and
  * fg-2 text, so a value that can't be changed doesn't look like a field to type in (it stays focusable and copyable).
  * Login uses `className="h-10"` (40 px).

@@ -2,13 +2,15 @@
 
 import { useState } from "react";
 import {
-  type ComboOption, Combobox, Disclosure, ErrorSummary, Field, FileUpload, FormActions, FormSection, FormWizard, Panel, Progress, RadioGroup,
+  Checkbox, type ComboOption, Combobox, Disclosure, ErrorSummary, Field, FileUpload, FormActions, FormSection, FormWizard, Panel, Progress, RadioGroup,
   RequiredNote, ReviewList, Timeline,
-  type TimelineItem, type UploadFn, useForm,
+  InputAffix, type TimelineItem, type UploadFn, useForm,
 } from "@starterkit/ui/ds";
 import { rules } from "@starterkit/ui/lib/validate";
 import { Button } from "@starterkit/ui/ui/button";
 import { Input } from "@starterkit/ui/ui/input";
+import { PasswordInput } from "@starterkit/ui/ui/password-input";
+import { Select } from "@starterkit/ui/ui/select";
 import { Switch } from "@starterkit/ui/ui/switch";
 import { Textarea } from "@starterkit/ui/ui/textarea";
 import { toast } from "@starterkit/ui/ui/toast";
@@ -80,6 +82,47 @@ function ValidationDemo() {
         <Switch checked={alerts} onChange={setAlerts} label="Email me when a new device signs in" />
       </div>
       <div><Button type="submit">Save profile</Button></div>
+    </form>
+  );
+}
+
+/** Fictional time zones for the connected service sample. */
+const ZONES = [["Asia/Jakarta", "Jakarta (UTC+07:00)"], ["Asia/Makassar", "Makassar (UTC+08:00)"], ["Asia/Jayapura", "Jayapura (UTC+09:00)"], ["UTC", "UTC"]] as const;
+
+/** Composition sample, existing components only: a checkbox (the form saves later, so not a Switch), a validated site address, a secret, a time zone select and a save bar. */
+function ConnectedServiceDemo() {
+  const f = useForm({
+    initial: { site: "", secret: "", zone: "" },
+    schema: {
+      site: [rules.required("Enter the site address."), rules.pattern(/^[a-z0-9-]+(\.[a-z0-9-]+)+$/i, "Enter an address like status.example.com, without https://.")],
+      secret: [rules.required("Enter the signing secret."), rules.minLength(16, "Use at least 16 characters.")],
+      zone: [rules.required("Choose a time zone.")],
+    },
+    idPrefix: "ds-svc",
+  });
+  const [on, setOn] = useState(true);
+  return (
+    <form noValidate onSubmit={f.submit(() => toast("Saved sample service settings."))} className="grid max-w-lg gap-4">
+      <ErrorSummary errors={f.shown} idPrefix="ds-svc" labels={{ site: "Site address", secret: "Signing secret", zone: "Time zone" }} />
+      <RequiredNote />
+      {/* A Checkbox, not a Switch: this form saves later, and a Switch is for a setting that applies at once. */}
+      <div className="flex items-start gap-2">
+        <Checkbox id="ds-svc-on" className="-ml-1.5" label="Send activity to this service" checked={on} onToggle={() => setOn(!on)} />
+        <span className="grid gap-0.5 py-1"><label htmlFor="ds-svc-on" className="cursor-pointer text-body text-fg">Send activity to this service</label><span className="text-caption text-fg-3">Applies when you save the settings.</span></span>
+      </div>
+      <Field id={f.id("site")} label="Site address" required note="The service receives activity at this address." error={f.error("site")}>
+        <InputAffix {...f.text("site")} prefix="https://" autoComplete="off" autoCapitalize="none" spellCheck={false} />
+      </Field>
+      <Field id={f.id("secret")} label="Signing secret" required note="At least 16 characters." error={f.error("secret")}>
+        <PasswordInput {...f.text("secret")} autoComplete="off" />
+      </Field>
+      <Field id={f.id("zone")} label="Time zone" required note="Times in the service's reports use this zone." error={f.error("zone")}>
+        <Select id={f.id("zone")} name="zone" value={f.values.zone} onChange={(e) => { f.set("zone", e.target.value); f.blur("zone"); }}>
+          <option value="">Choose a time zone</option>
+          {ZONES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+        </Select>
+      </Field>
+      <FormActions sticky={false} className="border-t border-line pt-4"><Button type="submit">Save settings</Button><Button type="button" variant="ghost" onClick={() => { f.reset(); setOn(true); }}>Discard changes</Button></FormActions>
     </form>
   );
 }
@@ -158,6 +201,7 @@ export function FormsSection() {
   return (
     <div className="grid grid-cols-12 gap-gutter">
       <Panel title="Form and validation" description="Errors after leaving a field or on submit; summary on top" className="col-span-12 md:col-span-6"><ValidationDemo /></Panel>
+      <Panel title="Connected service settings" description="Existing components only; nothing is sent" className="col-span-12 md:col-span-6"><ConnectedServiceDemo /></Panel>
       <Panel title="Wizard" description="Steps on the right stay in view; per-step validation, Back keeps answers, review with Change" cards className="col-span-12"><WizardDemo /></Panel>
       <Panel title="Form layout" description="Sections: title and purpose on the left, fields on the right; buttons stay in reach" className="col-span-12"><LayoutDemo /></Panel>
       <Panel title="Combobox" description="Single, multiple with chips and create, server search" className="col-span-12 md:col-span-6"><ComboDemo /></Panel>

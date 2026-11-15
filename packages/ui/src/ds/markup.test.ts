@@ -7,6 +7,8 @@ import { Avatar } from "./avatar";
 import { TickMeter } from "./meter";
 import { StatTile } from "./stat-tile";
 import { PasswordChecks } from "./password-checks";
+import { Segmented } from "./segmented";
+import { Pagination } from "./pagination";
 
 /** Server markup of the v3 signature components (spec §5.4, §5.5): structure and copy, not pixels. */
 const html = (el: ReturnType<typeof h>) => renderToStaticMarkup(el);
@@ -32,6 +34,21 @@ describe("Panel (tray + card)", () => {
     expect(html(h(Panel, { variant: "flat", children: "x" }))).not.toContain("bg-tray");
     const cards = html(h(Panel, { title: "KPIs", cards: true, children: h("i") }));
     expect(cards).not.toContain("bg-card");
+  });
+});
+
+describe("affectUI look (design-system.md §3.7)", () => {
+  it("Segmented: the track keeps its 1 px box (base.css makes it transparent), segments one radius step under it", () => {
+    const out = html(h(Segmented, { label: "Range", value: "a", onChange: () => {}, options: [{ value: "a", label: "A" }, { value: "b", label: "B" }] }));
+    const track = /<div role="radiogroup"[^>]*class="([^"]*)"/.exec(out)![1]!.split(" ");
+    expect(track).toEqual(expect.arrayContaining(["rounded-ctl", "border", "bg-tray", "p-0.5"]));
+    expect(out).toContain("rounded-sm"); expect(out).not.toContain("rounded-md");
+  });
+  it("Pagination: the current page is a tray fill without a line", () => {
+    const out = html(h(Pagination, { label: "Users", page: 2, pageSize: 15, total: 60, onPageChange: () => {} }));
+    const current = /aria-current="page"[^>]*class="([^"]*)"/.exec(out)![1]!.split(" ");
+    expect(current).toEqual(expect.arrayContaining(["border", "border-transparent", "bg-tray", "text-fg"]));
+    expect(current).not.toContain("border-line");
   });
 });
 

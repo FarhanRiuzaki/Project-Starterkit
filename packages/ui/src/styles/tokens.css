@@ -6,7 +6,7 @@
    the brand accent is --primary. Hex literals only inside :root and .dark (tokens.test resolves var() aliases). */
 :root {
   /* Micro-interaction geometry; durations and easings use the shared motion tokens. */
-  --press-scale: 0.98;
+  --press-scale: 0.97;
   --invalid-wash: 4%; /* share of Down in an invalid field's fill (base.css); 6% in dark */
   --choice-press-scale: 0.92;
 
@@ -40,12 +40,24 @@
   --action: #18181b;
   --action-fg: #ffffff;
   --action-hover: #2c2c31;
+  /* primary button (after affectUI's Button, MIT; design-system.md §3.7): top-lit gradient over --action, the ring as
+     its 1 px border and the lit edge just inside it, all within the box. --action-fg on the stops: 12.88 / 16.49:1,
+     hover 11.07 / 14.73:1 (dark 16.59 / 14.37, 18.24 / 15.47). */
+  --action-top: #323137;
+  --action-bottom: #201e25;
+  --action-hover-top: #3c3b42;
+  --action-hover-bottom: #29272f;
+  --action-edge-top: #4b4951;
+  --action-edge-mid: #31303a;
+  --action-edge-bottom: #18171b;
+  --action-ring: #0d0d0d;
   --row-selected: #f5f9ff;
   --seg-active: #ffffff;
   /* status: mark (icon/dot, ≥ 3:1), ink (text, ≥ 4.5:1 on soft and on every surface), soft (chip bg) */
   --healthy-mark: #16a05a;  --healthy-ink: #117a46;  --healthy-soft: #e9f7ef;
   --degraded-mark: #c96a05; --degraded-ink: #b25309; --degraded-soft: #fff2e6;
   --down-mark: #e5303a;     --down-ink: #c8262f;     --down-soft: #feeced;
+  --down-soft-hover: #fde3e5; /* Danger button hover: Down ink on it 4.58:1 (dark 5.39:1) */
   --stopped-mark: #8a8a93;  --stopped-ink: #55555c;  --stopped-soft: #f1f1f3;
   --unknown-mark: #a1a1aa;  --unknown-ink: #55555c;  --unknown-soft: #f1f1f3;
   --on-crit: #ffffff;
@@ -189,11 +201,20 @@
   --action: #f2f2f3;
   --action-fg: #151517;
   --action-hover: #d9d9dc;
+  --action-top: #f4f4f5;
+  --action-bottom: #e4e4e7;
+  --action-hover-top: #ffffff;
+  --action-hover-bottom: #ececef;
+  --action-edge-top: #ffffff;
+  --action-edge-mid: #ececef;
+  --action-edge-bottom: #d4d4d8;
+  --action-ring: #d4d4d8; /* upstream's dark ring (60 % black) is lost on a dark page; inside the box it is the edge's darkest stop */
   --row-selected: #172033;
   --seg-active: #2c2c31;
   --healthy-mark: #3ec27e;  --healthy-ink: #4cc98a;  --healthy-soft: #143323;
   --degraded-mark: #ea7a3a; --degraded-ink: #ee8548; --degraded-soft: #3a2614;
   --down-mark: #ff6b70;     --down-ink: #ff7a7f;     --down-soft: #3d1a1d;
+  --down-soft-hover: #4d2024;
   --stopped-mark: #7d7d86;  --stopped-ink: #a8a8b1;  --stopped-soft: #2a2a2f;
   --unknown-mark: #5d5d66;  --unknown-ink: #a8a8b1;  --unknown-soft: #2a2a2f;
   --on-crit: #1f0a07;
@@ -220,3 +241,11 @@
 }
 
 :root[data-density="compact"] { --row-h: 36px; --row-h-identity: 44px; }
+
+/* A palette (palettes.css) keeps its flat --action on the primary button: the gradient stops above are tuned for
+   Current only. <html> always carries data-palette, "current" included. */
+:root[data-palette]:not([data-palette="current"]) {
+  --action-top: var(--action); --action-bottom: var(--action);
+  --action-hover-top: var(--action-hover); --action-hover-bottom: var(--action-hover);
+  --action-edge-top: var(--action); --action-edge-mid: var(--action); --action-edge-bottom: var(--action); --action-ring: var(--action);
+}

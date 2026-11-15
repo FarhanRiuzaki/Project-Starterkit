@@ -32,9 +32,9 @@ export function DateRangeControl({ value, label, onChange, refresh, className }:
     setRecent(items => [next, ...items.filter(item => item.start !== next.start || item.end !== next.end)].slice(0, 5));
   }
   return <div data-slot="time-range-control" className={cn("relative flex h-8 min-w-0 flex-1 items-center gap-2", className)}>
-    <div data-slot="time-range-input" className={cn("flex h-8 min-w-0 flex-1 items-stretch rounded-md border border-line-strong bg-card", dirty && !valid && "border-down-mark")}>
+    <div data-slot="time-range-input" className={cn("flex h-8 min-w-0 flex-1 items-stretch rounded-md border border-line bg-card", dirty && !valid && "border-down-mark")}>
       <Popover modal open={open} onOpenChange={next => { setOpen(next); if (next) setClock(Date.now()); }}>
-        <PopoverTrigger asChild><Button variant="ghost" className={cn("h-full gap-1 rounded-r-none border-0 px-2", expanded ? "shrink-0 border-r border-line-strong" : "min-w-0 flex-1 justify-start")} onPointerEnter={() => void loadQuickEditor()} onFocus={() => void loadQuickEditor()} aria-label={`Time range: ${caption}`}><Icon icon={CalendarIcon} /><Icon data-slot="disclosure-icon" icon={ChevronDownIcon} className="size-3" />{!expanded && <span className="ml-1 truncate text-body-sm">{caption}</span>}</Button></PopoverTrigger>
+        <PopoverTrigger asChild><Button variant="ghost" className={cn("h-full gap-1 rounded-r-none border-0 px-2", expanded ? "shrink-0 border-r border-line" : "min-w-0 flex-1 justify-start")} onPointerEnter={() => void loadQuickEditor()} onFocus={() => void loadQuickEditor()} aria-label={`Time range: ${caption}`}><Icon icon={CalendarIcon} /><Icon data-slot="disclosure-icon" icon={ChevronDownIcon} className="size-3" />{!expanded && <span className="ml-1 truncate text-body-sm">{caption}</span>}</Button></PopoverTrigger>
         <PopoverContent aria-label="Quick select time range" align="start" className="w-100 p-4">
           <Suspense fallback={<p role="status" className="text-body-sm">Loading time picker…</p>}><DateRangeEditor value={current} recent={recent} onCommit={commit} refresh={refresh} onShowDates={() => { setExpanded(true); setOpen(false); }} /></Suspense>
         </PopoverContent>
@@ -47,7 +47,7 @@ export function DateRangeControl({ value, label, onChange, refresh, className }:
       </div> : <Button variant="ghost" className="h-full shrink-0 rounded-l-none border-0 px-2 text-caption text-fg-3" aria-label="Show dates" onClick={() => setExpanded(true)}>Show dates</Button>}
     </div>
     <Button variant={dirty ? "default" : "secondary"} size="icon" aria-label={dirty ? "Apply time range" : "Refresh now"} aria-busy={shownBusy || undefined} disabled={dirty ? !valid : !!refresh?.busy || !!refresh?.paused || !refresh} title={dirty && !valid ? "Choose times in order, up to one year." : refresh?.paused} onClick={() => { if (dirty) commit(current); else { setClock(Date.now()); refresh?.onRefresh(); } }}><Icon icon={RefreshIcon} className={shownBusy ? "motion-safe:animate-spin" : undefined} /></Button>
-    {dirty && <span role="status" className={valid ? "sr-only" : "absolute top-full right-0 z-30 mt-1 rounded-md border border-down-mark bg-card px-2 py-1 text-caption text-down-ink"}>{valid ? "Time range changed. Apply to update results." : "End time must follow start time, within one year."}</span>}
+    {dirty && <span role="status" className={valid ? "sr-only" : "absolute top-full right-0 z-30 mt-1 rounded-sm border border-down-mark bg-card px-2 py-1 text-caption text-down-ink"}>{valid ? "Time range changed. Apply to update results." : "End time must follow start time, within one year."}</span>}
   </div>;
 }
 function EndpointButton({ endpoint, value, clock, onChange }: { clock: number; endpoint: "start" | "end"; value: string; onChange: (value: string) => void }) {

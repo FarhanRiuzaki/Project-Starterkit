@@ -145,3 +145,46 @@ test("a page body that is slow to arrive shows its loading shape under the heade
   await expect(loading).toHaveCount(0);
   await expect(page.locator("#ds-forms")).toBeVisible();
 });
+
+// The affectUI look (design-system.md §3.7), read from the rendered gallery buttons in both themes.
+for (const colorScheme of ["light", "dark"] as const) {
+  test.describe(`re-skinned buttons, ${colorScheme}`, () => {
+    test.use({ colorScheme });
+
+    test("the primary label keeps 4.5:1 on both gradient stops; Danger is a soft fill without a border", async ({ page }) => {
+      await page.goto("/ds/components");
+      await expect(page.locator('[data-slot="body-loading"]')).toHaveCount(0);
+      await expect(page.locator("html")).toHaveClass(colorScheme === "dark" ? /\bdark\b/ : /^(?!.*\bdark\b)/);
+      const read = (name: string) => page.locator("#content").getByRole("button", { name, exact: true }).first().evaluate((el) => {
+        // Every colour through a 1 × 1 canvas, so the answer is sRGB bytes whatever notation the browser computes.
+        const ctx = document.createElement("canvas").getContext("2d", { willReadFrequently: true })!;
+        const rgba = (color: string) => { ctx.clearRect(0, 0, 1, 1); ctx.fillStyle = color; ctx.fillRect(0, 0, 1, 1); return [...ctx.getImageData(0, 0, 1, 1).data]; };
+        const lum = (c: number[]) => { const [r, g, b] = c.slice(0, 3).map((v) => { const x = v / 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; }); return 0.2126 * r! + 0.7152 * g! + 0.0722 * b!; };
+        const ratio = (a: number[], b: number[]) => { const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x); return (hi! + 0.05) / (lo! + 0.05); };
+        const probe = (value: string) => { const p = document.createElement("span"); p.style.color = value; el.append(p); const c = getComputedStyle(p).color; p.remove(); return c; };
+        const cs = getComputedStyle(el);
+        // The first gradient layer is the fill (the second runs down the border box): its colour stops.
+        const fill = cs.backgroundImage.split("linear-gradient(")[1] ?? "";
+        const stops = fill.match(/(rgba?|color|oklch|lab)\([^)]*\)/g) ?? [];
+        return {
+          stops: stops.length, onStops: stops.map((s) => ratio(rgba(cs.color), rgba(s))),
+          onFill: ratio(rgba(cs.color), rgba(cs.backgroundColor)), image: cs.backgroundImage,
+          borderAlpha: rgba(cs.borderTopColor)[3], shadow: cs.boxShadow,
+          softFill: cs.backgroundColor === probe("var(--down-soft)"), downInk: cs.color === probe("var(--down-ink)"),
+        };
+      });
+      const primary = await read("Create user");
+      expect(primary.stops).toBe(2);
+      for (const r of primary.onStops) expect(r).toBeGreaterThanOrEqual(4.5);
+      expect(primary.shadow).not.toBe("none");
+
+      const danger = await read("Delete 2 users");
+      expect(danger.image).toBe("none");
+      expect(danger.borderAlpha).toBe(0);
+      expect(danger.shadow).toBe("none");
+      expect(danger.softFill).toBe(true);
+      expect(danger.downInk).toBe(true);
+      expect(danger.onFill).toBeGreaterThanOrEqual(4.5);
+    });
+  });
+}

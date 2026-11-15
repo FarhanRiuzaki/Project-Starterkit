@@ -4,21 +4,22 @@ import { cn } from "../lib/cn";
 import { Slot } from "radix-ui";
 
 /**
- * Buttons (spec §5.3): radius 8, 32 px (28 sm), padding 0 12, 14/500, icon 16 + 6 gap; press scale 0.98 (100 ms),
- * hover fill 150 ms. `default` = the one primary per page (--action, near-black / near-white); `secondary` = card
- * + strong line + shadow-xs; `ghost`; `destructive` = Danger (card, Down ink, Down mark @ 40 % border).
+ * Buttons (spec §5.3): radius 10, 32 px (28 sm), padding 0 12, 14/500, icon 16 + 6 gap; press scale 0.97 (100 ms),
+ * hover fill 150 ms, disabled 0.4. `default` = the one primary per page (--action under a top-lit gradient with a lit
+ * edge and a ring, drawn by base.css on `.bg-action[data-variant="default"]`; near-black / near-white); `secondary` =
+ * card + line + shadow-xs; `ghost`; `destructive` = Danger (soft Down fill, Down ink, no border).
  * `outline` is kept as an alias of secondary for older callers.
  */
 const buttonVariants = cva(
-  "inline-flex shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-md border text-body font-medium whitespace-nowrap transition-[background-color,border-color,color,opacity,transform] duration-(--dur-fast) ease-standard outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary press-feedback active:duration-(--dur-instant) disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "inline-flex shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-md border text-body font-medium whitespace-nowrap transition-[background-color,border-color,color,opacity,transform] duration-(--dur-fast) ease-standard outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary press-feedback active:duration-(--dur-instant) disabled:pointer-events-none disabled:opacity-40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
         default: "border-transparent bg-action text-action-fg hover:bg-action-hover",
-        secondary: "border-line-strong bg-card text-fg shadow-xs hover:bg-tray",
-        outline: "border-line-strong bg-card text-fg shadow-xs hover:bg-tray",
+        secondary: "border-line bg-card text-fg shadow-xs hover:bg-tray",
+        outline: "border-line bg-card text-fg shadow-xs hover:bg-tray",
         ghost: "border-transparent bg-transparent text-fg-2 hover:bg-tray hover:text-fg",
-        destructive: "border-down-mark/40 bg-card text-down-ink shadow-xs hover:bg-down-soft",
+        destructive: "border-transparent bg-down-soft text-down-ink hover:bg-down-soft-hover",
         link: "h-auto border-transparent px-0 text-primary-ink underline underline-offset-4 hover:decoration-2 press-static",
       },
       size: {

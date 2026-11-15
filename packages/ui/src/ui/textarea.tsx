@@ -7,7 +7,7 @@ import { cn } from "../lib/cn";
 const ANNOUNCE_FROM = 20;
 
 /**
- * Multi-line text field, the Input's look (radius 8, strong line, primary focus ring, Down border when invalid), at
+ * Multi-line text field, the Input's look (radius 10, control border, primary focus ring, Down border when invalid), at
  * least 3 lines, resizable vertically. `limit` adds the GOV.UK character count under it: "120 of 500 characters";
  * typing past the limit is not blocked (no maxlength), the count turns into "12 characters too many" and the field is
  * marked invalid (red border) so the user can trim it; a screen reader hears the count only from 20 characters left,
@@ -21,7 +21,7 @@ export function Textarea({ className, limit, value, countValue, ...props }: Omit
   const field = (
     <textarea data-slot="textarea" value={value} rows={3} {...props} aria-invalid={over || props["aria-invalid"] || undefined}
       aria-describedby={[props["aria-describedby"], limit != null ? countId : null].filter(Boolean).join(" ") || undefined}
-      className={cn("min-h-20 w-full min-w-0 resize-y rounded-md border border-line-strong bg-card px-2.5 py-2 text-body text-fg transition-[border-color,box-shadow] duration-(--dur-fast) outline-none placeholder:text-fg-3",
+      className={cn("min-h-20 w-full min-w-0 resize-y rounded-md border border-control-border bg-card px-2.5 py-2 text-body text-fg transition-[border-color,box-shadow] duration-(--dur-fast) outline-none placeholder:text-fg-3",
         "focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-primary-soft",
         "read-only:bg-inset read-only:text-fg-2 disabled:cursor-not-allowed disabled:bg-inset disabled:opacity-60",
         "aria-invalid:border-down-mark aria-invalid:focus-visible:ring-down-soft", className)} />

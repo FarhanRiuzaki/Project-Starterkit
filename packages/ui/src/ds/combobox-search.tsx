@@ -172,7 +172,7 @@ export function SearchCombobox(props: Single | Multiple) {
   return (
     <div className={cn("relative", className)} onBlur={onBlurAll}>
       <div onClick={() => inputRef.current?.focus()}
-        className={cn("flex min-h-8 w-full flex-wrap items-center gap-1 rounded-md border border-line-strong bg-card px-1.5 py-1 transition-[border-color,box-shadow] duration-(--dur-fast)",
+        className={cn("flex min-h-8 w-full flex-wrap items-center gap-1 rounded-md border border-control-border bg-card px-1.5 py-1 transition-[border-color,box-shadow] duration-(--dur-fast)",
           "focus-within:border-primary focus-within:ring-3 focus-within:ring-primary-soft",
           invalid && "border-down-mark focus-within:ring-down-soft", disabled && "pointer-events-none bg-inset opacity-60")}>
         {multiple && chosen.map((c) => (

@@ -13,7 +13,7 @@ function Tooltip(props: React.ComponentProps<typeof TooltipPrimitive.Root>) {
 function TooltipTrigger(props: React.ComponentProps<typeof TooltipPrimitive.Trigger>) {
   return <TooltipPrimitive.Trigger data-slot="tooltip-trigger" {...props} />;
 }
-/** UI tooltip (spec §5.14): inverse (--action / --action-fg), radius 8, body-sm, padding 6 10, max 280 px; opacity only, `--dur-instant` in and out (OVERLAY_MOTION.tooltip), 300 ms open delay. */
+/** UI tooltip (spec §5.14): inverse (--action / --action-fg), radius 10, body-sm, padding 6 10, max 280 px; opacity only, `--dur-instant` in and out (OVERLAY_MOTION.tooltip), 300 ms open delay. */
 function TooltipContent({ className, sideOffset = 6, children, ...props }: React.ComponentProps<typeof TooltipPrimitive.Content>) {
   return (
     <TooltipPrimitive.Portal>

@@ -15,7 +15,7 @@ export function RefreshControl({ interval, onInterval, onRefresh, busy, paused }
   busy: boolean; paused?: string;
 }) {
   const shownBusy = useDelayedFlag(busy);
-  return <div data-slot="refresh-control" className="flex h-8 shrink-0 items-center rounded-md border border-line-strong bg-card" title={paused}>
+  return <div data-slot="refresh-control" className="flex h-8 shrink-0 items-center rounded-md border border-line bg-card" title={paused}>
     <Button variant="ghost" size="icon" aria-label="Refresh now" aria-busy={shownBusy || undefined} disabled={busy || !!paused} onClick={onRefresh} className="h-full rounded-r-none border-0">
       <Icon icon={RefreshIcon} className={shownBusy ? "motion-safe:animate-spin" : undefined} />
     </Button>

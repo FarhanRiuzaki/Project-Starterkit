@@ -2,7 +2,8 @@
 
 Source: https://www.figma.com/design/yWRVvatRqyDZapm52tQHWA
 
-The current screen masters and shared components are authoritative. Archived explorations are excluded.
+The current screen masters and shared components are authoritative, except where the code is ahead of Figma
+(see [Code ahead of Figma](#code-ahead-of-figma-2026-11-14)). Archived explorations are excluded.
 
 Page versions follow [Figma versioning](figma-versioning.md): the current baseline is designated `v1.0.0`;
 requested changes go to duplicated, consistently named patch-version pages before edits. See that document for
@@ -38,6 +39,24 @@ Project behavior takes precedence over illustrative fixture data. Keep the start
 | Plan, integration, key, billing patterns | `PlanCard`, `IntegrationCard`, `ApiKeyRow`, `BillingSummary`; data and action slots |
 
 The live design system pages under `/ds` demonstrate these components. Billing, integrations, uploads and invitations are examples, not new backend modules. DatePicker uses the shared custom Calendar with ISO typing, bounds, roving day focus and month/year keyboard navigation. DateRangeControl reuses Calendar and opens independent Absolute / Relative / Now endpoint editors; RefreshControl uses the shared custom radio menu on live modules without a time range. TimeInput retains the platform time keyboard. The original login vector is served locally in light/dark versions and covers the entire login page, without an outer frame.
+
+## Code ahead of Figma (2026-11-14)
+
+The Figma file has not been updated for the items below; nothing in it was duplicated, edited or re-versioned for
+them. For these items the code and `design-system.md` are the reference, and a versioned Figma draft is owed
+(backlog NEXT-DES-004; record in [Figma versioning](figma-versioning.md)).
+
+| In code, not in Figma | Shared implementation | Shown on |
+| --- | --- | --- |
+| affectUI re-skin of the shared components: radius scale 10 / 16 / 20, the primary button's gradient, edge and ring, the soft Danger button, the secondary button's `--line` edge, the fields' resting drop, the borderless segmented / default-tabs track and current page, press scale 0.97, disabled 0.4 | `tokens.css`, `base.css`, `ui/button`, `ds/segmented`, `ui/tabs`, `ds/pagination`; `design-system.md` §3.7 | `/ds/components`, `/ds/forms`, `/ds/data` |
+| Breakdown card (no Figma node) | `BreakdownCard` · `charts/breakdown-card`, `lib/breakdown`; `design-system.md` §6.9 | `/ds/data`, "Breakdown card" |
+| Setup checklist (no Figma node) | `SetupChecklist` · `ds/setup-checklist`; `design-system.md` §5.17 | `/ds/feedback`, "Setup checklist" |
+
+The Figma families of the component map below and of [the full mapping](figma-component-coverage.md) (Button/Primary,
+Button/Secondary, Button/Danger, inputs, segmented control, pagination, cards and panels among them) still draw the
+look before the re-skin. Density did not change in this work: controls stay 28 / 32 / 36 px (login 40), so the draft
+changes corner radii, button and field surfaces and two lines, not sizes or spacing. The two new components are not
+among the 156 families of the coverage catalog.
 
 ## Behavior and motion contract
 

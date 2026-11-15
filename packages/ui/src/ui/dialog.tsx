@@ -49,7 +49,7 @@ function DialogOverlay({
 }
 
 /**
- * Dialog (spec §5.14): 480 px (pass `max-w-160` for 640), radius 16, padding 24, title title-1, footer buttons right; scrim fade `--dur-enter` in / `--dur-exit` out, panel opacity + scale 0.98, `--dur-slow` in / `--dur-exit` out (OVERLAY_MOTION.scrim, .dialog).
+ * Dialog (spec §5.14): 480 px (pass `max-w-160` for 640), radius 20, padding 24, title title-1, footer buttons right; scrim fade `--dur-enter` in / `--dur-exit` out, panel opacity + scale 0.98, `--dur-slow` in / `--dur-exit` out (OVERLAY_MOTION.scrim, .dialog).
  * Below 768 px (`max-md:`) the same panel is a bottom sheet: full width, at most 90 dvh, the content scrolls with the
  * action row (DialogFooter) stuck to its bottom, safe-area padding below; it rises from the bottom on the same tokens
  * (reduced motion: fade only). CSS only, so the server HTML is already the right shape; `max-md:` rules win over a

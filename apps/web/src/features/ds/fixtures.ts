@@ -46,3 +46,25 @@ export const MATRIX_MODULES = [
   { key: "permission", actions: ["view", "create"] },
   { key: "audit", actions: ["view"] },
 ] as const;
+
+/** BreakdownCard samples. "Change sample data" swaps the sign-in set: Google passes Password and a fifth method arrives. */
+export const BREAKDOWN_SIGN_INS = [
+  [
+    { id: "password", label: "Password", value: 812, slot: 0 }, { id: "google", label: "Google", value: 301, slot: 1 },
+    { id: "directory", label: "Directory", value: 129, slot: 2 }, { id: "apple", label: "Apple", value: 42, slot: 3 },
+  ],
+  [
+    { id: "password", label: "Password", value: 640, slot: 0 }, { id: "google", label: "Google", value: 702, slot: 1 },
+    { id: "directory", label: "Directory", value: 129, slot: 2 }, { id: "apple", label: "Apple", value: 42, slot: 3 },
+    { id: "recovery", label: "Recovery code", value: 57, slot: 4 },
+  ],
+] as const;
+/** Seven parts under `max={4}`: three named rows and the folded one; one label too long for its row (the gallery caps that card's width, so it is cut at every window width). */
+export const BREAKDOWN_ROLES = [
+  { id: "viewer", label: "Viewer", value: 1204 }, { id: "auditor", label: "Auditor with read access to every activity log and sign-in log", value: 412 }, { id: "admin", label: "Admin", value: 38 },
+  { id: "editor", label: "Editor", value: 21 }, { id: "billing", label: "Billing", value: 14 },
+  { id: "support", label: "Support", value: 9 }, { id: "superadmin", label: "Superadmin", value: 3 },
+] as const;
+export const BREAKDOWN_REQUESTS = [
+  { id: "api", label: "API", value: 2_412_000 }, { id: "web", label: "Web", value: 1_180_000 }, { id: "mail", label: "Mail", value: 96_400 },
+] as const;

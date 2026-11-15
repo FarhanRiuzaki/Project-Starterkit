@@ -99,7 +99,7 @@ export function ComponentsSections() {
               <ActionMenu label="Sample actions" actions={[{ id: "edit", label: "Edit user" }, { id: "delete", label: "Delete user", destructive: true }]} />
               <Tooltip>
                 <TooltipTrigger asChild><Button variant="secondary"><Icon icon={InfoIcon} />Hover for a tooltip</Button></TooltipTrigger>
-                <TooltipContent>Inverse tooltip: radius 8, 13 px text, at most 280 px wide.</TooltipContent>
+                <TooltipContent>Inverse tooltip: radius 10, 13 px text, at most 280 px wide.</TooltipContent>
               </Tooltip>
               <Button variant="secondary" onClick={() => setDialog(true)}>Delete user</Button>
               <BlockedButton variant="secondary" reason="This is the last active Superadmin. Make another user Superadmin first.">Deactivate user</BlockedButton>

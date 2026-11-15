@@ -7,3 +7,4 @@ export { HBarChart } from "./hbar-chart";
 export { Sparkline, SparkWell } from "./sparkline";
 export { Heatmap, HeatGrid } from "./heatmap";
 export { DistributionBar, ModelShare } from "./distribution-bar";
+export { BreakdownCard } from "./breakdown-card";

@@ -1,13 +1,13 @@
 "use client";
 
 import { selectionValues } from "@starterkit/shared/filter-selection";
-import { BarChart, CHART_HEIGHT, HBarChart, Heatmap } from "@starterkit/ui/charts";
+import { BarChart, BreakdownCard, CHART_HEIGHT, HBarChart, Heatmap } from "@starterkit/ui/charts";
 import {
   ActionMenu, Avatar, BlockedButton, BulkActionBar, CategoryChip, ColumnsMenu, ConfirmActionDialog, CopyValue, DataRegion, DataTable, FilterChecks, FilterLayout, FilterSearch,
   LazyMount, Panel, ProgressBar, RelativeTime, Segmented, StatusChip, Toolbar, Truncate, UserCard,
   type Column, type SortDir,
 } from "@starterkit/ui/ds";
-import { APP_TIME_ZONE_LABEL, formatNumber } from "@starterkit/ui/lib/format";
+import { APP_TIME_ZONE_LABEL, formatCompact, formatNumber } from "@starterkit/ui/lib/format";
 import { HEALTH, type Health } from "@starterkit/ui/lib/status";
 import { Button } from "@starterkit/ui/ui/button";
 import { Icon } from "@starterkit/ui/ui/icon";
@@ -15,7 +15,7 @@ import { HeatmapIcon, MoreIcon, SessionsIcon, UsersIcon } from "@starterkit/ui/u
 import { useState } from "react";
 import { PermissionMatrix } from "@/components/permission-matrix";
 import { AffectGroup } from "../affect/gallery";
-import { DAYS, HEAT, MATRIX_MODULES, RESULTS, ROWS, type Row, TOP_ERRORS } from "../fixtures";
+import { BREAKDOWN_REQUESTS, BREAKDOWN_ROLES, BREAKDOWN_SIGN_INS, DAYS, HEAT, MATRIX_MODULES, RESULTS, ROWS, type Row, TOP_ERRORS } from "../fixtures";
 import { sample } from "../sample-toast";
 import { SectionTitle } from "../section-title";
 import { useHashScroll } from "../use-hash-scroll";
@@ -27,6 +27,7 @@ const MATRIX_START = ["user.view", "user.create", "user.edit", "role.view", "rol
 
 const HEALTHS = ["healthy", "degraded", "down", "stopped", "unknown"] as const satisfies readonly Health[];
 const LEGEND = HEALTHS.map((h) => ({ health: h, label: HEALTH[h].label, description: HEALTH[h].description }));
+const REGION_STATES = ["data", "loading", "empty", "error", "stale"] as const;
 const EMPTY = { icon: SessionsIcon, title: "No sessions yet", description: "Sessions appear here after someone signs in." };
 const ROLES = [{ value: "", label: "Any" }, { value: "admin", label: "Admin" }, { value: "viewer", label: "Viewer" }] as const;
 const STATUS_OPTIONS = [
@@ -44,7 +45,8 @@ export function DataSections() {
   const [perms, setPerms] = useState<ReadonlySet<string>>(() => new Set(MATRIX_START));
   const [hidden, setHidden] = useState<string[]>([]);
   const [count, setCount] = useState(3), [confirm, setConfirm] = useState(false);
-  const [region, setRegion] = useState<"loading" | "empty" | "error" | "stale" | "data">("data");
+  const [region, setRegion] = useState<(typeof REGION_STATES)[number]>("data");
+  const [parts, setParts] = useState<(typeof REGION_STATES)[number]>("data"), [step, setStep] = useState(0);
 
   const columns: Column<Row>[] = [
     { key: "name", header: "User", sortable: true,
@@ -108,7 +110,27 @@ export function DataSections() {
         <div className="grid min-w-0 grid-cols-1 gap-6 xl:grid-cols-2"><UserCard name="Alex Morgan" email="alex@example.com" badges={<CategoryChip label="Admin" slot={1} />} detail="Password + 2FA" activity={`Today, 09:41 ${APP_TIME_ZONE_LABEL}`} actions={<Button variant="ghost" size="icon" aria-label="Sample user actions" onClick={sample}><Icon icon={MoreIcon} /></Button>} /><Panel title="Values and progress"><div className="grid gap-5"><CopyValue label="sample key" value="sample-key-7K2A" /><RelativeTime at={Date.UTC(2026, 10, 7, 2, 41)} now={Date.UTC(2026, 10, 7, 2, 46)} /><ProgressBar label="Import progress" value={64} /><div className="flex items-center gap-3"><Avatar name="Alex Morgan" /><Avatar name="Priya Shah" /><Avatar name="Noor Chen" /></div></div></Panel></div>
         <BulkActionBar selectionLabel={`${count} users selected`} scope="Selection applies to this page. Deactivation requires confirmation." onClear={() => setCount(0)}><BlockedButton reason={count ? null : "Select at least one user."} variant="destructive" onClick={() => setConfirm(true)}>Deactivate sample</BlockedButton><Button variant="secondary" onClick={() => setCount(3)}>Select sample rows</Button></BulkActionBar>
         <ConfirmActionDialog open={confirm} onOpenChange={setConfirm} title={`Deactivate ${count} sample users?`} description="This changes the preview only. In the app, selected users would lose access." impact={[`${count} sample users lose access.`]} reasons={[]} auditFields={false} actionLabel="Deactivate sample users" onConfirm={async () => { setCount(0); setConfirm(false); sample(); }} />
-        <Panel title="Data region: five states" toolbar={<div className="scroll-quiet max-w-full overflow-x-auto py-1"><Segmented label="Preview data state" value={region} onChange={setRegion} options={(["data", "loading", "empty", "error", "stale"] as const).map(value => ({ value, label: value }))} /></div>}><DataRegion state={region} empty={{ icon: UsersIcon, title: "No users yet", description: "Users appear after an invitation is accepted." }} onRetry={() => setRegion("data")}><p className="text-body">Sample results stay visible when the source is stale.</p></DataRegion></Panel>
+        <Panel title="Data region: five states" toolbar={<div className="scroll-quiet max-w-full overflow-x-auto py-1"><Segmented label="Preview data state" value={region} onChange={setRegion} options={REGION_STATES.map(value => ({ value, label: value }))} /></div>}><DataRegion state={region} empty={{ icon: UsersIcon, title: "No users yet", description: "Users appear after an invitation is accepted." }} onRetry={() => setRegion("data")}><p className="text-body">Sample results stay visible when the source is stale.</p></DataRegion></Panel>
+      </section>
+
+      <SectionTitle>Breakdown card</SectionTitle>
+      <section className="grid gap-3" aria-label="Breakdown card">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="scroll-quiet max-w-full overflow-x-auto py-1"><Segmented label="Preview breakdown state" value={parts} onChange={setParts} options={REGION_STATES.map(value => ({ value, label: value }))} /></div>
+          <Button variant="secondary" onClick={() => setStep(s => 1 - s)}>Change sample data</Button>
+        </div>
+        <div className="grid grid-cols-12 gap-gutter">
+          <BreakdownCard className="col-span-12 md:col-span-6" title="Sign-ins by method" description="Last 7 days" unit="sign-ins"
+            parts={BREAKDOWN_SIGN_INS[step]!} otherLabel="Other methods" state={parts}
+            empty={{ title: "No sign-ins in this time range", description: "Sign-ins appear here after the first one. Try a longer time range." }}
+            error={parts === "stale" ? "Showing data from 14:02. Try refreshing." : "The sign-in log did not answer. Try again in a moment."}
+            onRetry={() => setParts("data")} />
+          {/* Capped width: this card shows a label that does not fit, at every window width. */}
+          <BreakdownCard className="col-span-12 max-w-sm md:col-span-6" title="Users by role" unit="users" max={4} parts={BREAKDOWN_ROLES} otherLabel="Other roles"
+            empty={{ title: "No users yet", description: "Users appear here after the first invitation is accepted." }} />
+          <BreakdownCard className="col-span-12 md:col-span-6" title="Requests by source" description="Today" unit="requests" format={formatCompact} max={3} parts={BREAKDOWN_REQUESTS} otherLabel="Other sources"
+            empty={{ title: "No requests today", description: "Requests appear here when a source is called." }} />
+        </div>
       </section>
 
       <AffectGroup id="content" />

@@ -54,7 +54,7 @@ export function TopBar({ mark, wordmark }: { mark: ReactNode; wordmark: ReactNod
       </nav>}
       <div className={cn("md:flex md:h-10 md:w-100 xl:w-128 md:shrink-0 md:items-center md:justify-end", refreshScope(path) ? "max-md:order-last max-md:w-full max-md:pb-2" : "max-md:hidden")}><TimeControls /></div>
       <button type="button" onClick={openPalette} aria-label={SEARCH}
-        className="inline-grid size-8 shrink-0 cursor-pointer place-items-center rounded-md border border-line-strong bg-card text-fg-2 transition-colors duration-(--dur-fast) hover:border-fg-4 xl:flex xl:w-44 xl:justify-start xl:gap-2 xl:px-2.5">
+        className="inline-grid size-8 shrink-0 cursor-pointer place-items-center rounded-md border border-line bg-card text-fg-2 transition-colors duration-(--dur-fast) hover:border-fg-4 xl:flex xl:w-44 xl:justify-start xl:gap-2 xl:px-2.5">
         <Icon icon={SearchIcon} className="size-4 shrink-0" /><span className="hidden text-body-sm xl:inline">Search pages…</span>
       </button>
     </div>

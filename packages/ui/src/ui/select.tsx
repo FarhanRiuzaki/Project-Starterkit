@@ -1,7 +1,7 @@
 import * as React from "react";
 import { cn } from "../lib/cn";
 
-/** Native select styled like Input (32 px, radius 8, strong line, card fill; primary focus ring; Down mark when aria-invalid). */
+/** Native select styled like Input (32 px, radius 10, control border, card fill; primary focus ring; Down mark when aria-invalid). */
 function Select({ className, ...props }: React.ComponentProps<"select">) {
   return (
     <select

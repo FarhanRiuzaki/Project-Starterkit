@@ -11,6 +11,10 @@ future releases. Owner approval was already recorded; do not ask for the same au
 [Open Releases & versioning](https://www.figma.com/design/yWRVvatRqyDZapm52tQHWA?node-id=146-2).
 This is page versioning; no native Figma version-history checkpoint was created.
 
+**Code ahead of Figma (2026-11-14):** the affectUI re-skin of the shared components and two new components exist
+in code only. No Figma page was duplicated or edited for them and a versioned draft is owed; see
+[Code ahead of Figma](#code-ahead-of-figma--affectui-re-skin-and-two-components--2026-11-14).
+
 ## Naming and page order
 
 Use `<existing number> · <existing area name> · v<major>.<minor>.<patch>`. Keep the area's name and section
@@ -229,3 +233,40 @@ remains1358×140 within the existing editable index; composition/pages/masters/t
 verification update does not create a new design patch. No native checkpoint or library publication was performed.
 Product Lead DEC-020 subsequently accepted the filter revision for local use/review on that fingerprint, explicitly
 retaining Figma In review; full template release remains a separate decision.
+
+## Code ahead of Figma — affectUI re-skin and two components — 2026-11-14
+
+Status: **not applied in Figma**. The work below was done in the repository only (DEC-031). It did not open the
+Figma file: no page was duplicated, no master, variable or style was edited, and it added no entry to the
+`Releases & versioning` index. The approved and in-review pages still show the look before the re-skin, so for
+the items listed here the code is the reference until a draft exists.
+
+What Figma does not show yet:
+
+| Change in code | Where it is specified |
+| --- | --- |
+| Radius scale: md 8 → 10, lg 12 → 16, xl 16 → 20 px (tray 20, card 16, dialog 20, menu 16, control 10), and the elements that moved one step down | `design-system.md` §3.4, §3.7 |
+| Primary button: top-lit gradient, 1 px ring and lit edge, all inside the 32 px box, light and dark; flat under the four palettes | `design-system.md` §5.3, §3.7; `packages/ui/src/styles/tokens.css` (`--action-top` … `--action-ring`) |
+| Danger button: soft Down fill with Down ink, no border (disabled: a `--down-mark` edge); secondary button edge `--line`, also on the header's search, time range and refresh groups; press scale 0.97; disabled 0.4 | `design-system.md` §5.3, §3.7 |
+| Fields: resting `--shadow-xs` under input, select, textarea, affix and number input; boundary unchanged | `design-system.md` §5.12, §3.7 |
+| Segmented control and default tabs without a track line, 6 px thumb; pagination's current page without a line | `design-system.md` §5.9, §5.7 |
+| `BreakdownCard` (new, no Figma node) | `design-system.md` §6.9; `packages/ui/src/charts/breakdown-card.tsx` |
+| `SetupChecklist` (new, no Figma node) | `design-system.md` §5.17; `packages/ui/src/ds/setup-checklist.tsx` |
+
+Owed (backlog NEXT-DES-004, owner Designer), following the change workflow above:
+
+1. Duplicate each affected page before editing and give the duplicates the next patch version; register the
+   release in the index as **Draft**. The affected areas are the ones that hold the radius and elevation
+   foundations, buttons and inputs (`02 · Components / Actions & inputs`), menus and overlays, segmented control,
+   tabs and pagination, cards and panels, and the pages where the two new components belong. This list is from
+   the code change, not from a read of the file: confirm it against the page inventory.
+2. The radius values and the new button colours are token changes: create a versioned collection or style and
+   rebind the new revision, as "Preserve earlier designs" requires. Do not edit the baseline variables in place.
+3. Add the two components as new families on the draft pages, then add their rows to
+   [figma-component-coverage.md](figma-component-coverage.md) with their node links.
+4. Compare with the running design system pages (`/ds/components`, `/ds/forms`, `/ds/feedback`, `/ds/data`) in
+   light and dark, and record in the index what was verified. The Designer may also reject or adjust any part of
+   the re-skin; the values were chosen by Core (DEC-031) and have not been reviewed by the Designer or the owner.
+
+Until that draft exists and is recorded here with its page links, session and audit, no document may describe the
+re-skin or the two components as migrated to, present in or approved in Figma.

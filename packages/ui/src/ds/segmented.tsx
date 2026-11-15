@@ -8,8 +8,8 @@ import { formatNumber } from "../lib/format";
 import { nextIndex } from "../lib/roving";
 
 /**
- * Segmented control (spec §5.9), single choice — a radiogroup with roving focus (arrow keys). Track --tray, 1 px
- * line, radius 10, padding 2; segments 28 px, radius 8, padding 0 10, `label`; optional count after the label.
+ * Segmented control (spec §5.9), single choice — a radiogroup with roving focus (arrow keys). Track --tray, a
+ * transparent 1 px border (base.css), radius 10, padding 2; segments 28 px, radius 6, padding 0 10, `label`; optional count after the label.
  * The active "thumb" (--seg-active + shadow-sm) is one positioned element that slides between segments with a CSS
  * transform; until it is measured (server HTML) the active segment fills itself. Only fg / fg-2 text sits on the
  * thumb (fg-3 is under 4.5:1 on it in dark), so the active count uses fg-2. Once the deferred Framer layer is loaded
@@ -34,7 +34,7 @@ export function Segmented<T extends string>({ value, onChange, options, label }:
   return (
     <div ref={ref} role="radiogroup" aria-label={label} className="relative inline-flex shrink-0 rounded-ctl border border-line bg-tray p-0.5">
       {box && !kit && (
-        <span aria-hidden="true" className="indicator-move pointer-events-none absolute inset-y-0.5 left-0 rounded-md bg-seg-active shadow-sm"
+        <span aria-hidden="true" className="indicator-move pointer-events-none absolute inset-y-0.5 left-0 rounded-sm bg-seg-active shadow-sm"
           style={{ transform: `translateX(${box.x}px)`, width: box.width }} />
       )}
       {options.map((o, i) => {
@@ -42,9 +42,9 @@ export function Segmented<T extends string>({ value, onChange, options, label }:
         return (
           <button key={o.value} type="button" role="radio" aria-checked={on} tabIndex={on || (!hasMatch && i === 0) ? 0 : -1}
             onClick={() => onChange(o.value)} onKeyDown={(e) => onKey(e, i)}
-            className={cn("relative z-10 inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-md px-2.5 text-label whitespace-nowrap transition-colors duration-(--dur-fast)",
+            className={cn("relative z-10 inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-sm px-2.5 text-label whitespace-nowrap transition-colors duration-(--dur-fast)",
               on ? "text-fg" : "text-fg-2 hover:text-fg", on && !box && !kit && "bg-seg-active shadow-sm")}>
-            {on && <SharedIndicator layoutId={layoutId} radius={8} className="pointer-events-none absolute inset-0 -z-10 rounded-md bg-seg-active shadow-sm" />}
+            {on && <SharedIndicator layoutId={layoutId} radius={6} className="pointer-events-none absolute inset-0 -z-10 rounded-sm bg-seg-active shadow-sm" />}
             {o.label}
             {o.count != null && <span className={cn("text-caption tabular", on ? "text-fg-2" : "text-fg-3")}>{formatNumber(o.count)}</span>}
           </button>

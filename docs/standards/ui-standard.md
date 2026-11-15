@@ -31,13 +31,14 @@ Every region has exactly one job, and its surface says it (design-system §0, §
 | Surface | Token | Holds |
 |---|---|---|
 | App background | `bg-bg` | The sidebar sits directly on it |
-| Sheet | `bg-sheet` (radius 16, 1 px `line`, 8 px inset from the viewport) | The top bar and the page content — one per page |
-| Tray | `bg-tray` (radius 16, 1 px `line`, padding `tray` = 4 px) | Grouping: panel title, KPI group, table header row, segmented track |
-| Card | `bg-card` (radius 12 = tray radius − tray padding, 1 px `line`, `shadow-xs` light only) | The data itself: chart, table rows, KPI value |
+| Sheet | `bg-sheet` (radius 20, 1 px `line`, 8 px inset from the viewport) | The top bar and the page content — one per page |
+| Tray | `bg-tray` (radius 20, 1 px `line`, padding `tray` = 4 px) | Grouping: panel title, KPI group, table header row, segmented track |
+| Card | `bg-card` (radius 16 = tray radius − tray padding, 1 px `line`, `shadow-xs` light only) | The data itself: chart, table rows, KPI value |
 | Inset | `bg-inset` | A well inside a card (sparkline wells, code) |
 | Raised | `bg-raised` + `shadow-overlay` | Floating layers only: menus, popovers, dialogs, tooltips |
 
-Each step is a quiet 2–4 % lightness change plus a hairline; shadows are only for things that float. Ink is neutral
+Each step is a quiet 2–4 % lightness change plus a hairline; the overlay shadow is only for things that float (a
+card, a secondary button and a field at rest carry `shadow-xs`, light only: design-system §3.4). Ink is neutral
 (`fg`, `fg-2`, `fg-3`; `fg-4` never carries information); blue (`primary`) means selection/primary and series 1;
 status colours (`{healthy,degraded,down,stopped,unknown}-{mark,ink,soft}`) are reserved for the five health states;
 `chart-1…6` for series only. Fonts: Inter Variable (sans) and Geist Mono (IDs, IPs, hashes, `eyebrow`), self-hosted

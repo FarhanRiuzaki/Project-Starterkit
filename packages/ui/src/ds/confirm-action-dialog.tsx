@@ -105,8 +105,8 @@ export function ConfirmActionDialog(p: Props) {
               </div>
               <div className={FIELD}>
                 <label htmlFor={`${id}-n`} className={LABEL}>Audit note</label>
-                <textarea id={`${id}-n`} value={v.note} onChange={set("note")} rows={3} maxLength={500} aria-invalid={!!errors.note || undefined} aria-describedby={errors.note ? `${id}-n-e` : undefined}
-                  className="rounded-md border border-line-strong bg-card px-2.5 py-2 text-body text-fg outline-none focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-primary-soft aria-invalid:border-down-mark" />
+                <textarea data-slot="textarea" id={`${id}-n`} value={v.note} onChange={set("note")} rows={3} maxLength={500} aria-invalid={!!errors.note || undefined} aria-describedby={errors.note ? `${id}-n-e` : undefined}
+                  className="rounded-md border border-control-border bg-card px-2.5 py-2 text-body text-fg outline-none focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-primary-soft aria-invalid:border-down-mark" />
                 {errors.note && <span id={`${id}-n-e`} className={ERR}>{errors.note}</span>}
               </div>
               <div className={FIELD}>

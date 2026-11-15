@@ -63,6 +63,7 @@ export { RadioGroup, type RadioOption } from "./radio-group";
 export { Progress } from "./progress";
 export { Timeline, type TimelineItem, type TimelineStatus } from "./timeline";
 export { Disclosure } from "./disclosure";
+export { SetupChecklist, type SetupAction, type SetupGroup, type SetupTask } from "./setup-checklist";
 export { FormWizard, ReviewList, type WizardStep } from "./form-wizard";
 
 export { ColumnsMenu } from "./toolbar";

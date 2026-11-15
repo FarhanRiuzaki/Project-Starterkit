@@ -75,7 +75,8 @@ starterkit.
      narrows the top bar's search field.
 2. **Tray and sheet.** Every region has exactly one job, and its surface says it. App background → content
    sheet → tray (grouping, header, label) → card (the data itself). Each step is a visible but quiet value change
-   of 2–4 % lightness, plus a 1 px hairline. Shadows are only for things that float.
+   of 2–4 % lightness, plus a 1 px hairline. The overlay shadow is only for things that float; what a resting
+   surface may carry is in §3.4.
 3. **Symmetry by construction.** 12-column grid, equal-width siblings, equal heights per row, the same 16 px gap
    everywhere at panel level. A row of tiles always fills the row: 4 × 3 col, 3 × 4 col or 2 × 6 col, never 5 tiles.
 4. **Numbers are the interface.** KPI values are large, regular weight (not bold), tabular. Units, denominators
@@ -100,7 +101,7 @@ starterkit.
 
 ```
 ┌ bg ─────────────────────────────────────────────────────────────────────────────────────────┐
-│┌ sidebar 248 ──────┐ 8 ┌ sheet (radius 16, line) ─────────────────────────────────────────┐ 8│
+│┌ sidebar 248 ──────┐ 8 ┌ sheet (radius 20, line) ─────────────────────────────────────────┐ 8│
 ││ logo · collapse   │   │ top bar 56: breadcrumb ............ search ⌘K · bell · account   │  │
 ││ MAIN              │   ├──────────────────────────────────────────────────────────────────┤  │
 ││  Dashboard        │   │ content: padding 32 / 24 top, full width, 12 col, gap 16         │  │
@@ -160,8 +161,9 @@ All colours are CSS custom properties in `packages/ui/src/styles/tokens.css`, ma
 | `--card` | `#ffffff` | Inner card, table rows, chart surface | — |
 | `--inset` | `#f4f4f5` | Inset well inside a card (sparkline wells, code) | fg-3 4.59:1 |
 | `--raised` | `#ffffff` | Menus, popovers, dialogs (with shadow) | — |
-| `--line` | `#ececee` | Hairlines: sheet, tray, card, row dividers | non-text |
-| `--line-strong` | `#dcdce0` | Inputs, buttons (secondary), focus-adjacent | non-text |
+| `--line` | `#ececee` | Hairlines: sheet, tray, card, row dividers, the secondary button's edge, the header's search, time range and refresh groups | non-text |
+| `--line-strong` | `#dcdce0` | Stronger hairlines: radio and switch at rest, step and timeline rails, chart baseline, a hovered card | non-text |
+| `--control-border` | `#858591` | The boundary of a field: input, select, textarea, affix, number input and the combobox field (§5.12) | 3.65:1 on card (WCAG 1.4.11) |
 | `--grid` | `#ececee` | Chart gridlines (dashed) | non-text |
 | `--fg` | `#151518` | Primary text, KPI values | 18.2:1 on card |
 | `--fg-2` | `#4a5263` | Secondary text, labels, panel titles' icons (cool grey, from Airform's ink family) | 7.84:1 card, 6.95:1 stopped-soft |
@@ -172,6 +174,10 @@ All colours are CSS custom properties in `packages/ui/src/styles/tokens.css`, ma
 | `--primary-soft` | `#eff2fa` | Mist (`#eef2fa`, one step lighter so fg-3 on it is 4.51:1): selected nav item tint, info chip bg | primary on it 16.07:1 |
 | `--action` | `#18181b` | Primary button fill (near-black CTA) | white on it 17.7:1 |
 | `--action-hover` | `#2c2c31` | | |
+| `--action-top` / `--action-bottom` | `#323137` / `#201e25` | Primary button gradient over `--action`, top to bottom (§3.7); a palette other than Current aliases both to `--action` | white on them 12.88 / 16.49:1 |
+| `--action-hover-top` / `--action-hover-bottom` | `#3c3b42` / `#29272f` | The same gradient on hover | white on them 11.07 / 14.73:1 |
+| `--action-ring` | `#0d0d0d` | The primary button's ring: its 1 px border, inside the box | non-text |
+| `--action-edge-top` / `-mid` / `-bottom` | `#4b4951` / `#31303a` / `#18171b` | The lit edge just inside the ring (inset shadows): top, sides, bottom | non-text |
 | `--row-selected` | `#f5f9ff` | Selected table row | primary 17.03:1 |
 | `--brand-ink` | `#0d1530` | Logo letters only (`components/brand`) | logo, exempt |
 | `--brand-sun` | `#ffa928` | Logo sun only; amber is never a UI colour | logo, exempt |
@@ -189,6 +195,8 @@ and a soft (chip bg):
 
 Contrast verified: Healthy ink on soft 4.88:1, Degraded 4.62:1, Down 4.88:1, Stopped ink on soft 5.54:1;
 marks ≥ 3:1 on white (3.38 / 3.79 / 4.36) except Stopped/Unknown, which are always paired with their label.
+`--down-soft-hover` `#fde3e5` (dark `#4d2024`) is the Danger button's hover fill, one step stronger than Down soft:
+Down ink on it 4.58:1 (dark 5.39:1), pinned by `tokens.test.ts` "text down-ink on down-soft-hover ≥ 4.5:1".
 
 ### 3.2 Colour — dark
 
@@ -212,6 +220,11 @@ marks ≥ 3:1 on white (3.38 / 3.79 / 4.36) except Stopped/Unknown, which are al
 | `--primary-soft` | `#18233a` | primary on it 10.49:1 |
 | `--brand-ink` / `--brand-sun` | `#ffffff` / `#ffa928` | logo only (dark version of the kit) |
 | `--action` | `#f2f2f3` (text `#151517`) | the CTA inverts to white in dark |
+| `--action-top` / `--action-bottom` | `#f4f4f5` / `#e4e4e7` | primary button gradient; `#151517` on them 16.59 / 14.37:1 |
+| `--action-hover-top` / `--action-hover-bottom` | `#ffffff` / `#ececef` | `#151517` on them 18.24 / 15.47:1 |
+| `--action-ring` | `#d4d4d8` | the ring; upstream's 60 % black is lost on a dark page, so inside the box it is the edge's darkest stop |
+| `--action-edge-top` / `-mid` / `-bottom` | `#ffffff` / `#ececef` / `#d4d4d8` | the lit edge |
+| `--control-border` | `#80808c` | field boundary, 4.21:1 on card |
 | `--row-selected` | `#172033` | |
 | Healthy | mark `#3ec27e` · ink `#4cc98a` · soft `#143323` | ink/soft 6.57:1 |
 | Degraded | mark `#ea7a3a` · ink `#ee8548` · soft `#3a2614` | ink/soft 5.51:1, mark on card 5.74:1; kept ≥ 1.3:1 from the sun (1.49 / 1.36), amber is the logo's only |
@@ -281,19 +294,38 @@ Why this order: blue next to violet is a common pairing, but blue↔violet colla
 | Token | Value | Use |
 |---|---|---|
 | `--radius-xs` | 4 px | checkbox, ticks, heatmap cells (3 px) |
-| `--radius-sm` | 6 px | category chips, kbd, small buttons |
-| `--radius-md` | 8 px | buttons, inputs, nav items, segments, pagination |
-| `--radius-lg` | 12 px | inner cards, tooltips (10 px), menus |
-| `--radius-xl` | 16 px | trays, sheet |
+| `--radius-tick` | 2 px | tick meter ticks (§5.10) |
+| `--radius-sm` | 6 px | category chips, kbd; segments and their thumb inside a segmented or default-tabs track; a button nested in a field |
+| `--radius-md` | 10 px | buttons, inputs, nav items, pagination, menu items, UI tooltip, notices |
+| `--radius-ctl` | 10 px | segmented and default-tabs track; the chart tooltip and chart wells are 10 px too (`charts.css`) |
+| `--radius-lg` | 16 px | inner cards, menus, popovers, toasts |
+| `--radius-xl` | 20 px | trays, sheet, dialog |
 | `--radius-full` | 9999 px | status pills, count badges, progress bars, avatars |
 
-Nesting rule: inner radius = outer radius − tray padding (16 − 4 = 12).
+Values since the re-skin (§3.7; before it md 8, lg 12, xl 16), defined in the `@theme` block of `base.css` and pinned
+by `tokens.test.ts` "radius scale: md 10, lg 16, xl 20; xs, sm, tick, ctl, full unchanged; xl − tray padding = lg".
+
+Nesting rule: inner radius = outer radius − tray padding (20 − 4 = 16). An element nested in a smaller parent, or
+under about 24 px tall, sits one step down. The exceptions made for the new scale:
+
+| Element | Sits on | Why |
+|---|---|---|
+| Segments, the thumb and the shared indicator of `Segmented` and default `Tabs` | `--radius-sm` (was md) | the track is 10 px with 2 px padding: 10 − 2 = 8, so 10 would be rounder than the track allows (`ds/segmented.tsx`, `ui/tabs.tsx`; `markup.test.ts` "Segmented: the track keeps its 1 px box…") |
+| A button inside a `--radius-md` field: number steppers, the password toggle, the date picker's calendar button | `--radius-sm`, set in `base.css` | nested in a 10 px field (`tokens.test.ts` "a button nested in a field sits one radius step under it") |
+| `StatusChip wrap` (the multi-line chip, 22 px minimum) | `--radius-lg` (was xl) | a small element (`ds/status-chip.tsx`) |
+| The collapsed filter rail (48 px wide) | `--radius-lg` (was xl) | 20 px on a 48 px wide box is close to a full pill at 24 px (`ds/filter-panel.tsx`) |
+| `Notice` and the sign-in form error (one line = 40 px) | `--radius-md` (was lg) | 16 px on a 40 px box leaves 8 px straight and reads as a pill (seen on the /ds/data baseline; `ds/notice.tsx`, `features/auth/auth-card.tsx`) |
+| The time range's error bubble (26 px) | `--radius-sm` (was md) | a small element: 10 px on 26 px is close to a pill (`ds/date-range-control.tsx`) |
+
+The other one-line boxes on `--radius-lg` (the `Disclosure` summary 44 px, radio cards) stay on the token; at 16 px
+their corners are large for the height and have not been reviewed by eye.
 
 | Level | Surface | Light | Dark |
 |---|---|---|---|
 | 0 | bg | — | — |
 | 1 | sheet, tray | 1 px `--line` | 1 px `--line` |
-| 2 | card | 1 px `--line` + `--shadow-xs` `0 1px 2px rgb(21 21 24 / 0.04)` | 1 px `--line`, no shadow; inner top highlight `inset 0 1px 0 rgb(255 255 255 / 0.03)` |
+| 2 | card; a secondary button; a field at rest (§5.12) | 1 px `--line` (a field: `--control-border`) + `--shadow-xs` `0 1px 2px rgb(21 21 24 / 0.04)` | 1 px line, no shadow; a card also has the inner top highlight `inset 0 1px 0 rgb(255 255 255 / 0.03)` |
+| 2 | primary button | no shadow outside the box: the ring is its 1 px border (`--action-ring` `#0d0d0d`), the lit edge three inset shadows | ring `#d4d4d8` |
 | 3 | active segment, active nav, hovered card | `--shadow-sm` `0 1px 2px rgb(21 21 24 / 0.06), 0 1px 1px rgb(21 21 24 / 0.04)` | fill `#2c2c31` |
 | 4 | popover, menu, tooltip, dialog | `--shadow-overlay` `0 1px 2px rgb(21 21 24 / 0.06), 0 12px 32px rgb(21 21 24 / 0.12)` | `0 0 0 1px #2c2c31, 0 16px 40px rgb(0 0 0 / 0.5)` |
 
@@ -327,6 +359,94 @@ smaller; negative values use the true minus sign `−`.
 one icon per meaning, taken only from `packages/ui/src/ui/icons.ts`), `currentColor` with text tokens, 16 px (stroke 1.5)
 in nav, toolbars, panel headers and KPI tiles, 14 px in chips, 20 px in empty states. Table column headers carry no
 icon: the table's card header names it with its icon ("All users"), the columns are words only.
+
+### 3.7 affectUI look (re-skin) (2026-11-14)
+The shared components in `ui/` and `ds/` take the look of their affectUI twins (`packages/ui/src/affect/`, MIT) at
+the starterkit's density, at the owner's request (DEC-031). The starterkit's default control, 32 px, is the height
+of affectUI's `sm` button and `sm` text field, so the look is adopted at that size. The values live in
+`tokens.css`, the `@theme` block of `base.css` and a few `base.css` rules; no screen sets them. What was run, and
+what has not been seen in a browser, is recorded in DEC-031.
+
+Adopted:
+- **Density is unchanged.** Control heights 28 / 32 / 36 (login 40), paddings, the type scale (§3.5), the 44 px
+  touch area (§0) and every spacing token (§3.6) are as before. (`ds-components.spec.ts` "header time controls share
+  one height and baseline with search"; `responsive.spec.ts` "touch targets of visible controls are at least
+  44 × 44 px on every page")
+- **Radius scale.** `--radius-md` 8 → 10 px, `--radius-lg` 12 → 16 px, `--radius-xl` 16 → 20 px; `xs`, `sm`, `tick`,
+  `ctl` and `full` stay. The nesting rule still holds (20 − 4 = 16); the elements that moved one step down are
+  listed in §3.4. (`tokens.test.ts` "radius scale: md 10, lg 16, xl 20; …")
+- **Primary button.** `--action` under a top-lit gradient (`--action-top` → `--action-bottom`), a 1 px ring
+  (`--action-ring`) and a lit edge (`--action-edge-top` / `-mid` / `-bottom`); the hover stops are
+  `--action-hover-top` / `-bottom`. The stops are the light and dark values of
+  `packages/ui/src/affect/button.tsx`. Unlike upstream, all of it is inside the box: the ring is the transparent
+  1 px border (a second background layer) and the edge three inset shadows just inside it (top, bottom, the middle
+  stop down the sides), so a 32 px button draws 32 px beside its neighbours (§5.2) and the focus outline keeps its
+  2 px gap. Upstream's ring is a 1 px spread outside the box, which drew 34 px. In dark the ring is `#d4d4d8`, the
+  edge's darkest stop: upstream's 60 % black is lost on a dark page. The label stays above 4.5:1 on every stop:
+  light 12.88 / 16.49, hover 11.07 / 14.73; dark 16.59 / 14.37, hover 18.24 / 15.47. A palette other than Current
+  (`palettes.css`) aliases the stops, the edge and the ring to its flat `--action`, since the stops are tuned for
+  Current only.
+  The rule is `.bg-action[data-variant="default"]` in `base.css`: under an `asChild` trigger the `data-slot` is the
+  trigger's, so the class and the variant are the key, and a caller that replaces `bg-action` loses the gradient.
+  (`tokens.test.ts` "the primary button's gradient, edge and ring are tokens, …", "the primary button draws nothing
+  outside its box: …", "a palette other than Current
+  keeps its flat --action on the primary button", "text action-fg on action-top ≥ 4.5:1" and its three siblings;
+  `packages/ui/src/ui/button.test.ts` "default: …", "under an asChild trigger …")
+- **Danger button.** A soft Down fill (`--down-soft`) with `--down-ink` text, no border and no shadow; hover
+  `--down-soft-hover`. Down ink on the fill 4.88:1, on the hover fill 4.58:1 (dark 6.12 / 5.39). Disabled is the
+  one state with an edge, `--down-mark`: at 0.4 the soft fill alone is 1.05:1 on the card (dark 1.02:1), so the box
+  would be lost; the edge is about 1.8:1 there (dark 2.0:1), the weight of the disabled label (1.87:1).
+  (`button.test.ts` "destructive: a soft Down fill with Down ink and no border or shadow"; `tokens.test.ts` "text
+  down-ink on down-soft-hover ≥ 4.5:1", "a disabled Danger button keeps a boundary: …")
+- **Secondary button.** Card fill, `--line` instead of `--line-strong`, `--shadow-xs` kept; `outline` is the same.
+  The header's button groups drawn in the same look by hand (the search trigger, the time range group and the
+  refresh group, §5.2) take `--line` too, so one row has one edge weight. They hold buttons, not a text input, so
+  the 3:1 field boundary does not apply to them. (`button.test.ts` "secondary: card fill, --line edge, shadow-xs")
+- **Press and disabled.** `--press-scale` 0.98 → 0.97; a natively disabled button 0.5 → 0.4. `BlockedButton` stays
+  at 0.5 (`aria-disabled`): it keeps focus and its label must stay readable. (`tokens.test.ts` "press scale 0.97";
+  `button.test.ts` "default: …")
+- **Fields.** Input, select, textarea, affix and number input rest on `--shadow-xs` (light; the token is `none` in
+  dark), one `:where()` rule in `base.css`, so the focus ring replaces it; the input inside an affix or number
+  field has none. The boundary stays `--control-border` (3.65:1 on card, dark 4.21:1), and `Textarea`, the
+  confirm dialog's audit note and the combobox field (`ds/combobox-search.tsx`) now use it too (they had
+  `--line-strong`, 1.37:1). Focus ring, invalid wash and
+  placeholder are as before. (`tokens.test.ts` "fields rest on --shadow-xs at zero specificity; …"; the boundary:
+  "… keeps body text, action labels and field boundaries accessible" for the four palettes)
+- **Menus and popovers.** Panel and row radius follow the tokens (16 and 10 px). Padding stays 4 px and rows 32 px:
+  affectUI's 5 px padding is not on the spacing scale and lies midway between 4 and 6, and its 34 px row is off the
+  28 / 32 / 36 heights. No class changed in `dropdown-menu-impl.tsx` or `popover-impl.tsx`.
+- **Segmented control, default tabs, pagination.** The track draws no line: its 1 px border is transparent
+  (`.rounded-ctl.bg-tray` in `base.css`), so the box stays 34 px; a third element with both classes would lose its
+  line too. The current page is a tray fill without a line. (`tokens.test.ts` "the segmented / default-tabs track
+  keeps its 1 px box but draws no line"; `packages/ui/src/ds/markup.test.ts` "Segmented: …", "Pagination: …")
+- **Cards and panels** follow the radius tokens only: tray 20, card 16. Shadows, the surface steps
+  (bg → sheet → tray → card), colours, ink and the primary and focus colour did not change.
+- **Vendored items** keep following the app through the `--aui-*` aliases (§7.10) and now draw 6 / 10 / 16 px,
+  against upstream's own 12 px button, 10 px text field and 16 px card.
+
+Not adopted, and why:
+- **40 px controls.** affectUI's default button is 40 px and its default text field 36 px. The density rules (§0,
+  §3.6) and `ds-components.spec.ts` pin 32.
+- **affectUI's faint field edge** (`#e6e6e8`, 1.25:1 on white; its stronger edge `#d4d4d8`, 1.48:1). A field's
+  boundary needs 3:1 (WCAG 1.4.11), which `--control-border` gives.
+- **Its blue focus ring** (`rgba(0, 96, 226, 0.7)`). Focus stays `--primary` (§9).
+- **Blur** (`filter: blur()` in upstream's label and message swaps). §7.7 allows `transform` and `opacity`; Text
+  Reveal is the one `filter` animation (R10).
+- **Its type sizes** (13.5 px in a text field, 13 px in a small button). The type scale of §3.5 is unchanged.
+- **The drop under the primary button** (`0 2px 4px`): a button is not a floating layer (§3.4). **Its ring outside
+  the box**: the ring is drawn as the border instead (above), since header controls share a 32 px drawn height.
+
+Known limits:
+- In dark a secondary button's edge is `--line` on card, 1.18:1, with no shadow (`--shadow-xs` is `none`); the
+  header's search, time range and refresh groups have the same edge.
+- The combobox field and OTP cells have no resting drop; the header groups have none either, beside a secondary
+  button that has one in light.
+- A disabled Danger button's label is 1.87:1 (dark 2.08:1) at 0.4; a disabled control is exempt from WCAG 1.4.3,
+  and its edge keeps the box visible (above).
+- In `ConfirmActionDialog` the Danger confirm button and the failure alert now share the Down soft fill and ink.
+- Forced-colors mode is not checked for the gradient.
+- Figma is not updated. The code is ahead of the Figma file for everything in this section; a versioned draft is
+  owed (`docs/standards/figma-versioning.md`, "Code ahead of Figma").
 
 ---
 
@@ -419,29 +539,34 @@ On a phone the bar shows the nav page only (it is the bar's title, in the server
 ## 5. Components
 
 ### 5.1 Sidebar nav item
-36 px tall, radius 8, padding 0 10, icon 16 + 10 gap + `body` label.
+36 px tall, radius 10, padding 0 10, icon 16 + 10 gap + `body` label.
 States: rest fg-2 · hover `--tray` fill · active **light** `--card` fill + 1 px `--line` + `--shadow-sm`, fg, icon
 filled; **dark** `#26262b` fill · focus ring 2 px `--primary` offset 2. Section label `eyebrow` `--fg-3`, 24 px above,
 8 px below.
 
 ### 5.2 Top bar
 56 px, bottom 1 px `--line`. Breadcrumb: 16 px icon + `body` per crumb, separator `/` in `--fg-4`, current crumb fg,
-ancestors fg-2 (links). Header controls share a 32 px drawn height, radius 8 and aligned centers. Search: 176 px wide on desktop, 32 px icon button below desktop, 1 px `--line-strong`, leading icon; ⌘K opens it globally. Range arrows are 32 × 32. The refresh group includes its border within the 32 px height. Date and refresh controls hide when unused; phone time controls use a second row.
+ancestors fg-2 (links). Header controls share a 32 px drawn height, radius 10 and aligned centers. Search: 176 px wide on desktop, 32 px icon button below desktop, 1 px `--line` (the edge of a secondary button, as on the time range and refresh groups), leading icon; ⌘K opens it globally. Range arrows are 32 × 32. The refresh group includes its border within the 32 px height. Date and refresh controls hide when unused; phone time controls use a second row.
 
 ### 5.3 Buttons
 | Variant | Fill | Text | Border | Height |
 |---|---|---|---|---|
-| Primary | `--action` | white (dark: `#151517`) | none | 32 (28 sm) |
-| Secondary | `--card` | fg | 1 px `--line-strong` + `--shadow-xs` | 32 |
+| Primary | `--action` under a top-lit gradient, `--action-top` → `--action-bottom` (hover: `--action-hover-top` → `--action-hover-bottom`, swapped without a fade) | white (dark: `#151517`) | the 1 px ring `--action-ring` as the border, the lit edge (`--action-edge-top` / `-mid` / `-bottom`) inset just inside it; nothing outside the box | 32 (28 sm) |
+| Secondary | `--card` | fg | 1 px `--line` + `--shadow-xs` | 32 |
 | Ghost | transparent → `--tray` on hover | fg-2 | none | 32 |
-| Danger | `--card` | Down ink | 1 px Down mark @ 40 % | 32 |
-Padding 0 12, icon 16 + 6 gap, radius 8, `label`→ `body` 14/500. Press: scale 0.98 (§7.5). One primary per page.
+| Danger | `--down-soft` → `--down-soft-hover` on hover | Down ink | none, no shadow; disabled: 1 px `--down-mark` | 32 |
+Padding 0 12, icon 16 + 6 gap, radius 10, `label`→ `body` 14/500. Press: scale 0.97 (`--press-scale`, §7.5).
+Disabled: opacity 0.4; a `BlockedButton` stays at 0.5, since it keeps focus and its label must stay readable. One
+primary per page. The primary's gradient, edge and ring are drawn by `base.css` on
+`.bg-action[data-variant="default"]` (under an `asChild` trigger the `data-slot` is the trigger's, so the rule keys on
+the class); under a palette other than Current the button is flat `--action`. Values, contrast and
+tests: §3.7.
 
 ### 5.4 Panel (tray + card) — the v3 signature
 ```
-┌ tray (radius 16, --tray, 1px line, padding 4) ───────────────────────────┐
+┌ tray (radius 20, --tray, 1px line, padding 4) ───────────────────────────┐
 │  ◫ Panel title · caption            [segmented] [Last 7 d ▾] [⋯]        │  ← header on tray: 44 px, padding 0 12
-│ ┌ card (radius 12, --card, 1px line, shadow-xs, padding 16) ───────────┐ │
+│ ┌ card (radius 16, --card, 1px line, shadow-xs, padding 16) ───────────┐ │
 │ │ content (chart / table / list)                                       │ │
 │ └──────────────────────────────────────────────────────────────────────┘ │
 │  footnote / StaleNote (optional, caption, padding 8 12)                  │
@@ -535,13 +660,13 @@ implementation approval waits for review of the delivered revision.
 ### 5.7 DataTable
 | Part | Spec |
 |---|---|
-| Container | card radius 12, 1 px line, overflow hidden |
+| Container | card radius 16, 1 px line, overflow hidden |
 | Header | 40 px, `--tray`, `label` fg-3, optional 14 px icon before label, sort caret 12 px; 1 px bottom line; **no vertical rules** |
 | Rows | 44 px single-line, 52 px identity (avatar 28 + name `body` fg + secondary `body-sm` fg-3 mono for IDs); padding 0 12; 1 px `--line` dividers; **no zebra** |
 | States | hover `--tray` @ 60 %; selected `--row-selected` + 2 px primary inset left; focus-visible ring inside row |
 | Cells | numbers right-aligned tabular; inline bar 64 × 6 px radius full (fill primary, track `--inset`) + value; status = `StatusChip`; time = `RelativeTime` |
 | Checkbox | 16 px radius 4, 1.5 px `--line-strong`; checked primary fill + white check |
-| Footer | 48 px: "1–25 of 312" fg-3 left · rows-per-page dropdown · pagination right (28 px square buttons radius 8, current = `--tray` fill + line) |
+| Footer | 48 px: "1–25 of 312" fg-3 left · rows-per-page dropdown · pagination right (28 px square buttons radius 10, current = `--tray` fill without a line; `markup.test.ts` "Pagination: the current page is a tray fill without a line") |
 | Density | `data-density="compact"` → rows 36/44 |
 
 ### 5.8 Chips & badges
@@ -556,11 +681,14 @@ implementation approval waits for review of the delivered revision.
   colours (a failed sign-in is an event, not a system failure).
 
 ### 5.9 Segmented control, tabs
-- Segmented: track `--tray`, 1 px `--line`, radius 10, padding 2; segments 28 px, radius 8, padding 0 10, `label`;
-  active = `--card` + `--shadow-sm` (dark `#2c2c31`), fg; inactive fg-2. Optional count pill after label. The active
-  "thumb" is a shared-layout element that slides between segments (§7.3). Roving focus.
+- Segmented: track `--tray` without a visible line (its 1 px border is transparent, set in `base.css` on
+  `.rounded-ctl.bg-tray`, so the box stays 34 px), radius 10, padding 2; segments 28 px, radius 6, padding 0 10,
+  `label`; active = `--card` + `--shadow-sm` (dark `#2c2c31`), fg; inactive fg-2. Optional count pill after label. The
+  active "thumb" is a shared-layout element that slides between segments (§7.3). Roving focus. On a Panel header the
+  track sits on the tray's own colour, so only the thumb shows.
 - Tabs (detail pages): line variant, 40 px, `body` 500, inactive fg-2, active fg + 2 px fg underline (radius 1);
-  count pill after label; shared-layout underline.
+  count pill after label; shared-layout underline. The `default` variant is the segmented look: the same borderless
+  track and 6 px thumb.
 
 ### 5.10 Progress, meters, rings
 - **Bar**: 8 px (6 px in tiles), radius full, track `--inset` (light) / `#2a2a2f` (dark); fill = primary or status
@@ -580,8 +708,11 @@ implementation approval waits for review of the delivered revision.
 from the name hash over the 6 categorical softs; 1 px `--line` ring. Stacks overlap −6 px with a 2 px surface ring.
 
 ### 5.12 Inputs
-32 px (login 40 px), radius 8, 1 px `--control-border`, `--card` bg, padding 0 10, leading icon 16 fg-3, placeholder
-fg-3 (format only). Focus: 1 px primary border + 3 px `--primary-soft` ring. Error: Down mark border + message
+32 px (login 40 px), radius 10, 1 px `--control-border`, `--card` bg, padding 0 10, leading icon 16 fg-3, placeholder
+fg-3 (format only). At rest a field carries `--shadow-xs` (light only; the token is `none` in dark): input, select,
+textarea, affix and number input, set once in `base.css`; the input inside an affix or number field has none, and
+the combobox trigger and OTP cells are not covered. Focus: 1 px primary border + 3 px `--primary-soft` ring, which
+replaces the drop. Error: Down mark border + message
 under the field in Down ink `body-sm` with the 14 px alert icon (`Field error`), never colour alone. `Textarea`: the
 same look, 3 lines at least; `limit` adds the count ("120 of 500 characters", "12 characters too many" past it; typing
 is never blocked). `Switch`: 36 × 20 pill, primary when on, for a setting that applies at once; in a form that saves
@@ -593,14 +724,15 @@ later, a Checkbox.
 - **Empty**: inside the card, centred, 20 px icon in a 40 px `--tray` circle, `title-3` + `body-sm` fg-3, one ghost
   or secondary button. Filtered-empty offers "Clear filters".
 - **Error (no data)**: same layout, Down icon, what + why + next, "Try again" secondary.
-- **Error (has data)** and **stale**: page `Notice` (40 px, radius 12, Degraded soft, ink text, icon) above the
+- **Error (has data)** and **stale**: page `Notice` (40 px, radius 10, Degraded soft, ink text, icon) above the
   tiles; panel-level `StaleNote` in the tray footnote ("Data from 14:02 WIB · source name").
 
 ### 5.14 Menus, tooltips, dialogs
-Menu: `--raised`, radius 12, padding 4, items 32 px radius 8, `--shadow-overlay`. Tooltip (UI): inverse `#18181b`
-(dark: `#f2f2f3` text `#151517`), radius 8, `body-sm`, padding 6 10, max 280 px. Dialog: 480 / 640 px, radius 16,
+Menu: `--raised`, radius 16, padding 4, items 32 px radius 10, `--shadow-overlay`. Popover: the same surface and
+radius, padding 16. The re-skin changed only their radii (§3.7). Tooltip (UI): inverse `#18181b`
+(dark: `#f2f2f3` text `#151517`), radius 10, `body-sm`, padding 6 10, max 280 px. Dialog: 480 / 640 px, radius 20,
 padding 24, title `title-1`, footer buttons right; confirm copy per copy guide. Below 768 px the dialog is a bottom
-sheet (§0): full width, top corners 16, at most 90 dvh, content scrolls, footer sticky at the bottom.
+sheet (§0): full width, top corners 20, at most 90 dvh, content scrolls, footer sticky at the bottom.
 
 ### 5.15 Forms and flows (`packages/ui/src/ds`, shown on /ds/forms "Forms and flows")
 Sources: WAI-ARIA APG (combobox, disclosure), GOV.UK Design System (error summary, error message, character count,
@@ -661,6 +793,39 @@ Shopify Polaris (annotated layout, contextual save bar), Apple HIG (layout, text
 | Personal fields carry the right `autocomplete` (`name`, `email`, `current-password`, `new-password`, `one-time-code`); an admin form about someone else uses `off`. `inputMode="numeric"` instead of `type="number"`; `spellCheck={false}` on usernames and emails. | WCAG 1.3.5; GOV.UK text input |
 | Unsaved edits ask before leaving (`useLeaveGuard` + ConfirmActionDialog "Leave without saving"). | Polaris contextual save bar; MDN beforeunload |
 | Ask nothing twice in a flow: a wizard's review shows what was given, and a later step reuses earlier answers. | WCAG 3.3.7 Redundant Entry |
+
+### 5.17 Setup checklist (`ds/setup-checklist.tsx`; shown on /ds/feedback "Setup checklist")
+`SetupChecklist` (`@starterkit/ui/ds`, with the types `SetupGroup`, `SetupTask`, `SetupAction`) shows what is left to
+set up, in named groups, with the progress as a count and a bar. Written for the starterkit on existing parts
+(`CardSurface`, `Progress`, `Disclosure`, `StepMarker`, `Button`); it has no Figma node yet (DEC-031).
+- **Use it** when setup is several tasks in two or more groups and each task opens a screen or runs an action. A
+  short flat list with a count is `OnboardingChecklist` (`ds/saas-patterns.tsx`); whether both stay is not decided.
+  Steps that must run in order are a `FormWizard` (§5.15).
+- **In progress**: a tray whose header has the title (a heading, level 2 unless `headingLevel` says 3 or 4) and
+  "3 of 6 done"; under it one card per group, a native `Disclosure` with its own "n of m". Only the first group
+  with a task left is open; when its last task is done it closes and the next opens.
+- **Task left**: an empty marker, the label, an optional description and its action: a secondary small `Button`
+  (`onClick`) or a link drawn as one (`href`, through `renderLink` for the router's link). A task may have no action.
+- **Task done**: the check, a quieter label and the word "Done" (`doneLabel`) where the action was; no
+  strike-through, so the state is never colour alone. The check draws its stroke only when the task becomes done
+  (`tick-draw`, R11), never on first paint or a refetch; reduced motion keeps the fade only.
+- **All done**: with `completion`, that message replaces the groups; without it the groups stay, all closed.
+- **Empty**: no groups, or only groups without tasks, renders nothing; a group without tasks is left out.
+- **Accessibility**: the bar is a `Progress` named by the title, with the same text as its value text
+  (`progressText` replaces it); groups and tasks are lists; the summary is 44 px high; the completion message sits in
+  a `role="status"` region that is in the document from the start, so it is announced when it arrives, and the
+  count in the header is a polite live region, so each task done is announced ("2 of 5 done"). Long titles, labels
+  and descriptions wrap; a long action label does not (`Button` is one line).
+- **Focus**: a task that becomes done unmounts its action, so focus that was on it would fall to `<body>`. The root
+  (`ds/setup-checklist-root.tsx`, the component's one client part) moves it: to the nearest action left in the same
+  group (the next, else the one before), else the summary of the open group with a task left, else the completion
+  message (the status region takes focus, `tabIndex` −1, and the next Tab reaches a button inside it), else the
+  group's own summary. It moves only focus lost that way, never focus the user put elsewhere, as `DataTable` does
+  after a row goes away. (`setup-checklist.test.ts` "SetupChecklist (focus after a task is done)"; `ds.spec.ts`
+  "setup checklist: …" goes through every task by Tab and Enter)
+- Apart from that root it has no hooks: with `href` actions it renders from a server component. Not built: a
+  dismiss button, persistence, a pending state on a callback action, a per-group open override.
+  (`packages/ui/src/ds/setup-checklist.test.ts`)
 
 ---
 
@@ -727,6 +892,44 @@ the crosshair with a 12 px offset, flips at plot edges. Fades in 120 ms.
 ### 6.8 Annotations
 Events (deploys, incidents) as a 1 px dashed vertical line + 16 px flag chip at the top of the plot with a `label`.
 Max 3 visible; more collapse into a "+2" chip.
+
+### 6.9 Breakdown card (`charts/breakdown-card.tsx`; shown on /ds/data "Breakdown card")
+`BreakdownCard` (`@starterkit/ui/charts`; the part type `BreakdownPart` and the pure ranking in
+`@starterkit/ui/lib/breakdown`) answers "what makes up this number": a Panel with the total, one 8 px striped
+stacked bar and the parts as ranked rows (colour dot, label, value, share). Written for the starterkit on existing
+parts (`Panel`, `DataRegion`, `Truncate`, `NumberTween`, `Stagger`, the chart slots); it uses no Recharts, so it is
+exported statically like `DistributionBar`. It has no Figma node yet (DEC-031).
+- **Use it** for one total split into 2–6 parts where the reader needs each part's value and share as text.
+  `DistributionBar` with legend cards (§6.5) is for 2–4 parts beside a chart; a ranking of unrelated values is
+  `HBarChart` (§6.3).
+- **Rows**: largest first, equal values in the caller's order. More parts than `max` (default 5, held to 2–6; not a
+  number → 5) give
+  the `max − 1` largest and one last row labelled `otherLabel` in the neutral colour, last even when it is larger
+  than a named part. Zero, negative and non-finite parts are left out of the rows and the total. Shares are whole
+  percentages that sum to 100, "<1%" under 0.5 % (`distribution()` and `shareLabel()` of `lib/chart-layout.ts`).
+- **Colour** follows the part's `slot` (else its input position), not its rank, so a part keeps its colour when it
+  changes place (§3.3). No two named rows share a colour: with more than six parts a defaulted slot that meets one
+  already taken (a part past the sixth, or one a given `slot` claims) moves to the lowest free slot, the earlier
+  input position keeping its own; that colour can change when the named rows do, so pass `slot` to pin it. A given
+  `slot` is never moved. (`lib/breakdown.test.ts` "more than six parts without a slot: …", "a slot the caller gave
+  stays as given; …")
+- **States** (`state`, as `DataRegion`, §5.13): `loading` is the content's shape (total, bar, `max` rows) through
+  `Reveal`; `empty` is the caller's copy, also when no part is above zero; `error` is an alert with the cause and
+  "Try again" when `onRetry` is given; `stale` is a notice over the kept content; `data`. While refetching pass
+  `stale` or `data`: `loading` replaces the rows.
+- **Motion** (§7): the bar sweeps in once; a changed total counts (`NumberTween`); rows that trade places glide
+  (`Stagger reorder`, once the deferred layer is loaded); a part that arrives after the first data gets the new-row
+  wash, compared over every part, so one that only leaves the fold gets none and the folded row never does
+  (`breakdown-card-dom.test.ts` "a part that was folded and rises into the named rows …"). A refetch replays nothing; segments resize at once (no width animation). Reduced motion: none of these.
+- **Accessibility**: the bar is `aria-hidden`; every part is a list row with its label, value and share as text, so
+  colour is never the only cue; the list is named by the title. A label that does not fit is cut on one line and
+  gets a tooltip and a tab stop (`Truncate`); rows are not interactive. Needs a `TooltipProvider` above it, as
+  `HBarChart` does.
+- Not built: a link between a row and its segment on hover or focus, row actions, a tween on row values, a separate
+  skeleton row count (the loading shape has `max` rows, so a card with fewer parts shifts when data arrives: set `max`
+  to the expected count).
+  (`packages/ui/src/lib/breakdown.test.ts`, `packages/ui/src/charts/breakdown-card.test.ts`,
+  `breakdown-card-dom.test.ts`)
 
 ---
 
@@ -796,7 +999,8 @@ allowed. Reduced motion: the indicator jumps (no spring) and crossfades 100 ms.
 - Charts below the fold mount when `LazyMount` reveals them — the mount animation runs then.
 
 ### 7.5 Micro-interactions
-- Buttons: hover fill change 150 ms; press `scale(0.98)` 100 ms; primary hover lifts nothing.
+- Buttons: hover fill change 150 ms (the primary's gradient swaps at once: a background image does not transition);
+  press `scale(0.97)` (`--press-scale`) 100 ms; primary hover lifts nothing.
 - Cards that open a detail: hover → `--shadow-sm` + border `--line-strong`,
   translateY −1 px, 150 ms; press scale 0.995.
 - Table rows: hover background 100 ms only (no movement).
@@ -879,14 +1083,15 @@ Rulings recorded here:
   item animates `stroke-dashoffset` over `DUR.enter` (`tick-draw` in `base.css`, after affectUI's Checkbox and Filter
   Menu, MIT). It is the second stroke animation beside the chart line draw, limited to that one 20-unit path, keyed
   to the state change (`useChangeKey`) on a checkbox; a menu item's check also draws when its menu opens. Reduced
-  motion: no draw. Requested by the owner (DEC-029).
+  motion: no draw. Requested by the owner (DEC-029). A `SetupChecklist` task's check draws the same way when the
+  task becomes done (§5.17; its own `base.css` rule scoped to `[data-slot="setup-checklist"]`).
 
 ### 7.9 Component micro-interactions
 
 The behavior lives in `packages/ui/src/styles/base.css` and the shared components, so app screens and the design system pages use
 one implementation. `/ds/motion` → **Explore micro-interactions** opens an interactive preview using those same
-components. The existing motion tokens set every duration/easing; `--press-scale` and `--choice-press-scale` set
-press geometry. Static information stays still; feedback indicates an action or an actual state change.
+components. The existing motion tokens set every duration/easing; `--press-scale` (0.97) and `--choice-press-scale`
+(0.92) set press geometry. Static information stays still; feedback indicates an action or an actual state change.
 
 | Family | Feedback | Keyboard, touch and reduced motion |
 |---|---|---|
@@ -944,7 +1149,9 @@ This folder is a second visual language beside §3-§7, not part of it:
 - **Themed through aliases only.** `tokens.css` maps 31 of upstream's `--aui-*` variables onto the app tokens (ink,
   surfaces, lines, focus, status colours, radius, font, shadows; `--aui-blue`/`--aui-info` = primary), checked by
   `tokens.test.ts` "affectUI names map onto app tokens". Decorative hues and hard-coded colours stay upstream's. The
-  items do not use `DUR`/`EASE`, the stagger cap or the 12-element budget of §7.7.
+  items do not use `DUR`/`EASE`, the stagger cap or the 12-element budget of §7.7. `--aui-radius-sm`, `--aui-radius`
+  and `--aui-radius-lg` are `--radius-sm`, `-md` and `-lg`, so since the re-skin (§3.7) the items draw 6, 10 and 16 px;
+  upstream's own fallbacks are 12 px for Button, 10 px for Text Field and 16 px for Card inside a 20 px tray.
 - **Reduced motion and accessibility are upstream's.** Each item has its own `prefers-reduced-motion` branch; the
   `/ds/motion` "Preview reduced motion" scope does not reach them. After the mapping axe still reports `color-contrast` on
   31 nodes in light and 14 in dark, all on colours an item hard-codes (the per-item list is in the folder's README),
@@ -955,7 +1162,7 @@ This folder is a second visual language beside §3-§7, not part of it:
   `smallTouchTargets` in the same helpers file and listed under "Touch targets" in the folder's README.
 - **One pattern per need still holds.** Where `ui/` or `ds/` already has the component (button, dialog, menus,
   inputs, tooltip, pagination, skeleton and others), screens keep using it; a vendored twin is a reference for its
-  motion, to be carried over one component at a time on the tokens (the two carried over so far are in §7.9). Items without a twin (illustrations, Tool
+  motion and look, carried over one component at a time on the tokens (motion: §7.9; look: §3.7). Items without a twin (illustrations, Tool
   Call Card, Code Block, Tree View and others) may be used as they are.
 - **Content.** Logo Cluster, Lead Sourcing, Agent Team and Model Wheel draw real product marks by default; pass
   fictional ones (as the demo files do where the item allows it) before showing them to users.
