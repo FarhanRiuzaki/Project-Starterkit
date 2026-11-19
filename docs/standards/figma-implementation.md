@@ -35,7 +35,7 @@ Project behavior takes precedence over illustrative fixture data. Keep the start
 | Repeatable fields and filter rules | `RepeatableField`, `FilterRule`; controlled values, stable IDs and focus restoration |
 | Stepper, floating wizard, review, completion | Existing `StepIndicator`, `StepMarker`; `Wizard`, `WizardReview`, `WizardCompletion` |
 | Settings and disclosures | `SettingsRow`, controlled `Accordion`; closed content retains drafts |
-| Notification, activity, onboarding | `NotificationItem`, `ActivityItem`, `OnboardingChecklist` |
+| Notification, activity, onboarding | `NotificationItem`, `ActivityItem`, `SetupChecklist` (replaced `OnboardingChecklist`; see "Code ahead of Figma") |
 | Plan, integration, key, billing patterns | `PlanCard`, `IntegrationCard`, `ApiKeyRow`, `BillingSummary`; data and action slots |
 
 The live design system pages under `/ds` demonstrate these components. Billing, integrations, uploads and invitations are examples, not new backend modules. DatePicker uses the shared custom Calendar with ISO typing, bounds, roving day focus and month/year keyboard navigation. DateRangeControl reuses Calendar and opens independent Absolute / Relative / Now endpoint editors; RefreshControl uses the shared custom radio menu on live modules without a time range. TimeInput retains the platform time keyboard. The original login vector is served locally in light/dark versions and covers the entire login page, without an outer frame.
@@ -50,7 +50,7 @@ them. For these items the code and `design-system.md` are the reference, and a v
 | --- | --- | --- |
 | affectUI re-skin of the shared components: radius scale 10 / 16 / 20, the primary button's gradient, edge and ring, the soft Danger button, the secondary button's `--line` edge, the fields' resting drop, the borderless segmented / default-tabs track and current page, press scale 0.97, disabled 0.4 | `tokens.css`, `base.css`, `ui/button`, `ds/segmented`, `ui/tabs`, `ds/pagination`; `design-system.md` §3.7 | `/ds/components`, `/ds/forms`, `/ds/data` |
 | Breakdown card (no Figma node) | `BreakdownCard` · `charts/breakdown-card`, `lib/breakdown`; `design-system.md` §6.9 | `/ds/data`, "Breakdown card" |
-| Setup checklist (no Figma node) | `SetupChecklist` · `ds/setup-checklist`; `design-system.md` §5.17 | `/ds/feedback`, "Setup checklist" |
+| Setup checklist (Figma node 65:922 `OnboardingChecklist` still draws the flat list it replaced) | `SetupChecklist` · `ds/setup-checklist`; `design-system.md` §5.17 | `/ds/feedback`, "Setup checklist" |
 
 The Figma families of the component map below and of [the full mapping](figma-component-coverage.md) (Button/Primary,
 Button/Secondary, Button/Danger, inputs, segmented control, pagination, cards and panels among them) still draw the

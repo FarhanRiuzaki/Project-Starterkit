@@ -46,7 +46,7 @@ export { Combobox, type ComboOption, filterOptions } from "./combobox";
 export { FileItem, FileUpload, ProgressBar, type FileItemProps, type UploadFn, type UploadItem, type UploadStatus } from "./file-upload";
 export { Fieldset, FormSection, FormActions, FormLayout, DatePicker, TimeInput } from "./form-layout";
 export { OtpInput } from "./otp-input";
-export { WizardReview, WizardCompletion, NotificationItem, ActivityItem, OnboardingChecklist, PlanCard, IntegrationCard, ApiKeyRow, BillingSummary } from "./saas-patterns";
+export { WizardReview, WizardCompletion, NotificationItem, ActivityItem, PlanCard, IntegrationCard, ApiKeyRow, BillingSummary } from "./saas-patterns";
 export { CheckboxGroup, RepeatableField, FilterRule } from "./form-groups";
 
 export { Calendar, CalendarDay } from "./calendar";

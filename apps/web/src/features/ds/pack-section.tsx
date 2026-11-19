@@ -2,7 +2,7 @@
 
 import { RadioGroup } from "@starterkit/ui/ds/form-options";
 import { useRef, useState } from "react";
-import { Accordion, ActivityItem, ApiKeyRow, BillingSummary, CheckboxGroup, ChoiceCard, Combobox, DatePicker, Field, FileItem, FileUpload, FilterRule, FormSection, IntegrationCard, NotificationItem, OnboardingChecklist, OtpInput, Panel, PlanCard,  RepeatableField, SettingsRow, Slider, Switch, TimeInput, WizardReview, WizardCompletion } from "@starterkit/ui/ds";
+import { Accordion, ActivityItem, ApiKeyRow, BillingSummary, CheckboxGroup, ChoiceCard, Combobox, DatePicker, Field, FileItem, FileUpload, FilterRule, FormSection, IntegrationCard, NotificationItem, OtpInput, Panel, PlanCard,  RepeatableField, SettingsRow, Slider, Switch, TimeInput, WizardReview, WizardCompletion } from "@starterkit/ui/ds";
 import { Button } from "@starterkit/ui/ui/button";
 import { Input } from "@starterkit/ui/ui/input";
 import { Textarea } from "@starterkit/ui/ui/textarea";
@@ -42,7 +42,6 @@ export function PackSection() {
       <WizardCompletion title="Example complete" description="Show this state only after the server confirms the operation." action={action("Open example")} />
       <NotificationItem title="Team invitation" message="Alex invited you to the Operations team." state="Unread" time={`Today, 09:41 ${APP_TIME_ZONE_LABEL}`} action={action("View invitation")} />
       <Panel title="Activity timeline"><ActivityItem title="Alex Morgan changed a role" description="Viewer → Editor" time={formatDateTimeLong(Date.UTC(2026, 10, 7, 2, 41))} icon={UsersIcon} /></Panel>
-      <OnboardingChecklist title="Finish setup" tasks={[{ id: "profile", label: "Complete profile", done: true }, { id: "members", label: "Invite team members", done: false, action: action("Start invitation") }, { id: "calendar", label: "Connect an integration", done: false, action: action("Choose integration") }]} />
       <PlanCard title="Business" price="$29 / seat / month" terms="Example price · billed monthly · taxes calculated at checkout" features={["Unlimited projects", "Shared permissions", "Priority support"]} action={action("Choose plan")} />
       <IntegrationCard title="Calendar integration" description="Keep important team dates in sync." status="Example · not connected" icon={CalendarIcon} action={action("Connect")} />
       <ApiKeyRow name="Production automation" maskedIdentifier="key_••••••••7K2A" status="Example · active · last used 2 hours ago" actions={action("Manage key")} />

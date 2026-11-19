@@ -797,9 +797,10 @@ Shopify Polaris (annotated layout, contextual save bar), Apple HIG (layout, text
 ### 5.17 Setup checklist (`ds/setup-checklist.tsx`; shown on /ds/feedback "Setup checklist")
 `SetupChecklist` (`@starterkit/ui/ds`, with the types `SetupGroup`, `SetupTask`, `SetupAction`) shows what is left to
 set up, in named groups, with the progress as a count and a bar. Written for the starterkit on existing parts
-(`CardSurface`, `Progress`, `Disclosure`, `StepMarker`, `Button`); it has no Figma node yet (DEC-031).
+(`CardSurface`, `Progress`, `Disclosure`, `StepMarker`, `Button`). It replaced `OnboardingChecklist`
+(`ds/saas-patterns.tsx`, removed); Figma node 65:922 still draws that flat list (DEC-031).
 - **Use it** when setup is several tasks in two or more groups and each task opens a screen or runs an action. A
-  short flat list with a count is `OnboardingChecklist` (`ds/saas-patterns.tsx`); whether both stay is not decided.
+  short flat list is the same component with one group.
   Steps that must run in order are a `FormWizard` (§5.15).
 - **In progress**: a tray whose header has the title (a heading, level 2 unless `headingLevel` says 3 or 4) and
   "3 of 6 done"; under it one card per group, a native `Disclosure` with its own "n of m". Only the first group

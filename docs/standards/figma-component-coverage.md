@@ -90,7 +90,7 @@ Source: https://www.figma.com/design/yWRVvatRqyDZapm52tQHWA
 | [ActivityItem](https://www.figma.com/design/yWRVvatRqyDZapm52tQHWA?node-id=65-599) | `ActivityItem` · `ds/saas-patterns` | `/ds/forms#ds-forms` |
 | [FilterRule](https://www.figma.com/design/yWRVvatRqyDZapm52tQHWA?node-id=65-687) | `FilterRule` · `ds/form-groups` | `/ds/forms#ds-forms` |
 | [BulkActionBar](https://www.figma.com/design/yWRVvatRqyDZapm52tQHWA?node-id=65-820) | `BulkActionBar` · `ds/bulk-action-bar` | `/ds/data#ds-data` |
-| [OnboardingChecklist](https://www.figma.com/design/yWRVvatRqyDZapm52tQHWA?node-id=65-922) | `OnboardingChecklist` · `ds/saas-patterns` | `/ds/forms#ds-forms` |
+| [OnboardingChecklist](https://www.figma.com/design/yWRVvatRqyDZapm52tQHWA?node-id=65-922) | `SetupChecklist` · `ds/setup-checklist` (code ahead of Figma: the node still draws the earlier flat list) | `/ds/feedback#ds-overlays` |
 | [PlanCard](https://www.figma.com/design/yWRVvatRqyDZapm52tQHWA?node-id=65-1065) | `PlanCard` · `ds/saas-patterns` | `/ds/forms#ds-forms` |
 | [IntegrationCard](https://www.figma.com/design/yWRVvatRqyDZapm52tQHWA?node-id=65-1202) | `IntegrationCard` · `ds/saas-patterns` | `/ds/forms#ds-forms` |
 | [ApiKeyRow](https://www.figma.com/design/yWRVvatRqyDZapm52tQHWA?node-id=65-1312) | `ApiKeyRow` · `ds/saas-patterns` | `/ds/forms#ds-forms` |

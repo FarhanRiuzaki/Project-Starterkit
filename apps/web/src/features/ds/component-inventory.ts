@@ -668,9 +668,9 @@ export const COMPONENT_INVENTORY = [
   {
     "id": "65:922",
     "name": "OnboardingChecklist",
-    "api": "OnboardingChecklist",
-    "source": "ds/saas-patterns",
-    "section": "forms",
+    "api": "SetupChecklist",
+    "source": "ds/setup-checklist",
+    "section": "overlays",
     "kind": "Component"
   },
   {

@@ -251,7 +251,7 @@ What Figma does not show yet:
 | Fields: resting `--shadow-xs` under input, select, textarea, affix and number input; boundary unchanged | `design-system.md` §5.12, §3.7 |
 | Segmented control and default tabs without a track line, 6 px thumb; pagination's current page without a line | `design-system.md` §5.9, §5.7 |
 | `BreakdownCard` (new, no Figma node) | `design-system.md` §6.9; `packages/ui/src/charts/breakdown-card.tsx` |
-| `SetupChecklist` (new, no Figma node) | `design-system.md` §5.17; `packages/ui/src/ds/setup-checklist.tsx` |
+| `SetupChecklist` (replaces `OnboardingChecklist`; Figma node 65:922 still draws the earlier flat list) | `design-system.md` §5.17; `packages/ui/src/ds/setup-checklist.tsx` |
 
 Owed (backlog NEXT-DES-004, owner Designer), following the change workflow above:
 
