@@ -11,7 +11,16 @@ async function seedEntry(page: Page): Promise<ActivityDto> {
   expect(response.ok()).toBe(true);
   return (await response.json()).items[0];
 }
-const navigateEntry = (page: Page, id: string) => page.evaluate(id => history.pushState(null, "", `/audit/activity?range=90d&entry=${id}`), id);
+/**
+ * Pushes a URL the way a script on the page would. Next's router hears `history.pushState` only once it has hydrated
+ * and replaced the native function (its app router does so in an effect); a push before that changes the address and
+ * nothing else, so wait for the replacement first.
+ */
+async function pushUrl(page: Page, url: string) {
+  await page.waitForFunction(() => !/\[native code\]/.test(String(history.pushState)));
+  await page.evaluate(url => history.pushState(null, "", url), url);
+}
+const navigateEntry = (page: Page, id: string) => pushUrl(page, `/audit/activity?range=90d&entry=${id}`);
 
 test("real project history and deleted record keep recorded evidence readable", async ({ page }) => {
   await page.goto("/projects");
@@ -157,7 +166,7 @@ test("controlled held A cannot replace B and malformed first entry never fetches
   await expect(page.getByRole("dialog")).not.toContainText("Late evidence A");
   const detailRequests: string[] = [];
   page.on("request", request => { if (/\/api\/audit\/activity\//.test(request.url())) detailRequests.push(request.url()); });
-  await page.evaluate(b => history.pushState(null, "", `/audit/activity?entry=&entry=${b}`), b);
+  await pushUrl(page, `/audit/activity?entry=&entry=${b}`);
   await expect(page.getByRole("dialog", { name: "Activity entry not found", exact: true })).toBeVisible();
   expect(detailRequests).toEqual([]);
 });
@@ -171,7 +180,7 @@ test("controlled slow past-end list cannot replace the route after leaving Activ
     seen = true; await hold;
     await route.fulfill({ json: { items: [], total: 1, page: 1000, pageSize: 15, totalCapped: false } });
   });
-  await page.evaluate(() => history.pushState(null, "", "/audit/activity?range=90d&page=1000"));
+  await pushUrl(page, "/audit/activity?range=90d&page=1000");
   await expect.poll(() => seen).toBe(true);
   await page.getByRole("link", { name: "Projects", exact: true }).first().click();
   await expect(page).toHaveURL(url => url.pathname === "/projects");
