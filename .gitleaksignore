@@ -1,0 +1,4 @@
+# Findings that are not secrets: prose in the docs that the generic-api-key rule reads as a key.
+# "margin3/35/258byte" (a bundle headroom note) and "independentbudget22rows" (a budget review note), commit f453239.
+f453239991c31b152f15fb19c6fe818e950afa0b:docs/product.md:generic-api-key:194
+f453239991c31b152f15fb19c6fe818e950afa0b:docs/architecture.md:generic-api-key:227

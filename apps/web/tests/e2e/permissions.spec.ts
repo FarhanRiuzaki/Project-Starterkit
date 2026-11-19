@@ -76,13 +76,13 @@ test.describe("new user form", () => {
   test("an inactive new user can't get an invitation: the option is off, with the reason", async ({ page }) => {
     await page.goto("/users/new");
     await heading(page, "Create user");
-    const invite = page.getByRole("radio", { name: "Send an invitation link" });
+    const invite = page.getByRole("radio", { name: "Invite by email" });
     await invite.check();
     await page.getByRole("checkbox", { name: "Active" }).uncheck();
     await expect(invite).toBeDisabled();
     await expect(invite).not.toBeChecked();
     await expect(page.getByRole("radio", { name: "Set a password now" })).toBeChecked();
-    await expect(invite).toHaveAccessibleDescription("An inactive user can't use an invitation. Set the user active to send one.");
+    await expect(invite).toHaveAccessibleDescription("Activate this user to use an invitation.");
     await page.getByRole("checkbox", { name: "Active" }).check();
     await expect(invite).toBeEnabled();
   });
