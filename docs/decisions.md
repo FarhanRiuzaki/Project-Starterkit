@@ -401,3 +401,15 @@ Batas yang diketahui:
 - Contoh "Form and validation" di `/ds/forms` (sudah ada di `HEAD`, di luar perubahan ini) masih menaruh `Switch` di form yang disimpan belakangan (`forms-section.tsx`, tombol "Save profile"); aturan `Switch` menyuruh `Checkbox`. Belum diubah.
 - `OnboardingChecklist` (`ds/saas-patterns.tsx`, daftar datar dengan hitungan) dihapus atas keputusan pemilik (2026-11-19) dan digantikan `SetupChecklist`; contohnya di `/ds/forms` dihapus, entri katalog node Figma 65:922 kini menunjuk `SetupChecklist` di `/ds/feedback`. Node Figma itu sendiri belum diubah (NEXT-DES-004).
 - Screenshot `docs/assets/screenshots/design-system.png` di README diambil dari `/ds/data` sebelum re-skin (DEC-030).
+
+## DEC-032 — Stabilisasi CI sebelum merge ke main
+
+19 November 2026 — pemilik meminta branch `feat/affectui-port` di-merge ke `main` dalam keadaan stabil. `main` di GitHub merah pada tiga push terakhir (run 42471589733, 42502573858, 42541582451), jadi CI dihijaukan dulu lewat PR #8.
+
+- Gitleaks: dua temuan `generic-api-key` di commit `f453239` adalah prosa dokumen ("margin3/35/258byte" di `docs/product.md`, "independentbudget22rows" di `docs/architecture.md`), bukan secret. Keduanya dicatat di `.gitleaksignore` dengan fingerprint-nya; aturan gitleaks lain tidak diubah.
+- `permissions.spec.ts` (CI-DEV-001): tes opsi undangan mengikuti label sekarang "Invite by email" dan alasan "Activate this user to use an invitation." (`user-form.tsx`); tetap membuktikan nonaktif = disabled dan tidak terpilih, aktif lagi = enabled. Oracle `ds-components` soal child Users, bagian lain CI-DEV-001, tidak gagal di dua run PR ini.
+- Baseline Linux `ds.spec.ts`: 28 berkas diambil dari artifact run 44465788522 (run pertama PR, tempat 28 kasus itu gagal karena berkasnya belum ada), lalu run 44467962556 lulus terhadap berkas itu. Itu satu kali pencocokan antar dua render di runner yang sama jenisnya, bukan uji berulang.
+- `audit-investigation.spec.ts`: dua kasus gagal di runner CI dan lulus di macOS. Sebabnya tes memanggil `history.pushState` sebelum router Next hydrate dan mengganti fungsi native-nya, sehingga alamat berubah tetapi router tidak tahu. Tes kini menunggu penggantian itu (`pushUrl`). Direproduksi di macOS dengan CPU 6× lebih lambat: 5 dari 7 kasus "controlled" gagal sebelum, 7 dari 7 lulus sesudah. Kode produk tidak diubah.
+- Hasil run 44467962556 pada `b87ee04` (ubuntu-24.04, Chromium): gitleaks, check dan empat shard E2E sukses; 533 lulus, 99 dilewati, 0 gagal; budget lulus, tersempit `/users` 260 byte.
+- Tidak didiagnosis: osilasi tinggi screenshot galeri mobile (CI-DEV-002) dan first paint kosong `/users` gelap/reduced di mobile (CI-DEV-003). Galeri tunggal itu sudah dipecah jadi tujuh halaman (DEC-030) dan kasus `/users` lulus di kedua run PR; akar masalah lama tetap tidak diketahui, jadi keduanya dipantau, bukan ditutup.
+
